@@ -19,6 +19,7 @@ var (
 	fFunctions bool
 	fTypes     bool
 	fVariables bool
+	fVerbose   bool
 )
 
 func init() {
@@ -27,6 +28,7 @@ func init() {
 	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
+	flag.BoolVar(&fVerbose, "v", false, "Display type-checker errors")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -58,7 +60,7 @@ func main() {
 	}
 
 	paths := gotool.ImportPaths(flag.Args())
-	checker := unused.Checker{Flags: flags}
+	checker := unused.Checker{Flags: flags, Verbose: fVerbose}
 	objs, err := checker.Check(paths)
 	if err != nil {
 		log.Fatal(err)

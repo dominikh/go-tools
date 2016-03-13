@@ -21,8 +21,9 @@ const (
 )
 
 type Checker struct {
-	Flags CheckFlag
-	Fset  *token.FileSet
+	Flags   CheckFlag
+	Fset    *token.FileSet
+	Verbose bool
 }
 
 func (c *Checker) checkConstants() bool { return (c.Flags & CheckConstants) > 0 }
@@ -37,6 +38,9 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	var unused []types.Object
 
 	conf := loader.Config{}
+	if !c.Verbose {
+		conf.TypeChecker.Error = func(error) {}
+	}
 	pkgs := map[string]bool{}
 	for _, path := range paths {
 		pkgs[path] = true
