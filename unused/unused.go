@@ -111,7 +111,7 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 					}
 					basic := false
 					for _, elt := range node.Elts {
-						if _, ok := elt.(*ast.BasicLit); ok {
+						if _, ok := elt.(*ast.KeyValueExpr); !ok {
 							basic = true
 							break
 						}
