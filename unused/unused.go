@@ -92,13 +92,18 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 			var v visitor
 			v = func(node ast.Node) ast.Visitor {
 				if node, ok := node.(*ast.CompositeLit); ok {
-					ident, ok := node.Type.(*ast.Ident)
-					if !ok {
-						return v
-					}
-					obj, ok := pkg.ObjectOf(ident).Type().(*types.Named)
-					if !ok {
-						return v
+					var obj types.Type
+					if _, ok := node.Type.(*ast.StructType); ok {
+						obj = pkg.TypeOf(node)
+					} else {
+						ident, ok := node.Type.(*ast.Ident)
+						if !ok {
+							return v
+						}
+						obj, ok = pkg.ObjectOf(ident).Type().(*types.Named)
+						if !ok {
+							return v
+						}
 					}
 					typ, ok := obj.Underlying().(*types.Struct)
 					if !ok {
