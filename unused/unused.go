@@ -37,6 +37,13 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	var unused []types.Object
 
 	conf := loader.Config{}
+	pkgs := map[string]bool{}
+	for _, path := range paths {
+		pkgs[path] = true
+	}
+	conf.TypeCheckFuncBodies = func(s string) bool {
+		return pkgs[s]
+	}
 	for _, path := range paths {
 		conf.ImportWithTests(path)
 	}
