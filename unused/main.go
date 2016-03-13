@@ -3,161 +3,118 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/ast"
-	"go/build"
-	"go/parser"
 	"go/token"
+	"go/types"
 	"log"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/kisielk/gotool"
+	"golang.org/x/tools/go/loader"
 )
 
 var exitCode int
 
 var (
+	fConstants bool
+	fFunctions bool
 	fTypes     bool
 	fVariables bool
-	fFunctions bool
 )
 
 func init() {
-	flag.BoolVar(&fFunctions, "f", true, "Report unused functions")
+	flag.BoolVar(&fConstants, "c", true, "Report unused constants")
+	flag.BoolVar(&fFunctions, "f", true, "Report unused functions and methods")
 	flag.BoolVar(&fTypes, "t", true, "Report unused types")
-	flag.BoolVar(&fVariables, "v", true, "Report unused constants and variables")
+	flag.BoolVar(&fVariables, "v", true, "Report unused variables")
 }
 
 func main() {
 	flag.Parse()
 	// FIXME check flag.NArgs
 	paths := gotool.ImportPaths([]string{flag.Arg(0)})
-	cwd, err := os.Getwd()
+	conf := loader.Config{AllowErrors: true}
+	for _, path := range paths {
+		conf.ImportWithTests(path)
+	}
+	lprog, err := conf.Load()
 	if err != nil {
-		// XXX
 		log.Fatal(err)
 	}
+
+	defs := map[types.Object]bool{}
 	for _, path := range paths {
-		pkg, err := build.Import(path, cwd, build.FindOnly)
-		if err != nil {
-			// XXX
-			log.Fatal(err)
+		pkg := lprog.Package(path)
+		if pkg == nil {
+			log.Println("Couldn't load package", path)
+			continue
 		}
-		fset := token.NewFileSet()
-		pkgs, err := parser.ParseDir(fset, pkg.Dir, nil, 0)
-		if err != nil {
-			// XXX
-			log.Fatal(err)
-		}
-		for _, pkg := range pkgs {
-			doPackage(fset, pkg)
-		}
-
-	}
-	os.Exit(exitCode)
-}
-
-type Package struct {
-	p    *ast.Package
-	fset *token.FileSet
-	decl map[string]ast.Node
-	used map[string]bool
-}
-
-func doPackage(fset *token.FileSet, pkg *ast.Package) {
-	p := &Package{
-		p:    pkg,
-		fset: fset,
-		decl: make(map[string]ast.Node),
-		used: make(map[string]bool),
-	}
-	for _, file := range pkg.Files {
-		for _, decl := range file.Decls {
-			switch n := decl.(type) {
-			case *ast.GenDecl:
-				// var, const, types
-				for _, spec := range n.Specs {
-					switch s := spec.(type) {
-					case *ast.ValueSpec:
-						// constants and variables.
-						if fVariables {
-							for _, name := range s.Names {
-								p.decl[name.Name] = n
-							}
-						}
-					case *ast.TypeSpec:
-						// type definitions.
-						if fTypes {
-							p.decl[s.Name.Name] = n
-						}
-					}
-				}
-			case *ast.FuncDecl:
-				// function declarations
-				// TODO(remy): do methods
-				if fFunctions {
-					if n.Recv == nil {
-						p.decl[n.Name.Name] = n
-					}
-				}
+		for _, obj := range pkg.Defs {
+			if obj == nil {
+				continue
 			}
+			if obj, ok := obj.(*types.Var); ok &&
+				pkg.Pkg.Scope() != obj.Parent() && !obj.IsField() {
+				// Skip variables that aren't package variables or struct fields
+				continue
+			}
+			defs[obj] = false
+		}
+		for _, obj := range pkg.Uses {
+			defs[obj] = true
 		}
 	}
-	// init() and _ are always used
-	p.used["init"] = true
-	p.used["_"] = true
-	for name, node := range p.decl {
-		if !ast.IsExported(name) {
-			continue
-		}
-		if pkg.Name != "main" {
-			// exported identifiers in non-main are used
-			p.used[name] = true
-			continue
-		}
-		// test and benchmark functions in tests are used
-		file := fset.Position(node.Pos()).Filename
-		if strings.HasSuffix(file, "_test.go") &&
-			(strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark")) {
-			p.used[name] = true
-		}
-	}
-	if pkg.Name == "main" {
-		// in main programs, main() is called.
-		p.used["main"] = true
-	}
-	for _, file := range pkg.Files {
-		// walk file looking for used nodes.
-		ast.Walk(p, file)
-	}
-	// reports.
 	var reports Reports
-	for name, node := range p.decl {
-		if !p.used[name] {
-			pos := node.Pos()
-			if node, ok := node.(*ast.GenDecl); ok && node.Lparen.IsValid() {
-				for _, spec := range node.Specs {
-					switch spec := spec.(type) {
-					case *ast.ValueSpec:
-						for _, s := range spec.Names {
-							if s.Name == name {
-								pos = s.NamePos
-								break
-							}
-						}
-					case *ast.TypeSpec:
-						pos = spec.Name.Pos()
-					}
-				}
-			}
-			reports = append(reports, Report{pos, name})
+	for obj, used := range defs {
+		// TODO methods that satisfy an interface are used
+		// TODO methods + reflection
+		// TODO exported constants in function bodies need to be used
+		if !checkFlags(obj) {
+			continue
 		}
+		if used || obj.Name() == "_" {
+			continue
+		}
+		if obj.Exported() {
+			f := lprog.Fset.Position(obj.Pos()).Filename
+			if !strings.HasSuffix(f, "_test.go") || strings.HasPrefix(obj.Name(), "Test") || strings.HasPrefix(obj.Name(), "Benchmark") {
+				continue
+			}
+		}
+		if obj.Pkg().Name() == "main" && obj.Name() == "main" {
+			continue
+		}
+		if obj, ok := obj.(*types.Func); ok && obj.Name() == "init" {
+			sig := obj.Type().(*types.Signature)
+			if sig.Recv() == nil {
+				continue
+			}
+		}
+		reports = append(reports, Report{obj.Pos(), obj.Name()})
 	}
 	sort.Sort(reports)
 	for _, report := range reports {
-		fmt.Printf("%s: %s is unused\n", fset.Position(report.pos), report.name)
+		fmt.Printf("%s: %s is unused\n", lprog.Fset.Position(report.pos), report.name)
 	}
+
+	os.Exit(exitCode)
+}
+
+func checkFlags(obj types.Object) bool {
+	if _, ok := obj.(*types.Func); ok && !fFunctions {
+		return false
+	}
+	if _, ok := obj.(*types.Var); ok && !fVariables {
+		return false
+	}
+	if _, ok := obj.(*types.Const); ok && !fConstants {
+		return false
+	}
+	if _, ok := obj.(*types.TypeName); ok && !fTypes {
+		return false
+	}
+	return true
 }
 
 type Report struct {
@@ -169,44 +126,3 @@ type Reports []Report
 func (l Reports) Len() int           { return len(l) }
 func (l Reports) Less(i, j int) bool { return l[i].pos < l[j].pos }
 func (l Reports) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
-
-// Visits files for used nodes.
-func (p *Package) Visit(node ast.Node) ast.Visitor {
-	u := usedWalker(*p) // hopefully p fields are references.
-	switch n := node.(type) {
-	// don't walk whole file, but only:
-	case *ast.ValueSpec:
-		// - variable initializers
-		for _, value := range n.Values {
-			ast.Walk(&u, value)
-		}
-		// variable types.
-		if n.Type != nil {
-			ast.Walk(&u, n.Type)
-		}
-	case *ast.BlockStmt:
-		// - function bodies
-		for _, stmt := range n.List {
-			ast.Walk(&u, stmt)
-		}
-	case *ast.FuncDecl:
-		// - function signatures
-		ast.Walk(&u, n.Type)
-	case *ast.TypeSpec:
-		// - type declarations
-		ast.Walk(&u, n.Type)
-	}
-	return p
-}
-
-type usedWalker Package
-
-// Walks through the AST marking used identifiers.
-func (p *usedWalker) Visit(node ast.Node) ast.Visitor {
-	// just be stupid and mark all *ast.Ident
-	switch n := node.(type) {
-	case *ast.Ident:
-		p.used[n.Name] = true
-	}
-	return p
-}
