@@ -55,7 +55,7 @@ func main() {
 				continue
 			}
 			if obj, ok := obj.(*types.Var); ok &&
-				pkg.Pkg.Scope() != obj.Parent() && !obj.IsField() {
+				!isPkgScope(obj) && !obj.IsField() {
 				// Skip variables that aren't package variables or struct fields
 				continue
 			}
@@ -98,6 +98,10 @@ func main() {
 	os.Exit(exitCode)
 }
 
+func isPkgScope(obj types.Object) bool {
+	return obj.Parent() == obj.Pkg().Scope()
+}
+
 func isMain(obj types.Object) bool {
 	if obj.Pkg().Name() != "main" {
 		return false
@@ -105,7 +109,7 @@ func isMain(obj types.Object) bool {
 	if obj.Name() != "main" {
 		return false
 	}
-	if obj.Parent() != obj.Pkg().Scope() {
+	if !isPkgScope(obj) {
 		return false
 	}
 	if !isFunction(obj) {
@@ -129,17 +133,32 @@ func isMethod(obj types.Object) bool {
 	return obj.(*types.Func).Type().(*types.Signature).Recv() != nil
 }
 
+func isVariable(obj types.Object) bool {
+	_, ok := obj.(*types.Var)
+	return ok
+}
+
+func isConstant(obj types.Object) bool {
+	_, ok := obj.(*types.Const)
+	return ok
+}
+
+func isType(obj types.Object) bool {
+	_, ok := obj.(*types.TypeName)
+	return ok
+}
+
 func checkFlags(obj types.Object) bool {
-	if _, ok := obj.(*types.Func); ok && !fFunctions {
+	if isFunction(obj) && !fFunctions {
 		return false
 	}
-	if _, ok := obj.(*types.Var); ok && !fVariables {
+	if isVariable(obj) && !fVariables {
 		return false
 	}
-	if _, ok := obj.(*types.Const); ok && !fConstants {
+	if isConstant(obj) && !fConstants {
 		return false
 	}
-	if _, ok := obj.(*types.TypeName); ok && !fTypes {
+	if isType(obj) && !fTypes {
 		return false
 	}
 	return true
