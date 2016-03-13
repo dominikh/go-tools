@@ -36,7 +36,7 @@ func main() {
 	paths := gotool.ImportPaths([]string{flag.Arg(0)})
 	conf := loader.Config{AllowErrors: true}
 	for _, path := range paths {
-		conf.ImportWithTests(path)
+		conf.Import(path)
 	}
 	lprog, err := conf.Load()
 	if err != nil {
