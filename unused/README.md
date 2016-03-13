@@ -11,6 +11,37 @@ types.
 
 	unused -help
 
+## What counts as used/unused?
+
+`unused` checks for unused constants, functions, types and optionally
+struct fields. They will be considered used or unused under the
+following conditions:
+
+- Unexported package-level objects will be reported as unused if there
+  are no explicit references to them.
+
+- Unexported methods will be reported as unused if there are no
+  explicit references to them and if they don't implement any
+  interfaces.
+
+- The `main` function is considered as used if it's in the `main`
+  package.
+
+- `init` functions are always considered as used.
+
+- Exported objects in function scope are treated like unexported
+  objects.
+
+- Exported functions in tests are treated like unexported functions,
+  unless they're test or benchmark functions.
+
+- Struct fields will be considered as unused if there are no explicit
+  references to them. Untagged struct initializers do not count as
+  references. This may be fixed in the future.
+
+- Neither the checks for methods nor for struct fields are aware of
+  the reflect package and may thus produce false positives.
+
 ## Examples
 
 ```
