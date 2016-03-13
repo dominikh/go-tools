@@ -24,10 +24,10 @@ var (
 )
 
 func init() {
-	flag.BoolVar(&fConstants, "c", true, "Report unused constants")
-	flag.BoolVar(&fFunctions, "f", true, "Report unused functions and methods")
-	flag.BoolVar(&fTypes, "t", true, "Report unused types")
-	flag.BoolVar(&fVariables, "v", true, "Report unused variables")
+	flag.BoolVar(&fConstants, "consts", true, "Report unused constants")
+	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
+	flag.BoolVar(&fTypes, "types", true, "Report unused types")
+	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
 }
 
 func main() {
