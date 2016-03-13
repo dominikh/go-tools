@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -16,9 +17,22 @@ import (
 
 var exitCode int
 
+var (
+	fTypes     bool
+	fVariables bool
+	fFunctions bool
+)
+
+func init() {
+	flag.BoolVar(&fFunctions, "f", true, "Report unused functions")
+	flag.BoolVar(&fTypes, "t", true, "Report unused types")
+	flag.BoolVar(&fVariables, "v", true, "Report unused constants and variables")
+}
+
 func main() {
+	flag.Parse()
 	// FIXME check flag.NArgs
-	paths := gotool.ImportPaths([]string{os.Args[1]})
+	paths := gotool.ImportPaths([]string{flag.Arg(0)})
 	cwd, err := os.Getwd()
 	if err != nil {
 		// XXX
@@ -67,19 +81,25 @@ func doPackage(fset *token.FileSet, pkg *ast.Package) {
 					switch s := spec.(type) {
 					case *ast.ValueSpec:
 						// constants and variables.
-						for _, name := range s.Names {
-							p.decl[name.Name] = n
+						if fVariables {
+							for _, name := range s.Names {
+								p.decl[name.Name] = n
+							}
 						}
 					case *ast.TypeSpec:
 						// type definitions.
-						p.decl[s.Name.Name] = n
+						if fTypes {
+							p.decl[s.Name.Name] = n
+						}
 					}
 				}
 			case *ast.FuncDecl:
 				// function declarations
 				// TODO(remy): do methods
-				if n.Recv == nil {
-					p.decl[n.Name.Name] = n
+				if fFunctions {
+					if n.Recv == nil {
+						p.decl[n.Name.Name] = n
+					}
 				}
 			}
 		}
