@@ -18,6 +18,7 @@ var exitCode int
 
 var (
 	fConstants bool
+	fFields    bool
 	fFunctions bool
 	fTypes     bool
 	fVariables bool
@@ -25,6 +26,7 @@ var (
 
 func init() {
 	flag.BoolVar(&fConstants, "consts", true, "Report unused constants")
+	flag.BoolVar(&fFields, "fields", false, "Report unused fields (may have false positives)")
 	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
@@ -95,6 +97,9 @@ func main() {
 			continue
 		}
 		if obj.Name() == "_" {
+			continue
+		}
+		if isField(obj) && !fFields {
 			continue
 		}
 		if obj.Exported() && (isPkgScope(obj) || isMethod(obj) || isField(obj)) {
