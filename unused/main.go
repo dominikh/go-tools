@@ -115,10 +115,26 @@ func doPackage(fs *token.FileSet, pkg *ast.Package) {
 		ast.Walk(p, file)
 	}
 	// reports.
-	reports := Reports(nil)
+	var reports Reports
 	for name, node := range p.decl {
 		if !p.used[name] {
-			reports = append(reports, Report{node.Pos(), name})
+			pos := node.Pos()
+			if node, ok := node.(*ast.GenDecl); ok && node.Lparen.IsValid() {
+				for _, spec := range node.Specs {
+					switch spec := spec.(type) {
+					case *ast.ValueSpec:
+						for _, s := range spec.Names {
+							if s.Name == name {
+								pos = s.NamePos
+								break
+							}
+						}
+					case *ast.TypeSpec:
+						pos = spec.Name.Pos()
+					}
+				}
+			}
+			reports = append(reports, Report{pos, name})
 		}
 	}
 	sort.Sort(reports)
