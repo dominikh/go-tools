@@ -54,8 +54,7 @@ func main() {
 			if obj == nil {
 				continue
 			}
-			if obj, ok := obj.(*types.Var); ok &&
-				!isPkgScope(obj) && !obj.IsField() {
+			if isVariable(obj) && !isPkgScope(obj) && !isField(obj) {
 				// Skip variables that aren't package variables or struct fields
 				continue
 			}
@@ -67,16 +66,21 @@ func main() {
 	}
 	var reports Reports
 	for obj, used := range defs {
+		if obj.Pkg() == nil {
+			continue
+		}
 		// TODO methods that satisfy an interface are used
 		// TODO methods + reflection
-		// TODO exported constants in function bodies need to be used
 		if !checkFlags(obj) {
 			continue
 		}
-		if used || obj.Name() == "_" {
+		if used {
 			continue
 		}
-		if obj.Exported() {
+		if obj.Name() == "_" {
+			continue
+		}
+		if obj.Exported() && (isPkgScope(obj) || isMethod(obj) || isField(obj)) {
 			f := lprog.Fset.Position(obj.Pos()).Filename
 			if !strings.HasSuffix(f, "_test.go") || strings.HasPrefix(obj.Name(), "Test") || strings.HasPrefix(obj.Name(), "Benchmark") {
 				continue
@@ -146,6 +150,13 @@ func isConstant(obj types.Object) bool {
 func isType(obj types.Object) bool {
 	_, ok := obj.(*types.TypeName)
 	return ok
+}
+
+func isField(obj types.Object) bool {
+	if obj, ok := obj.(*types.Var); ok && obj.IsField() {
+		return true
+	}
+	return false
 }
 
 func checkFlags(obj types.Object) bool {
