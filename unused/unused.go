@@ -1,6 +1,7 @@
 package unused
 
 import (
+	"go/ast"
 	"go/token"
 	"go/types"
 	"log"
@@ -86,6 +87,41 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		}
 		for _, obj := range pkg.Uses {
 			defs[obj] = true
+		}
+		for _, file := range pkg.Files {
+			var v visitor
+			v = func(node ast.Node) ast.Visitor {
+				if node, ok := node.(*ast.CompositeLit); ok {
+					ident, ok := node.Type.(*ast.Ident)
+					if !ok {
+						return v
+					}
+					obj, ok := pkg.ObjectOf(ident).Type().(*types.Named)
+					if !ok {
+						return v
+					}
+					typ, ok := obj.Underlying().(*types.Struct)
+					if !ok {
+						return v
+					}
+					basic := false
+					for _, elt := range node.Elts {
+						if _, ok := elt.(*ast.BasicLit); ok {
+							basic = true
+							break
+						}
+					}
+					if basic {
+						n := typ.NumFields()
+						for i := 0; i < n; i++ {
+							field := typ.Field(i)
+							defs[field] = true
+						}
+					}
+				}
+				return v
+			}
+			ast.Walk(v, file)
 		}
 	}
 	for obj, used := range defs {
@@ -222,4 +258,10 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 		return false
 	}
 	return true
+}
+
+type visitor func(node ast.Node) ast.Visitor
+
+func (v visitor) Visit(node ast.Node) ast.Visitor {
+	return v(node)
 }

@@ -36,8 +36,8 @@ following conditions:
   unless they're test or benchmark functions.
 
 - Struct fields will be considered as unused if there are no explicit
-  references to them. Untagged struct initializers do not count as
-  references. This may be fixed in the future.
+  references to them. Unkeyed composite literals with >=1 elements
+  mark all fields of the struct as used.
 
 - Neither the checks for methods nor for struct fields are aware of
   the reflect package and may thus produce false positives.
