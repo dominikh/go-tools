@@ -1,52 +1,50 @@
-package main
+package unused
 
 import (
-	"flag"
-	"fmt"
 	"go/token"
 	"go/types"
 	"log"
-	"os"
-	"sort"
 	"strings"
 
-	"github.com/kisielk/gotool"
 	"golang.org/x/tools/go/loader"
 )
 
-var exitCode int
+// TODO correct name?
+type CheckFlag int
 
-var (
-	fConstants bool
-	fFields    bool
-	fFunctions bool
-	fTypes     bool
-	fVariables bool
+const (
+	CheckConstants CheckFlag = 1 << iota
+	CheckFields
+	CheckFunctions
+	CheckTypes
+	CheckVariables
 )
 
-func init() {
-	flag.BoolVar(&fConstants, "consts", true, "Report unused constants")
-	flag.BoolVar(&fFields, "fields", false, "Report unused fields (may have false positives)")
-	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
-	flag.BoolVar(&fTypes, "types", true, "Report unused types")
-	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
+type Checker struct {
+	Flags CheckFlag
+	Fset  *token.FileSet
 }
 
-func main() {
-	flag.Parse()
-	// FIXME check flag.NArgs
-	paths := gotool.ImportPaths([]string{flag.Arg(0)})
+func (c *Checker) checkConstants() bool { return (c.Flags & CheckConstants) > 0 }
+func (c *Checker) checkFields() bool    { return (c.Flags & CheckFields) > 0 }
+func (c *Checker) checkFunctions() bool { return (c.Flags & CheckFunctions) > 0 }
+func (c *Checker) checkTypes() bool     { return (c.Flags & CheckTypes) > 0 }
+func (c *Checker) checkVariables() bool { return (c.Flags & CheckVariables) > 0 }
+
+func (c *Checker) Check(paths []string) ([]types.Object, error) {
+	defs := map[types.Object]bool{}
+	var interfaces []*types.Interface
+	var unused []types.Object
+
 	conf := loader.Config{}
 	for _, path := range paths {
 		conf.ImportWithTests(path)
 	}
 	lprog, err := conf.Load()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	defs := map[types.Object]bool{}
-	var interfaces []*types.Interface
 	for _, path := range paths {
 		pkg := lprog.Package(path)
 		if pkg == nil {
@@ -80,7 +78,6 @@ func main() {
 			defs[obj] = true
 		}
 	}
-	var reports Reports
 	for obj, used := range defs {
 		f := lprog.Fset.Position(obj.Pos()).Filename
 		if strings.HasSuffix(f, "_test.go") {
@@ -90,16 +87,13 @@ func main() {
 			continue
 		}
 		// TODO methods + reflection
-		if !checkFlags(obj) {
+		if !c.checkFlags(obj) {
 			continue
 		}
 		if used {
 			continue
 		}
 		if obj.Name() == "_" {
-			continue
-		}
-		if isField(obj) && !fFields {
 			continue
 		}
 		if obj.Exported() && (isPkgScope(obj) || isMethod(obj) || isField(obj)) {
@@ -117,14 +111,15 @@ func main() {
 		if isMethod(obj) && implements(obj, interfaces) {
 			continue
 		}
-		reports = append(reports, Report{obj.Pos(), obj.Name()})
+		unused = append(unused, obj)
 	}
-	sort.Sort(reports)
-	for _, report := range reports {
-		fmt.Printf("%s: %s is unused\n", lprog.Fset.Position(report.pos), report.name)
-	}
+	c.Fset = lprog.Fset
+	return unused, nil
+}
 
-	os.Exit(exitCode)
+func Check(paths []string, flags CheckFlag) ([]types.Object, error) {
+	checker := Checker{Flags: flags}
+	return checker.Check(paths)
 }
 
 func implements(obj types.Object, ifaces []*types.Interface) bool {
@@ -200,28 +195,21 @@ func isField(obj types.Object) bool {
 	return false
 }
 
-func checkFlags(obj types.Object) bool {
-	if isFunction(obj) && !fFunctions {
+func (c *Checker) checkFlags(obj types.Object) bool {
+	if isFunction(obj) && !c.checkFunctions() {
 		return false
 	}
-	if isVariable(obj) && !fVariables {
+	if isVariable(obj) && !c.checkVariables() {
 		return false
 	}
-	if isConstant(obj) && !fConstants {
+	if isConstant(obj) && !c.checkConstants() {
 		return false
 	}
-	if isType(obj) && !fTypes {
+	if isType(obj) && !c.checkTypes() {
+		return false
+	}
+	if isField(obj) && !c.checkFields() {
 		return false
 	}
 	return true
 }
-
-type Report struct {
-	pos  token.Pos
-	name string
-}
-type Reports []Report
-
-func (l Reports) Len() int           { return len(l) }
-func (l Reports) Less(i, j int) bool { return l[i].pos < l[j].pos }
-func (l Reports) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
