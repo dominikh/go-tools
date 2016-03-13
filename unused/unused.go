@@ -9,11 +9,10 @@ import (
 	"golang.org/x/tools/go/loader"
 )
 
-// TODO correct name?
-type CheckFlag int
+type CheckMode int
 
 const (
-	CheckConstants CheckFlag = 1 << iota
+	CheckConstants CheckMode = 1 << iota
 	CheckFields
 	CheckFunctions
 	CheckTypes
@@ -21,16 +20,16 @@ const (
 )
 
 type Checker struct {
-	Flags   CheckFlag
+	Mode    CheckMode
 	Fset    *token.FileSet
 	Verbose bool
 }
 
-func (c *Checker) checkConstants() bool { return (c.Flags & CheckConstants) > 0 }
-func (c *Checker) checkFields() bool    { return (c.Flags & CheckFields) > 0 }
-func (c *Checker) checkFunctions() bool { return (c.Flags & CheckFunctions) > 0 }
-func (c *Checker) checkTypes() bool     { return (c.Flags & CheckTypes) > 0 }
-func (c *Checker) checkVariables() bool { return (c.Flags & CheckVariables) > 0 }
+func (c *Checker) checkConstants() bool { return (c.Mode & CheckConstants) > 0 }
+func (c *Checker) checkFields() bool    { return (c.Mode & CheckFields) > 0 }
+func (c *Checker) checkFunctions() bool { return (c.Mode & CheckFunctions) > 0 }
+func (c *Checker) checkTypes() bool     { return (c.Mode & CheckTypes) > 0 }
+func (c *Checker) checkVariables() bool { return (c.Mode & CheckVariables) > 0 }
 
 func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	defs := map[types.Object]bool{}
@@ -128,8 +127,8 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	return unused, nil
 }
 
-func Check(paths []string, flags CheckFlag) ([]types.Object, error) {
-	checker := Checker{Flags: flags}
+func Check(paths []string, flags CheckMode) ([]types.Object, error) {
+	checker := Checker{Mode: flags}
 	return checker.Check(paths)
 }
 

@@ -42,25 +42,25 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	var flags unused.CheckFlag
+	var mode unused.CheckMode
 	if fConstants {
-		flags |= unused.CheckConstants
+		mode |= unused.CheckConstants
 	}
 	if fFields {
-		flags |= unused.CheckFields
+		mode |= unused.CheckFields
 	}
 	if fFunctions {
-		flags |= unused.CheckFunctions
+		mode |= unused.CheckFunctions
 	}
 	if fTypes {
-		flags |= unused.CheckTypes
+		mode |= unused.CheckTypes
 	}
 	if fVariables {
-		flags |= unused.CheckVariables
+		mode |= unused.CheckVariables
 	}
 
 	paths := gotool.ImportPaths(flag.Args())
-	checker := unused.Checker{Flags: flags, Verbose: fVerbose}
+	checker := unused.Checker{Mode: mode, Verbose: fVerbose}
 	objs, err := checker.Check(paths)
 	if err != nil {
 		log.Fatal(err)
