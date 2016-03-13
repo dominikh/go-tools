@@ -1,72 +1,60 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/kisielk/gotool"
 )
 
 var exitCode int
 
 func main() {
-	flag.Parse()
-	if flag.NArg() == 0 {
-		doDir(".")
-	} else {
-		for _, name := range flag.Args() {
-			// Is it a directory?
-			if fi, err := os.Stat(name); err == nil && fi.IsDir() {
-				doDir(name)
-			} else {
-				errorf("not a directory: %s", name)
-			}
+	// FIXME check flag.NArgs
+	paths := gotool.ImportPaths([]string{os.Args[1]})
+	cwd, err := os.Getwd()
+	if err != nil {
+		// XXX
+		log.Fatal(err)
+	}
+	for _, path := range paths {
+		pkg, err := build.Import(path, cwd, build.FindOnly)
+		if err != nil {
+			// XXX
+			log.Fatal(err)
 		}
+		fset := token.NewFileSet()
+		pkgs, err := parser.ParseDir(fset, pkg.Dir, nil, 0)
+		if err != nil {
+			// XXX
+			log.Fatal(err)
+		}
+		for _, pkg := range pkgs {
+			doPackage(fset, pkg)
+		}
+
 	}
 	os.Exit(exitCode)
 }
 
-// error formats the error to standard error, adding program
-// identification and a newline
-func errorf(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "deadcode: "+format+"\n", args...)
-	exitCode = 2
-}
-
-func doDir(name string) {
-	notests := func(info os.FileInfo) bool {
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") &&
-			!strings.HasSuffix(info.Name(), "_test.go") {
-			return true
-		}
-		return false
-	}
-	fs := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fs, name, notests, parser.Mode(0))
-	if err != nil {
-		errorf("%s", err)
-		return
-	}
-	for _, pkg := range pkgs {
-		doPackage(fs, pkg)
-	}
-}
-
 type Package struct {
 	p    *ast.Package
-	fs   *token.FileSet
+	fset *token.FileSet
 	decl map[string]ast.Node
 	used map[string]bool
 }
 
-func doPackage(fs *token.FileSet, pkg *ast.Package) {
+func doPackage(fset *token.FileSet, pkg *ast.Package) {
 	p := &Package{
 		p:    pkg,
-		fs:   fs,
+		fset: fset,
 		decl: make(map[string]ast.Node),
 		used: make(map[string]bool),
 	}
