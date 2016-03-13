@@ -139,7 +139,7 @@ func doPackage(fs *token.FileSet, pkg *ast.Package) {
 	}
 	sort.Sort(reports)
 	for _, report := range reports {
-		errorf("%s: %s is unused", fs.Position(report.pos), report.name)
+		fmt.Printf("%s: %s is unused\n", fset.Position(report.pos), report.name)
 	}
 }
 
