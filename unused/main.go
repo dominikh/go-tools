@@ -69,6 +69,9 @@ func main() {
 				// Skip variables that aren't package variables or struct fields
 				continue
 			}
+			if _, ok := obj.(*types.PkgName); ok {
+				continue
+			}
 			defs[obj] = false
 		}
 		for _, obj := range pkg.Uses {
