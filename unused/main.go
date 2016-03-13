@@ -44,6 +44,7 @@ func main() {
 	}
 
 	defs := map[types.Object]bool{}
+	var interfaces []*types.Interface
 	for _, path := range paths {
 		pkg := lprog.Package(path)
 		if pkg == nil {
@@ -53,6 +54,16 @@ func main() {
 		for _, obj := range pkg.Defs {
 			if obj == nil {
 				continue
+			}
+			if obj, ok := obj.(*types.Var); ok {
+				if typ, ok := obj.Type().(*types.Interface); ok {
+					interfaces = append(interfaces, typ)
+				}
+			}
+			if obj, ok := obj.(*types.TypeName); ok {
+				if typ, ok := obj.Type().Underlying().(*types.Interface); ok {
+					interfaces = append(interfaces, typ)
+				}
 			}
 			if isVariable(obj) && !isPkgScope(obj) && !isField(obj) {
 				// Skip variables that aren't package variables or struct fields
@@ -69,7 +80,6 @@ func main() {
 		if obj.Pkg() == nil {
 			continue
 		}
-		// TODO methods that satisfy an interface are used
 		// TODO methods + reflection
 		if !checkFlags(obj) {
 			continue
@@ -92,6 +102,9 @@ func main() {
 		if isFunction(obj) && !isMethod(obj) && obj.Name() == "init" {
 			continue
 		}
+		if isMethod(obj) && implements(obj, interfaces) {
+			continue
+		}
 		reports = append(reports, Report{obj.Pos(), obj.Name()})
 	}
 	sort.Sort(reports)
@@ -100,6 +113,22 @@ func main() {
 	}
 
 	os.Exit(exitCode)
+}
+
+func implements(obj types.Object, ifaces []*types.Interface) bool {
+	recvType := obj.(*types.Func).Type().(*types.Signature).Recv().Type()
+	for _, iface := range ifaces {
+		if !types.Implements(recvType, iface) {
+			continue
+		}
+		n := iface.NumMethods()
+		for i := 0; i < n; i++ {
+			if iface.Method(i).Name() == obj.Name() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isPkgScope(obj types.Object) bool {
