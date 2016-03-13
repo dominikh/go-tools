@@ -34,7 +34,7 @@ func main() {
 	flag.Parse()
 	// FIXME check flag.NArgs
 	paths := gotool.ImportPaths([]string{flag.Arg(0)})
-	conf := loader.Config{AllowErrors: true}
+	conf := loader.Config{}
 	for _, path := range paths {
 		conf.ImportWithTests(path)
 	}
