@@ -87,14 +87,23 @@ func doPackage(fset *token.FileSet, pkg *ast.Package) {
 	// init() and _ are always used
 	p.used["init"] = true
 	p.used["_"] = true
-	if pkg.Name != "main" {
-		// exported names are marked used for non-main packages.
-		for name := range p.decl {
-			if ast.IsExported(name) {
-				p.used[name] = true
-			}
+	for name, node := range p.decl {
+		if !ast.IsExported(name) {
+			continue
 		}
-	} else {
+		if pkg.Name != "main" {
+			// exported identifiers in non-main are used
+			p.used[name] = true
+			continue
+		}
+		// test and benchmark functions in tests are used
+		file := fset.Position(node.Pos()).Filename
+		if strings.HasSuffix(file, "_test.go") &&
+			(strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark")) {
+			p.used[name] = true
+		}
+	}
+	if pkg.Name == "main" {
 		// in main programs, main() is called.
 		p.used["main"] = true
 	}
