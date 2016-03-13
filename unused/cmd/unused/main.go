@@ -27,11 +27,19 @@ func init() {
 	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
+		flag.PrintDefaults()
+	}
 }
 
 func main() {
 	flag.Parse()
-
+	if flag.NArg() == 0 {
+		flag.Usage()
+		os.Exit(2)
+	}
 	var flags unused.CheckFlag
 	if fConstants {
 		flags |= unused.CheckConstants
