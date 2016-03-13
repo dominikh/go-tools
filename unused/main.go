@@ -82,14 +82,11 @@ func main() {
 				continue
 			}
 		}
-		if obj.Pkg().Name() == "main" && obj.Name() == "main" {
+		if isMain(obj) {
 			continue
 		}
-		if obj, ok := obj.(*types.Func); ok && obj.Name() == "init" {
-			sig := obj.Type().(*types.Signature)
-			if sig.Recv() == nil {
-				continue
-			}
+		if isFunction(obj) && !isMethod(obj) && obj.Name() == "init" {
+			continue
 		}
 		reports = append(reports, Report{obj.Pos(), obj.Name()})
 	}
@@ -99,6 +96,37 @@ func main() {
 	}
 
 	os.Exit(exitCode)
+}
+
+func isMain(obj types.Object) bool {
+	if obj.Pkg().Name() != "main" {
+		return false
+	}
+	if obj.Name() != "main" {
+		return false
+	}
+	if obj.Parent() != obj.Pkg().Scope() {
+		return false
+	}
+	if !isFunction(obj) {
+		return false
+	}
+	if isMethod(obj) {
+		return false
+	}
+	return true
+}
+
+func isFunction(obj types.Object) bool {
+	_, ok := obj.(*types.Func)
+	return ok
+}
+
+func isMethod(obj types.Object) bool {
+	if !isFunction(obj) {
+		return false
+	}
+	return obj.(*types.Func).Type().(*types.Signature).Recv() != nil
 }
 
 func checkFlags(obj types.Object) bool {
