@@ -49,8 +49,7 @@ func main() {
 		flags |= unused.CheckVariables
 	}
 
-	// FIXME check flag.NArgs
-	paths := gotool.ImportPaths([]string{flag.Arg(0)})
+	paths := gotool.ImportPaths(flag.Args())
 	checker := unused.Checker{Flags: flags}
 	objs, err := checker.Check(paths)
 	if err != nil {
