@@ -36,7 +36,7 @@ func main() {
 	paths := gotool.ImportPaths([]string{flag.Arg(0)})
 	conf := loader.Config{AllowErrors: true}
 	for _, path := range paths {
-		conf.Import(path)
+		conf.ImportWithTests(path)
 	}
 	lprog, err := conf.Load()
 	if err != nil {
@@ -77,6 +77,10 @@ func main() {
 	}
 	var reports Reports
 	for obj, used := range defs {
+		f := lprog.Fset.Position(obj.Pos()).Filename
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
 		if obj.Pkg() == nil {
 			continue
 		}
