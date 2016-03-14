@@ -1,10 +1,12 @@
 package unused
 
 import (
+	"fmt"
 	"go/ast"
+	"go/build"
 	"go/token"
 	"go/types"
-	"log"
+	"os"
 	"strings"
 
 	"golang.org/x/tools/go/loader"
@@ -33,6 +35,12 @@ func (c *Checker) checkTypes() bool     { return (c.Mode & CheckTypes) > 0 }
 func (c *Checker) checkVariables() bool { return (c.Mode & CheckVariables) > 0 }
 
 func (c *Checker) Check(paths []string) ([]types.Object, error) {
+	// We resolve paths manually instead of relying on go/loader so
+	// that our TypeCheckFuncBodies implementation continues to work.
+	err := resolveRelative(paths)
+	if err != nil {
+		return nil, err
+	}
 	defs := map[types.Object]bool{}
 	var interfaces []*types.Interface
 	var unused []types.Object
@@ -56,12 +64,7 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		return nil, err
 	}
 
-	for _, path := range paths {
-		pkg := lprog.Package(path)
-		if pkg == nil {
-			log.Println("Couldn't load package", path)
-			continue
-		}
+	for _, pkg := range lprog.InitialPackages() {
 		for _, obj := range pkg.Defs {
 			if obj == nil {
 				continue
@@ -166,6 +169,21 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	}
 	c.Fset = lprog.Fset
 	return unused, nil
+}
+
+func resolveRelative(importPaths []string) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	for i, path := range importPaths {
+		bpkg, err := build.Import(path, wd, build.FindOnly)
+		if err != nil {
+			return fmt.Errorf("can't load package %q: %v", path, err)
+		}
+		importPaths[i] = bpkg.ImportPath
+	}
+	return nil
 }
 
 func Check(paths []string, flags CheckMode) ([]types.Object, error) {
