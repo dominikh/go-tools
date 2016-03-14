@@ -194,7 +194,10 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			return pkgs[s]
 		}
 	}
-	conf.FromArgs(paths, true)
+	_, err = conf.FromArgs(paths, true)
+	if err != nil {
+		return nil, err
+	}
 	lprog, err := conf.Load()
 	if err != nil {
 		return nil, err
