@@ -61,17 +61,17 @@ func main() {
 
 	paths := gotool.ImportPaths(flag.Args())
 	checker := unused.NewChecker(mode, fVerbose)
-	objs, err := checker.Check(paths)
+	unused, err := checker.Check(paths)
 	if err != nil {
 		log.Fatal(err)
 	}
 	var reports Reports
-	for _, obj := range objs {
-		reports = append(reports, Report{obj.Pos(), obj.Name()})
+	for _, u := range unused {
+		reports = append(reports, Report{u.Position, u.Obj.Name()})
 	}
 	sort.Sort(reports)
 	for _, report := range reports {
-		fmt.Printf("%s: %s is unused\n", checker.Fset.Position(report.pos), report.name)
+		fmt.Printf("%s: %s is unused\n", report.pos, report.name)
 	}
 	if len(reports) > 0 {
 		os.Exit(1)
@@ -79,11 +79,23 @@ func main() {
 }
 
 type Report struct {
-	pos  token.Pos
+	pos  token.Position
 	name string
 }
 type Reports []Report
 
-func (l Reports) Len() int           { return len(l) }
-func (l Reports) Less(i, j int) bool { return l[i].pos < l[j].pos }
-func (l Reports) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
+func (l Reports) Len() int { return len(l) }
+func (l Reports) Less(i, j int) bool {
+	if l[i].pos.Filename < l[j].pos.Filename {
+		return true
+	} else if l[i].pos.Filename > l[j].pos.Filename {
+		return false
+	}
+	if l[i].pos.Line < l[j].pos.Line {
+		return true
+	} else if l[i].pos.Line > l[j].pos.Line {
+		return false
+	}
+	return l[i].pos.Column < l[j].pos.Column
+}
+func (l Reports) Swap(i, j int) { l[i], l[j] = l[j], l[i] }

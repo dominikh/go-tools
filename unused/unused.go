@@ -20,7 +20,14 @@ const (
 	CheckFunctions
 	CheckTypes
 	CheckVariables
+
+	CheckAll = CheckConstants | CheckFields | CheckFunctions | CheckTypes | CheckVariables
 )
+
+type Unused struct {
+	Obj      types.Object
+	Position token.Position
+}
 
 type state struct {
 	used  bool
@@ -29,7 +36,6 @@ type state struct {
 
 type Checker struct {
 	Mode    CheckMode
-	Fset    *token.FileSet
 	Verbose bool
 
 	defs map[types.Object]*state
@@ -161,7 +167,7 @@ func (c *Checker) Visit(n ast.Node) ast.Visitor {
 	return c
 }
 
-func (c *Checker) Check(paths []string) ([]types.Object, error) {
+func (c *Checker) Check(paths []string) ([]Unused, error) {
 	// We resolve paths manually instead of relying on go/loader so
 	// that our TypeCheckFuncBodies implementation continues to work.
 	goFiles, err := resolveRelative(paths)
@@ -169,7 +175,7 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		return nil, err
 	}
 	var interfaces []*types.Interface
-	var unused []types.Object
+	var unused []Unused
 
 	conf := loader.Config{}
 	if !c.Verbose {
@@ -271,9 +277,11 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		if isMethod(obj) && implements(obj, interfaces) {
 			continue
 		}
-		unused = append(unused, obj)
+		unused = append(unused, Unused{
+			Obj:      obj,
+			Position: lprog.Fset.Position(obj.Pos()),
+		})
 	}
-	c.Fset = lprog.Fset
 	return unused, nil
 }
 
@@ -306,11 +314,6 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 		importPaths[i] = bpkg.ImportPath
 	}
 	return false, nil
-}
-
-func Check(paths []string, flags CheckMode) ([]types.Object, error) {
-	checker := Checker{Mode: flags}
-	return checker.Check(paths)
 }
 
 func implements(obj types.Object, ifaces []*types.Interface) bool {
