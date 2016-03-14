@@ -26,6 +26,17 @@ type Checker struct {
 	Mode    CheckMode
 	Fset    *token.FileSet
 	Verbose bool
+
+	defs map[types.Object]bool
+	pkg  *loader.PackageInfo
+}
+
+func NewChecker(mode CheckMode, verbose bool) *Checker {
+	return &Checker{
+		Mode:    mode,
+		Verbose: verbose,
+		defs:    make(map[types.Object]bool),
+	}
 }
 
 func (c *Checker) checkConstants() bool { return (c.Mode & CheckConstants) > 0 }
@@ -34,6 +45,99 @@ func (c *Checker) checkFunctions() bool { return (c.Mode & CheckFunctions) > 0 }
 func (c *Checker) checkTypes() bool     { return (c.Mode & CheckTypes) > 0 }
 func (c *Checker) checkVariables() bool { return (c.Mode & CheckVariables) > 0 }
 
+func (c *Checker) markCompositeLit(expr ast.Expr, typ types.Type) {
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return
+	}
+	if isBasicStruct(lit.Elts) {
+		c.markFields(typ)
+	}
+}
+
+func (c *Checker) markFields(typ types.Type) {
+	structType, ok := typ.Underlying().(*types.Struct)
+	if !ok {
+		return
+	}
+	n := structType.NumFields()
+	for i := 0; i < n; i++ {
+		field := structType.Field(i)
+		c.defs[field] = true
+	}
+}
+
+func (c *Checker) getType(expr ast.Expr) types.Type {
+	switch t := expr.(type) {
+	case *ast.StructType:
+		// anonymous struct
+		return c.pkg.TypeOf(t)
+	case *ast.Ident:
+		// named struct, slice, array or map
+		typ, ok := c.pkg.ObjectOf(t).Type().(*types.Named)
+		if !ok {
+			return nil
+		}
+		return typ
+	case *ast.ArrayType:
+		return c.getType(t.Elt)
+	}
+	return nil
+}
+
+func (c *Checker) Visit(n ast.Node) ast.Visitor {
+	node, ok := n.(*ast.CompositeLit)
+	if !ok {
+		return c
+	}
+	switch t := node.Type.(type) {
+	case *ast.StructType, *ast.Ident, *ast.ArrayType:
+		// struct{}{...}, T{...}, []T{...}, [...]T{...}
+		typ1 := c.getType(t)
+		if typ1 == nil {
+			return c
+		}
+		switch typ2 := typ1.Underlying().(type) {
+		case *types.Map:
+			for _, elt := range node.Elts {
+				c.markCompositeLit(elt.(*ast.KeyValueExpr).Key, typ2.Key())
+				c.markCompositeLit(elt.(*ast.KeyValueExpr).Value, typ2.Elem())
+			}
+		case *types.Struct:
+			if isBasicStruct(node.Elts) {
+				c.markFields(typ1)
+			}
+		case *types.Slice, *types.Array:
+			elemType := typ2.(interface {
+				Elem() types.Type
+			}).Elem()
+			for _, elt := range node.Elts {
+				if elt, ok := elt.(*ast.KeyValueExpr); ok {
+					// S{1: {}}
+					c.markCompositeLit(elt.Value, elemType)
+					continue
+				}
+
+				// S{{}}
+				c.markCompositeLit(elt, elemType)
+			}
+		}
+	case *ast.MapType:
+		keyType := c.getType(t.Key)
+		valueType := c.getType(t.Value)
+		for _, elt := range node.Elts {
+			if keyType != nil {
+				c.markCompositeLit(elt.(*ast.KeyValueExpr).Key, keyType)
+			}
+			if valueType != nil {
+				c.markCompositeLit(elt.(*ast.KeyValueExpr).Value, valueType)
+			}
+		}
+	}
+
+	return c
+}
+
 func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	// We resolve paths manually instead of relying on go/loader so
 	// that our TypeCheckFuncBodies implementation continues to work.
@@ -41,7 +145,6 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	defs := map[types.Object]bool{}
 	var interfaces []*types.Interface
 	var unused []types.Object
 
@@ -65,8 +168,8 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		return nil, err
 	}
 
-	for _, pkg := range lprog.InitialPackages() {
-		for _, obj := range pkg.Defs {
+	for _, c.pkg = range lprog.InitialPackages() {
+		for _, obj := range c.pkg.Defs {
 			if obj == nil {
 				continue
 			}
@@ -82,58 +185,21 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 			if _, ok := obj.(*types.PkgName); ok {
 				continue
 			}
-			defs[obj] = false
+			c.defs[obj] = false
 		}
-		for _, tv := range pkg.Types {
+		for _, tv := range c.pkg.Types {
 			if typ, ok := tv.Type.(*types.Interface); ok {
 				interfaces = append(interfaces, typ)
 			}
 		}
-		for _, obj := range pkg.Uses {
-			defs[obj] = true
+		for _, obj := range c.pkg.Uses {
+			c.defs[obj] = true
 		}
-		for _, file := range pkg.Files {
-			var v visitor
-			v = func(node ast.Node) ast.Visitor {
-				if node, ok := node.(*ast.CompositeLit); ok {
-					var obj types.Type
-					if _, ok := node.Type.(*ast.StructType); ok {
-						obj = pkg.TypeOf(node)
-					} else {
-						ident, ok := node.Type.(*ast.Ident)
-						if !ok {
-							return v
-						}
-						obj, ok = pkg.ObjectOf(ident).Type().(*types.Named)
-						if !ok {
-							return v
-						}
-					}
-					typ, ok := obj.Underlying().(*types.Struct)
-					if !ok {
-						return v
-					}
-					basic := false
-					for _, elt := range node.Elts {
-						if _, ok := elt.(*ast.KeyValueExpr); !ok {
-							basic = true
-							break
-						}
-					}
-					if basic {
-						n := typ.NumFields()
-						for i := 0; i < n; i++ {
-							field := typ.Field(i)
-							defs[field] = true
-						}
-					}
-				}
-				return v
-			}
-			ast.Walk(v, file)
+		for _, file := range c.pkg.Files {
+			ast.Walk(c, file)
 		}
 	}
-	for obj, used := range defs {
+	for obj, used := range c.defs {
 		if obj.Pkg() == nil {
 			continue
 		}
@@ -169,6 +235,15 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	}
 	c.Fset = lprog.Fset
 	return unused, nil
+}
+
+func isBasicStruct(elts []ast.Expr) bool {
+	for _, elt := range elts {
+		if _, ok := elt.(*ast.KeyValueExpr); !ok {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveRelative(importPaths []string) error {
@@ -281,10 +356,4 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 		return false
 	}
 	return true
-}
-
-type visitor func(node ast.Node) ast.Visitor
-
-func (v visitor) Visit(node ast.Node) ast.Visitor {
-	return v(node)
 }

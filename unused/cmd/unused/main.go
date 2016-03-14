@@ -60,7 +60,7 @@ func main() {
 	}
 
 	paths := gotool.ImportPaths(flag.Args())
-	checker := unused.Checker{Mode: mode, Verbose: fVerbose}
+	checker := unused.NewChecker(mode, fVerbose)
 	objs, err := checker.Check(paths)
 	if err != nil {
 		log.Fatal(err)
