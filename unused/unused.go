@@ -164,7 +164,7 @@ func (c *Checker) Visit(n ast.Node) ast.Visitor {
 func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	// We resolve paths manually instead of relying on go/loader so
 	// that our TypeCheckFuncBodies implementation continues to work.
-	err := resolveRelative(paths)
+	goFiles, err := resolveRelative(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -180,12 +180,15 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		pkgs[path] = true
 		pkgs[path+"_test"] = true
 	}
-	conf.TypeCheckFuncBodies = func(s string) bool {
-		return pkgs[s]
+	if !goFiles {
+		// Only type-check the packages we directly import. Unless
+		// we're specifying a package in terms of individual files,
+		// because then we don't know the import path.
+		conf.TypeCheckFuncBodies = func(s string) bool {
+			return pkgs[s]
+		}
 	}
-	for _, path := range paths {
-		conf.ImportWithTests(path)
-	}
+	conf.FromArgs(paths, true)
 	lprog, err := conf.Load()
 	if err != nil {
 		return nil, err
@@ -283,19 +286,26 @@ func isBasicStruct(elts []ast.Expr) bool {
 	return false
 }
 
-func resolveRelative(importPaths []string) error {
+func resolveRelative(importPaths []string) (goFiles bool, err error) {
+	if len(importPaths) == 0 {
+		return false, nil
+	}
+	if strings.HasSuffix(importPaths[0], ".go") {
+		// User is specifying a package in terms of .go files, don't resolve
+		return true, nil
+	}
 	wd, err := os.Getwd()
 	if err != nil {
-		return err
+		return false, err
 	}
 	for i, path := range importPaths {
 		bpkg, err := build.Import(path, wd, build.FindOnly)
 		if err != nil {
-			return fmt.Errorf("can't load package %q: %v", path, err)
+			return false, fmt.Errorf("can't load package %q: %v", path, err)
 		}
 		importPaths[i] = bpkg.ImportPath
 	}
-	return nil
+	return false, nil
 }
 
 func Check(paths []string, flags CheckMode) ([]types.Object, error) {
