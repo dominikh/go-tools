@@ -70,11 +70,6 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 			if obj == nil {
 				continue
 			}
-			if obj, ok := obj.(*types.Var); ok {
-				if typ, ok := obj.Type().(*types.Interface); ok {
-					interfaces = append(interfaces, typ)
-				}
-			}
 			if obj, ok := obj.(*types.TypeName); ok {
 				if typ, ok := obj.Type().Underlying().(*types.Interface); ok {
 					interfaces = append(interfaces, typ)
@@ -88,6 +83,11 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 				continue
 			}
 			defs[obj] = false
+		}
+		for _, tv := range pkg.Types {
+			if typ, ok := tv.Type.(*types.Interface); ok {
+				interfaces = append(interfaces, typ)
+			}
 		}
 		for _, obj := range pkg.Uses {
 			defs[obj] = true
