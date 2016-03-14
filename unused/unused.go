@@ -22,12 +22,17 @@ const (
 	CheckVariables
 )
 
+type state struct {
+	used  bool
+	quiet bool
+}
+
 type Checker struct {
 	Mode    CheckMode
 	Fset    *token.FileSet
 	Verbose bool
 
-	defs map[types.Object]bool
+	defs map[types.Object]*state
 	pkg  *loader.PackageInfo
 }
 
@@ -35,7 +40,7 @@ func NewChecker(mode CheckMode, verbose bool) *Checker {
 	return &Checker{
 		Mode:    mode,
 		Verbose: verbose,
-		defs:    make(map[types.Object]bool),
+		defs:    make(map[types.Object]*state),
 	}
 }
 
@@ -44,6 +49,24 @@ func (c *Checker) checkFields() bool    { return (c.Mode & CheckFields) > 0 }
 func (c *Checker) checkFunctions() bool { return (c.Mode & CheckFunctions) > 0 }
 func (c *Checker) checkTypes() bool     { return (c.Mode & CheckTypes) > 0 }
 func (c *Checker) checkVariables() bool { return (c.Mode & CheckVariables) > 0 }
+
+func (c *Checker) markUsed(obj types.Object) {
+	v, ok := c.defs[obj]
+	if !ok {
+		v = &state{}
+		c.defs[obj] = v
+	}
+	v.used = true
+}
+
+func (c *Checker) markQuiet(obj types.Object) {
+	v, ok := c.defs[obj]
+	if !ok {
+		v = &state{}
+		c.defs[obj] = v
+	}
+	v.quiet = true
+}
 
 func (c *Checker) markCompositeLit(expr ast.Expr, typ types.Type) {
 	lit, ok := expr.(*ast.CompositeLit)
@@ -63,7 +86,7 @@ func (c *Checker) markFields(typ types.Type) {
 	n := structType.NumFields()
 	for i := 0; i < n; i++ {
 		field := structType.Field(i)
-		c.defs[field] = true
+		c.markUsed(field)
 	}
 }
 
@@ -185,7 +208,7 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 			if _, ok := obj.(*types.PkgName); ok {
 				continue
 			}
-			c.defs[obj] = false
+			c.defs[obj] = &state{}
 		}
 		for _, tv := range c.pkg.Types {
 			if typ, ok := tv.Type.(*types.Interface); ok {
@@ -193,13 +216,27 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 			}
 		}
 		for _, obj := range c.pkg.Uses {
-			c.defs[obj] = true
+			c.markUsed(obj)
 		}
 		for _, file := range c.pkg.Files {
 			ast.Walk(c, file)
 		}
 	}
-	for obj, used := range c.defs {
+	for obj, state := range c.defs {
+		if state.used {
+			continue
+		}
+		if obj.Pkg() == nil {
+			continue
+		}
+		if s, ok := obj.Type().Underlying().(*types.Struct); ok {
+			n := s.NumFields()
+			for i := 0; i < n; i++ {
+				c.markQuiet(s.Field(i))
+			}
+		}
+	}
+	for obj, state := range c.defs {
 		if obj.Pkg() == nil {
 			continue
 		}
@@ -207,7 +244,7 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		if !c.checkFlags(obj) {
 			continue
 		}
-		if used {
+		if state.used || state.quiet {
 			continue
 		}
 		if obj.Name() == "_" {
