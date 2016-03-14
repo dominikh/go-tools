@@ -52,6 +52,7 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 	pkgs := map[string]bool{}
 	for _, path := range paths {
 		pkgs[path] = true
+		pkgs[path+"_test"] = true
 	}
 	conf.TypeCheckFuncBodies = func(s string) bool {
 		return pkgs[s]
@@ -133,10 +134,6 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		}
 	}
 	for obj, used := range defs {
-		f := lprog.Fset.Position(obj.Pos()).Filename
-		if strings.HasSuffix(f, "_test.go") {
-			continue
-		}
 		if obj.Pkg() == nil {
 			continue
 		}
