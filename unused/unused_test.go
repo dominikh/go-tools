@@ -32,10 +32,6 @@ func TestAll(t *testing.T) {
 		}
 
 		ins := parseInstructions(t, fi.Name(), src)
-		if ins == nil {
-			t.Errorf("Test file %v does not have instructions", fi.Name())
-			continue
-		}
 
 		unused, err := checker.Check([]string{baseDir + fi.Name()})
 		if err != nil {
