@@ -256,24 +256,40 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		if state.used || state.quiet {
 			continue
 		}
+
+		// the blank identifier is always used
 		if obj.Name() == "_" {
 			continue
 		}
+
+		// Exported package-level identifiers are used, unless they're
+		// in test files and not test functions
+		//
+		// Exported methods are always used
+		//
+		// Exported fields are used
 		if obj.Exported() && (isPkgScope(obj) || isMethod(obj) || isField(obj)) {
 			f := lprog.Fset.Position(obj.Pos()).Filename
 			if !strings.HasSuffix(f, "_test.go") ||
 				strings.HasPrefix(obj.Name(), "Test") ||
 				strings.HasPrefix(obj.Name(), "Benchmark") ||
-				strings.HasPrefix(obj.Name(), "Example") {
+				strings.HasPrefix(obj.Name(), "Example") ||
+				isMethod(obj) {
 				continue
 			}
 		}
+
+		// func main in package main is always used
 		if isMain(obj) {
 			continue
 		}
+
+		// func init is always used
 		if isFunction(obj) && !isMethod(obj) && obj.Name() == "init" {
 			continue
 		}
+
+		// methods that help implement an interface are always used
 		if isMethod(obj) && implements(obj, interfaces) {
 			continue
 		}
