@@ -23,7 +23,8 @@ type a1 [1]t14
 type t15 struct{ f151 int }
 type a2 [1]t15
 type t16 struct{ f161 int }
-type t17 struct{ f171, f172 int } // MATCH /t17/
+type t17 struct{ f171, f172 int }       // MATCH t17
+type t18 struct{ f181, f182, f183 int } // MATCH f182, f183
 
 func foo() {
 	_ = t10{1}
@@ -47,7 +48,8 @@ func foo() {
 	_ = a1{{1}}
 	_ = a2{0: {1}}
 	_ = map[[1]t16]int{{{1}}: 1}
-	_ = struct{ x int }{} // MATCH /x/
+	_ = struct{ x int }{} // MATCH x
+	_ = t18{f181: 1}
 }
 
 func init() { foo() }
