@@ -33,7 +33,7 @@ following conditions:
   objects.
 
 - Exported functions in tests are treated like unexported functions,
-  unless they're test or benchmark functions.
+  unless they're test, benchmark or example functions.
 
 - Struct fields will be considered as unused if there are no explicit
   references to them. Unkeyed composite literals with >=1 elements

@@ -149,7 +149,10 @@ func (c *Checker) Check(paths []string) ([]types.Object, error) {
 		}
 		if obj.Exported() && (isPkgScope(obj) || isMethod(obj) || isField(obj)) {
 			f := lprog.Fset.Position(obj.Pos()).Filename
-			if !strings.HasSuffix(f, "_test.go") || strings.HasPrefix(obj.Name(), "Test") || strings.HasPrefix(obj.Name(), "Benchmark") {
+			if !strings.HasSuffix(f, "_test.go") ||
+				strings.HasPrefix(obj.Name(), "Test") ||
+				strings.HasPrefix(obj.Name(), "Benchmark") ||
+				strings.HasPrefix(obj.Name(), "Example") {
 				continue
 			}
 		}
