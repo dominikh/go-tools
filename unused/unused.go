@@ -217,7 +217,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			if _, ok := obj.(*types.PkgName); ok {
 				continue
 			}
-			c.defs[obj] = &state{}
+			if _, ok := c.defs[obj]; !ok {
+				c.defs[obj] = &state{}
+			}
 		}
 		for _, tv := range c.pkg.Types {
 			if typ, ok := tv.Type.(*types.Interface); ok {
