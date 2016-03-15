@@ -251,6 +251,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		}
 	}
 	for obj, state := range c.defs {
+		f := lprog.Fset.Position(obj.Pos()).Filename
+
 		if obj.Pkg() == nil {
 			continue
 		}
@@ -262,42 +264,10 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			continue
 		}
 
-		// the blank identifier is always used
-		if obj.Name() == "_" {
+		if c.consideredUsed(obj, interfaces, f) {
 			continue
 		}
 
-		// Exported package-level identifiers are used, unless they're
-		// in test files and not test functions
-		//
-		// Exported methods are always used
-		//
-		// Exported fields are used
-		if obj.Exported() && (isPkgScope(obj) || isMethod(obj) || isField(obj)) {
-			f := lprog.Fset.Position(obj.Pos()).Filename
-			if !strings.HasSuffix(f, "_test.go") ||
-				strings.HasPrefix(obj.Name(), "Test") ||
-				strings.HasPrefix(obj.Name(), "Benchmark") ||
-				strings.HasPrefix(obj.Name(), "Example") ||
-				isMethod(obj) {
-				continue
-			}
-		}
-
-		// func main in package main is always used
-		if isMain(obj) {
-			continue
-		}
-
-		// func init is always used
-		if isFunction(obj) && !isMethod(obj) && obj.Name() == "init" {
-			continue
-		}
-
-		// methods that help implement an interface are always used
-		if isMethod(obj) && implements(obj, interfaces) {
-			continue
-		}
 		unused = append(unused, Unused{
 			Obj:      obj,
 			Position: lprog.Fset.Position(obj.Pos()),
@@ -427,4 +397,47 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 		return false
 	}
 	return true
+}
+
+func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface, f string) bool {
+	// The blank identifier is used
+	if obj.Name() == "_" {
+		return true
+	}
+
+	// func main in package main is used
+	if isMain(obj) {
+		return true
+	}
+
+	// func init is used
+	if isFunction(obj) && !isMethod(obj) && obj.Name() == "init" {
+		return true
+	}
+
+	// methods that aid in implementing an interface are used
+	if isMethod(obj) && implements(obj, interfaces) {
+		return true
+	}
+
+	if obj.Exported() {
+		// Exported methods and fields are always used
+		if isMethod(obj) || isField(obj) {
+			return true
+		}
+
+		// Test*, Benchmark* and Example* used, other exported identifiers are not
+		if strings.HasSuffix(f, "_test.go") {
+			return strings.HasPrefix(obj.Name(), "Test") ||
+				strings.HasPrefix(obj.Name(), "Benchmark") ||
+				strings.HasPrefix(obj.Name(), "Example")
+		}
+
+		// Package-level are used, except in package main
+		if isPkgScope(obj) && c.pkg.Pkg.Name() != "main" {
+			return true
+		}
+	}
+
+	return false
 }
