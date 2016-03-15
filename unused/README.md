@@ -11,9 +11,16 @@ types.
 
 	unused -help
 
+## Usage Tips
+
+- _unused_ doesn't currently detect if an identifier `x` is only used
+  by identifiers that themselves are unused. After removing unused
+  code, you should rerun _unused_ until it stops finding new unused
+  code.
+
 ## What counts as used/unused?
 
-`unused` checks for unused constants, functions, types and optionally
+_unused_ checks for unused constants, functions, types and optionally
 struct fields. They will be considered used or unused under the
 following conditions:
 
