@@ -312,9 +312,6 @@ func (c *Checker) implements(obj types.Object, ifaces []*types.Interface, struct
 					if obj == obj2 {
 						continue
 					}
-					if _, ok := obj2.(*types.Func); !ok {
-						continue
-					}
 					if seen[obj] {
 						continue
 					}
