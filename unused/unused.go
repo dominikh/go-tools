@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 type CheckMode int
@@ -38,8 +39,9 @@ type Checker struct {
 	Mode    CheckMode
 	Verbose bool
 
-	defs map[types.Object]*state
-	pkg  *loader.PackageInfo
+	defs    map[types.Object]*state
+	pkg     *loader.PackageInfo
+	msCache typeutil.MethodSetCache
 }
 
 func NewChecker(mode CheckMode, verbose bool) *Checker {
@@ -257,7 +259,7 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 	return false, nil
 }
 
-func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named, seen map[types.Object]bool) bool {
+func (c *Checker) implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named, seen map[types.Object]bool) bool {
 	if seen == nil {
 		seen = map[types.Object]bool{}
 	}
@@ -290,8 +292,8 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 			continue
 		}
 		num := s.NumFields()
-		ms := types.NewMethodSet(n)
-		msp := types.NewMethodSet(types.NewPointer(n))
+		ms := c.msCache.MethodSet(n)
+		msp := c.msCache.MethodSet(types.NewPointer(n))
 		for i := 0; i < num; i++ {
 			field := s.Field(i)
 			if !field.Anonymous() {
@@ -317,7 +319,7 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 						continue
 					}
 					seen[obj] = true
-					if implements(obj2, ifaces, structs, seen) {
+					if c.implements(obj2, ifaces, structs, seen) {
 						return true
 					}
 					break
@@ -422,7 +424,7 @@ func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface
 	}
 
 	// methods that aid in implementing an interface are used
-	if isMethod(obj) && implements(obj, interfaces, structs, nil) {
+	if isMethod(obj) && c.implements(obj, interfaces, structs, nil) {
 		return true
 	}
 
