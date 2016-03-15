@@ -74,16 +74,6 @@ func (c *Checker) markQuiet(obj types.Object) {
 	v.quiet = true
 }
 
-func (c *Checker) markCompositeLit(expr ast.Expr, typ types.Type) {
-	lit, ok := expr.(*ast.CompositeLit)
-	if !ok {
-		return
-	}
-	if isBasicStruct(lit.Elts) {
-		c.markFields(typ)
-	}
-}
-
 func (c *Checker) markFields(typ types.Type) {
 	structType, ok := typ.Underlying().(*types.Struct)
 	if !ok {
@@ -96,74 +86,25 @@ func (c *Checker) markFields(typ types.Type) {
 	}
 }
 
-func (c *Checker) getType(expr ast.Expr) types.Type {
-	switch t := expr.(type) {
-	case *ast.StructType:
-		// anonymous struct
-		return c.pkg.TypeOf(t)
-	case *ast.Ident:
-		// named struct, slice, array or map
-		typ, ok := c.pkg.ObjectOf(t).Type().(*types.Named)
-		if !ok {
-			return nil
-		}
-		return typ
-	case *ast.ArrayType:
-		return c.getType(t.Elt)
-	}
-	return nil
-}
-
 func (c *Checker) Visit(n ast.Node) ast.Visitor {
 	node, ok := n.(*ast.CompositeLit)
 	if !ok {
 		return c
 	}
-	switch t := node.Type.(type) {
-	case *ast.StructType, *ast.Ident, *ast.ArrayType:
-		// struct{}{...}, T{...}, []T{...}, [...]T{...}
-		typ1 := c.getType(t)
-		if typ1 == nil {
-			return c
-		}
-		switch typ2 := typ1.Underlying().(type) {
-		case *types.Map:
-			for _, elt := range node.Elts {
-				c.markCompositeLit(elt.(*ast.KeyValueExpr).Key, typ2.Key())
-				c.markCompositeLit(elt.(*ast.KeyValueExpr).Value, typ2.Elem())
-			}
-		case *types.Struct:
-			if isBasicStruct(node.Elts) {
-				c.markFields(typ1)
-			}
-		case *types.Slice, *types.Array:
-			elemType := typ2.(interface {
-				Elem() types.Type
-			}).Elem()
-			for _, elt := range node.Elts {
-				if elt, ok := elt.(*ast.KeyValueExpr); ok {
-					// S{1: {}}
-					c.markCompositeLit(elt.Value, elemType)
-					continue
-				}
 
-				// S{{}}
-				c.markCompositeLit(elt, elemType)
-			}
-		}
-	case *ast.MapType:
-		keyType := c.getType(t.Key)
-		valueType := c.getType(t.Value)
-		for _, elt := range node.Elts {
-			if keyType != nil {
-				c.markCompositeLit(elt.(*ast.KeyValueExpr).Key, keyType)
-			}
-			if valueType != nil {
-				c.markCompositeLit(elt.(*ast.KeyValueExpr).Value, valueType)
-			}
-		}
+	typ := c.pkg.TypeOf(node)
+	if _, ok := typ.(*types.Named); ok {
+		typ = typ.Underlying()
+	}
+	switch typ.(type) {
+	case *types.Struct, *types.Named:
+	default:
+		return c
 	}
 
+	if isBasicStruct(node.Elts) {
+		c.markFields(typ)
+	}
 	return c
 }
 
