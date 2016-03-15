@@ -114,6 +114,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		return nil, err
 	}
 	var interfaces []*types.Interface
+	var structs []*types.Named
 	var unused []Unused
 
 	conf := loader.Config{}
@@ -167,6 +168,12 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			if typ, ok := tv.Type.(*types.Interface); ok {
 				interfaces = append(interfaces, typ)
 			}
+			if typ, ok := tv.Type.(*types.Named); ok {
+				if _, ok := typ.Underlying().(*types.Struct); ok {
+					structs = append(structs, typ)
+				}
+			}
+
 		}
 		for _, obj := range c.pkg.Uses {
 			c.markUsed(obj)
@@ -189,6 +196,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 		}
 	}
+
 	for obj, state := range c.defs {
 		f := lprog.Fset.Position(obj.Pos()).Filename
 
@@ -203,7 +211,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			continue
 		}
 
-		if c.consideredUsed(obj, interfaces, f) {
+		if c.consideredUsed(obj, interfaces, structs, f) {
 			continue
 		}
 
@@ -246,7 +254,7 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 	return false, nil
 }
 
-func implements(obj types.Object, ifaces []*types.Interface) bool {
+func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named) (ret bool) {
 	recvType := obj.(*types.Func).Type().(*types.Signature).Recv().Type()
 	for _, iface := range ifaces {
 		if !types.Implements(recvType, iface) {
@@ -259,6 +267,41 @@ func implements(obj types.Object, ifaces []*types.Interface) bool {
 			}
 		}
 	}
+
+	// FIXME(dominikh): the complexity of this is ridiculous, improve it
+	for _, n := range structs {
+		s := n.Underlying().(*types.Struct)
+		num := s.NumFields()
+		ms := types.NewMethodSet(n)
+		for i := 0; i < num; i++ {
+			field := s.Field(i)
+			if !field.Anonymous() {
+				// Not embedded
+				continue
+			}
+			if field.Type() != recvType {
+				// Not embedding our type
+				continue
+			}
+			if ms.Len() == 0 {
+				// Type has no methods
+				continue
+			}
+			m := ms.Len()
+			for j := 0; j < m; j++ {
+				obj2 := ms.At(j).Obj()
+				if obj != obj2 {
+					if _, ok := obj2.(*types.Func); ok {
+						if implements(obj2, ifaces, structs) {
+							return true
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
 	return false
 }
 
@@ -338,7 +381,7 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 	return true
 }
 
-func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface, f string) bool {
+func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface, structs []*types.Named, f string) bool {
 	// The blank identifier is used
 	if obj.Name() == "_" {
 		return true
@@ -355,7 +398,7 @@ func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface
 	}
 
 	// methods that aid in implementing an interface are used
-	if isMethod(obj) && implements(obj, interfaces) {
+	if isMethod(obj) && implements(obj, interfaces, structs) {
 		return true
 	}
 
