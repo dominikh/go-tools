@@ -257,7 +257,15 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 	return false, nil
 }
 
-func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named) (ret bool) {
+func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named, seen map[types.Object]bool) bool {
+	if seen == nil {
+		seen = map[types.Object]bool{}
+	}
+	if seen[obj] {
+		return false
+	}
+	seen[obj] = true
+
 	recvType := obj.(*types.Func).Type().(*types.Signature).Recv().Type()
 	for _, iface := range ifaces {
 		if !types.Implements(recvType, iface) {
@@ -298,7 +306,7 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 				obj2 := ms.At(j).Obj()
 				if obj != obj2 {
 					if _, ok := obj2.(*types.Func); ok {
-						if implements(obj2, ifaces, structs) {
+						if implements(obj2, ifaces, structs, seen) {
 							return true
 						}
 						break
@@ -404,7 +412,7 @@ func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface
 	}
 
 	// methods that aid in implementing an interface are used
-	if isMethod(obj) && implements(obj, interfaces, structs) {
+	if isMethod(obj) && implements(obj, interfaces, structs, nil) {
 		return true
 	}
 
