@@ -273,6 +273,9 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 
 	// FIXME(dominikh): the complexity of this is ridiculous, improve it
 	for _, n := range structs {
+		if n.Obj().Pkg() != obj.Pkg() {
+			continue
+		}
 		s := n.Underlying().(*types.Struct)
 		num := s.NumFields()
 		ms := types.NewMethodSet(n)
