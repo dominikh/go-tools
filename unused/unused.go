@@ -39,9 +39,11 @@ type Checker struct {
 	Mode    CheckMode
 	Verbose bool
 
-	defs    map[types.Object]*state
-	pkg     *loader.PackageInfo
-	msCache typeutil.MethodSetCache
+	defs       map[types.Object]*state
+	interfaces []*types.Interface
+	structs    []*types.Named
+	pkg        *loader.PackageInfo
+	msCache    typeutil.MethodSetCache
 }
 
 func NewChecker(mode CheckMode, verbose bool) *Checker {
@@ -115,8 +117,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	if err != nil {
 		return nil, err
 	}
-	var interfaces []*types.Interface
-	var structs []*types.Named
 	var unused []Unused
 
 	conf := loader.Config{}
@@ -152,7 +152,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 			if obj, ok := obj.(*types.TypeName); ok {
 				if typ, ok := obj.Type().Underlying().(*types.Interface); ok {
-					interfaces = append(interfaces, typ)
+					c.interfaces = append(c.interfaces, typ)
 				}
 			}
 			if isVariable(obj) && !isPkgScope(obj) && !isField(obj) {
@@ -168,14 +168,14 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		}
 		for _, tv := range c.pkg.Types {
 			if typ, ok := tv.Type.(*types.Interface); ok {
-				interfaces = append(interfaces, typ)
+				c.interfaces = append(c.interfaces, typ)
 			}
 			if typ, ok := tv.Type.(*types.Named); ok {
 				if _, ok := typ.Underlying().(*types.Struct); ok {
 					if typ.Obj().Pkg() != c.pkg.Pkg {
 						continue
 					}
-					structs = append(structs, typ)
+					c.structs = append(c.structs, typ)
 				}
 			}
 
@@ -216,7 +216,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			continue
 		}
 
-		if c.consideredUsed(obj, interfaces, structs, f) {
+		if c.consideredUsed(obj, f) {
 			continue
 		}
 
@@ -259,7 +259,7 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 	return false, nil
 }
 
-func (c *Checker) implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named, seen map[types.Object]bool) bool {
+func (c *Checker) implements(obj types.Object, seen map[types.Object]bool) bool {
 	if seen == nil {
 		seen = map[types.Object]bool{}
 	}
@@ -269,7 +269,7 @@ func (c *Checker) implements(obj types.Object, ifaces []*types.Interface, struct
 	if t, ok := recvType.(*types.Pointer); ok {
 		recvTypeElem = t.Elem()
 	}
-	for _, iface := range ifaces {
+	for _, iface := range c.interfaces {
 		if !types.Implements(recvType, iface) {
 			if !types.Implements(types.NewPointer(recvType), iface) {
 				continue
@@ -284,7 +284,7 @@ func (c *Checker) implements(obj types.Object, ifaces []*types.Interface, struct
 	}
 
 	// FIXME(dominikh): the complexity of this is ridiculous, improve it
-	for _, n := range structs {
+	for _, n := range c.structs {
 		s := n.Underlying().(*types.Struct)
 		pkg := n.Obj().Pkg()
 
@@ -316,7 +316,7 @@ func (c *Checker) implements(obj types.Object, ifaces []*types.Interface, struct
 						continue
 					}
 					seen[obj] = true
-					if c.implements(obj2, ifaces, structs, seen) {
+					if c.implements(obj2, seen) {
 						return true
 					}
 					break
@@ -404,7 +404,7 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 	return true
 }
 
-func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface, structs []*types.Named, f string) bool {
+func (c *Checker) consideredUsed(obj types.Object, f string) bool {
 	// The blank identifier is used
 	if obj.Name() == "_" {
 		return true
@@ -421,7 +421,7 @@ func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface
 	}
 
 	// methods that aid in implementing an interface are used
-	if isMethod(obj) && c.implements(obj, interfaces, structs, nil) {
+	if isMethod(obj) && c.implements(obj, nil) {
 		return true
 	}
 
