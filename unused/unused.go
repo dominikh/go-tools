@@ -96,9 +96,7 @@ func (c *Checker) Visit(n ast.Node) ast.Visitor {
 	if _, ok := typ.(*types.Named); ok {
 		typ = typ.Underlying()
 	}
-	switch typ.(type) {
-	case *types.Struct, *types.Named:
-	default:
+	if _, ok := typ.(*types.Struct); !ok {
 		return c
 	}
 
