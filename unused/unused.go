@@ -170,6 +170,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 			if typ, ok := tv.Type.(*types.Named); ok {
 				if _, ok := typ.Underlying().(*types.Struct); ok {
+					if typ.Obj().Pkg() != c.pkg.Pkg {
+						continue
+					}
 					structs = append(structs, typ)
 				}
 			}
