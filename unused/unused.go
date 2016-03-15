@@ -114,7 +114,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		return nil, err
 	}
 	var interfaces []*types.Interface
-	var structs []*types.Named
+	var structs []types.Type
 	var unused []Unused
 
 	conf := loader.Config{}
@@ -174,6 +174,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 						continue
 					}
 					structs = append(structs, typ)
+					structs = append(structs, types.NewPointer(typ))
 				}
 			}
 
@@ -257,15 +258,21 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 	return false, nil
 }
 
-func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Named, seen map[types.Object]bool) bool {
+func implements(obj types.Object, ifaces []*types.Interface, structs []types.Type, seen map[types.Object]bool) bool {
 	if seen == nil {
 		seen = map[types.Object]bool{}
 	}
 
 	recvType := obj.(*types.Func).Type().(*types.Signature).Recv().Type()
+	recvTypeElem := recvType
+	if t, ok := recvType.(*types.Pointer); ok {
+		recvTypeElem = t.Elem()
+	}
 	for _, iface := range ifaces {
 		if !types.Implements(recvType, iface) {
-			continue
+			if !types.Implements(types.NewPointer(recvType), iface) {
+				continue
+			}
 		}
 		n := iface.NumMethods()
 		for i := 0; i < n; i++ {
@@ -277,10 +284,21 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 
 	// FIXME(dominikh): the complexity of this is ridiculous, improve it
 	for _, n := range structs {
-		if n.Obj().Pkg() != obj.Pkg() {
+		var pkg *types.Package
+		var s *types.Struct
+		switch n := n.(type) {
+		case *types.Pointer:
+			pkg = n.Elem().(*types.Named).Obj().Pkg()
+			s = n.Elem().(*types.Named).Underlying().(*types.Struct)
+		case *types.Named:
+			pkg = n.Obj().Pkg()
+			s = n.Underlying().(*types.Struct)
+		default:
+			panic("unexpected type")
+		}
+		if pkg != obj.Pkg() {
 			continue
 		}
-		s := n.Underlying().(*types.Struct)
 		num := s.NumFields()
 		ms := types.NewMethodSet(n)
 		for i := 0; i < num; i++ {
@@ -289,7 +307,7 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 				// Not embedded
 				continue
 			}
-			if field.Type() != recvType {
+			if field.Type() != recvType && field.Type() != recvTypeElem {
 				// Not embedding our type
 				continue
 			}
@@ -395,7 +413,7 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 	return true
 }
 
-func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface, structs []*types.Named, f string) bool {
+func (c *Checker) consideredUsed(obj types.Object, interfaces []*types.Interface, structs []types.Type, f string) bool {
 	// The blank identifier is used
 	if obj.Name() == "_" {
 		return true
