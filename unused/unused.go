@@ -261,10 +261,6 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 	if seen == nil {
 		seen = map[types.Object]bool{}
 	}
-	if seen[obj] {
-		return false
-	}
-	seen[obj] = true
 
 	recvType := obj.(*types.Func).Type().(*types.Signature).Recv().Type()
 	for _, iface := range ifaces {
@@ -306,6 +302,10 @@ func implements(obj types.Object, ifaces []*types.Interface, structs []*types.Na
 				obj2 := ms.At(j).Obj()
 				if obj != obj2 {
 					if _, ok := obj2.(*types.Func); ok {
+						if seen[obj] {
+							continue
+						}
+						seen[obj] = true
 						if implements(obj2, ifaces, structs, seen) {
 							return true
 						}
