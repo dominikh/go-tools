@@ -150,11 +150,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			if obj == nil {
 				continue
 			}
-			if obj, ok := obj.(*types.TypeName); ok {
-				if typ, ok := obj.Type().Underlying().(*types.Interface); ok {
-					c.interfaces = append(c.interfaces, typ)
-				}
-			}
 			if isVariable(obj) && !isPkgScope(obj) && !isField(obj) {
 				// Skip variables that aren't package variables or struct fields
 				continue
