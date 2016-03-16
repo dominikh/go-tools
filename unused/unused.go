@@ -195,6 +195,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 
 			if obj, ok := obj.(*types.TypeName); ok {
+				c.graph.markUsedBy(obj.Type().Underlying(), obj.Type())
 				c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
 				c.graph.markUsedBy(obj, obj.Type())
 			}
