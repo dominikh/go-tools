@@ -434,7 +434,7 @@ func (c *Checker) consideredUsed(obj types.Object, f string) bool {
 		}
 
 		// Package-level are used, except in package main
-		if isPkgScope(obj) && c.pkg.Pkg.Name() != "main" {
+		if isPkgScope(obj) && obj.Pkg().Name() != "main" {
 			return true
 		}
 	}
