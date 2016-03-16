@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"go/token"
+	"go/types"
 	"log"
 	"os"
 	"sort"
@@ -67,20 +68,39 @@ func main() {
 	}
 	var reports Reports
 	for _, u := range unused {
-		reports = append(reports, Report{u.Position, u.Obj.Name()})
+		reports = append(reports, Report{u.Position, u.Obj.Name(), typString(u.Obj)})
 	}
 	sort.Sort(reports)
 	for _, report := range reports {
-		fmt.Printf("%s: %s is unused\n", report.pos, report.name)
+		fmt.Printf("%s: %s %s is unused\n", report.pos, report.typ, report.name)
 	}
 	if len(reports) > 0 {
 		os.Exit(1)
 	}
 }
 
+func typString(obj types.Object) string {
+	switch obj := obj.(type) {
+	case *types.Func:
+		return "func"
+	case *types.Var:
+		if obj.IsField() {
+			return "field"
+		}
+		return "var"
+	case *types.Const:
+		return "const"
+	case *types.TypeName:
+		return "type"
+	default:
+		return "identifier"
+	}
+}
+
 type Report struct {
 	pos  token.Position
 	name string
+	typ  string
 }
 type Reports []Report
 
