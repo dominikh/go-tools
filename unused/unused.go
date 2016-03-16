@@ -13,6 +13,51 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
+// FIXME functions use their arguments and return values
+
+type graph struct {
+	roots []*graphNode
+	nodes map[interface{}]*graphNode
+}
+
+func (g *graph) markUsedBy(obj, usedBy interface{}) {
+	if obj == usedBy {
+		return
+	}
+	objNode, ok := g.nodes[obj]
+	if !ok {
+		objNode = &graphNode{obj: obj}
+		g.nodes[obj] = objNode
+	}
+
+	usedByNode, ok := g.nodes[usedBy]
+	if !ok {
+		usedByNode = &graphNode{obj: usedBy}
+		g.nodes[usedBy] = usedByNode
+	}
+	usedByNode.uses = append(usedByNode.uses, objNode)
+}
+
+func (g *graph) markScopeUsed(scope *types.Scope) {
+	g.markScopeUsedBy(scope, nil)
+}
+
+func (g *graph) markScopeUsedBy(s1, s2 *types.Scope) {
+	if s2 != nil {
+		g.markUsedBy(s1, s2)
+	}
+	n := s1.NumChildren()
+	for i := 0; i < n; i++ {
+		g.markScopeUsedBy(s1.Child(i), s1)
+	}
+}
+
+type graphNode struct {
+	obj  interface{}
+	uses []*graphNode
+	used bool
+}
+
 type CheckMode int
 
 const (
@@ -39,11 +84,14 @@ type Checker struct {
 	Mode    CheckMode
 	Verbose bool
 
+	graph *graph
+
 	defs       map[types.Object]*state
 	interfaces []*types.Interface
 	structs    []*types.Named
 	pkg        *loader.PackageInfo
 	msCache    typeutil.MethodSetCache
+	lprog      *loader.Program
 }
 
 func NewChecker(mode CheckMode, verbose bool) *Checker {
@@ -51,6 +99,9 @@ func NewChecker(mode CheckMode, verbose bool) *Checker {
 		Mode:    mode,
 		Verbose: verbose,
 		defs:    make(map[types.Object]*state),
+		graph: &graph{
+			nodes: make(map[interface{}]*graphNode),
+		},
 	}
 }
 
@@ -90,24 +141,8 @@ func (c *Checker) markFields(typ types.Type) {
 	}
 }
 
-func (c *Checker) Visit(n ast.Node) ast.Visitor {
-	node, ok := n.(*ast.CompositeLit)
-	if !ok {
-		return c
-	}
-
-	typ := c.pkg.TypeOf(node)
-	if _, ok := typ.(*types.Named); ok {
-		typ = typ.Underlying()
-	}
-	if _, ok := typ.(*types.Struct); !ok {
-		return c
-	}
-
-	if isBasicStruct(node.Elts) {
-		c.markFields(typ)
-	}
-	return c
+func (c *Checker) Visit(node ast.Node) ast.Visitor {
+	return nil
 }
 
 func (c *Checker) Check(paths []string) ([]Unused, error) {
@@ -140,85 +175,200 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	if err != nil {
 		return nil, err
 	}
-	lprog, err := conf.Load()
+	c.lprog, err = conf.Load()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, c.pkg = range lprog.InitialPackages() {
+	for _, c.pkg = range c.lprog.InitialPackages() {
 		for _, obj := range c.pkg.Defs {
 			if obj == nil {
 				continue
 			}
-			if isVariable(obj) && !isPkgScope(obj) && !isField(obj) {
-				// Skip variables that aren't package variables or struct fields
-				continue
+			// if _, ok := obj.(*types.PkgName); ok {
+			// 	continue
+			// }
+			node, ok := c.graph.nodes[obj]
+			if !ok {
+				node = &graphNode{obj: obj}
+				c.graph.nodes[obj] = node
 			}
-			if _, ok := obj.(*types.PkgName); ok {
-				continue
+
+			if obj, ok := obj.(*types.TypeName); ok {
+				c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
+				c.graph.markUsedBy(obj, obj.Type())
 			}
-			if _, ok := c.defs[obj]; !ok {
-				c.defs[obj] = &state{}
+
+			if obj, ok := obj.(*types.Var); ok {
+				emptyNode, ok := c.graph.nodes[obj]
+				if !ok {
+					emptyNode = &graphNode{obj: obj}
+					c.graph.nodes[obj] = emptyNode
+				}
+				c.graph.roots = append(c.graph.roots, emptyNode)
 			}
-		}
-		for _, tv := range c.pkg.Types {
-			if typ, ok := tv.Type.(*types.Interface); ok {
-				c.interfaces = append(c.interfaces, typ)
+
+			if obj, ok := obj.(interface {
+				Scope() *types.Scope
+			}); ok {
+				scope := obj.Scope()
+				c.graph.markUsedBy(scope, obj)
+				c.graph.markScopeUsed(scope)
 			}
-			if typ, ok := tv.Type.(*types.Named); ok {
-				if _, ok := typ.Underlying().(*types.Struct); ok {
-					if typ.Obj().Pkg() != c.pkg.Pkg {
-						continue
-					}
-					c.structs = append(c.structs, typ)
+
+			if c.isRoot(obj, false) {
+				c.graph.roots = append(c.graph.roots, node)
+				if obj, ok := obj.(*types.PkgName); ok {
+					scope := obj.Pkg().Scope()
+					c.graph.markUsedBy(scope, obj)
 				}
 			}
+		}
 
-		}
-		for _, obj := range c.pkg.Uses {
-			c.markUsed(obj)
-		}
-		for _, file := range c.pkg.Files {
-			ast.Walk(c, file)
-		}
-	}
-	for obj, state := range c.defs {
-		if state.used {
-			continue
-		}
-		if obj.Pkg() == nil {
-			continue
-		}
-		if s, ok := obj.Type().Underlying().(*types.Struct); ok {
-			n := s.NumFields()
-			for i := 0; i < n; i++ {
-				c.markQuiet(s.Field(i))
+		for ident, usedObj := range c.pkg.Uses {
+			if _, ok := usedObj.(*types.PkgName); ok {
+				continue
+			}
+			pos := ident.Pos()
+			scope := c.pkg.Pkg.Scope().Innermost(pos)
+			c.graph.markUsedBy(usedObj, scope)
+
+			if obj, ok := usedObj.(*types.Var); ok {
+				c.graph.markUsedBy(obj.Type(), obj)
 			}
 		}
+
+		for _, tv := range c.pkg.Types {
+			if iface, ok := tv.Type.(*types.Interface); ok {
+				if iface.NumMethods() == 0 {
+					continue
+				}
+				typNode, ok := c.graph.nodes[iface]
+				if !ok {
+					typNode = &graphNode{obj: iface}
+					c.graph.nodes[iface] = typNode
+				}
+
+				for _, node := range c.graph.nodes {
+					obj, ok := node.obj.(types.Object)
+					if !ok {
+						continue
+					}
+					// TODO check pointer type
+					if !types.Implements(obj.Type(), iface) {
+						continue
+					}
+					ms := types.NewMethodSet(obj.Type())
+					n := ms.Len()
+					for i := 0; i < n; i++ {
+						meth := ms.At(i).Obj().(*types.Func)
+						m := iface.NumMethods()
+						found := false
+						for j := 0; j < m; j++ {
+							if iface.Method(j).Name() == meth.Name() {
+								found = true
+								break
+							}
+						}
+						if !found {
+							continue
+						}
+						methNode, ok := c.graph.nodes[meth]
+						if !ok {
+							methNode = &graphNode{obj: meth}
+							c.graph.nodes[meth] = methNode
+						}
+						typNode.uses = append(typNode.uses, methNode)
+					}
+				}
+			}
+		}
+
+		fn := func(node1 ast.Node) bool {
+			if node1 == nil {
+				return false
+			}
+			expr, ok := node1.(ast.Expr)
+			if !ok {
+				return true
+			}
+			left := c.pkg.TypeOf(expr)
+			if left == nil {
+				return true
+			}
+			fn2 := func(node2 ast.Node) bool {
+				if node2 == nil || node1 == node2 {
+					return true
+				}
+				switch node2 := node2.(type) {
+				case *ast.Ident:
+					right := c.pkg.ObjectOf(node2)
+					if right == nil {
+						return true
+					}
+					c.graph.markUsedBy(right, left)
+				case ast.Expr:
+					right := c.pkg.TypeOf(expr)
+					if right == nil {
+						return true
+					}
+					c.graph.markUsedBy(right, left)
+				}
+
+				return true
+			}
+			ast.Inspect(node1, fn2)
+			return true
+		}
+		for _, file := range c.pkg.Files {
+			ast.Inspect(file, fn)
+		}
 	}
 
-	for obj, state := range c.defs {
-		f := lprog.Fset.Position(obj.Pos()).Filename
+	for _, node := range c.graph.nodes {
+		obj, ok := node.obj.(types.Object)
+		if !ok {
+			continue
+		}
+		typNode, ok := c.graph.nodes[obj.Type()]
+		if !ok {
+			continue
+		}
+		node.uses = append(node.uses, typNode)
+	}
 
-		if obj.Pkg() == nil {
-			continue
-		}
-		// TODO methods + reflection
-		if !c.checkFlags(obj) {
-			continue
-		}
-		if state.used || state.quiet {
-			continue
-		}
+	markNodesUsed(c.graph.roots, 0)
 
-		if c.consideredUsed(obj, f) {
+	for _, node := range c.graph.nodes {
+		if node.used {
 			continue
 		}
-
-		unused = append(unused, Unused{
-			Obj:      obj,
-			Position: lprog.Fset.Position(obj.Pos()),
-		})
+		found := false
+		if !false {
+			for _, pkg := range c.lprog.InitialPackages() {
+				obj, ok := node.obj.(types.Object)
+				if !ok {
+					continue
+				}
+				if pkg.Pkg == obj.Pkg() {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			continue
+		}
+		// FIXME ignore stdlib (unless we're testing stdlib) and vendor
+		obj, ok := node.obj.(types.Object)
+		if !ok {
+			continue
+		}
+		// FIXME if a whole scope is unused, don't report everything
+		// in that scope. for example, if a function is unused, don't
+		// report every identifier declared in that function.
+		pos := c.lprog.Fset.Position(obj.Pos())
+		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
 	return unused, nil
 }
@@ -252,75 +402,6 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 		importPaths[i] = bpkg.ImportPath
 	}
 	return false, nil
-}
-
-func (c *Checker) implements(obj types.Object, seen map[types.Object]bool) bool {
-	if seen == nil {
-		seen = map[types.Object]bool{}
-	}
-
-	recvType := obj.(*types.Func).Type().(*types.Signature).Recv().Type()
-	recvTypeElem := recvType
-	if t, ok := recvType.(*types.Pointer); ok {
-		recvTypeElem = t.Elem()
-	}
-	for _, iface := range c.interfaces {
-		if !types.Implements(recvType, iface) {
-			if !types.Implements(types.NewPointer(recvType), iface) {
-				continue
-			}
-		}
-		n := iface.NumMethods()
-		for i := 0; i < n; i++ {
-			if iface.Method(i).Name() == obj.Name() {
-				return true
-			}
-		}
-	}
-
-	// FIXME(dominikh): the complexity of this is ridiculous, improve it
-	for _, n := range c.structs {
-		s := n.Underlying().(*types.Struct)
-		pkg := n.Obj().Pkg()
-
-		if pkg != obj.Pkg() {
-			continue
-		}
-		num := s.NumFields()
-		ms := c.msCache.MethodSet(n)
-		msp := c.msCache.MethodSet(types.NewPointer(n))
-		for i := 0; i < num; i++ {
-			field := s.Field(i)
-			if !field.Anonymous() {
-				// Not embedded
-				continue
-			}
-			if field.Type() != recvType && field.Type() != recvTypeElem {
-				// Not embedding our type
-				continue
-			}
-
-			for _, msc := range []*types.MethodSet{ms, msp} {
-				m := msc.Len()
-				for j := 0; j < m; j++ {
-					obj2 := msc.At(j).Obj()
-					if obj == obj2 {
-						continue
-					}
-					if seen[obj] {
-						continue
-					}
-					seen[obj] = true
-					if c.implements(obj2, seen) {
-						return true
-					}
-					break
-				}
-			}
-		}
-	}
-
-	return false
 }
 
 func isPkgScope(obj types.Object) bool {
@@ -399,34 +480,27 @@ func (c *Checker) checkFlags(obj types.Object) bool {
 	return true
 }
 
-func (c *Checker) consideredUsed(obj types.Object, f string) bool {
-	// The blank identifier is used
-	if obj.Name() == "_" {
+func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
+	// - in local mode, main, init, tests, and non-test, non-main exported are roots
+	// - in global mode (not yet implemented), main, init and tests are roots
+
+	// FIXME consider interfaces here?
+
+	if _, ok := obj.(*types.PkgName); ok {
 		return true
 	}
 
-	// func main in package main is used
-	if isMain(obj) {
+	if isMain(obj) || (isFunction(obj) && !isMethod(obj) && obj.Name() == "init") {
 		return true
 	}
-
-	// func init is used
-	if isFunction(obj) && !isMethod(obj) && obj.Name() == "init" {
-		return true
-	}
-
-	// methods that aid in implementing an interface are used
-	if isMethod(obj) && c.implements(obj, nil) {
-		return true
-	}
-
 	if obj.Exported() {
-		// Exported methods and fields are always used
-		if isMethod(obj) || isField(obj) {
+		// FIXME fields are only roots if the struct type would be, too
+		// FIXME exported methods on unexported types aren't roots
+		if (isMethod(obj) || isField(obj)) && !wholeProgram {
 			return true
 		}
 
-		// Test*, Benchmark* and Example* used, other exported identifiers are not
+		f := c.lprog.Fset.Position(obj.Pos()).Filename
 		if strings.HasSuffix(f, "_test.go") {
 			return strings.HasPrefix(obj.Name(), "Test") ||
 				strings.HasPrefix(obj.Name(), "Benchmark") ||
@@ -434,10 +508,20 @@ func (c *Checker) consideredUsed(obj types.Object, f string) bool {
 		}
 
 		// Package-level are used, except in package main
-		if isPkgScope(obj) && obj.Pkg().Name() != "main" {
+		if isPkgScope(obj) && obj.Pkg().Name() != "main" && !wholeProgram {
 			return true
 		}
 	}
-
 	return false
+}
+
+func markNodesUsed(nodes []*graphNode, n int) {
+	for _, node := range nodes {
+		// log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
+		wasUsed := node.used
+		node.used = true
+		if !wasUsed {
+			markNodesUsed(node.uses, n+1)
+		}
+	}
 }

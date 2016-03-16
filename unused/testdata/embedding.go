@@ -5,6 +5,10 @@ type I interface {
 	f2()
 }
 
+func init() {
+	var _ I
+}
+
 type t1 struct{}
 type T2 struct{ t1 }
 

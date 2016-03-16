@@ -93,6 +93,7 @@ func typString(obj types.Object) string {
 	case *types.TypeName:
 		return "type"
 	default:
+		// log.Printf("%T", obj)
 		return "identifier"
 	}
 }
