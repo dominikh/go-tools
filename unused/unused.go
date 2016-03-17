@@ -578,7 +578,9 @@ func (g *graph) markNodesQuiet() {
 				scope := obj.Child(i)
 				for _, name := range scope.Names() {
 					v := scope.Lookup(name)
-					g.nodes[v].quiet = true
+					if n, ok := g.nodes[v]; ok {
+						n.quiet = true
+					}
 				}
 			}
 		}
