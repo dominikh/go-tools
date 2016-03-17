@@ -242,6 +242,11 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		}
 
 		for _, tv := range c.pkg.Types {
+			if typ, ok := tv.Type.(interface {
+				Elem() types.Type
+			}); ok {
+				c.graph.markUsedBy(typ.Elem(), typ)
+			}
 			if iface, ok := tv.Type.(*types.Interface); ok {
 				if iface.NumMethods() == 0 {
 					continue
