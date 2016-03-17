@@ -373,7 +373,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		roots[root] = struct{}{}
 	}
 	markNodesUsed(roots, 0)
-	c.graph.markNodesQuiet()
+	c.markNodesQuiet()
 
 	for _, node := range c.graph.nodes {
 		if node.used || node.quiet {
@@ -559,9 +559,13 @@ func markNodesUsed(nodes map[*graphNode]struct{}, n int) {
 	}
 }
 
-func (g *graph) markNodesQuiet() {
-	for _, node := range g.nodes {
+func (c *Checker) markNodesQuiet() {
+	for _, node := range c.graph.nodes {
 		if node.used {
+			continue
+		}
+		if obj, ok := node.obj.(types.Object); ok && !c.checkFlags(obj) {
+			node.quiet = true
 			continue
 		}
 		switch obj := node.obj.(type) {
@@ -569,7 +573,7 @@ func (g *graph) markNodesQuiet() {
 			n := obj.NumFields()
 			for i := 0; i < n; i++ {
 				field := obj.Field(i)
-				g.nodes[field].quiet = true
+				c.graph.nodes[field].quiet = true
 			}
 		case *types.Scope:
 			if obj == nil {
@@ -580,7 +584,7 @@ func (g *graph) markNodesQuiet() {
 				scope := obj.Child(i)
 				for _, name := range scope.Names() {
 					v := scope.Lookup(name)
-					if n, ok := g.nodes[v]; ok {
+					if n, ok := c.graph.nodes[v]; ok {
 						n.quiet = true
 					}
 				}
