@@ -6,6 +6,7 @@ import (
 	"go/build"
 	"go/token"
 	"go/types"
+	"log"
 	"os"
 	"strings"
 
@@ -22,18 +23,18 @@ func (g *graph) markUsedBy(obj, usedBy interface{}) {
 	if obj == usedBy {
 		return
 	}
-	objNode, ok := g.nodes[obj]
-	if !ok {
-		objNode = &graphNode{obj: obj}
-		g.nodes[obj] = objNode
-	}
+	objNode := g.getNode(obj)
+	usedByNode := g.getNode(usedBy)
+	usedByNode.uses[objNode] = struct{}{}
+}
 
-	usedByNode, ok := g.nodes[usedBy]
+func (g *graph) getNode(obj interface{}) *graphNode {
+	node, ok := g.nodes[obj]
 	if !ok {
-		usedByNode = &graphNode{obj: usedBy}
-		g.nodes[usedBy] = usedByNode
+		node = &graphNode{obj: obj, uses: make(map[*graphNode]struct{})}
+		g.nodes[obj] = node
 	}
-	usedByNode.uses = append(usedByNode.uses, objNode)
+	return node
 }
 
 func (g *graph) markScopeUsed(scope *types.Scope) {
@@ -52,7 +53,7 @@ func (g *graph) markScopeUsedBy(s1, s2 *types.Scope) {
 
 type graphNode struct {
 	obj   interface{}
-	uses  []*graphNode
+	uses  map[*graphNode]struct{}
 	used  bool
 	quiet bool
 }
@@ -187,11 +188,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			// if _, ok := obj.(*types.PkgName); ok {
 			// 	continue
 			// }
-			node, ok := c.graph.nodes[obj]
-			if !ok {
-				node = &graphNode{obj: obj}
-				c.graph.nodes[obj] = node
-			}
 
 			if obj, ok := obj.(*types.TypeName); ok {
 				c.graph.markUsedBy(obj.Type().Underlying(), obj.Type())
@@ -227,6 +223,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 
 			if c.isRoot(obj, false) {
+				node := c.graph.getNode(obj)
 				c.graph.roots = append(c.graph.roots, node)
 				if obj, ok := obj.(*types.PkgName); ok {
 					scope := obj.Pkg().Scope()
@@ -253,12 +250,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				if iface.NumMethods() == 0 {
 					continue
 				}
-				typNode, ok := c.graph.nodes[iface]
-				if !ok {
-					typNode = &graphNode{obj: iface}
-					c.graph.nodes[iface] = typNode
-				}
-
 				for _, node := range c.graph.nodes {
 					obj, ok := node.obj.(types.Object)
 					if !ok {
@@ -283,12 +274,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 						if !found {
 							continue
 						}
-						methNode, ok := c.graph.nodes[meth]
-						if !ok {
-							methNode = &graphNode{obj: meth}
-							c.graph.nodes[meth] = methNode
-						}
-						typNode.uses = append(typNode.uses, methNode)
+						c.graph.markUsedBy(meth, iface)
 					}
 				}
 			}
@@ -344,10 +330,14 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		if !ok {
 			continue
 		}
-		node.uses = append(node.uses, typNode)
+		node.uses[typNode] = struct{}{}
 	}
 
-	markNodesUsed(c.graph.roots, 0)
+	roots := map[*graphNode]struct{}{}
+	for _, root := range c.graph.roots {
+		roots[root] = struct{}{}
+	}
+	markNodesUsed(roots, 0)
 	c.graph.markNodesQuiet()
 
 	for _, node := range c.graph.nodes {
@@ -523,9 +513,9 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 	return false
 }
 
-func markNodesUsed(nodes []*graphNode, n int) {
-	for _, node := range nodes {
-		// log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
+func markNodesUsed(nodes map[*graphNode]struct{}, n int) {
+	for node := range nodes {
+		log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
 		wasUsed := node.used
 		node.used = true
 		if !wasUsed {
