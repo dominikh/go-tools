@@ -13,8 +13,6 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-// FIXME functions use their arguments and return values
-
 type graph struct {
 	roots []*graphNode
 	nodes map[interface{}]*graphNode
@@ -200,13 +198,23 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				c.graph.markUsedBy(obj, obj.Type())
 			}
 
+			// FIXME(dominikh): we don't really want _ as roots. A _
+			// variable in an otherwise unused function shouldn't mark
+			// anything as used. However, _ doesn't seem to have a
+			// scope associated with it.
 			if obj, ok := obj.(*types.Var); ok {
-				emptyNode, ok := c.graph.nodes[obj]
-				if !ok {
-					emptyNode = &graphNode{obj: obj}
-					c.graph.nodes[obj] = emptyNode
+				if obj.Name() == "_" {
+					emptyNode, ok := c.graph.nodes[obj]
+					if !ok {
+						emptyNode = &graphNode{obj: obj}
+						c.graph.nodes[obj] = emptyNode
+					}
+					c.graph.roots = append(c.graph.roots, emptyNode)
+				} else {
+					if obj.Parent() != obj.Pkg().Scope() {
+						c.graph.markUsedBy(obj, obj.Parent())
+					}
 				}
-				c.graph.roots = append(c.graph.roots, emptyNode)
 			}
 
 			if obj, ok := obj.(interface {
