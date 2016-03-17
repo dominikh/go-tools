@@ -210,6 +210,10 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				}
 			}
 
+			if fn, ok := obj.(*types.Func); ok {
+				c.graph.markUsedBy(fn, fn.Type())
+			}
+
 			if obj, ok := obj.(interface {
 				Scope() *types.Scope
 			}); ok {
