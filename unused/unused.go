@@ -539,14 +539,25 @@ func (g *graph) markNodesQuiet() {
 		if node.used {
 			continue
 		}
-		obj, ok := node.obj.(*types.Struct)
-		if !ok {
-			continue
-		}
-		n := obj.NumFields()
-		for i := 0; i < n; i++ {
-			field := obj.Field(i)
-			g.nodes[field].quiet = true
+		switch obj := node.obj.(type) {
+		case *types.Struct:
+			n := obj.NumFields()
+			for i := 0; i < n; i++ {
+				field := obj.Field(i)
+				g.nodes[field].quiet = true
+			}
+		case *types.Scope:
+			if obj == nil {
+				continue
+			}
+			n := obj.NumChildren()
+			for i := 0; i < n; i++ {
+				scope := obj.Child(i)
+				for _, name := range scope.Names() {
+					v := scope.Lookup(name)
+					g.nodes[v].quiet = true
+				}
+			}
 		}
 	}
 }
