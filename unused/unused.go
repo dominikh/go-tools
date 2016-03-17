@@ -6,13 +6,19 @@ import (
 	"go/build"
 	"go/token"
 	"go/types"
-	"log"
 	"os"
 	"strings"
 
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/types/typeutil"
 )
+
+// FIXME unkeyed struct initialiser that isn't empty should mark all
+// fields as used
+
+// FIXME imported packages are always used/shouldn't be considered in
+// the graph. either mark them quiet, or detect their usage (in
+// selectors)
 
 type graph struct {
 	roots []*graphNode
@@ -296,7 +302,16 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 							break
 						}
 						value := spec.Values[i]
-						c.graph.markUsedBy(c.pkg.TypeOf(value), c.pkg.ObjectOf(name))
+						//log.Printf("%s %T", value, value)
+						fn3 := func(node3 ast.Node) bool {
+							if node3, ok := node3.(*ast.Ident); ok {
+								obj := c.pkg.ObjectOf(node3)
+								//log.Println(c.pkg.ObjectOf(name), "uses", obj)
+								c.graph.markUsedBy(obj, c.pkg.ObjectOf(name))
+							}
+							return true
+						}
+						ast.Inspect(value, fn3)
 					}
 				}
 			}
@@ -320,7 +335,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					if right == nil {
 						return true
 					}
-					c.graph.markUsedBy(right, left)
+					// c.graph.markUsedBy(right, left)
 				case ast.Expr:
 					right := c.pkg.TypeOf(expr)
 					if right == nil {
@@ -533,7 +548,7 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 
 func markNodesUsed(nodes map[*graphNode]struct{}, n int) {
 	for node := range nodes {
-		log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
+		// log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
 		wasUsed := node.used
 		node.used = true
 		if !wasUsed {

@@ -14,4 +14,5 @@ func fn() bool {
 	return false
 }
 
-var _ = fn
+var x = fn()
+var _ = x
