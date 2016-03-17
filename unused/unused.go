@@ -267,7 +267,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					if !types.Implements(obj.Type(), iface) {
 						continue
 					}
-					ms := types.NewMethodSet(obj.Type())
+					ms := c.msCache.MethodSet(obj.Type())
 					n := ms.Len()
 					for i := 0; i < n; i++ {
 						meth := ms.At(i).Obj().(*types.Func)
