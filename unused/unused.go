@@ -179,6 +179,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			if obj == nil {
 				continue
 			}
+			c.graph.getNode(obj)
+
 			// if _, ok := obj.(*types.PkgName); ok {
 			// 	continue
 			// }
