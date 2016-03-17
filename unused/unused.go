@@ -51,9 +51,10 @@ func (g *graph) markScopeUsedBy(s1, s2 *types.Scope) {
 }
 
 type graphNode struct {
-	obj  interface{}
-	uses []*graphNode
-	used bool
+	obj   interface{}
+	uses  []*graphNode
+	used  bool
+	quiet bool
 }
 
 type CheckMode int
@@ -347,9 +348,10 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	}
 
 	markNodesUsed(c.graph.roots, 0)
+	c.graph.markNodesQuiet()
 
 	for _, node := range c.graph.nodes {
-		if node.used {
+		if node.used || node.quiet {
 			continue
 		}
 		found := false
@@ -373,9 +375,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		if !ok {
 			continue
 		}
-		// FIXME if a whole scope is unused, don't report everything
-		// in that scope. for example, if a function is unused, don't
-		// report every identifier declared in that function.
 		pos := c.lprog.Fset.Position(obj.Pos())
 		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
@@ -531,6 +530,23 @@ func markNodesUsed(nodes []*graphNode, n int) {
 		node.used = true
 		if !wasUsed {
 			markNodesUsed(node.uses, n+1)
+		}
+	}
+}
+
+func (g *graph) markNodesQuiet() {
+	for _, node := range g.nodes {
+		if node.used {
+			continue
+		}
+		obj, ok := node.obj.(*types.Struct)
+		if !ok {
+			continue
+		}
+		n := obj.NumFields()
+		for i := 0; i < n; i++ {
+			field := obj.Field(i)
+			g.nodes[field].quiet = true
 		}
 	}
 }
