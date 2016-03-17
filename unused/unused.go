@@ -201,11 +201,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			// scope associated with it.
 			if obj, ok := obj.(*types.Var); ok {
 				if obj.Name() == "_" {
-					emptyNode, ok := c.graph.nodes[obj]
-					if !ok {
-						emptyNode = &graphNode{obj: obj}
-						c.graph.nodes[obj] = emptyNode
-					}
+					emptyNode := c.graph.getNode(obj)
 					c.graph.roots = append(c.graph.roots, emptyNode)
 				} else {
 					if obj.Parent() != obj.Pkg().Scope() {
@@ -284,10 +280,28 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			if node1 == nil {
 				return false
 			}
+
+			if decl, ok := node1.(*ast.GenDecl); ok {
+				for _, spec := range decl.Specs {
+					spec, ok := spec.(*ast.ValueSpec)
+					if !ok {
+						continue
+					}
+					for i, name := range spec.Names {
+						if i >= len(spec.Values) {
+							break
+						}
+						value := spec.Values[i]
+						c.graph.markUsedBy(c.pkg.TypeOf(value), c.pkg.ObjectOf(name))
+					}
+				}
+			}
+
 			expr, ok := node1.(ast.Expr)
 			if !ok {
 				return true
 			}
+
 			left := c.pkg.TypeOf(expr)
 			if left == nil {
 				return true
