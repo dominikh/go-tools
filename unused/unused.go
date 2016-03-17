@@ -13,9 +13,6 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-// FIXME unkeyed struct initialiser that isn't empty should mark all
-// fields as used
-
 // FIXME imported packages are always used/shouldn't be considered in
 // the graph. either mark them quiet, or detect their usage (in
 // selectors)
@@ -117,15 +114,6 @@ func (c *Checker) checkFunctions() bool { return (c.Mode & CheckFunctions) > 0 }
 func (c *Checker) checkTypes() bool     { return (c.Mode & CheckTypes) > 0 }
 func (c *Checker) checkVariables() bool { return (c.Mode & CheckVariables) > 0 }
 
-func (c *Checker) markUsed(obj types.Object) {
-	v, ok := c.defs[obj]
-	if !ok {
-		v = &state{}
-		c.defs[obj] = v
-	}
-	v.used = true
-}
-
 func (c *Checker) markQuiet(obj types.Object) {
 	v, ok := c.defs[obj]
 	if !ok {
@@ -143,7 +131,7 @@ func (c *Checker) markFields(typ types.Type) {
 	n := structType.NumFields()
 	for i := 0; i < n; i++ {
 		field := structType.Field(i)
-		c.markUsed(field)
+		c.graph.markUsedBy(field, typ)
 	}
 }
 
@@ -291,6 +279,20 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		fn := func(node1 ast.Node) bool {
 			if node1 == nil {
 				return false
+			}
+
+			if node, ok := node1.(*ast.CompositeLit); ok {
+				typ := c.pkg.TypeOf(node)
+				if _, ok := typ.(*types.Named); ok {
+					typ = typ.Underlying()
+				}
+				if _, ok := typ.(*types.Struct); !ok {
+					return true
+				}
+
+				if isBasicStruct(node.Elts) {
+					c.markFields(typ)
+				}
 			}
 
 			if decl, ok := node1.(*ast.GenDecl); ok {
