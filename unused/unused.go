@@ -205,7 +205,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			// variable in an otherwise unused function shouldn't mark
 			// anything as used. However, _ doesn't seem to have a
 			// scope associated with it.
-			if obj, ok := obj.(*types.Var); ok {
+			switch obj := obj.(type) {
+			case *types.Var, *types.Const:
 				if obj.Name() == "_" {
 					emptyNode := c.graph.getNode(obj)
 					c.graph.roots = append(c.graph.roots, emptyNode)
@@ -246,8 +247,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			scope := c.pkg.Pkg.Scope().Innermost(pos)
 			c.graph.markUsedBy(usedObj, scope)
 
-			if obj, ok := usedObj.(*types.Var); ok {
-				c.graph.markUsedBy(obj.Type(), obj)
+			switch usedObj.(type) {
+			case *types.Var, *types.Const:
+				c.graph.markUsedBy(usedObj.Type(), usedObj)
 			}
 		}
 
