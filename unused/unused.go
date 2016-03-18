@@ -412,30 +412,30 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	}
 	markNodesUsed(roots, 0)
 
-	// fmt.Fprintln(os.Stderr, "digraph {")
-	// fmt.Fprintln(os.Stderr, "n0 [label = roots]")
-	// for _, node := range c.graph.nodes {
-	// 	s := fmt.Sprintf("%s", node.obj)
-	// 	s = strings.Replace(s, "\n", "", -1)
-	// 	s = strings.Replace(s, `"`, "", -1)
-	// 	fmt.Fprintf(os.Stderr, `n%d [label = %q]`, node.n, s)
-	// 	if node.used {
-	// 		fmt.Fprint(os.Stderr, "[color = green]")
-	// 	} else {
-	// 		fmt.Fprint(os.Stderr, "[color = red]")
-	// 	}
-	// 	fmt.Fprintln(os.Stderr)
-	// }
+	fmt.Fprintln(os.Stderr, "digraph {")
+	fmt.Fprintln(os.Stderr, "n0 [label = roots]")
+	for _, node := range c.graph.nodes {
+		s := fmt.Sprintf("%s (%T)", node.obj, node.obj)
+		s = strings.Replace(s, "\n", "", -1)
+		s = strings.Replace(s, `"`, "", -1)
+		fmt.Fprintf(os.Stderr, `n%d [label = %q]`, node.n, s)
+		if node.used {
+			fmt.Fprint(os.Stderr, "[color = green]")
+		} else {
+			fmt.Fprint(os.Stderr, "[color = red]")
+		}
+		fmt.Fprintln(os.Stderr)
+	}
 
-	// for _, node1 := range c.graph.nodes {
-	// 	for node2 := range node1.uses {
-	// 		fmt.Fprintf(os.Stderr, "n%d -> n%d\n", node1.n, node2.n)
-	// 	}
-	// }
-	// for _, root := range c.graph.roots {
-	// 	fmt.Fprintf(os.Stderr, "n0 -> n%d\n", root.n)
-	// }
-	// fmt.Fprintln(os.Stderr, "}")
+	for _, node1 := range c.graph.nodes {
+		for node2 := range node1.uses {
+			fmt.Fprintf(os.Stderr, "n%d -> n%d\n", node1.n, node2.n)
+		}
+	}
+	for _, root := range c.graph.roots {
+		fmt.Fprintf(os.Stderr, "n0 -> n%d\n", root.n)
+	}
+	fmt.Fprintln(os.Stderr, "}")
 
 	c.markNodesQuiet()
 
