@@ -262,30 +262,38 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					continue
 				}
 				for _, node := range c.graph.nodes {
-					obj, ok := node.obj.(types.Object)
+					obj, ok := node.obj.(*types.Named)
 					if !ok {
 						continue
 					}
 					// TODO check pointer type
-					if !types.Implements(obj.Type(), iface) {
+					if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
 						continue
 					}
-					ms := c.msCache.MethodSet(obj.Type())
-					n := ms.Len()
-					for i := 0; i < n; i++ {
-						meth := ms.At(i).Obj().(*types.Func)
-						m := iface.NumMethods()
-						found := false
-						for j := 0; j < m; j++ {
-							if iface.Method(j).Name() == meth.Name() {
-								found = true
-								break
+					for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
+						ms := c.msCache.MethodSet(obj)
+						n := ms.Len()
+						for i := 0; i < n; i++ {
+							sel := ms.At(i)
+							meth := sel.Obj().(*types.Func)
+							m := iface.NumMethods()
+							found := false
+							for j := 0; j < m; j++ {
+								if iface.Method(j).Name() == meth.Name() {
+									found = true
+									break
+								}
 							}
+							if !found {
+								continue
+							}
+							c.graph.markUsedBy(meth.Type().(*types.Signature).Recv().Type(), obj) // embedded receiver
+							if len(sel.Index()) > 1 {
+								f := getField(obj, sel.Index()[0])
+								c.graph.markUsedBy(f, obj) // embedded receiver
+							}
+							c.graph.markUsedBy(meth, obj)
 						}
-						if !found {
-							continue
-						}
-						c.graph.markUsedBy(meth, iface)
 					}
 				}
 			}
