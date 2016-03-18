@@ -26,7 +26,7 @@ var (
 
 func init() {
 	flag.BoolVar(&fConstants, "consts", true, "Report unused constants")
-	flag.BoolVar(&fFields, "fields", false, "Report unused fields")
+	flag.BoolVar(&fFields, "fields", true, "Report unused fields")
 	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
