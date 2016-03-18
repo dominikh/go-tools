@@ -305,12 +305,7 @@ func (c *Checker) processUses(pkg *loader.PackageInfo) {
 
 func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 	var named []*types.Named
-	for _, tv := range pkg.Types {
-		if obj, ok := tv.Type.(*types.Named); ok {
-			named = append(named, obj)
-		}
-	}
-
+	var interfaces []*types.Interface
 	for _, tv := range pkg.Types {
 		if typ, ok := tv.Type.(interface {
 			Elem() types.Type
@@ -318,42 +313,45 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 			c.graph.markUsedBy(typ.Elem(), typ)
 		}
 
-		if t, ok := tv.Type.(*types.Named); ok {
-			c.graph.markUsedBy(t, t.Underlying())
-			c.graph.markUsedBy(t.Underlying(), t)
+		switch obj := tv.Type.(type) {
+		case *types.Named:
+			named = append(named, obj)
+			c.graph.markUsedBy(obj, obj.Underlying())
+			c.graph.markUsedBy(obj.Underlying(), obj)
+		case *types.Interface:
+			if obj.NumMethods() > 0 {
+				interfaces = append(interfaces, obj)
+			}
 		}
+	}
 
-		if iface, ok := tv.Type.(*types.Interface); ok {
-			if iface.NumMethods() == 0 {
+	for _, iface := range interfaces {
+		for _, obj := range named {
+			if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
 				continue
 			}
-			for _, obj := range named {
-				if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
-					continue
-				}
-				ifaceMethods := make(map[string]struct{}, iface.NumMethods())
-				n := iface.NumMethods()
+			ifaceMethods := make(map[string]struct{}, iface.NumMethods())
+			n := iface.NumMethods()
+			for i := 0; i < n; i++ {
+				meth := iface.Method(i)
+				ifaceMethods[meth.Name()] = struct{}{}
+			}
+			for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
+				ms := c.msCache.MethodSet(obj)
+				n := ms.Len()
 				for i := 0; i < n; i++ {
-					meth := iface.Method(i)
-					ifaceMethods[meth.Name()] = struct{}{}
-				}
-				for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
-					ms := c.msCache.MethodSet(obj)
-					n := ms.Len()
-					for i := 0; i < n; i++ {
-						sel := ms.At(i)
-						meth := sel.Obj().(*types.Func)
-						_, found := ifaceMethods[meth.Name()]
-						if !found {
-							continue
-						}
-						c.graph.markUsedBy(meth.Type().(*types.Signature).Recv().Type(), obj) // embedded receiver
-						if len(sel.Index()) > 1 {
-							f := getField(obj, sel.Index()[0])
-							c.graph.markUsedBy(f, obj) // embedded receiver
-						}
-						c.graph.markUsedBy(meth, obj)
+					sel := ms.At(i)
+					meth := sel.Obj().(*types.Func)
+					_, found := ifaceMethods[meth.Name()]
+					if !found {
+						continue
 					}
+					c.graph.markUsedBy(meth.Type().(*types.Signature).Recv().Type(), obj) // embedded receiver
+					if len(sel.Index()) > 1 {
+						f := getField(obj, sel.Index()[0])
+						c.graph.markUsedBy(f, obj) // embedded receiver
+					}
+					c.graph.markUsedBy(meth, obj)
 				}
 			}
 		}
