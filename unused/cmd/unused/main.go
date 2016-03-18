@@ -38,6 +38,7 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(0)
 	flag.Parse()
 	if flag.NArg() == 0 {
 		flag.Usage()
