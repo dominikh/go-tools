@@ -6,6 +6,7 @@ import (
 	"go/build"
 	"go/token"
 	"go/types"
+	"io"
 	"os"
 	"strings"
 
@@ -94,6 +95,7 @@ type Unused struct {
 type Checker struct {
 	Mode    CheckMode
 	Verbose bool
+	Debug   io.Writer
 
 	graph *graph
 
@@ -411,37 +413,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	markNodesUsed(roots)
 	c.markNodesQuiet()
 
-	fmt.Fprintln(os.Stderr, "digraph {")
-	fmt.Fprintln(os.Stderr, "n0 [label = roots]")
-	for _, node := range c.graph.nodes {
-		s := fmt.Sprintf("%s (%T)", node.obj, node.obj)
-		s = strings.Replace(s, "\n", "", -1)
-		s = strings.Replace(s, `"`, "", -1)
-		fmt.Fprintf(os.Stderr, `n%d [label = %q]`, node.n, s)
-		color := "black"
-		switch {
-		case node.used:
-			color = "green"
-		case node.quiet:
-			color = "orange"
-		case !c.checkFlags(node.obj):
-			color = "purple"
-		default:
-			color = "red"
-		}
-		fmt.Fprintf(os.Stderr, "[color = %s]", color)
-		fmt.Fprintln(os.Stderr)
+	if c.Debug != nil {
+		c.printDebugGraph(c.Debug)
 	}
-
-	for _, node1 := range c.graph.nodes {
-		for node2 := range node1.uses {
-			fmt.Fprintf(os.Stderr, "n%d -> n%d\n", node1.n, node2.n)
-		}
-	}
-	for _, root := range c.graph.roots {
-		fmt.Fprintf(os.Stderr, "n0 -> n%d\n", root.n)
-	}
-	fmt.Fprintln(os.Stderr, "}")
 
 	for _, node := range c.graph.nodes {
 		if node.used || node.quiet {
@@ -704,4 +678,38 @@ func topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
 		return scope
 	}
 	return topmostScope(scope.Parent(), pkg)
+}
+
+func (c *Checker) printDebugGraph(w io.Writer) {
+	fmt.Fprintln(w, "digraph {")
+	fmt.Fprintln(w, "n0 [label = roots]")
+	for _, node := range c.graph.nodes {
+		s := fmt.Sprintf("%s (%T)", node.obj, node.obj)
+		s = strings.Replace(s, "\n", "", -1)
+		s = strings.Replace(s, `"`, "", -1)
+		fmt.Fprintf(w, `n%d [label = %q]`, node.n, s)
+		color := "black"
+		switch {
+		case node.used:
+			color = "green"
+		case node.quiet:
+			color = "orange"
+		case !c.checkFlags(node.obj):
+			color = "purple"
+		default:
+			color = "red"
+		}
+		fmt.Fprintf(w, "[color = %s]", color)
+		fmt.Fprintln(w)
+	}
+
+	for _, node1 := range c.graph.nodes {
+		for node2 := range node1.uses {
+			fmt.Fprintf(w, "n%d -> n%d\n", node1.n, node2.n)
+		}
+	}
+	for _, root := range c.graph.roots {
+		fmt.Fprintf(w, "n0 -> n%d\n", root.n)
+	}
+	fmt.Fprintln(w, "}")
 }

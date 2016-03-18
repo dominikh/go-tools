@@ -21,6 +21,7 @@ var (
 	fTypes     bool
 	fVariables bool
 	fVerbose   bool
+	fDebug     string
 )
 
 func init() {
@@ -30,6 +31,7 @@ func init() {
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
 	flag.BoolVar(&fVerbose, "v", false, "Display type-checker errors")
+	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -62,6 +64,15 @@ func main() {
 
 	paths := gotool.ImportPaths(flag.Args())
 	checker := unused.NewChecker(mode, fVerbose)
+
+	if fDebug != "" {
+		debug, err := os.Create(fDebug)
+		if err != nil {
+			log.Fatal("couldn't open debug file:", err)
+		}
+		checker.Debug = debug
+	}
+
 	unused, err := checker.Check(paths)
 	if err != nil {
 		log.Fatal(err)
