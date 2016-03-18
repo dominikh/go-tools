@@ -169,229 +169,11 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	}
 
 	for _, pkg := range c.lprog.InitialPackages() {
-		for _, obj := range pkg.Defs {
-			if obj == nil {
-				continue
-			}
-			c.graph.getNode(obj)
-
-			if obj, ok := obj.(*types.TypeName); ok {
-				c.graph.markUsedBy(obj.Type().Underlying(), obj.Type())
-				c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
-				c.graph.markUsedBy(obj, obj.Type())
-			}
-
-			// FIXME(dominikh): we don't really want _ as roots. A _
-			// variable in an otherwise unused function shouldn't mark
-			// anything as used. However, _ doesn't seem to have a
-			// scope associated with it.
-			switch obj := obj.(type) {
-			case *types.Var, *types.Const:
-				if obj.Name() == "_" {
-					node := c.graph.getNode(obj)
-					node.quiet = true
-					scope := c.topmostScope(pkg.Pkg.Scope().Innermost(obj.Pos()), pkg.Pkg)
-					if scope == pkg.Pkg.Scope() {
-						c.graph.roots = append(c.graph.roots, node)
-					} else {
-						c.graph.markUsedBy(obj, scope)
-					}
-				} else {
-					if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
-						c.graph.markUsedBy(obj, c.topmostScope(obj.Parent(), obj.Pkg()))
-					}
-				}
-			}
-
-			if fn, ok := obj.(*types.Func); ok {
-				c.graph.markUsedBy(fn, fn.Type())
-			}
-
-			if obj, ok := obj.(interface {
-				Scope() *types.Scope
-				Pkg() *types.Package
-			}); ok {
-				scope := obj.Scope()
-				c.graph.markUsedBy(c.topmostScope(scope, obj.Pkg()), obj)
-			}
-
-			if c.isRoot(obj, false) {
-				node := c.graph.getNode(obj)
-				c.graph.roots = append(c.graph.roots, node)
-				if obj, ok := obj.(*types.PkgName); ok {
-					scope := obj.Pkg().Scope()
-					c.graph.markUsedBy(scope, obj)
-				}
-			}
-		}
-
-		for ident, usedObj := range pkg.Uses {
-			if _, ok := usedObj.(*types.PkgName); ok {
-				continue
-			}
-			pos := ident.Pos()
-			scope := pkg.Pkg.Scope().Innermost(pos)
-			scope = c.topmostScope(scope, pkg.Pkg)
-			if scope != pkg.Pkg.Scope() {
-				c.graph.markUsedBy(usedObj, scope)
-			}
-
-			switch usedObj.(type) {
-			case *types.Var, *types.Const:
-				c.graph.markUsedBy(usedObj.Type(), usedObj)
-			}
-		}
-
-		for _, tv := range pkg.Types {
-			if typ, ok := tv.Type.(interface {
-				Elem() types.Type
-			}); ok {
-				c.graph.markUsedBy(typ.Elem(), typ)
-			}
-
-			if t, ok := tv.Type.(*types.Named); ok {
-				c.graph.markUsedBy(t, t.Underlying())
-				c.graph.markUsedBy(t.Underlying(), t)
-			}
-
-			if iface, ok := tv.Type.(*types.Interface); ok {
-				if iface.NumMethods() == 0 {
-					continue
-				}
-				for _, node := range c.graph.nodes {
-					obj, ok := node.obj.(*types.Named)
-					if !ok {
-						continue
-					}
-					if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
-						continue
-					}
-					for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
-						ms := c.msCache.MethodSet(obj)
-						n := ms.Len()
-						for i := 0; i < n; i++ {
-							sel := ms.At(i)
-							meth := sel.Obj().(*types.Func)
-							m := iface.NumMethods()
-							found := false
-							for j := 0; j < m; j++ {
-								if iface.Method(j).Name() == meth.Name() {
-									found = true
-									break
-								}
-							}
-							if !found {
-								continue
-							}
-							c.graph.markUsedBy(meth.Type().(*types.Signature).Recv().Type(), obj) // embedded receiver
-							if len(sel.Index()) > 1 {
-								f := getField(obj, sel.Index()[0])
-								c.graph.markUsedBy(f, obj) // embedded receiver
-							}
-							c.graph.markUsedBy(meth, obj)
-						}
-					}
-				}
-			}
-		}
-
-		for expr, sel := range pkg.Selections {
-			if sel.Kind() != types.FieldVal {
-				continue
-			}
-			scope := pkg.Pkg.Scope().Innermost(expr.Pos())
-			c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
-			c.graph.markUsedBy(sel.Obj(), expr.X)
-			if len(sel.Index()) > 1 {
-				typ := sel.Recv()
-				for _, idx := range sel.Index() {
-					obj := getField(typ, idx)
-					typ = obj.Type()
-					c.graph.markUsedBy(obj, expr.X)
-				}
-			}
-		}
-
-		fn := func(node1 ast.Node) bool {
-			if node1 == nil {
-				return false
-			}
-
-			if node, ok := node1.(*ast.CompositeLit); ok {
-				typ := pkg.TypeOf(node)
-				if _, ok := typ.(*types.Named); ok {
-					typ = typ.Underlying()
-				}
-				if _, ok := typ.(*types.Struct); !ok {
-					return true
-				}
-
-				if isBasicStruct(node.Elts) {
-					c.markFields(typ)
-				}
-			}
-
-			if decl, ok := node1.(*ast.GenDecl); ok {
-				for _, spec := range decl.Specs {
-					spec, ok := spec.(*ast.ValueSpec)
-					if !ok {
-						continue
-					}
-					for i, name := range spec.Names {
-						if i >= len(spec.Values) {
-							break
-						}
-						value := spec.Values[i]
-						fn3 := func(node3 ast.Node) bool {
-							if node3, ok := node3.(*ast.Ident); ok {
-								obj := pkg.ObjectOf(node3)
-								if _, ok := obj.(*types.PkgName); ok {
-									return true
-								}
-								c.graph.markUsedBy(obj, pkg.ObjectOf(name))
-							}
-							return true
-						}
-						ast.Inspect(value, fn3)
-					}
-				}
-			}
-
-			expr, ok := node1.(ast.Expr)
-			if !ok {
-				return true
-			}
-
-			left := pkg.TypeOf(expr)
-			if left == nil {
-				return true
-			}
-			fn2 := func(node2 ast.Node) bool {
-				if node2 == nil || node1 == node2 {
-					return true
-				}
-				switch node2 := node2.(type) {
-				case *ast.Ident:
-					right := pkg.ObjectOf(node2)
-					if right == nil {
-						return true
-					}
-				case ast.Expr:
-					right := pkg.TypeOf(expr)
-					if right == nil {
-						return true
-					}
-					c.graph.markUsedBy(right, left)
-				}
-
-				return true
-			}
-			ast.Inspect(node1, fn2)
-			return true
-		}
-		for _, file := range pkg.Files {
-			ast.Inspect(file, fn)
-		}
+		c.processDefs(pkg)
+		c.processUses(pkg)
+		c.processTypes(pkg)
+		c.processSelections(pkg)
+		c.processAST(pkg)
 	}
 
 	for _, node := range c.graph.nodes {
@@ -442,6 +224,240 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
 	return unused, nil
+}
+
+func (c *Checker) processDefs(pkg *loader.PackageInfo) {
+	for _, obj := range pkg.Defs {
+		if obj == nil {
+			continue
+		}
+		c.graph.getNode(obj)
+
+		if obj, ok := obj.(*types.TypeName); ok {
+			c.graph.markUsedBy(obj.Type().Underlying(), obj.Type())
+			c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
+			c.graph.markUsedBy(obj, obj.Type())
+		}
+
+		// FIXME(dominikh): we don't really want _ as roots. A _
+		// variable in an otherwise unused function shouldn't mark
+		// anything as used. However, _ doesn't seem to have a
+		// scope associated with it.
+		switch obj := obj.(type) {
+		case *types.Var, *types.Const:
+			if obj.Name() == "_" {
+				node := c.graph.getNode(obj)
+				node.quiet = true
+				scope := c.topmostScope(pkg.Pkg.Scope().Innermost(obj.Pos()), pkg.Pkg)
+				if scope == pkg.Pkg.Scope() {
+					c.graph.roots = append(c.graph.roots, node)
+				} else {
+					c.graph.markUsedBy(obj, scope)
+				}
+			} else {
+				if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
+					c.graph.markUsedBy(obj, c.topmostScope(obj.Parent(), obj.Pkg()))
+				}
+			}
+		}
+
+		if fn, ok := obj.(*types.Func); ok {
+			c.graph.markUsedBy(fn, fn.Type())
+		}
+
+		if obj, ok := obj.(interface {
+			Scope() *types.Scope
+			Pkg() *types.Package
+		}); ok {
+			scope := obj.Scope()
+			c.graph.markUsedBy(c.topmostScope(scope, obj.Pkg()), obj)
+		}
+
+		if c.isRoot(obj, false) {
+			node := c.graph.getNode(obj)
+			c.graph.roots = append(c.graph.roots, node)
+			if obj, ok := obj.(*types.PkgName); ok {
+				scope := obj.Pkg().Scope()
+				c.graph.markUsedBy(scope, obj)
+			}
+		}
+	}
+}
+
+func (c *Checker) processUses(pkg *loader.PackageInfo) {
+	for ident, usedObj := range pkg.Uses {
+		if _, ok := usedObj.(*types.PkgName); ok {
+			continue
+		}
+		pos := ident.Pos()
+		scope := pkg.Pkg.Scope().Innermost(pos)
+		scope = c.topmostScope(scope, pkg.Pkg)
+		if scope != pkg.Pkg.Scope() {
+			c.graph.markUsedBy(usedObj, scope)
+		}
+
+		switch usedObj.(type) {
+		case *types.Var, *types.Const:
+			c.graph.markUsedBy(usedObj.Type(), usedObj)
+		}
+	}
+}
+
+func (c *Checker) processTypes(pkg *loader.PackageInfo) {
+	for _, tv := range pkg.Types {
+		if typ, ok := tv.Type.(interface {
+			Elem() types.Type
+		}); ok {
+			c.graph.markUsedBy(typ.Elem(), typ)
+		}
+
+		if t, ok := tv.Type.(*types.Named); ok {
+			c.graph.markUsedBy(t, t.Underlying())
+			c.graph.markUsedBy(t.Underlying(), t)
+		}
+
+		if iface, ok := tv.Type.(*types.Interface); ok {
+			if iface.NumMethods() == 0 {
+				continue
+			}
+			for _, node := range c.graph.nodes {
+				obj, ok := node.obj.(*types.Named)
+				if !ok {
+					continue
+				}
+				if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
+					continue
+				}
+				for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
+					ms := c.msCache.MethodSet(obj)
+					n := ms.Len()
+					for i := 0; i < n; i++ {
+						sel := ms.At(i)
+						meth := sel.Obj().(*types.Func)
+						m := iface.NumMethods()
+						found := false
+						for j := 0; j < m; j++ {
+							if iface.Method(j).Name() == meth.Name() {
+								found = true
+								break
+							}
+						}
+						if !found {
+							continue
+						}
+						c.graph.markUsedBy(meth.Type().(*types.Signature).Recv().Type(), obj) // embedded receiver
+						if len(sel.Index()) > 1 {
+							f := getField(obj, sel.Index()[0])
+							c.graph.markUsedBy(f, obj) // embedded receiver
+						}
+						c.graph.markUsedBy(meth, obj)
+					}
+				}
+			}
+		}
+	}
+}
+
+func (c *Checker) processSelections(pkg *loader.PackageInfo) {
+	for expr, sel := range pkg.Selections {
+		if sel.Kind() != types.FieldVal {
+			continue
+		}
+		scope := pkg.Pkg.Scope().Innermost(expr.Pos())
+		c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
+		c.graph.markUsedBy(sel.Obj(), expr.X)
+		if len(sel.Index()) > 1 {
+			typ := sel.Recv()
+			for _, idx := range sel.Index() {
+				obj := getField(typ, idx)
+				typ = obj.Type()
+				c.graph.markUsedBy(obj, expr.X)
+			}
+		}
+	}
+}
+
+func (c *Checker) processAST(pkg *loader.PackageInfo) {
+	fn := func(node1 ast.Node) bool {
+		if node1 == nil {
+			return false
+		}
+
+		if node, ok := node1.(*ast.CompositeLit); ok {
+			typ := pkg.TypeOf(node)
+			if _, ok := typ.(*types.Named); ok {
+				typ = typ.Underlying()
+			}
+			if _, ok := typ.(*types.Struct); !ok {
+				return true
+			}
+
+			if isBasicStruct(node.Elts) {
+				c.markFields(typ)
+			}
+		}
+
+		if decl, ok := node1.(*ast.GenDecl); ok {
+			for _, spec := range decl.Specs {
+				spec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range spec.Names {
+					if i >= len(spec.Values) {
+						break
+					}
+					value := spec.Values[i]
+					fn3 := func(node3 ast.Node) bool {
+						if node3, ok := node3.(*ast.Ident); ok {
+							obj := pkg.ObjectOf(node3)
+							if _, ok := obj.(*types.PkgName); ok {
+								return true
+							}
+							c.graph.markUsedBy(obj, pkg.ObjectOf(name))
+						}
+						return true
+					}
+					ast.Inspect(value, fn3)
+				}
+			}
+		}
+
+		expr, ok := node1.(ast.Expr)
+		if !ok {
+			return true
+		}
+
+		left := pkg.TypeOf(expr)
+		if left == nil {
+			return true
+		}
+		fn2 := func(node2 ast.Node) bool {
+			if node2 == nil || node1 == node2 {
+				return true
+			}
+			switch node2 := node2.(type) {
+			case *ast.Ident:
+				right := pkg.ObjectOf(node2)
+				if right == nil {
+					return true
+				}
+			case ast.Expr:
+				right := pkg.TypeOf(expr)
+				if right == nil {
+					return true
+				}
+				c.graph.markUsedBy(right, left)
+			}
+
+			return true
+		}
+		ast.Inspect(node1, fn2)
+		return true
+	}
+	for _, file := range pkg.Files {
+		ast.Inspect(file, fn)
+	}
 }
 
 func isBasicStruct(elts []ast.Expr) bool {
