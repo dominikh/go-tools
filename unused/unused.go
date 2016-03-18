@@ -681,7 +681,7 @@ func topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
 	if scope == pkg.Scope() {
 		return scope
 	}
-	if scope.Parent() == pkg.Scope() {
+	if scope.Parent().Parent() == pkg.Scope() {
 		return scope
 	}
 	return topmostScope(scope.Parent(), pkg)
