@@ -14,10 +14,6 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-// FIXME imported packages are always used/shouldn't be considered in
-// the graph. either mark them quiet, or detect their usage (in
-// selectors)
-
 type graph struct {
 	roots []*graphNode
 	nodes map[interface{}]*graphNode
@@ -349,6 +345,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 						fn3 := func(node3 ast.Node) bool {
 							if node3, ok := node3.(*ast.Ident); ok {
 								obj := pkg.ObjectOf(node3)
+								if _, ok := obj.(*types.PkgName); ok {
+									return true
+								}
 								c.graph.markUsedBy(obj, pkg.ObjectOf(name))
 							}
 							return true
