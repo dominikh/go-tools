@@ -31,26 +31,28 @@ func (g *graph) markUsedBy(obj, usedBy interface{}) {
 	usedByNode.uses[objNode] = struct{}{}
 }
 
+var labelCounter = 1
+
 func (g *graph) getNode(obj interface{}) *graphNode {
-	node, ok := g.nodes[obj]
+	_, ok := g.nodes[obj]
 	if !ok {
-		node = &graphNode{obj: obj, uses: make(map[*graphNode]struct{})}
-		g.nodes[obj] = node
+		g.addObj(obj)
 	}
-	return node
+
+	return g.nodes[obj]
 }
 
-func (g *graph) markScopeUsed(scope *types.Scope) {
-	g.markScopeUsedBy(scope, nil)
-}
+func (g *graph) addObj(obj interface{}) {
+	node := &graphNode{obj: obj, uses: make(map[*graphNode]struct{}), n: labelCounter}
+	g.nodes[obj] = node
+	labelCounter++
 
-func (g *graph) markScopeUsedBy(s1, s2 *types.Scope) {
-	if s2 != nil {
-		g.markUsedBy(s1, s2)
-	}
-	n := s1.NumChildren()
-	for i := 0; i < n; i++ {
-		g.markScopeUsedBy(s1.Child(i), s1)
+	if obj, ok := obj.(*types.Struct); ok {
+		n := obj.NumFields()
+		for i := 0; i < n; i++ {
+			field := obj.Field(i)
+			g.markUsedBy(obj, field)
+		}
 	}
 }
 
@@ -59,6 +61,7 @@ type graphNode struct {
 	uses  map[*graphNode]struct{}
 	used  bool
 	quiet bool
+	n     int
 }
 
 type CheckMode int
@@ -113,15 +116,6 @@ func (c *Checker) checkFields() bool    { return (c.Mode & CheckFields) > 0 }
 func (c *Checker) checkFunctions() bool { return (c.Mode & CheckFunctions) > 0 }
 func (c *Checker) checkTypes() bool     { return (c.Mode & CheckTypes) > 0 }
 func (c *Checker) checkVariables() bool { return (c.Mode & CheckVariables) > 0 }
-
-func (c *Checker) markQuiet(obj types.Object) {
-	v, ok := c.defs[obj]
-	if !ok {
-		v = &state{}
-		c.defs[obj] = v
-	}
-	v.quiet = true
-}
 
 func (c *Checker) markFields(typ types.Type) {
 	structType, ok := typ.Underlying().(*types.Struct)
@@ -201,8 +195,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					emptyNode := c.graph.getNode(obj)
 					c.graph.roots = append(c.graph.roots, emptyNode)
 				} else {
-					if obj.Parent() != obj.Pkg().Scope() {
-						c.graph.markUsedBy(obj, obj.Parent())
+					if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
+						c.graph.markUsedBy(obj, topmostScope(obj.Parent(), obj.Pkg()))
 					}
 				}
 			}
@@ -213,10 +207,12 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 
 			if obj, ok := obj.(interface {
 				Scope() *types.Scope
+				Pkg() *types.Package
 			}); ok {
 				scope := obj.Scope()
-				c.graph.markUsedBy(scope, obj)
-				c.graph.markScopeUsed(scope)
+				c.graph.markUsedBy(topmostScope(scope, obj.Pkg()), obj)
+				// c.graph.markUsedBy(scope, obj)
+				// c.graph.markScopeUsed(scope)
 			}
 
 			if c.isRoot(obj, false) {
@@ -235,7 +231,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 			pos := ident.Pos()
 			scope := c.pkg.Pkg.Scope().Innermost(pos)
-			c.graph.markUsedBy(usedObj, scope)
+			c.graph.markUsedBy(usedObj, topmostScope(scope, c.pkg.Pkg))
 
 			switch usedObj.(type) {
 			case *types.Var, *types.Const:
@@ -249,6 +245,12 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}); ok {
 				c.graph.markUsedBy(typ.Elem(), typ)
 			}
+
+			if t, ok := tv.Type.(*types.Named); ok {
+				c.graph.markUsedBy(t, t.Underlying())
+				c.graph.markUsedBy(t.Underlying(), t)
+			}
+
 			if iface, ok := tv.Type.(*types.Interface); ok {
 				if iface.NumMethods() == 0 {
 					continue
@@ -281,6 +283,27 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					}
 				}
 			}
+		}
+
+		for expr, sel := range c.pkg.Selections {
+			if sel.Kind() != types.FieldVal {
+				// FIXME support methods
+				continue
+			}
+			scope := c.pkg.Pkg.Scope().Innermost(expr.Pos())
+			c.graph.markUsedBy(expr.X, topmostScope(scope, c.pkg.Pkg))
+			c.graph.markUsedBy(sel.Obj(), expr.X)
+			if len(sel.Index()) > 1 {
+				typ := sel.Recv()
+				for _, idx := range sel.Index() {
+					obj := getField(typ, idx)
+					typ = obj.Type()
+					c.graph.markUsedBy(obj, expr.X)
+					//c.graph.markUsedBy(obj, c.pkg.ObjectOf(expr.X.(*ast.Ident)))
+				}
+			}
+
+			//c.graph.markUsedBy(sel.Obj(), c.pkg.ObjectOf(expr.Sel))
 		}
 
 		fn := func(node1 ast.Node) bool {
@@ -382,19 +405,45 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		roots[root] = struct{}{}
 	}
 	markNodesUsed(roots, 0)
+
+	// fmt.Fprintln(os.Stderr, "digraph {")
+	// fmt.Fprintln(os.Stderr, "n0 [label = roots]")
+	// for _, node := range c.graph.nodes {
+	// 	s := fmt.Sprintf("%s", node.obj)
+	// 	s = strings.Replace(s, "\n", "", -1)
+	// 	s = strings.Replace(s, `"`, "", -1)
+	// 	fmt.Fprintf(os.Stderr, `n%d [label = %q]`, node.n, s)
+	// 	if node.used {
+	// 		fmt.Fprint(os.Stderr, "[color = green]")
+	// 	} else {
+	// 		fmt.Fprint(os.Stderr, "[color = red]")
+	// 	}
+	// 	fmt.Fprintln(os.Stderr)
+	// }
+
+	// for _, node1 := range c.graph.nodes {
+	// 	for node2 := range node1.uses {
+	// 		fmt.Fprintf(os.Stderr, "n%d -> n%d\n", node1.n, node2.n)
+	// 	}
+	// }
+	// for _, root := range c.graph.roots {
+	// 	fmt.Fprintf(os.Stderr, "n0 -> n%d\n", root.n)
+	// }
+	// fmt.Fprintln(os.Stderr, "}")
+
 	c.markNodesQuiet()
 
 	for _, node := range c.graph.nodes {
 		if node.used || node.quiet {
 			continue
 		}
+		obj, ok := node.obj.(types.Object)
+		if !ok {
+			continue
+		}
 		found := false
 		if !false {
 			for _, pkg := range c.lprog.InitialPackages() {
-				obj, ok := node.obj.(types.Object)
-				if !ok {
-					continue
-				}
 				if pkg.Pkg == obj.Pkg() {
 					found = true
 					break
@@ -404,11 +453,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		if !found {
 			continue
 		}
-		// FIXME ignore stdlib (unless we're testing stdlib) and vendor
-		obj, ok := node.obj.(types.Object)
-		if !ok {
-			continue
-		}
+
 		pos := c.lprog.Fset.Position(obj.Pos())
 		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
@@ -559,7 +604,7 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 
 func markNodesUsed(nodes map[*graphNode]struct{}, n int) {
 	for node := range nodes {
-		// log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
+		//log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
 		wasUsed := node.used
 		node.used = true
 		if !wasUsed {
@@ -600,4 +645,38 @@ func (c *Checker) markNodesQuiet() {
 			}
 		}
 	}
+}
+
+func getField(typ types.Type, idx int) *types.Var {
+	switch obj := typ.(type) {
+	case *types.Pointer:
+		return getField(obj.Elem(), idx)
+	case *types.Named:
+		return obj.Underlying().(*types.Struct).Field(idx)
+	case *types.Struct:
+		return obj.Field(idx)
+	}
+	return nil
+}
+
+// FIXME move into checker
+var topmostCache = map[*types.Scope]*types.Scope{}
+
+func topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
+	// TODO is using this function okay? what if we have nested
+	// functions?
+
+	if top, ok := topmostCache[scope]; ok {
+		return top
+	}
+	defer func() {
+		topmostCache[scope] = ret
+	}()
+	if scope == pkg.Scope() {
+		return scope
+	}
+	if scope.Parent() == pkg.Scope() {
+		return scope
+	}
+	return topmostScope(scope.Parent(), pkg)
 }
