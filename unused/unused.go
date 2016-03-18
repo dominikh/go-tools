@@ -422,7 +422,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	for _, root := range c.graph.roots {
 		roots[root] = struct{}{}
 	}
-	markNodesUsed(roots, 0)
+	markNodesUsed(roots)
 
 	fmt.Fprintln(os.Stderr, "digraph {")
 	fmt.Fprintln(os.Stderr, "n0 [label = roots]")
@@ -620,13 +620,12 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 	return false
 }
 
-func markNodesUsed(nodes map[*graphNode]struct{}, n int) {
+func markNodesUsed(nodes map[*graphNode]struct{}) {
 	for node := range nodes {
-		//log.Printf("%s%s", strings.Repeat("\t", n), node.obj)
 		wasUsed := node.used
 		node.used = true
 		if !wasUsed {
-			markNodesUsed(node.uses, n+1)
+			markNodesUsed(node.uses)
 		}
 	}
 }
