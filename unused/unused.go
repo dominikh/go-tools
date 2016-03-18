@@ -304,7 +304,7 @@ func (c *Checker) processUses(pkg *loader.PackageInfo) {
 }
 
 func (c *Checker) processTypes(pkg *loader.PackageInfo) {
-	var named []*types.Named
+	named := map[*types.Named]*types.Pointer{}
 	var interfaces []*types.Interface
 	for _, tv := range pkg.Types {
 		if typ, ok := tv.Type.(interface {
@@ -315,7 +315,7 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 
 		switch obj := tv.Type.(type) {
 		case *types.Named:
-			named = append(named, obj)
+			named[obj] = types.NewPointer(obj)
 			c.graph.markUsedBy(obj, obj.Underlying())
 			c.graph.markUsedBy(obj.Underlying(), obj)
 		case *types.Interface:
@@ -326,8 +326,8 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 	}
 
 	for _, iface := range interfaces {
-		for _, obj := range named {
-			if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
+		for obj, objPtr := range named {
+			if !types.Implements(obj, iface) && !types.Implements(objPtr, iface) {
 				continue
 			}
 			ifaceMethods := make(map[string]struct{}, iface.NumMethods())
@@ -336,7 +336,7 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 				meth := iface.Method(i)
 				ifaceMethods[meth.Name()] = struct{}{}
 			}
-			for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
+			for _, obj := range []types.Type{obj, objPtr} {
 				ms := c.msCache.MethodSet(obj)
 				n := ms.Len()
 				for i := 0; i < n; i++ {
