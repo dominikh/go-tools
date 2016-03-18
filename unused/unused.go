@@ -34,8 +34,12 @@ func (g *graph) markUsedBy(obj, usedBy interface{}) {
 var labelCounter = 1
 
 func (g *graph) getNode(obj interface{}) *graphNode {
-	if pt, ok := obj.(*types.Pointer); ok {
-		obj = pt.Elem()
+	for {
+		if pt, ok := obj.(*types.Pointer); ok {
+			obj = pt.Elem()
+		} else {
+			break
+		}
 	}
 	_, ok := g.nodes[obj]
 	if !ok {
