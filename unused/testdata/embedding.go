@@ -25,12 +25,18 @@ type I2 interface {
 	f4()
 }
 
-var _ I2 = &t4{}
-
 type t3 struct{}
-type t4 struct{ t3 }
+type t4 struct {
+	x int // MATCH x
+	y int // MATCH y
+	t3
+}
 
 func (*t3) f3() {}
 func (*t4) f4() {}
 
-var _ = t4{}.t3 // XXX
+func init() {
+	var i I2 = &t4{}
+	i.f3()
+	i.f4()
+}

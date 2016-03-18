@@ -6,10 +6,11 @@ func (t) fragment() {}
 
 func fn() bool {
 	var v interface{} = t{}
-	switch v.(type) {
+	switch obj := v.(type) {
 	case interface {
 		fragment()
 	}:
+		obj.fragment()
 	}
 	return false
 }
