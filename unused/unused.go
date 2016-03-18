@@ -99,7 +99,6 @@ type Checker struct {
 
 	graph *graph
 
-	pkg          *loader.PackageInfo
 	msCache      typeutil.MethodSetCache
 	lprog        *loader.Program
 	topmostCache map[*types.Scope]*types.Scope
@@ -173,8 +172,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		return nil, err
 	}
 
-	for _, c.pkg = range c.lprog.InitialPackages() {
-		for _, obj := range c.pkg.Defs {
+	for _, pkg := range c.lprog.InitialPackages() {
+		for _, obj := range pkg.Defs {
 			if obj == nil {
 				continue
 			}
@@ -195,8 +194,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				if obj.Name() == "_" {
 					node := c.graph.getNode(obj)
 					node.quiet = true
-					scope := c.topmostScope(c.pkg.Pkg.Scope().Innermost(obj.Pos()), c.pkg.Pkg)
-					if scope == c.pkg.Pkg.Scope() {
+					scope := c.topmostScope(pkg.Pkg.Scope().Innermost(obj.Pos()), pkg.Pkg)
+					if scope == pkg.Pkg.Scope() {
 						c.graph.roots = append(c.graph.roots, node)
 					} else {
 						c.graph.markUsedBy(obj, scope)
@@ -230,14 +229,14 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 		}
 
-		for ident, usedObj := range c.pkg.Uses {
+		for ident, usedObj := range pkg.Uses {
 			if _, ok := usedObj.(*types.PkgName); ok {
 				continue
 			}
 			pos := ident.Pos()
-			scope := c.pkg.Pkg.Scope().Innermost(pos)
-			scope = c.topmostScope(scope, c.pkg.Pkg)
-			if scope != c.pkg.Pkg.Scope() {
+			scope := pkg.Pkg.Scope().Innermost(pos)
+			scope = c.topmostScope(scope, pkg.Pkg)
+			if scope != pkg.Pkg.Scope() {
 				c.graph.markUsedBy(usedObj, scope)
 			}
 
@@ -247,7 +246,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 		}
 
-		for _, tv := range c.pkg.Types {
+		for _, tv := range pkg.Types {
 			if typ, ok := tv.Type.(interface {
 				Elem() types.Type
 			}); ok {
@@ -300,12 +299,12 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 		}
 
-		for expr, sel := range c.pkg.Selections {
+		for expr, sel := range pkg.Selections {
 			if sel.Kind() != types.FieldVal {
 				continue
 			}
-			scope := c.pkg.Pkg.Scope().Innermost(expr.Pos())
-			c.graph.markUsedBy(expr.X, c.topmostScope(scope, c.pkg.Pkg))
+			scope := pkg.Pkg.Scope().Innermost(expr.Pos())
+			c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
 			c.graph.markUsedBy(sel.Obj(), expr.X)
 			if len(sel.Index()) > 1 {
 				typ := sel.Recv()
@@ -323,7 +322,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 
 			if node, ok := node1.(*ast.CompositeLit); ok {
-				typ := c.pkg.TypeOf(node)
+				typ := pkg.TypeOf(node)
 				if _, ok := typ.(*types.Named); ok {
 					typ = typ.Underlying()
 				}
@@ -349,8 +348,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 						value := spec.Values[i]
 						fn3 := func(node3 ast.Node) bool {
 							if node3, ok := node3.(*ast.Ident); ok {
-								obj := c.pkg.ObjectOf(node3)
-								c.graph.markUsedBy(obj, c.pkg.ObjectOf(name))
+								obj := pkg.ObjectOf(node3)
+								c.graph.markUsedBy(obj, pkg.ObjectOf(name))
 							}
 							return true
 						}
@@ -364,7 +363,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				return true
 			}
 
-			left := c.pkg.TypeOf(expr)
+			left := pkg.TypeOf(expr)
 			if left == nil {
 				return true
 			}
@@ -374,12 +373,12 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				}
 				switch node2 := node2.(type) {
 				case *ast.Ident:
-					right := c.pkg.ObjectOf(node2)
+					right := pkg.ObjectOf(node2)
 					if right == nil {
 						return true
 					}
 				case ast.Expr:
-					right := c.pkg.TypeOf(expr)
+					right := pkg.TypeOf(expr)
 					if right == nil {
 						return true
 					}
@@ -391,7 +390,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			ast.Inspect(node1, fn2)
 			return true
 		}
-		for _, file := range c.pkg.Files {
+		for _, file := range pkg.Files {
 			ast.Inspect(file, fn)
 		}
 	}
