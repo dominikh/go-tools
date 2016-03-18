@@ -23,11 +23,11 @@ type graph struct {
 }
 
 func (g *graph) markUsedBy(obj, usedBy interface{}) {
-	if obj == usedBy {
-		return
-	}
 	objNode := g.getNode(obj)
 	usedByNode := g.getNode(usedBy)
+	if objNode.obj == usedByNode.obj {
+		return
+	}
 	usedByNode.uses[objNode] = struct{}{}
 }
 

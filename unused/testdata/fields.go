@@ -57,7 +57,8 @@ func foo() {
 	_ = a1{{1}}
 	_ = a2{0: {1}}
 	_ = map[[1]t16]int{{{1}}: 1}
-	_ = struct{ x int }{} // MATCH x
+	y := struct{ x int }{} // MATCH x
+	_ = y
 	_ = t18{f181: 1}
 	_ = []m2{{"a": {1}}}
 	_ = [][]m3{{{"a": {1}}}}
