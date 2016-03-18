@@ -99,9 +99,10 @@ type Checker struct {
 
 	graph *graph
 
-	pkg     *loader.PackageInfo
-	msCache typeutil.MethodSetCache
-	lprog   *loader.Program
+	pkg          *loader.PackageInfo
+	msCache      typeutil.MethodSetCache
+	lprog        *loader.Program
+	topmostCache map[*types.Scope]*types.Scope
 }
 
 func NewChecker(mode CheckMode, verbose bool) *Checker {
@@ -111,6 +112,7 @@ func NewChecker(mode CheckMode, verbose bool) *Checker {
 		graph: &graph{
 			nodes: make(map[interface{}]*graphNode),
 		},
+		topmostCache: make(map[*types.Scope]*types.Scope),
 	}
 }
 
@@ -193,7 +195,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				if obj.Name() == "_" {
 					node := c.graph.getNode(obj)
 					node.quiet = true
-					scope := topmostScope(c.pkg.Pkg.Scope().Innermost(obj.Pos()), c.pkg.Pkg)
+					scope := c.topmostScope(c.pkg.Pkg.Scope().Innermost(obj.Pos()), c.pkg.Pkg)
 					if scope == c.pkg.Pkg.Scope() {
 						c.graph.roots = append(c.graph.roots, node)
 					} else {
@@ -201,7 +203,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					}
 				} else {
 					if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
-						c.graph.markUsedBy(obj, topmostScope(obj.Parent(), obj.Pkg()))
+						c.graph.markUsedBy(obj, c.topmostScope(obj.Parent(), obj.Pkg()))
 					}
 				}
 			}
@@ -215,7 +217,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				Pkg() *types.Package
 			}); ok {
 				scope := obj.Scope()
-				c.graph.markUsedBy(topmostScope(scope, obj.Pkg()), obj)
+				c.graph.markUsedBy(c.topmostScope(scope, obj.Pkg()), obj)
 			}
 
 			if c.isRoot(obj, false) {
@@ -234,7 +236,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 			pos := ident.Pos()
 			scope := c.pkg.Pkg.Scope().Innermost(pos)
-			scope = topmostScope(scope, c.pkg.Pkg)
+			scope = c.topmostScope(scope, c.pkg.Pkg)
 			if scope != c.pkg.Pkg.Scope() {
 				c.graph.markUsedBy(usedObj, scope)
 			}
@@ -303,7 +305,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 				continue
 			}
 			scope := c.pkg.Pkg.Scope().Innermost(expr.Pos())
-			c.graph.markUsedBy(expr.X, topmostScope(scope, c.pkg.Pkg))
+			c.graph.markUsedBy(expr.X, c.topmostScope(scope, c.pkg.Pkg))
 			c.graph.markUsedBy(sel.Obj(), expr.X)
 			if len(sel.Index()) > 1 {
 				typ := sel.Recv()
@@ -661,15 +663,12 @@ func getField(typ types.Type, idx int) *types.Var {
 	return nil
 }
 
-// FIXME move into checker
-var topmostCache = map[*types.Scope]*types.Scope{}
-
-func topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
-	if top, ok := topmostCache[scope]; ok {
+func (c *Checker) topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
+	if top, ok := c.topmostCache[scope]; ok {
 		return top
 	}
 	defer func() {
-		topmostCache[scope] = ret
+		c.topmostCache[scope] = ret
 	}()
 	if scope == pkg.Scope() {
 		return scope
@@ -677,7 +676,7 @@ func topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
 	if scope.Parent().Parent() == pkg.Scope() {
 		return scope
 	}
-	return topmostScope(scope.Parent(), pkg)
+	return c.topmostScope(scope.Parent(), pkg)
 }
 
 func (c *Checker) printDebugGraph(w io.Writer) {
