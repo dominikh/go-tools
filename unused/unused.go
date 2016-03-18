@@ -91,30 +91,21 @@ type Unused struct {
 	Position token.Position
 }
 
-type state struct {
-	used  bool
-	quiet bool
-}
-
 type Checker struct {
 	Mode    CheckMode
 	Verbose bool
 
 	graph *graph
 
-	defs       map[types.Object]*state
-	interfaces []*types.Interface
-	structs    []*types.Named
-	pkg        *loader.PackageInfo
-	msCache    typeutil.MethodSetCache
-	lprog      *loader.Program
+	pkg     *loader.PackageInfo
+	msCache typeutil.MethodSetCache
+	lprog   *loader.Program
 }
 
 func NewChecker(mode CheckMode, verbose bool) *Checker {
 	return &Checker{
 		Mode:    mode,
 		Verbose: verbose,
-		defs:    make(map[types.Object]*state),
 		graph: &graph{
 			nodes: make(map[interface{}]*graphNode),
 		},
@@ -185,10 +176,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 			c.graph.getNode(obj)
 
-			// if _, ok := obj.(*types.PkgName); ok {
-			// 	continue
-			// }
-
 			if obj, ok := obj.(*types.TypeName); ok {
 				c.graph.markUsedBy(obj.Type().Underlying(), obj.Type())
 				c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
@@ -221,8 +208,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}); ok {
 				scope := obj.Scope()
 				c.graph.markUsedBy(topmostScope(scope, obj.Pkg()), obj)
-				// c.graph.markUsedBy(scope, obj)
-				// c.graph.markScopeUsed(scope)
 			}
 
 			if c.isRoot(obj, false) {
@@ -270,7 +255,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					if !ok {
 						continue
 					}
-					// TODO check pointer type
 					if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
 						continue
 					}
@@ -305,7 +289,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 
 		for expr, sel := range c.pkg.Selections {
 			if sel.Kind() != types.FieldVal {
-				// FIXME support methods
 				continue
 			}
 			scope := c.pkg.Pkg.Scope().Innermost(expr.Pos())
@@ -317,11 +300,8 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					obj := getField(typ, idx)
 					typ = obj.Type()
 					c.graph.markUsedBy(obj, expr.X)
-					//c.graph.markUsedBy(obj, c.pkg.ObjectOf(expr.X.(*ast.Ident)))
 				}
 			}
-
-			//c.graph.markUsedBy(sel.Obj(), c.pkg.ObjectOf(expr.Sel))
 		}
 
 		fn := func(node1 ast.Node) bool {
@@ -354,11 +334,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 							break
 						}
 						value := spec.Values[i]
-						//log.Printf("%s %T", value, value)
 						fn3 := func(node3 ast.Node) bool {
 							if node3, ok := node3.(*ast.Ident); ok {
 								obj := c.pkg.ObjectOf(node3)
-								//log.Println(c.pkg.ObjectOf(name), "uses", obj)
 								c.graph.markUsedBy(obj, c.pkg.ObjectOf(name))
 							}
 							return true
@@ -387,7 +365,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 					if right == nil {
 						return true
 					}
-					// c.graph.markUsedBy(right, left)
 				case ast.Expr:
 					right := c.pkg.TypeOf(expr)
 					if right == nil {
@@ -589,8 +566,6 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 	// - in local mode, main, init, tests, and non-test, non-main exported are roots
 	// - in global mode (not yet implemented), main, init and tests are roots
 
-	// FIXME consider interfaces here?
-
 	if _, ok := obj.(*types.PkgName); ok {
 		return true
 	}
@@ -689,9 +664,6 @@ func getField(typ types.Type, idx int) *types.Var {
 var topmostCache = map[*types.Scope]*types.Scope{}
 
 func topmostScope(scope *types.Scope, pkg *types.Package) (ret *types.Scope) {
-	// TODO is using this function okay? what if we have nested
-	// functions?
-
 	if top, ok := topmostCache[scope]; ok {
 		return top
 	}
