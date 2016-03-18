@@ -304,6 +304,13 @@ func (c *Checker) processUses(pkg *loader.PackageInfo) {
 }
 
 func (c *Checker) processTypes(pkg *loader.PackageInfo) {
+	var named []*types.Named
+	for _, tv := range pkg.Types {
+		if obj, ok := tv.Type.(*types.Named); ok {
+			named = append(named, obj)
+		}
+	}
+
 	for _, tv := range pkg.Types {
 		if typ, ok := tv.Type.(interface {
 			Elem() types.Type
@@ -320,13 +327,15 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 			if iface.NumMethods() == 0 {
 				continue
 			}
-			for _, node := range c.graph.nodes {
-				obj, ok := node.obj.(*types.Named)
-				if !ok {
-					continue
-				}
+			for _, obj := range named {
 				if !types.Implements(obj, iface) && !types.Implements(types.NewPointer(obj), iface) {
 					continue
+				}
+				ifaceMethods := make(map[string]struct{}, iface.NumMethods())
+				n := iface.NumMethods()
+				for i := 0; i < n; i++ {
+					meth := iface.Method(i)
+					ifaceMethods[meth.Name()] = struct{}{}
 				}
 				for _, obj := range []types.Type{obj, types.NewPointer(obj)} {
 					ms := c.msCache.MethodSet(obj)
@@ -334,14 +343,7 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 					for i := 0; i < n; i++ {
 						sel := ms.At(i)
 						meth := sel.Obj().(*types.Func)
-						m := iface.NumMethods()
-						found := false
-						for j := 0; j < m; j++ {
-							if iface.Method(j).Name() == meth.Name() {
-								found = true
-								break
-							}
-						}
+						_, found := ifaceMethods[meth.Name()]
 						if !found {
 							continue
 						}
