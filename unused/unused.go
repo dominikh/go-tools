@@ -628,27 +628,36 @@ func (c *Checker) markNodesQuiet() {
 			node.quiet = true
 			continue
 		}
-		switch obj := node.obj.(type) {
-		case *types.Struct:
-			n := obj.NumFields()
-			for i := 0; i < n; i++ {
-				field := obj.Field(i)
-				c.graph.nodes[field].quiet = true
+		c.markObjQuiet(node.obj)
+	}
+}
+
+func (c *Checker) markObjQuiet(obj interface{}) {
+	switch obj := obj.(type) {
+	case *types.Struct:
+		n := obj.NumFields()
+		for i := 0; i < n; i++ {
+			field := obj.Field(i)
+			c.graph.nodes[field].quiet = true
+		}
+	case *types.Func:
+		c.markObjQuiet(obj.Scope())
+	case *types.Scope:
+		if obj == nil {
+			return
+		}
+		if obj.Parent() == types.Universe {
+			return
+		}
+		for _, name := range obj.Names() {
+			v := obj.Lookup(name)
+			if n, ok := c.graph.nodes[v]; ok {
+				n.quiet = true
 			}
-		case *types.Scope:
-			if obj == nil {
-				continue
-			}
-			n := obj.NumChildren()
-			for i := 0; i < n; i++ {
-				scope := obj.Child(i)
-				for _, name := range scope.Names() {
-					v := scope.Lookup(name)
-					if n, ok := c.graph.nodes[v]; ok {
-						n.quiet = true
-					}
-				}
-			}
+		}
+		n := obj.NumChildren()
+		for i := 0; i < n; i++ {
+			c.markObjQuiet(obj.Child(i))
 		}
 	}
 }
