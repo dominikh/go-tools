@@ -629,6 +629,14 @@ func (c *Checker) markNodesQuiet() {
 
 func (c *Checker) markObjQuiet(obj interface{}) {
 	switch obj := obj.(type) {
+	case *types.Named:
+		n := obj.NumMethods()
+		for i := 0; i < n; i++ {
+			meth := obj.Method(i)
+			node := c.graph.getNode(meth)
+			node.quiet = true
+			c.markObjQuiet(meth.Scope())
+		}
 	case *types.Struct:
 		n := obj.NumFields()
 		for i := 0; i < n; i++ {

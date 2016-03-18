@@ -14,4 +14,4 @@ func init() {
 
 type t3 struct{} // MATCH t3
 
-func (t3) fn() // MATCH fn
+func (t3) fn()
