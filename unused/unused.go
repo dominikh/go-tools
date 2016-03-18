@@ -409,6 +409,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		roots[root] = struct{}{}
 	}
 	markNodesUsed(roots)
+	c.markNodesQuiet()
 
 	fmt.Fprintln(os.Stderr, "digraph {")
 	fmt.Fprintln(os.Stderr, "n0 [label = roots]")
@@ -417,11 +418,18 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		s = strings.Replace(s, "\n", "", -1)
 		s = strings.Replace(s, `"`, "", -1)
 		fmt.Fprintf(os.Stderr, `n%d [label = %q]`, node.n, s)
-		if node.used {
-			fmt.Fprint(os.Stderr, "[color = green]")
-		} else {
-			fmt.Fprint(os.Stderr, "[color = red]")
+		color := "black"
+		switch {
+		case node.used:
+			color = "green"
+		case node.quiet:
+			color = "orange"
+		case !c.checkFlags(node.obj):
+			color = "purple"
+		default:
+			color = "red"
 		}
+		fmt.Fprintf(os.Stderr, "[color = %s]", color)
 		fmt.Fprintln(os.Stderr)
 	}
 
@@ -434,8 +442,6 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		fmt.Fprintf(os.Stderr, "n0 -> n%d\n", root.n)
 	}
 	fmt.Fprintln(os.Stderr, "}")
-
-	c.markNodesQuiet()
 
 	for _, node := range c.graph.nodes {
 		if node.used || node.quiet {
@@ -552,7 +558,11 @@ func isField(obj types.Object) bool {
 	return false
 }
 
-func (c *Checker) checkFlags(obj types.Object) bool {
+func (c *Checker) checkFlags(v interface{}) bool {
+	obj, ok := v.(types.Object)
+	if !ok {
+		return false
+	}
 	if isFunction(obj) && !c.checkFunctions() {
 		return false
 	}
