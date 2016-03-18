@@ -25,7 +25,7 @@ func TestAll(t *testing.T) {
 		t.Fatalf("no files in %v", baseDir)
 	}
 	for _, fi := range fis {
-		checker := NewChecker(CheckAll, false)
+		checker := NewChecker(CheckAll)
 		src, err := ioutil.ReadFile(path.Join(baseDir, fi.Name()))
 		if err != nil {
 			t.Fatalf("Failed reading %s: %v", fi.Name(), err)

@@ -89,9 +89,8 @@ type Unused struct {
 }
 
 type Checker struct {
-	Mode    CheckMode
-	Verbose bool
-	Debug   io.Writer
+	Mode  CheckMode
+	Debug io.Writer
 
 	graph *graph
 
@@ -100,10 +99,9 @@ type Checker struct {
 	topmostCache map[*types.Scope]*types.Scope
 }
 
-func NewChecker(mode CheckMode, verbose bool) *Checker {
+func NewChecker(mode CheckMode) *Checker {
 	return &Checker{
-		Mode:    mode,
-		Verbose: verbose,
+		Mode: mode,
 		graph: &graph{
 			nodes: make(map[interface{}]*graphNode),
 		},
@@ -133,6 +131,15 @@ func (c *Checker) Visit(node ast.Node) ast.Visitor {
 	return nil
 }
 
+type Error struct {
+	Errors map[string][]error
+}
+
+func (e Error) Error() string {
+	// return fmt.Sprintf("%s and %d more errors", e.Errors[0], len(e.Errors)-1)
+	return ""
+}
+
 func (c *Checker) Check(paths []string) ([]Unused, error) {
 	// We resolve paths manually instead of relying on go/loader so
 	// that our TypeCheckFuncBodies implementation continues to work.
@@ -142,10 +149,10 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	}
 	var unused []Unused
 
-	conf := loader.Config{}
-	if !c.Verbose {
-		conf.TypeChecker.Error = func(error) {}
+	conf := loader.Config{
+		AllowErrors: true, // We'll return manually if there are errors
 	}
+	conf.TypeChecker.Error = func(err error) {}
 	pkgs := map[string]bool{}
 	for _, path := range paths {
 		pkgs[path] = true
@@ -166,6 +173,22 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	c.lprog, err = conf.Load()
 	if err != nil {
 		return nil, err
+	}
+
+	finalError := Error{
+		Errors: make(map[string][]error),
+	}
+	for _, pkg := range c.lprog.InitialPackages() {
+		if len(pkg.Errors) == 0 {
+			continue
+		}
+		k := pkg.Pkg.Path()
+		s := finalError.Errors[k]
+		s = append(s, pkg.Errors...)
+		finalError.Errors[k] = s
+	}
+	if len(finalError.Errors) > 0 {
+		return nil, finalError
 	}
 
 	for _, pkg := range c.lprog.InitialPackages() {

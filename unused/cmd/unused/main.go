@@ -20,7 +20,6 @@ var (
 	fFunctions bool
 	fTypes     bool
 	fVariables bool
-	fVerbose   bool
 	fDebug     string
 )
 
@@ -30,7 +29,6 @@ func init() {
 	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
-	flag.BoolVar(&fVerbose, "v", false, "Display type-checker errors")
 	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
 
 	flag.Usage = func() {
@@ -63,7 +61,7 @@ func main() {
 	}
 
 	paths := gotool.ImportPaths(flag.Args())
-	checker := unused.NewChecker(mode, fVerbose)
+	checker := unused.NewChecker(mode)
 
 	if fDebug != "" {
 		debug, err := os.Create(fDebug)
@@ -73,12 +71,29 @@ func main() {
 		checker.Debug = debug
 	}
 
-	unused, err := checker.Check(paths)
+	us, err := checker.Check(paths)
 	if err != nil {
-		log.Fatal(err)
+		if err, ok := err.(unused.Error); ok {
+			for pkg, errs := range err.Errors {
+				max := 4
+				if max > len(errs) {
+					max = len(errs)
+				}
+				log.Println("#", pkg)
+				for _, err := range errs[:max] {
+					log.Println(err)
+				}
+				if max < len(errs) {
+					log.Println("too many errors")
+				}
+			}
+			os.Exit(1)
+		} else {
+			log.Fatal(err)
+		}
 	}
 	var reports Reports
-	for _, u := range unused {
+	for _, u := range us {
 		reports = append(reports, Report{u.Position, u.Obj.Name(), typString(u.Obj)})
 	}
 	sort.Sort(reports)
