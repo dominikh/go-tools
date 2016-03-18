@@ -189,8 +189,12 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			switch obj := obj.(type) {
 			case *types.Var, *types.Const:
 				if obj.Name() == "_" {
-					emptyNode := c.graph.getNode(obj)
-					c.graph.roots = append(c.graph.roots, emptyNode)
+					scope := topmostScope(c.pkg.Pkg.Scope().Innermost(obj.Pos()), c.pkg.Pkg)
+					if scope == c.pkg.Pkg.Scope() {
+						c.graph.roots = append(c.graph.roots, c.graph.getNode(obj))
+					} else {
+						c.graph.markUsedBy(obj, scope)
+					}
 				} else {
 					if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
 						c.graph.markUsedBy(obj, topmostScope(obj.Parent(), obj.Pkg()))
