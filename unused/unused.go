@@ -226,7 +226,10 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			}
 			pos := ident.Pos()
 			scope := c.pkg.Pkg.Scope().Innermost(pos)
-			c.graph.markUsedBy(usedObj, topmostScope(scope, c.pkg.Pkg))
+			scope = topmostScope(scope, c.pkg.Pkg)
+			if scope != c.pkg.Pkg.Scope() {
+				c.graph.markUsedBy(usedObj, scope)
+			}
 
 			switch usedObj.(type) {
 			case *types.Var, *types.Const:
