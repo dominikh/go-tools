@@ -66,38 +66,37 @@ following conditions:
 
 ```
 $ time unused cmd/go
-/usr/lib/go/src/cmd/go/generate.go:375:21: identLength is unused
-/usr/lib/go/src/cmd/go/testflag.go:278:6: setIntFlag is unused
-/usr/lib/go/src/cmd/go/pkg.go:688:2: toRoot is unused
-/usr/lib/go/src/cmd/go/get.go:513:6: cmpGoVersion is unused
-/usr/lib/go/src/cmd/go/main.go:406:5: logf is unused
-/usr/lib/go/src/cmd/go/main.go:431:6: runOut is unused
-/usr/lib/go/src/cmd/go/build.go:1327:6: hasString is unused
-/usr/lib/go/src/cmd/go/build.go:2328:6: toolVerify is unused
-./unused cmd/go  3.38s user 0.23s system 451% cpu 0.801 total
+/usr/lib/go/src/cmd/go/build.go:1327:6: func hasString is unused
+/usr/lib/go/src/cmd/go/build.go:2328:6: func toolVerify is unused
+/usr/lib/go/src/cmd/go/generate.go:375:21: func identLength is unused
+/usr/lib/go/src/cmd/go/get.go:474:5: var goTag is unused
+/usr/lib/go/src/cmd/go/get.go:513:6: func cmpGoVersion is unused
+/usr/lib/go/src/cmd/go/go_test.go:426:23: func grepCountStdout is unused
+/usr/lib/go/src/cmd/go/go_test.go:432:23: func grepCountStderr is unused
+/usr/lib/go/src/cmd/go/main.go:406:5: var logf is unused
+/usr/lib/go/src/cmd/go/main.go:431:6: func runOut is unused
+/usr/lib/go/src/cmd/go/pkg.go:91:2: field forceBuild is unused
+/usr/lib/go/src/cmd/go/pkg.go:688:2: const toRoot is unused
+/usr/lib/go/src/cmd/go/testflag.go:278:6: func setIntFlag is unused
+unused cmd/go  3.33s user 0.25s system 447% cpu 0.799 total
 ```
 
 ```
 $ time unused $(go list github.com/prometheus/prometheus/... | grep -v /vendor/)
-/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/scrape.go:41:2: ingestedSamplesCap is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/scrape.go:49:2: errSkippedScrape is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/target.go:186:18: report is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/serverset.go:33:2: serversetNodePrefix is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/dns.go:39:2: interval is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/nerve.go:31:2: nerveNodePrefix is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/remote/opentsdb/client.go:40:2: illegalCharsRE is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:86:34: add is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:197:34: clone is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:204:34: firstTime is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:224:34: marshal is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:241:34: marshalToBuf is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:281:34: encoding is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:79:28: add is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:191:28: clone is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:198:28: firstTime is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:216:28: marshal is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:233:28: marshalToBuf is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:273:28: encoding is unused
-/home/dominikh/prj/src/github.com/prometheus/prometheus/promql/parse.go:968:8: ctx is unused
-./unused -v $(go list github.com/prometheus/prometheus/... | grep -v /vendor/  5.17s user 0.42s system 566% cpu 0.989 total
+/home/dominikh/prj/src/github.com/prometheus/prometheus/promql/engine_test.go:11:5: var noop is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/dns.go:39:2: const interval is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/dns.go:69:2: field m is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/nerve.go:31:2: const nerveNodePrefix is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/discovery/serverset.go:33:2: const serversetNodePrefix is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/scrape.go:41:2: const ingestedSamplesCap is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/scrape.go:49:2: var errSkippedScrape is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/retrieval/targetmanager.go:184:2: field providers is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:394:2: field error is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/delta.go:398:3: field error is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:500:2: field error is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/local/doubledelta.go:504:3: field error is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/storage/remote/opentsdb/client.go:40:2: var illegalCharsRE is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/util/stats/timer.go:56:2: field child is unused
+/home/dominikh/prj/src/github.com/prometheus/prometheus/util/treecache/treecache.go:25:2: field zkEvents is unused
+unused $(go list github.com/prometheus/prometheus/... | grep -v /vendor/)  5.70s user 0.43s system 535% cpu 1.142 total
 ```
