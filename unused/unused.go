@@ -90,15 +90,17 @@ type Unused struct {
 }
 
 type Checker struct {
-	Mode  CheckMode
-	Tags  []string
-	Debug io.Writer
+	Mode         CheckMode
+	Tags         []string
+	WholeProgram bool
+	Debug        io.Writer
 
 	graph *graph
 
 	msCache      typeutil.MethodSetCache
 	lprog        *loader.Program
 	topmostCache map[*types.Scope]*types.Scope
+	interfaces   []*types.Interface
 }
 
 func NewChecker(mode CheckMode) *Checker {
@@ -195,6 +197,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		return nil, finalError
 	}
 
+	if c.WholeProgram {
+		c.findExportedInterfaces()
+	}
 	for _, pkg := range c.lprog.InitialPackages() {
 		c.processDefs(pkg)
 		c.processUses(pkg)
@@ -312,7 +317,7 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 			c.graph.markUsedBy(c.topmostScope(scope, obj.Pkg()), obj)
 		}
 
-		if c.isRoot(obj, false) {
+		if c.isRoot(obj) {
 			node := c.graph.getNode(obj)
 			c.graph.roots = append(c.graph.roots, node)
 			if obj, ok := obj.(*types.PkgName); ok {
@@ -342,6 +347,31 @@ func (c *Checker) processUses(pkg *loader.PackageInfo) {
 	}
 }
 
+func (c *Checker) findExportedInterfaces() {
+	c.interfaces = []*types.Interface{types.Universe.Lookup("error").Type().(*types.Named).Underlying().(*types.Interface)}
+	var pkgs []*loader.PackageInfo
+	if c.WholeProgram {
+		for _, pkg := range c.lprog.AllPackages {
+			pkgs = append(pkgs, pkg)
+		}
+	} else {
+		pkgs = c.lprog.InitialPackages()
+	}
+
+	for _, pkg := range pkgs {
+		for _, tv := range pkg.Types {
+			iface, ok := tv.Type.(*types.Interface)
+			if !ok {
+				continue
+			}
+			if iface.NumMethods() == 0 {
+				continue
+			}
+			c.interfaces = append(c.interfaces, iface)
+		}
+	}
+}
+
 func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 	named := map[*types.Named]*types.Pointer{}
 	var interfaces []*types.Interface
@@ -364,7 +394,7 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 		}
 	}
 
-	for _, iface := range interfaces {
+	fn := func(iface *types.Interface) {
 		for obj, objPtr := range named {
 			if !types.Implements(obj, iface) && !types.Implements(objPtr, iface) {
 				continue
@@ -394,6 +424,13 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 				}
 			}
 		}
+	}
+
+	for _, iface := range interfaces {
+		fn(iface)
+	}
+	for _, iface := range c.interfaces {
+		fn(iface)
 	}
 }
 
@@ -612,7 +649,7 @@ func (c *Checker) checkFlags(v interface{}) bool {
 	return true
 }
 
-func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
+func (c *Checker) isRoot(obj types.Object) bool {
 	// - in local mode, main, init, tests, and non-test, non-main exported are roots
 	// - in global mode (not yet implemented), main, init and tests are roots
 
@@ -626,7 +663,7 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 	if obj.Exported() {
 		// FIXME fields are only roots if the struct type would be, too
 		// FIXME exported methods on unexported types aren't roots
-		if (isMethod(obj) || isField(obj)) && !wholeProgram {
+		if (isMethod(obj) || isField(obj)) && !c.WholeProgram {
 			return true
 		}
 
@@ -638,7 +675,7 @@ func (c *Checker) isRoot(obj types.Object, wholeProgram bool) bool {
 		}
 
 		// Package-level are used, except in package main
-		if isPkgScope(obj) && obj.Pkg().Name() != "main" && !wholeProgram {
+		if isPkgScope(obj) && obj.Pkg().Name() != "main" && !c.WholeProgram {
 			return true
 		}
 	}

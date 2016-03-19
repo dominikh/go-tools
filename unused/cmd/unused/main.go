@@ -17,13 +17,14 @@ import (
 )
 
 var (
-	fConstants bool
-	fFields    bool
-	fFunctions bool
-	fTypes     bool
-	fVariables bool
-	fDebug     string
-	fTags      string
+	fConstants    bool
+	fFields       bool
+	fFunctions    bool
+	fTypes        bool
+	fVariables    bool
+	fDebug        string
+	fTags         string
+	fWholeProgram bool
 )
 
 func init() {
@@ -34,6 +35,7 @@ func init() {
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
 	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
 	flag.StringVar(&fTags, "tags", "", "List of build tags")
+	flag.BoolVar(&fWholeProgram, "exported", false, "Treat arguments as a program and report unused exported identifiers")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -53,6 +55,7 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 	}
 
 	checker.Tags = strings.Fields(fTags)
+	checker.WholeProgram = fWholeProgram
 	return checker
 }
 
@@ -89,7 +92,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if err != nil && len(paths) == 1 {
+	if err != nil && (len(paths) == 1 || fWholeProgram) {
 		printErr(err, "")
 		os.Exit(2)
 	}

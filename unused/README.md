@@ -62,6 +62,18 @@ following conditions:
 - Neither the checks for methods nor for struct fields are aware of
   the reflect package and may thus produce false positives.
 
+## Whole program analysis
+
+Optionally via the `-exported` flag, _unused_ can analyse all
+arguments as a single program and report unused exported identifiers.
+This can be useful for checking "internal" packages, or large software
+projects that do not export an API to the public, but use exported
+methods between components.
+
+Do note that in the whole-program analysis, all arguments must
+type-check. It is not possible to check packages individually in this
+mode.
+
 ## Examples
 
 ```
@@ -100,3 +112,18 @@ $ time unused $(go list github.com/prometheus/prometheus/... | grep -v /vendor/)
 /home/dominikh/prj/src/github.com/prometheus/prometheus/util/treecache/treecache.go:25:2: field zkEvents is unused
 unused $(go list github.com/prometheus/prometheus/... | grep -v /vendor/)  5.70s user 0.43s system 535% cpu 1.142 total
 ```
+
+$ time unused -exported github.com/kr/pretty/...
+/home/dominikh/prj/src/github.com/kr/pretty/formatter.go:14:2: const limit is unused
+/home/dominikh/prj/src/github.com/kr/pretty/formatter.go:322:6: func tryDeepEqual is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:20:6: func Errorf is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:28:6: func Fprintf is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:37:6: func Log is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:45:6: func Logf is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:54:6: func Logln is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:63:6: func Print is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:71:6: func Printf is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:80:6: func Println is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:88:6: func Sprintf is unused
+/home/dominikh/prj/src/github.com/kr/pretty/pretty.go:92:6: func wrap is unused
+unused -exported github.com/kr/pretty/...  1.23s user 0.19s system 253% cpu 0.558 total
