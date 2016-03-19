@@ -7,6 +7,7 @@ import (
 	"go/types"
 	"log"
 	"os"
+	"runtime/debug"
 	"sort"
 
 	"honnef.co/go/unused"
@@ -37,6 +38,19 @@ func init() {
 	}
 }
 
+func newChecker(mode unused.CheckMode) *unused.Checker {
+	checker := unused.NewChecker(mode)
+
+	if fDebug != "" {
+		debug, err := os.Create(fDebug)
+		if err != nil {
+			log.Fatal("couldn't open debug file:", err)
+		}
+		checker.Debug = debug
+	}
+	return checker
+}
+
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
@@ -62,37 +76,50 @@ func main() {
 	}
 
 	paths := gotool.ImportPaths(flag.Args())
-	checker := unused.NewChecker(mode)
-
-	if fDebug != "" {
-		debug, err := os.Create(fDebug)
-		if err != nil {
-			log.Fatal("couldn't open debug file:", err)
-		}
-		checker.Debug = debug
-	}
-
+	checker := newChecker(mode)
 	us, err := checker.Check(paths)
-	if err != nil {
-		if err, ok := err.(unused.Error); ok {
-			for pkg, errs := range err.Errors {
-				max := 4
-				if max > len(errs) {
-					max = len(errs)
-				}
-				log.Println("#", pkg)
-				for _, err := range errs[:max] {
-					log.Println(err)
-				}
-				if max < len(errs) {
-					log.Println("too many errors")
-				}
-			}
+	if err == nil {
+		printUnused(us)
+		if len(us) > 0 {
 			os.Exit(1)
-		} else {
-			log.Fatal(err)
 		}
 	}
+	if err != nil && len(paths) == 1 {
+		printErr(err, "")
+		os.Exit(2)
+	}
+
+	anyUnused := false
+	if err != nil && len(paths) > 1 {
+		// Checking all packages at once potentially used a lot of
+		// memory. While the Go runtime will gradually release it back
+		// to the OS, we attempt to release it all in one go. While
+		// this doesn't help with peak usage, it'll avoid concerned
+		// user reports and it will reduce the average memory
+		// consumption over time, which might matter if the tool runs
+		// for a prolonged time.
+		debug.FreeOSMemory()
+		log.Println("Couldn't check all packages at once, will check each individually now")
+		for _, path := range paths {
+			checker = newChecker(mode)
+			us, err := checker.Check([]string{path})
+			if err != nil {
+				printErr(err, path)
+				continue
+			}
+			printUnused(us)
+			if len(us) > 0 {
+				anyUnused = true
+			}
+		}
+	}
+
+	if anyUnused {
+		os.Exit(1)
+	}
+}
+
+func printUnused(us []unused.Unused) {
 	var reports Reports
 	for _, u := range us {
 		reports = append(reports, Report{u.Position, u.Obj.Name(), typString(u.Obj)})
@@ -101,8 +128,28 @@ func main() {
 	for _, report := range reports {
 		fmt.Printf("%s: %s %s is unused\n", report.pos, report.typ, report.name)
 	}
-	if len(reports) > 0 {
-		os.Exit(1)
+}
+
+func printErr(err error, path string) {
+	if err, ok := err.(unused.Error); ok {
+		for pkg, errs := range err.Errors {
+			max := 4
+			if max > len(errs) {
+				max = len(errs)
+			}
+			log.Println("#", pkg)
+			for _, err := range errs[:max] {
+				log.Println(err)
+			}
+			if max < len(errs) {
+				log.Println("too many errors")
+			}
+		}
+	} else {
+		if path != "" {
+			log.Println("#", path)
+		}
+		log.Println(err)
 	}
 }
 

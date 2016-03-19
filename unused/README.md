@@ -11,6 +11,26 @@ types.
 
 	unused -help
 
+## Usage Tips
+
+- When running _unused_ on multiple packages, it will first try to
+  check them all at once, because that's faster. If any of the
+  packages doesn't compile, however, _unused_ will check each package
+  individually.
+
+  The first step can, depending on the number of packages, use a lot
+  of memory. For the entire standard library, it uses roughly 800 MB.
+  For a GOPATH with thousands of packages, it can quickly use several
+  gigabytes. If that is an issue, consider using something like this
+  instead:
+
+  ```
+  for pkg in $(go list your_selection); do unused "$pkg"; done
+  ```
+
+  This will effectively skip the first step and always check every
+  package individually.
+
 ## What counts as used/unused?
 
 _unused_ checks for unused constants, functions, types and optionally
