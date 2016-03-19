@@ -113,6 +113,7 @@ $ time unused $(go list github.com/prometheus/prometheus/... | grep -v /vendor/)
 unused $(go list github.com/prometheus/prometheus/... | grep -v /vendor/)  5.70s user 0.43s system 535% cpu 1.142 total
 ```
 
+```
 $ time unused -exported github.com/kr/pretty/...
 /home/dominikh/prj/src/github.com/kr/pretty/formatter.go:14:2: const limit is unused
 /home/dominikh/prj/src/github.com/kr/pretty/formatter.go:322:6: func tryDeepEqual is unused
@@ -127,3 +128,4 @@ $ time unused -exported github.com/kr/pretty/...
 /home/dominikh/prj/src/github.com/kr/pretty/pretty.go:88:6: func Sprintf is unused
 /home/dominikh/prj/src/github.com/kr/pretty/pretty.go:92:6: func wrap is unused
 unused -exported github.com/kr/pretty/...  1.23s user 0.19s system 253% cpu 0.558 total
+```
