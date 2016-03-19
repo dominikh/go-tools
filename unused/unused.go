@@ -472,7 +472,7 @@ func (c *Checker) processAST(pkg *loader.PackageInfo) {
 				return true
 			}
 			for _, cmt := range node.Doc.List {
-				if !strings.HasPrefix(cmt.Text, "//export ") {
+				if !strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
 					return true
 				}
 				obj := pkg.ObjectOf(node.Name)
