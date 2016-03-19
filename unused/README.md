@@ -15,7 +15,7 @@ types.
 
 - When running _unused_ on multiple packages, it will first try to
   check them all at once, because that's faster. If any of the
-  packages doesn't compile, however, _unused_ will check each package
+  packages don't compile, however, _unused_ will check each package
   individually.
 
   The first step can, depending on the number of packages, use a lot
