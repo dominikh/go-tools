@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"sort"
+	"strings"
 
 	"honnef.co/go/unused"
 
@@ -22,6 +23,7 @@ var (
 	fTypes     bool
 	fVariables bool
 	fDebug     string
+	fTags      string
 )
 
 func init() {
@@ -31,6 +33,7 @@ func init() {
 	flag.BoolVar(&fTypes, "types", true, "Report unused types")
 	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
 	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
+	flag.StringVar(&fTags, "tags", "", "List of build tags")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -48,6 +51,8 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 		}
 		checker.Debug = debug
 	}
+
+	checker.Tags = strings.Fields(fTags)
 	return checker
 }
 

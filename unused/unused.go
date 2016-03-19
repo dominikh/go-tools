@@ -90,6 +90,7 @@ type Unused struct {
 
 type Checker struct {
 	Mode  CheckMode
+	Tags  []string
 	Debug io.Writer
 
 	graph *graph
@@ -143,7 +144,7 @@ func (e Error) Error() string {
 func (c *Checker) Check(paths []string) ([]Unused, error) {
 	// We resolve paths manually instead of relying on go/loader so
 	// that our TypeCheckFuncBodies implementation continues to work.
-	goFiles, err := resolveRelative(paths)
+	goFiles, err := c.resolveRelative(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +154,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		AllowErrors: true, // We'll return manually if there are errors
 	}
 	conf.TypeChecker.Error = func(err error) {}
+	ctx := build.Default
+	ctx.BuildTags = c.Tags
+	conf.Build = &ctx
 	pkgs := map[string]bool{}
 	for _, path := range paths {
 		pkgs[path] = true
@@ -492,7 +496,7 @@ func isBasicStruct(elts []ast.Expr) bool {
 	return false
 }
 
-func resolveRelative(importPaths []string) (goFiles bool, err error) {
+func (c *Checker) resolveRelative(importPaths []string) (goFiles bool, err error) {
 	if len(importPaths) == 0 {
 		return false, nil
 	}
@@ -504,8 +508,10 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 	if err != nil {
 		return false, err
 	}
+	ctx := build.Default
+	ctx.BuildTags = c.Tags
 	for i, path := range importPaths {
-		bpkg, err := build.Import(path, wd, build.FindOnly)
+		bpkg, err := ctx.Import(path, wd, build.FindOnly)
 		if err != nil {
 			return false, fmt.Errorf("can't load package %q: %v", path, err)
 		}
