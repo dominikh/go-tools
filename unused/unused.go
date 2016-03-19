@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"io"
@@ -131,10 +132,6 @@ func (c *Checker) markFields(typ types.Type) {
 	}
 }
 
-func (c *Checker) Visit(node ast.Node) ast.Visitor {
-	return nil
-}
-
 type Error struct {
 	Errors map[string][]error
 }
@@ -154,6 +151,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 
 	conf := loader.Config{
 		AllowErrors: true, // We'll return manually if there are errors
+		ParserMode:  parser.ParseComments,
 	}
 	conf.TypeChecker.Error = func(err error) {}
 	ctx := build.Default
@@ -274,10 +272,6 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 			c.graph.markUsedBy(obj, obj.Type())
 		}
 
-		// FIXME(dominikh): we don't really want _ as roots. A _
-		// variable in an otherwise unused function shouldn't mark
-		// anything as used. However, _ doesn't seem to have a
-		// scope associated with it.
 		switch obj := obj.(type) {
 		case *types.Var, *types.Const:
 			if obj.Name() == "_" {
@@ -470,6 +464,19 @@ func (c *Checker) processAST(pkg *loader.PackageInfo) {
 
 			if isBasicStruct(node.Elts) {
 				c.markFields(typ)
+			}
+		}
+
+		if node, ok := node1.(*ast.FuncDecl); ok {
+			if node.Doc == nil {
+				return true
+			}
+			for _, cmt := range node.Doc.List {
+				if !strings.HasPrefix(cmt.Text, "//export ") {
+					return true
+				}
+				obj := pkg.ObjectOf(node.Name)
+				c.graph.roots = append(c.graph.roots, c.graph.getNode(obj))
 			}
 		}
 
