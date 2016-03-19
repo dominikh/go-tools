@@ -137,8 +137,7 @@ type Error struct {
 }
 
 func (e Error) Error() string {
-	// return fmt.Sprintf("%s and %d more errors", e.Errors[0], len(e.Errors)-1)
-	return ""
+	return fmt.Sprintf("errors in %d packages", len(e.Errors))
 }
 
 func (c *Checker) Check(paths []string) ([]Unused, error) {

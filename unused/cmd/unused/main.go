@@ -136,8 +136,8 @@ func printUnused(us []unused.Unused) {
 }
 
 func printErr(err error, path string) {
-	if err, ok := err.(unused.Error); ok {
-		for pkg, errs := range err.Errors {
+	if err2, ok := err.(unused.Error); ok {
+		for pkg, errs := range err2.Errors {
 			max := 4
 			if max > len(errs) {
 				max = len(errs)
