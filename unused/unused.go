@@ -288,7 +288,16 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 		}
 
 		if fn, ok := obj.(*types.Func); ok {
+			// A function uses its signature
 			c.graph.markUsedBy(fn, fn.Type())
+
+			// A function uses its return types
+			sig := fn.Type().(*types.Signature)
+			res := sig.Results()
+			n := res.Len()
+			for i := 0; i < n; i++ {
+				c.graph.markUsedBy(res.At(i).Type(), fn)
+			}
 		}
 
 		if obj, ok := obj.(interface {
