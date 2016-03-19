@@ -8,6 +8,7 @@ import (
 	"go/types"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/go/loader"
@@ -247,6 +248,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		}
 
 		pos := c.lprog.Fset.Position(obj.Pos())
+		if pos.Filename == "" || filepath.Base(pos.Filename) == "C" {
+			continue
+		}
 		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
 	return unused, nil
