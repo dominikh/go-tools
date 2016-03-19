@@ -11,17 +11,6 @@ types.
 
 	unused -help
 
-## Usage Tips
-
-- _unused_ doesn't currently detect if an identifier `x` is only used
-  by identifiers that themselves are unused. After removing unused
-  code, you should rerun _unused_ until it stops finding new unused
-  code.
-
-- Using the `-fields` flag, _unused_ will also check for unused struct
-  fields. However, this check leads to more false positives than the
-  rest of the tool, which is why it is disabled by default.
-
 ## What counts as used/unused?
 
 _unused_ checks for unused constants, functions, types and optionally
