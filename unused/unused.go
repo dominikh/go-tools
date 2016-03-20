@@ -462,33 +462,27 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 }
 
 func (c *Checker) processSelections(pkg *loader.PackageInfo) {
+	fn := func(expr *ast.SelectorExpr, sel *types.Selection, offset int) {
+		scope := pkg.Pkg.Scope().Innermost(expr.Pos())
+		c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
+		c.graph.markUsedBy(sel.Obj(), expr.X)
+		if len(sel.Index()) > 1 {
+			typ := sel.Recv()
+			indices := sel.Index()
+			for _, idx := range indices[:len(indices)-offset] {
+				obj := getField(typ, idx)
+				typ = obj.Type()
+				c.graph.markUsedBy(obj, expr.X)
+			}
+		}
+	}
+
 	for expr, sel := range pkg.Selections {
 		switch sel.Kind() {
 		case types.FieldVal:
-			scope := pkg.Pkg.Scope().Innermost(expr.Pos())
-			c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
-			c.graph.markUsedBy(sel.Obj(), expr.X)
-			if len(sel.Index()) > 1 {
-				typ := sel.Recv()
-				for _, idx := range sel.Index() {
-					obj := getField(typ, idx)
-					typ = obj.Type()
-					c.graph.markUsedBy(obj, expr.X)
-				}
-			}
+			fn(expr, sel, 0)
 		case types.MethodVal:
-			scope := pkg.Pkg.Scope().Innermost(expr.Pos())
-			c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
-			c.graph.markUsedBy(sel.Obj(), expr.X)
-			if len(sel.Index()) > 1 {
-				typ := sel.Recv()
-				indices := sel.Index()
-				for _, idx := range indices[:len(indices)-1] {
-					obj := getField(typ, idx)
-					typ = obj.Type()
-					c.graph.markUsedBy(obj, expr.X)
-				}
-			}
+			fn(expr, sel, 1)
 		}
 	}
 }
