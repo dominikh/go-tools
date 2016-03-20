@@ -1,5 +1,7 @@
 package pkg
 
+import _ "fmt"
+
 type t1 struct{} // MATCH t1
 type t2 struct{}
 type t3 struct{}
@@ -18,3 +20,7 @@ func fn2() {
 func init() {
 	fn2()
 }
+
+func _() {}
+
+type _ struct{}

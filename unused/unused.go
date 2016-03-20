@@ -284,7 +284,7 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 		}
 
 		switch obj := obj.(type) {
-		case *types.Var, *types.Const:
+		case *types.Var, *types.Const, *types.Func, *types.TypeName:
 			if obj.Name() == "_" {
 				node := c.graph.getNode(obj)
 				node.quiet = true
