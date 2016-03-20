@@ -272,6 +272,18 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 	return unused, nil
 }
 
+func (c *Checker) useExportedFields(typ types.Type) {
+	if st, ok := typ.Underlying().(*types.Struct); ok {
+		n := st.NumFields()
+		for i := 0; i < n; i++ {
+			field := st.Field(i)
+			if field.Exported() {
+				c.graph.markUsedBy(field, typ)
+			}
+		}
+	}
+}
+
 func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 	for _, obj := range pkg.Defs {
 		if obj == nil {
@@ -283,6 +295,10 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 			c.graph.markUsedBy(obj.Type().Underlying(), obj.Type())
 			c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
 			c.graph.markUsedBy(obj, obj.Type())
+
+			if pkg.Pkg.Name() != "main" && !c.WholeProgram {
+				c.useExportedFields(obj.Type())
+			}
 		}
 
 		switch obj := obj.(type) {
@@ -397,6 +413,10 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 		case *types.Interface:
 			if obj.NumMethods() > 0 {
 				interfaces = append(interfaces, obj)
+			}
+		case *types.Struct:
+			if pkg.Pkg.Name() != "main" && !c.WholeProgram {
+				c.useExportedFields(obj)
 			}
 		}
 	}
@@ -681,9 +701,8 @@ func (c *Checker) isRoot(obj types.Object) bool {
 		return true
 	}
 	if obj.Exported() {
-		// FIXME fields are only roots if the struct type would be, too
 		// FIXME exported methods on unexported types aren't roots
-		if (isMethod(obj) || isField(obj)) && !c.WholeProgram {
+		if isMethod(obj) && !c.WholeProgram {
 			return true
 		}
 
