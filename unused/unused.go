@@ -329,8 +329,8 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 			c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
 			c.graph.markUsedBy(obj, obj.Type())
 
-			if pkg.Pkg.Name() != "main" && !c.WholeProgram {
-				c.useExportedFields(obj.Type())
+			c.useExportedFields(obj.Type())
+			if !c.WholeProgram {
 				c.useExportedMethods(obj.Type())
 			}
 		}

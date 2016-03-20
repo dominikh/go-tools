@@ -1,11 +1,11 @@
 package main
 
 type t1 struct {
-	F1 int // MATCH F1
+	F1 int
 }
 
 type T2 struct {
-	F2 int // MATCH F2
+	F2 int
 }
 
 func init() {
