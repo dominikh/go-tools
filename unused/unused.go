@@ -284,6 +284,39 @@ func (c *Checker) useExportedFields(typ types.Type) {
 	}
 }
 
+func (c *Checker) useExportedMethods(typ types.Type) {
+	named, ok := typ.(*types.Named)
+	if !ok {
+		return
+	}
+	ms := typeutil.IntuitiveMethodSet(named, &c.msCache)
+	for i := 0; i < len(ms); i++ {
+		meth := ms[i].Obj()
+		if meth.Exported() {
+			c.graph.markUsedBy(meth, typ)
+		}
+	}
+
+	st, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return
+	}
+	n := st.NumFields()
+	for i := 0; i < n; i++ {
+		field := st.Field(i)
+		if !field.Anonymous() {
+			continue
+		}
+		ms := typeutil.IntuitiveMethodSet(field.Type(), &c.msCache)
+		for j := 0; j < len(ms); j++ {
+			if ms[j].Obj().Exported() {
+				c.graph.markUsedBy(field, typ)
+				break
+			}
+		}
+	}
+}
+
 func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 	for _, obj := range pkg.Defs {
 		if obj == nil {
@@ -298,6 +331,7 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 
 			if pkg.Pkg.Name() != "main" && !c.WholeProgram {
 				c.useExportedFields(obj.Type())
+				c.useExportedMethods(obj.Type())
 			}
 		}
 
@@ -708,11 +742,6 @@ func (c *Checker) isRoot(obj types.Object) bool {
 		return true
 	}
 	if obj.Exported() {
-		// FIXME exported methods on unexported types aren't roots
-		if isMethod(obj) && !c.WholeProgram {
-			return true
-		}
-
 		f := c.lprog.Fset.Position(obj.Pos()).Filename
 		if strings.HasSuffix(f, "_test.go") {
 			return strings.HasPrefix(obj.Name(), "Test") ||
