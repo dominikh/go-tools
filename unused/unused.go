@@ -259,7 +259,9 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 			if c.lprog.Fset.Position(file.Pos()).Filename != pos.Filename {
 				continue
 			}
-			generated = isGenerated(file.Comments[0].Text())
+			if len(file.Comments) > 0 {
+				generated = isGenerated(file.Comments[0].Text())
+			}
 			break
 		}
 		if generated {
