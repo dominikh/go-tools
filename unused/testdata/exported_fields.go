@@ -23,3 +23,14 @@ func init() {
 func init() {
 	_ = t1{}
 }
+
+type codeResponse struct {
+	Tree *codeNode `json:"tree"`
+}
+
+type codeNode struct {
+}
+
+func init() {
+	var _ codeResponse
+}

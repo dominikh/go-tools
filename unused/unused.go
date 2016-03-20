@@ -337,6 +337,15 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 
 		switch obj := obj.(type) {
 		case *types.Var, *types.Const, *types.Func, *types.TypeName:
+			if obj.Exported() {
+				// Exported variables and constants use their types,
+				// even if there's no expression using them in the
+				// checked program.
+				//
+				// Also operates on funcs and type names, but that's
+				// irrelevant/redundant.
+				c.graph.markUsedBy(obj.Type(), obj)
+			}
 			if obj.Name() == "_" {
 				node := c.graph.getNode(obj)
 				node.quiet = true
