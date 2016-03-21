@@ -95,7 +95,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
 	case "amd64p32":
 		wordSize = 4
 	}
-	s := gcSizes{wordSize, maxAlign}
+	s := types.StdSizes{WordSize: wordSize, MaxAlign: maxAlign}
 
 	n := typ.NumFields()
 	var fields []*types.Var
