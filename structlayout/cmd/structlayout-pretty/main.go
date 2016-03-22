@@ -16,6 +16,7 @@ type Field struct {
 	Start     int64  `json:"start"`
 	End       int64  `json:"end"`
 	Size      int64  `json:"size"`
+	Align     int64  `json:"align"`
 	IsPadding bool   `json:"is_padding"`
 }
 

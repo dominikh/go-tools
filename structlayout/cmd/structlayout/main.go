@@ -24,6 +24,7 @@ type Field struct {
 	Start     int64  `json:"start"`
 	End       int64  `json:"end"`
 	Size      int64  `json:"size"`
+	Align     int64  `json:"align"`
 	IsPadding bool   `json:"is_padding"`
 }
 
@@ -80,10 +81,12 @@ func emitJSON(fields []Field) {
 func emitText(fields []Field) {
 	for _, field := range fields {
 		if field.IsPadding {
-			fmt.Printf("padding: %d-%d (%d bytes)\n", field.Start, field.End, field.Size)
+			fmt.Printf("padding: %d-%d (size %d, align %d)\n",
+				field.Start, field.End, field.Size, field.Align)
 			continue
 		}
-		fmt.Printf("%s %s: %d-%d (%d bytes)\n", field.Name, field.Type, field.Start, field.End, field.Size)
+		fmt.Printf("%s %s: %d-%d (size %d, align %d)\n",
+			field.Name, field.Type, field.Start, field.End, field.Size, field.Align)
 	}
 }
 func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
@@ -111,7 +114,12 @@ func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
 	for i, field := range fields {
 		if offsets[i] > pos {
 			padding := offsets[i] - pos
-			out = append(out, Field{IsPadding: true, Start: pos, End: pos + padding, Size: padding})
+			out = append(out, Field{
+				IsPadding: true,
+				Start:     pos,
+				End:       pos + padding,
+				Size:      padding,
+			})
 			pos += padding
 		}
 		size := s.Sizeof(field.Type())
@@ -124,8 +132,8 @@ func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
 				Start: offsets[i],
 				End:   offsets[i] + size,
 				Size:  size,
+				Align: s.Alignof(field.Type()),
 			})
-
 		}
 		pos += size
 	}
