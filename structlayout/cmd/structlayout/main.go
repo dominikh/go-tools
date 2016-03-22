@@ -97,6 +97,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 	}
 
 	pos := base
+	alignment := int64(1)
 	for i, field := range fields {
 		if offsets[i] > pos {
 			padding := offsets[i] - pos
@@ -109,6 +110,10 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 			pos += padding
 		}
 		size := s.Sizeof(field.Type())
+		z := s.Alignof(field.Type())
+		if z > alignment {
+			alignment = z
+		}
 		if typ2, ok := field.Type().Underlying().(*types.Struct); ok && typ2.NumFields() != 0 {
 			out = sizes(typ2, prefix+"."+field.Name(), pos, out)
 		} else {
@@ -123,5 +128,41 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 		}
 		pos += size
 	}
+
+	if len(out) == 0 {
+		return out
+	}
+	field := &out[len(out)-1]
+	if field.Size == 0 {
+		field := &out[len(out)-1]
+		field.Size = 1
+		field.End++
+	}
+	sz := size(out)
+	pad := align(sz, alignment) - sz
+	if pad > 0 {
+		out = append(out, st.Field{
+			IsPadding: true,
+			Start:     field.End,
+			End:       field.End + pad,
+			Size:      pad,
+		})
+
+	}
+
 	return out
+}
+
+func size(fields []st.Field) int64 {
+	n := int64(0)
+	for _, field := range fields {
+		n += field.Size
+	}
+	return n
+}
+
+// align returns the smallest y >= x such that y % a == 0.
+func align(x, a int64) int64 {
+	y := x + a - 1
+	return y - y%a
 }

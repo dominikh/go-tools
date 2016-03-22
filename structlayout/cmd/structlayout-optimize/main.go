@@ -97,10 +97,17 @@ func optimize(fields []st.Field) {
 }
 
 func pad(fields []st.Field) []st.Field {
+	if len(fields) == 0 {
+		return nil
+	}
 	var out []st.Field
 	pos := int64(0)
 	offsets := offsetsof(fields)
+	alignment := int64(1)
 	for i, field := range fields {
+		if field.Align > alignment {
+			alignment = field.Align
+		}
 		if offsets[i] > pos {
 			padding := offsets[i] - pos
 			out = append(out, st.Field{
@@ -116,7 +123,26 @@ func pad(fields []st.Field) []st.Field {
 		out = append(out, field)
 		pos += field.Size
 	}
+	sz := size(out)
+	pad := align(sz, alignment) - sz
+	if pad > 0 {
+		field := out[len(out)-1]
+		out = append(out, st.Field{
+			IsPadding: true,
+			Start:     field.End,
+			End:       field.End + pad,
+			Size:      pad,
+		})
+	}
 	return out
+}
+
+func size(fields []st.Field) int64 {
+	n := int64(0)
+	for _, field := range fields {
+		n += field.Size
+	}
+	return n
 }
 
 type byAlignAndSize struct {
