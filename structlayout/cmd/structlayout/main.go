@@ -97,7 +97,6 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 	}
 
 	pos := base
-	alignment := int64(1)
 	for i, field := range fields {
 		if offsets[i] > pos {
 			padding := offsets[i] - pos
@@ -110,10 +109,6 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 			pos += padding
 		}
 		size := s.Sizeof(field.Type())
-		z := s.Alignof(field.Type())
-		if z > alignment {
-			alignment = z
-		}
 		if typ2, ok := field.Type().Underlying().(*types.Struct); ok && typ2.NumFields() != 0 {
 			out = sizes(typ2, prefix+"."+field.Name(), pos, out)
 		} else {
@@ -139,7 +134,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 		field.End++
 	}
 	sz := size(out)
-	pad := align(sz, alignment) - sz
+	pad := align(sz, s.Alignof(typ)) - sz
 	if pad > 0 {
 		out = append(out, st.Field{
 			IsPadding: true,
