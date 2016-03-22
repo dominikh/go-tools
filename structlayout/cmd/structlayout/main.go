@@ -130,12 +130,10 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 	}
 	field := &out[len(out)-1]
 	if field.Size == 0 {
-		field := &out[len(out)-1]
 		field.Size = 1
 		field.End++
 	}
-	sz := size(out)
-	pad := align(sz, s.Alignof(typ)) - sz
+	pad := s.Sizeof(typ) - field.End
 	if pad > 0 {
 		out = append(out, st.Field{
 			IsPadding: true,
@@ -143,22 +141,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 			End:       field.End + pad,
 			Size:      pad,
 		})
-
 	}
 
 	return out
-}
-
-func size(fields []st.Field) int64 {
-	n := int64(0)
-	for _, field := range fields {
-		n += field.Size
-	}
-	return n
-}
-
-// align returns the smallest y >= x such that y % a == 0.
-func align(x, a int64) int64 {
-	y := x + a - 1
-	return y - y%a
 }
