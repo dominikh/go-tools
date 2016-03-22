@@ -10,6 +10,12 @@ consume this information in other tools.
 A utility called _structlayout-pretty_ takes this JSON and prints an
 ASCII graphic representing the memory layout.
 
+_structlayout-optimize_ is another tool. Inspired by
+[maligned](https://github.com/mdempsky/maligned), it reads
+_structlayout_ JSON on stdin and reorders fields to minimize the
+amount of padding. The tool can itself emit JSON and feed into e.g.
+_structlayout-pretty_.
+
 ## Installation
 
 ```
