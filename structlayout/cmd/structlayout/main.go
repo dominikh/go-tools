@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 
+	"honnef.co/go/gcsizes"
 	st "honnef.co/go/structlayout"
 
 	"golang.org/x/tools/go/loader"
@@ -84,7 +85,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 	case "amd64p32":
 		wordSize = 4
 	}
-	s := &gcSizes{WordSize: wordSize, MaxAlign: maxAlign}
+	s := &gcsizes.Sizes{WordSize: wordSize, MaxAlign: maxAlign}
 
 	n := typ.NumFields()
 	var fields []*types.Var
