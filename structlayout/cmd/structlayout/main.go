@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 
+	st "honnef.co/go/structlayout"
+
 	"golang.org/x/tools/go/loader"
 )
 
@@ -16,16 +18,6 @@ var fJSON bool
 
 func init() {
 	flag.BoolVar(&fJSON, "json", false, "Format data as JSON")
-}
-
-type Field struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Start     int64  `json:"start"`
-	End       int64  `json:"end"`
-	Size      int64  `json:"size"`
-	Align     int64  `json:"align"`
-	IsPadding bool   `json:"is_padding"`
 }
 
 func main() {
@@ -71,25 +63,19 @@ func main() {
 	}
 }
 
-func emitJSON(fields []Field) {
+func emitJSON(fields []st.Field) {
 	if fields == nil {
-		fields = []Field{}
+		fields = []st.Field{}
 	}
 	json.NewEncoder(os.Stdout).Encode(fields)
 }
 
-func emitText(fields []Field) {
+func emitText(fields []st.Field) {
 	for _, field := range fields {
-		if field.IsPadding {
-			fmt.Printf("padding: %d-%d (size %d, align %d)\n",
-				field.Start, field.End, field.Size, field.Align)
-			continue
-		}
-		fmt.Printf("%s %s: %d-%d (size %d, align %d)\n",
-			field.Name, field.Type, field.Start, field.End, field.Size, field.Align)
+		fmt.Println(field)
 	}
 }
-func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
+func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Field {
 	wordSize := int64(8)
 	maxAlign := int64(8)
 	switch build.Default.GOARCH {
@@ -114,7 +100,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
 	for i, field := range fields {
 		if offsets[i] > pos {
 			padding := offsets[i] - pos
-			out = append(out, Field{
+			out = append(out, st.Field{
 				IsPadding: true,
 				Start:     pos,
 				End:       pos + padding,
@@ -126,7 +112,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []Field) []Field {
 		if typ2, ok := field.Type().Underlying().(*types.Struct); ok && typ2.NumFields() != 0 {
 			out = sizes(typ2, prefix+"."+field.Name(), pos, out)
 		} else {
-			out = append(out, Field{
+			out = append(out, st.Field{
 				Name:  prefix + "." + field.Name(),
 				Type:  field.Type().String(),
 				Start: offsets[i],

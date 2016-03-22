@@ -8,6 +8,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	st "honnef.co/go/structlayout"
 )
 
 var (
@@ -20,32 +22,11 @@ func init() {
 	flag.BoolVar(&fRecurse, "r", false, "Break up structs and reorder their fields freely")
 }
 
-// FIXME move this type to a shared package
-
-type Field struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Start     int64  `json:"start"`
-	End       int64  `json:"end"`
-	Size      int64  `json:"size"`
-	Align     int64  `json:"align"`
-	IsPadding bool   `json:"is_padding"`
-}
-
-func (f Field) String() string {
-	name := f.Name
-	if f.IsPadding {
-		name = "padding"
-	}
-	return fmt.Sprintf("%s %s: %d-%d (size %d, align %d)",
-		name, f.Type, f.Start, f.End, f.Size, f.Align)
-}
-
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
 
-	var in []Field
+	var in []st.Field
 	if err := json.NewDecoder(os.Stdin).Decode(&in); err != nil {
 		log.Fatal(err)
 	}
@@ -55,7 +36,7 @@ func main() {
 	if !fRecurse {
 		in = combine(in)
 	}
-	var fields []Field
+	var fields []st.Field
 	for _, field := range in {
 		if field.IsPadding {
 			continue
@@ -74,10 +55,10 @@ func main() {
 	}
 }
 
-func combine(fields []Field) []Field {
-	new := Field{}
+func combine(fields []st.Field) []st.Field {
+	new := st.Field{}
 	cur := ""
-	var out []Field
+	var out []st.Field
 	wasPad := true
 	for _, field := range fields {
 		var prefix string
@@ -111,18 +92,18 @@ func combine(fields []Field) []Field {
 	return out
 }
 
-func optimize(fields []Field) {
+func optimize(fields []st.Field) {
 	sort.Sort(&byAlignAndSize{fields})
 }
 
-func pad(fields []Field) []Field {
-	var out []Field
+func pad(fields []st.Field) []st.Field {
+	var out []st.Field
 	pos := int64(0)
 	offsets := offsetsof(fields)
 	for i, field := range fields {
 		if offsets[i] > pos {
 			padding := offsets[i] - pos
-			out = append(out, Field{
+			out = append(out, st.Field{
 				IsPadding: true,
 				Start:     pos,
 				End:       pos + padding,
@@ -139,7 +120,7 @@ func pad(fields []Field) []Field {
 }
 
 type byAlignAndSize struct {
-	fields []Field
+	fields []st.Field
 }
 
 func (s *byAlignAndSize) Len() int { return len(s.fields) }
@@ -169,7 +150,7 @@ func (s *byAlignAndSize) Less(i, j int) bool {
 	return false
 }
 
-func offsetsof(fields []Field) []int64 {
+func offsetsof(fields []st.Field) []int64 {
 	offsets := make([]int64, len(fields))
 	var o int64
 	for i, f := range fields {

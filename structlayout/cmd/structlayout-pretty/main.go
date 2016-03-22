@@ -6,23 +6,13 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	st "honnef.co/go/structlayout"
 )
-
-// FIXME move this type to a shared package
-
-type Field struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Start     int64  `json:"start"`
-	End       int64  `json:"end"`
-	Size      int64  `json:"size"`
-	Align     int64  `json:"align"`
-	IsPadding bool   `json:"is_padding"`
-}
 
 func main() {
 	log.SetFlags(0)
-	var fields []Field
+	var fields []st.Field
 	if err := json.NewDecoder(os.Stdin).Decode(&fields); err != nil {
 		log.Fatal(err)
 	}
