@@ -39,7 +39,7 @@ func main() {
 		if field.IsPadding {
 			name = "padding"
 		}
-		fmt.Printf(format+"|        | <- %s\n", pos, name)
+		fmt.Printf(format+"|        | <- %s (size %d, align %d)\n", pos, name, field.Size, field.Align)
 		fmt.Println(padding + "+--------+")
 
 		if fVerbose {
