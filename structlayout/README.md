@@ -119,3 +119,9 @@ $ structlayout -json bufio Reader | structlayout-pretty
  87 |        |
     +--------+
 ```
+
+```
+$ structlayout -json bytes Buffer | structlayout-svg -t "bytes.Buffer" > /tmp/struct.svg
+```
+
+![memory layout of bytes.Buffer](http://stuff.fork-bomb.org/struct.png)
