@@ -16,6 +16,14 @@ _structlayout_ JSON on stdin and reorders fields to minimize the
 amount of padding. The tool can itself emit JSON and feed into e.g.
 _structlayout-pretty_.
 
+_structlayout-svg_ is a third-party tool that, similarly to
+_structlayout-pretty_, visualises struct layouts. It does so by
+generating a fancy-looking SVG graphic. You can install it via
+
+```
+go get github.com/ajstarks/svgo/structlayout-svg
+```
+
 ## Installation
 
 ```
