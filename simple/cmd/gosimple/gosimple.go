@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // gosimple lints the Go source files named on its command line.
-package main
+package main // import "honnef.co/go/simple/cmd/gosimple"
 
 import (
 	"flag"

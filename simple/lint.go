@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // Package simple contains a linter for Go source code.
-package simple
+package simple // import "honnef.co/go/simple"
 
 import (
 	"bytes"
