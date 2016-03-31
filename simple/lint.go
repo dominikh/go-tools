@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -169,6 +170,7 @@ func (f *file) isTest() bool { return strings.HasSuffix(f.filename, "_test.go") 
 func (f *file) lint() {
 	f.lintSingleCaseSelect()
 	f.lintLoopCopy()
+	f.lintIfBoolCmp()
 }
 
 type link string
@@ -602,4 +604,63 @@ func (f *file) lintLoopCopy() {
 		return true
 	}
 	f.walk(fn)
+}
+
+func (f *file) lintIfBoolCmp() {
+	fn := func(node ast.Node) bool {
+		expr, ok := node.(*ast.BinaryExpr)
+		if !ok || (expr.Op != token.EQL && expr.Op != token.NEQ) {
+			return true
+		}
+		x := f.isBoolConst(expr.X)
+		y := f.isBoolConst(expr.Y)
+		if x || y {
+			var other ast.Expr
+			var val bool
+			if x {
+				val = f.boolConst(expr.X)
+				other = expr.Y
+			} else {
+				val = f.boolConst(expr.Y)
+				other = expr.X
+			}
+			op := ""
+			if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
+				op = "!"
+			}
+			f.errorf(expr, 1, category("FIXME"), "should omit comparison to bool constant, can be simplified to %s%s",
+				op, f.render(other))
+		}
+		return true
+	}
+	f.walk(fn)
+}
+
+func (f *file) boolConst(expr ast.Expr) bool {
+	val := f.pkg.typesInfo.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
+	return constant.BoolVal(val)
+}
+
+func (f *file) isBoolConst(expr ast.Expr) bool {
+	// We explicitly don't support typed bools because more often than
+	// not, custom bool types are used as binary enums and the
+	// explicit comparison is desired.
+
+	ident, ok := expr.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	obj := f.pkg.typesInfo.ObjectOf(ident)
+	c, ok := obj.(*types.Const)
+	if !ok {
+		return false
+	}
+	basic, ok := c.Type().(*types.Basic)
+	if !ok {
+		return false
+	}
+	if basic.Kind() != types.UntypedBool && basic.Kind() != types.Bool {
+		return false
+	}
+	return true
 }
