@@ -42,7 +42,9 @@ Gosimple checks for the following unsimple constructs:
 - Uses of `for { select {} }` with just one case and no additional
   code in the loop body, that could be a simple `range` over a channel
   instead
-- Comparisons of boolean values against the `true` and false` constants
+- Comparisons of boolean values against the `true` and `false` constants
 - Uses of the strings.Index* and bytes.Index family, when
   strings.Contains* and bytes.Contains suffice
 - for loops that copy slices, when copy() would be simpler
+- Using `bytes.Compare() == 0` instead of `bytes.Equal` – not only is
+  the latter simpler, it's also faster.

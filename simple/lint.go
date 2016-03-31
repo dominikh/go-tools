@@ -172,6 +172,7 @@ func (f *file) lint() {
 	f.lintLoopCopy()
 	f.lintIfBoolCmp()
 	f.lintStringsContains()
+	f.lintBytesCompare()
 }
 
 type link string
@@ -395,6 +396,14 @@ func (f *file) debugRender(x interface{}) string {
 		panic(err)
 	}
 	return buf.String()
+}
+
+func (f *file) renderArgs(args []ast.Expr) string {
+	var ss []string
+	for _, arg := range args {
+		ss = append(ss, f.render(arg))
+	}
+	return strings.Join(ss, ", ")
 }
 
 // walker adapts a function to satisfy the ast.Visitor interface.
@@ -666,6 +675,31 @@ func (f *file) isBoolConst(expr ast.Expr) bool {
 	return true
 }
 
+func exprToInt(expr ast.Expr) (string, bool) {
+	switch y := expr.(type) {
+	case *ast.BasicLit:
+		if y.Kind != token.INT {
+			return "", false
+		}
+		return y.Value, true
+	case *ast.UnaryExpr:
+		if y.Op != token.SUB && y.Op != token.ADD {
+			return "", false
+		}
+		x, ok := y.X.(*ast.BasicLit)
+		if !ok {
+			return "", false
+		}
+		if x.Kind != token.INT {
+			return "", false
+		}
+		v := constant.MakeFromLiteral(x.Value, x.Kind, 0)
+		return constant.UnaryOp(y.Op, v, 0).String(), true
+	default:
+		return "", false
+	}
+}
+
 func (f *file) lintStringsContains() {
 	// map of value to token to bool value
 	allowed := map[string]map[token.Token]bool{
@@ -683,27 +717,8 @@ func (f *file) lintStringsContains() {
 			return true
 		}
 
-		var value string
-		switch y := expr.Y.(type) {
-		case *ast.BasicLit:
-			if y.Kind != token.INT {
-				return true
-			}
-			value = y.Value
-		case *ast.UnaryExpr:
-			if y.Op != token.SUB && y.Op != token.ADD {
-				return true
-			}
-			x, ok := y.X.(*ast.BasicLit)
-			if !ok {
-				return true
-			}
-			if x.Kind != token.INT {
-				return true
-			}
-			v := constant.MakeFromLiteral(x.Value, x.Kind, 0)
-			value = constant.UnaryOp(y.Op, v, 0).String()
-		default:
+		value, ok := exprToInt(expr.Y)
+		if !ok {
 			return true
 		}
 
@@ -758,10 +773,31 @@ func (f *file) lintStringsContains() {
 	f.walk(fn)
 }
 
-func (f *file) renderArgs(args []ast.Expr) string {
-	var ss []string
-	for _, arg := range args {
-		ss = append(ss, f.render(arg))
+func (f *file) lintBytesCompare() {
+	fn := func(node ast.Node) bool {
+		expr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		if expr.Op != token.NEQ && expr.Op != token.EQL {
+			return true
+		}
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !isPkgDot(call.Fun, "bytes", "Compare") {
+			return true
+		}
+		value, ok := exprToInt(expr.Y)
+		if !ok {
+			return true
+		}
+		if value != "0" {
+			return true
+		}
+		f.errorf(node, 1, category("FIXME"), "should use bytes.Equal instead of bytes.Compare")
+		return true
 	}
-	return strings.Join(ss, ", ")
+	f.walk(fn)
 }
