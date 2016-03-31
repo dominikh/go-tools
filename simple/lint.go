@@ -168,6 +168,7 @@ func (f *file) isTest() bool { return strings.HasSuffix(f.filename, "_test.go") 
 
 func (f *file) lint() {
 	f.lintSingleCaseSelect()
+	f.lintLoopCopy()
 }
 
 type link string
@@ -532,4 +533,73 @@ func (f *file) lintSingleCaseSelect() {
 		}
 		return true
 	})
+}
+
+func (f *file) lintLoopCopy() {
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+
+		if loop.Key == nil {
+			return true
+		}
+		if len(loop.Body.List) != 1 {
+			return true
+		}
+		stmt, ok := loop.Body.List[0].(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if stmt.Tok != token.ASSIGN || len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
+			return true
+		}
+		lhs, ok := stmt.Lhs[0].(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+		lidx, ok := lhs.Index.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		key, ok := loop.Key.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if f.pkg.typesInfo.ObjectOf(lidx) != f.pkg.typesInfo.ObjectOf(key) ||
+			!types.Identical(f.pkg.typesInfo.TypeOf(lhs.X), f.pkg.typesInfo.TypeOf(loop.X)) {
+			return true
+		}
+		if _, ok := f.pkg.typesInfo.TypeOf(loop.X).(*types.Slice); !ok {
+			return true
+		}
+		if rhs, ok := stmt.Rhs[0].(*ast.IndexExpr); ok {
+			rx, ok := rhs.X.(*ast.Ident)
+			_ = rx
+			if !ok {
+				return true
+			}
+			ridx, ok := rhs.Index.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if f.pkg.typesInfo.ObjectOf(ridx) != f.pkg.typesInfo.ObjectOf(key) {
+				return true
+			}
+		} else if rhs, ok := stmt.Rhs[0].(*ast.Ident); ok {
+			value, ok := loop.Value.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if f.pkg.typesInfo.ObjectOf(rhs) != f.pkg.typesInfo.ObjectOf(value) {
+				return true
+			}
+		} else {
+			return true
+		}
+		f.errorf(loop, 1, category("FIXME"), "should use copy() instead of a loop")
+		return true
+	}
+	f.walk(fn)
 }
