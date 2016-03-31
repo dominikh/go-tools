@@ -171,6 +171,7 @@ func (f *file) lint() {
 	f.lintSingleCaseSelect()
 	f.lintLoopCopy()
 	f.lintIfBoolCmp()
+	f.lintStringsContains()
 }
 
 type link string
@@ -663,4 +664,104 @@ func (f *file) isBoolConst(expr ast.Expr) bool {
 		return false
 	}
 	return true
+}
+
+func (f *file) lintStringsContains() {
+	// map of value to token to bool value
+	allowed := map[string]map[token.Token]bool{
+		"-1": {token.GTR: true, token.NEQ: true, token.EQL: false},
+		"0":  {token.GEQ: true, token.LSS: false},
+	}
+	fn := func(node ast.Node) bool {
+		expr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		switch expr.Op {
+		case token.GEQ, token.GTR, token.NEQ, token.LSS, token.EQL:
+		default:
+			return true
+		}
+
+		var value string
+		switch y := expr.Y.(type) {
+		case *ast.BasicLit:
+			if y.Kind != token.INT {
+				return true
+			}
+			value = y.Value
+		case *ast.UnaryExpr:
+			if y.Op != token.SUB && y.Op != token.ADD {
+				return true
+			}
+			x, ok := y.X.(*ast.BasicLit)
+			if !ok {
+				return true
+			}
+			if x.Kind != token.INT {
+				return true
+			}
+			v := constant.MakeFromLiteral(x.Value, x.Kind, 0)
+			value = constant.UnaryOp(y.Op, v, 0).String()
+		default:
+			return true
+		}
+
+		allowedOps, ok := allowed[value]
+		if !ok {
+			return true
+		}
+		b, ok := allowedOps[expr.Op]
+		if !ok {
+			return true
+		}
+
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		pkgIdent, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		funIdent := sel.Sel
+		if pkgIdent.Name != "strings" && pkgIdent.Name != "bytes" {
+			return true
+		}
+		if pkgIdent.Name == "bytes" && funIdent.Name != "Index" {
+			return true
+		}
+		newFunc := ""
+		switch funIdent.Name {
+		case "IndexRune":
+			newFunc = "ContainsRune"
+		case "IndexAny":
+			newFunc = "ContainsAny"
+		case "Index":
+			newFunc = "Contains"
+		default:
+			return true
+		}
+
+		prefix := ""
+		if !b {
+			prefix = "!"
+		}
+		f.errorf(node, 1, "should use %s%s.%s(%s) instead", prefix, pkgIdent.Name, newFunc, f.renderArgs(call.Args))
+
+		return true
+	}
+	f.walk(fn)
+}
+
+func (f *file) renderArgs(args []ast.Expr) string {
+	var ss []string
+	for _, arg := range args {
+		ss = append(ss, f.render(arg))
+	}
+	return strings.Join(ss, ", ")
 }
