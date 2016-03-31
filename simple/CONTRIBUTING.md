@@ -1,8 +1,8 @@
-# Contributing to Golint
+# Contributing to gosimple
 
 ## Before filing an issue:
 
-### Are you having trouble building golint?
+### Are you having trouble building gosimple?
 
 Check you have the latest version of its dependencies. Run
 ```
@@ -12,4 +12,4 @@ If you still have problems, consider searching for existing issues before filing
 
 ## Before sending a pull request:
 
-Have you understood the purpose of golint? Make sure to carefully read `README`.
+Have you understood the purpose of gosimple? Make sure to carefully read `README`.
