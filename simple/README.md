@@ -32,3 +32,17 @@ even if they would fit into gosimple. If golint should merge one of
 gosimple's rules, it will be removed from gosimple shortly after, to
 avoid duplicate results. It is strongly suggested that you use golint
 and gosimple together and consider gosimple an addon to golint.
+
+## Checks
+
+Gosimple checks for the following unsimple constructs:
+
+- Uses of `select{}` with just one case, that could be a simple
+  send/receive operation instead
+- Uses of `for { select {} }` with just one case and no additional
+  code in the loop body, that could be a simple `range` over a channel
+  instead
+- Comparisons of boolean values against the `true` and false` constants
+- Uses of the strings.Index* and bytes.Index family, when
+  strings.Contains* and bytes.Contains suffice
+- for loops that copy slices, when copy() would be simpler
