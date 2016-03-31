@@ -79,7 +79,7 @@ func lintFiles(filenames ...string) {
 		files[filename] = src
 	}
 
-	l := new(simpler.Linter)
+	l := new(simple.Linter)
 	ps, err := l.LintFiles(files)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)

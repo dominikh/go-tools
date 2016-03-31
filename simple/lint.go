@@ -4,8 +4,8 @@
 // license that can be found in the LICENSE file or at
 // https://developers.google.com/open-source/licenses/bsd.
 
-// Package simpler contains a linter for Go source code.
-package simpler
+// Package simple contains a linter for Go source code.
+package simple
 
 import (
 	"bytes"

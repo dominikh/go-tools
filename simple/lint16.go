@@ -6,7 +6,7 @@
 
 // +build go1.6
 
-package simpler
+package simple
 
 import "go/types"
 
