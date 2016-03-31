@@ -167,6 +167,7 @@ type file struct {
 func (f *file) isTest() bool { return strings.HasSuffix(f.filename, "_test.go") }
 
 func (f *file) lint() {
+	f.lintSingleCaseSelect()
 }
 
 type link string
@@ -496,4 +497,39 @@ func srcLine(src []byte, p token.Position) string {
 		hi++
 	}
 	return string(src[lo:hi])
+}
+
+func (f *file) lintSingleCaseSelect() {
+	isSingleSelect := func(node ast.Node) bool {
+		v, ok := node.(*ast.SelectStmt)
+		if !ok {
+			return false
+		}
+		return len(v.Body.List) == 1
+	}
+
+	seen := map[ast.Node]struct{}{}
+	f.walk(func(node ast.Node) bool {
+		switch v := node.(type) {
+		case *ast.ForStmt:
+			if len(v.Body.List) != 1 {
+				return true
+			}
+			if !isSingleSelect(v.Body.List[0]) {
+				return true
+			}
+			seen[v.Body.List[0]] = struct{}{}
+			f.errorf(node, 1, category("range-loop"), "should use for range instead of for { select {} }")
+		case *ast.SelectStmt:
+			if _, ok := seen[v]; ok {
+				return true
+			}
+			if !isSingleSelect(v) {
+				return true
+			}
+			f.errorf(node, 1, category("FIXME"), "should use a simple channel send/receive instead of select with a single case")
+			return true
+		}
+		return true
+	})
 }
