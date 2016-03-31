@@ -48,3 +48,4 @@ Gosimple checks for the following unsimple constructs:
 - for loops that copy slices, when copy() would be simpler
 - Using `bytes.Compare() == 0` instead of `bytes.Equal` – not only is
   the latter simpler, it's also faster.
+- Using `for _ = range x` instead of `for range x`.

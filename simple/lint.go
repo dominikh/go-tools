@@ -173,6 +173,7 @@ func (f *file) lint() {
 	f.lintIfBoolCmp()
 	f.lintStringsContains()
 	f.lintBytesCompare()
+	f.lintRanges()
 }
 
 type link string
@@ -800,4 +801,18 @@ func (f *file) lintBytesCompare() {
 		return true
 	}
 	f.walk(fn)
+}
+
+func (f *file) lintRanges() {
+	f.walk(func(node ast.Node) bool {
+		rs, ok := node.(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+		if isIdent(rs.Key, "_") && (rs.Value == nil || isIdent(rs.Value, "_")) {
+			f.errorf(rs.Key, 1, category("range-loop"), "should omit values from range; this loop is equivalent to `for range ...`")
+		}
+
+		return true
+	})
 }
