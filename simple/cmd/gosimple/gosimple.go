@@ -113,6 +113,7 @@ func lintImportedPackage(pkg *build.Package, err error) {
 	}
 
 	var files []string
+	xtest := pkg.XTestGoFiles
 	files = append(files, pkg.GoFiles...)
 	files = append(files, pkg.CgoFiles...)
 	files = append(files, pkg.TestGoFiles...)
@@ -120,8 +121,10 @@ func lintImportedPackage(pkg *build.Package, err error) {
 		for i, f := range files {
 			files[i] = filepath.Join(pkg.Dir, f)
 		}
+		for i, f := range xtest {
+			xtest[i] = filepath.Join(pkg.Dir, f)
+		}
 	}
-	// TODO(dsymonds): Do foo_test too (pkg.XTestGoFiles)
-
+	lintFiles(xtest...)
 	lintFiles(files...)
 }
