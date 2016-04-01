@@ -12,4 +12,16 @@ outer:
 			break outer
 		}
 	}
+
+	for { // MATCH /should use for range/
+		select {
+		case _ = <-ch:
+		}
+	}
+
+	for {
+		select { // MATCH /should use a simple channel send/
+		case ch <- 0:
+		}
+	}
 }

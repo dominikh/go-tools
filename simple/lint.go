@@ -533,6 +533,10 @@ func (f *file) lintSingleCaseSelect() {
 			if !isSingleSelect(v.Body.List[0]) {
 				return true
 			}
+			if _, ok := v.Body.List[0].(*ast.SelectStmt).Body.List[0].(*ast.CommClause).Comm.(*ast.SendStmt); ok {
+				// Don't suggest using range for channel sends
+				return true
+			}
 			seen[v.Body.List[0]] = struct{}{}
 			f.errorf(node, 1, category("range-loop"), "should use for range instead of for { select {} }")
 		case *ast.SelectStmt:
