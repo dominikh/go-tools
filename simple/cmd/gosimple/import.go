@@ -24,7 +24,7 @@ var buildContext = build.Default
 
 var (
 	goroot       = filepath.Clean(runtime.GOROOT())
-	gorootSrcPkg = filepath.Join(goroot, "src/pkg")
+	gorootSrcPkg = filepath.Join(goroot, "src")
 )
 
 // importPathsNoDotExpansion returns the import paths to use for the given
