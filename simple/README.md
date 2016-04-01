@@ -35,18 +35,18 @@ and gosimple together and consider gosimple an addon to golint.
 
 ## Checks
 
-Gosimple checks for the following unsimple constructs:
+Gosimple makes the following recommendations for avoiding unsimple
+constructs:
 
-- Uses of `select{}` with just one case, that could be a simple
-  send/receive operation instead
-- Uses of `for { select {} }` with just one case and no additional
-  code in the loop body, that could be a simple `range` over a channel
-  instead
-- Comparisons of boolean values against the `true` and `false` constants
-- Uses of the strings.Index* and bytes.Index family, when
-  strings.Contains* and bytes.Contains suffice
-- for loops that copy slices, when copy() would be simpler
-- Using `bytes.Compare() == 0` instead of `bytes.Equal` – not only is
-  the latter simpler, it's also faster.
-- Using `for _ = range x` instead of `for range x`.
-- Using `for true { ... }` instead of `for { ... }`
+- Don't use `select{}` with a single case. Instead, use a plain
+  channel send or receive.
+- Don't use `for { select {} }` with a single receive case. Instead,
+  use `range` to iterate over the channel.
+- Don't compare boolean expressions to the constants `true` or
+  `false`. `if x == true` can be written as `if x` instead.
+- Don't use `strings.Index*` or `bytes.Index` when you could use
+  `strings.Contains*` and `bytes.Contains` instead.
+- Don't use `bytes.Compare` to check for equality, use `bytes.Equal`.
+- Don't use `for` loops to copy slices, use `copy`
+- Don't use `for _ = range x`, use `for range x`
+- Don't use `for true { ... }`, use `for { ... }`
