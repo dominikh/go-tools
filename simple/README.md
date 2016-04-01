@@ -50,3 +50,36 @@ constructs:
 - Don't use `for` loops to copy slices, use `copy`
 - Don't use `for _ = range x`, use `for range x`
 - Don't use `for true { ... }`, use `for { ... }`
+
+## gofmt -r
+
+Some of these rules can be automatically applied via `gofmt -r`. To
+fix uses of `strings.Index*`, `bytes.Index` and `bytes.Compare`, use
+the following set of rewrite rules:
+
+```
+bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)
+bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)
+strings.IndexRune(a, b) > -1 -> strings.ContainsRune(a, b)
+strings.IndexRune(a, b) >= 0 -> strings.ContainsRune(a, b)
+strings.IndexRune(a, b) != -1 -> strings.ContainsRune(a, b)
+strings.IndexRune(a, b) == -1 -> !strings.ContainsRune(a, b)
+strings.IndexRune(a, b) < 0 -> !strings.ContainsRune(a, b)
+strings.IndexAny(a, b) > -1 -> strings.ContainsAny(a, b)
+strings.IndexAny(a, b) >= 0 -> strings.ContainsAny(a, b)
+strings.IndexAny(a, b) != -1 -> strings.ContainsAny(a, b)
+strings.IndexAny(a, b) == -1 -> !strings.ContainsAny(a, b)
+strings.IndexAny(a, b) < 0 -> !strings.ContainsAny(a, b)
+strings.Index(a, b) > -1 -> strings.Contains(a, b)
+strings.Index(a, b) >= 0 -> strings.Contains(a, b)
+strings.Index(a, b) != -1 -> strings.Contains(a, b)
+strings.Index(a, b) == -1 -> !strings.Contains(a, b)
+strings.Index(a, b) < 0 -> !strings.Contains(a, b)
+bytes.Index(a, b) > -1 -> bytes.Contains(a, b)
+bytes.Index(a, b) >= 0 -> bytes.Contains(a, b)
+bytes.Index(a, b) != -1 -> bytes.Contains(a, b)
+bytes.Index(a, b) == -1 -> !bytes.Contains(a, b)
+bytes.Index(a, b) < 0 -> !bytes.Contains(a, b)
+bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)
+bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)
+```
