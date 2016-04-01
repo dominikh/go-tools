@@ -798,7 +798,12 @@ func (f *file) lintBytesCompare() {
 		if value != "0" {
 			return true
 		}
-		f.errorf(node, 1, category("FIXME"), "should use bytes.Equal instead of bytes.Compare")
+		args := f.renderArgs(call.Args)
+		prefix := ""
+		if expr.Op == token.NEQ {
+			prefix = "!"
+		}
+		f.errorf(node, 1, category("FIXME"), "should use %sbytes.Equal(%s) instead", prefix, args)
 		return true
 	}
 	f.walk(fn)
