@@ -175,6 +175,7 @@ func (f *file) lint() {
 	f.lintBytesCompare()
 	f.lintRanges()
 	f.lintForTrue()
+	f.lintRegexpRaw()
 }
 
 type link string
@@ -840,6 +841,63 @@ func (f *file) lintForTrue() {
 			return true
 		}
 		f.errorf(loop, 1, category("FIXME"), "should use for {} instead of for true {}")
+		return true
+	}
+	f.walk(fn)
+}
+
+func (f *file) lintRegexpRaw() {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if !isPkgDot(call.Fun, "regexp", "MustCompile") && !isPkgDot(call.Fun, "regexp", "Compile") {
+			return true
+		}
+		if len(call.Args) != 1 {
+			// invalid function call
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok {
+			// TODO(dominikh): support string concat, maybe support constants
+			return true
+		}
+		if lit.Kind != token.STRING {
+			// invalid function call
+			return true
+		}
+		if f.src[f.fset.Position(lit.Pos()).Offset] != '"' {
+			// already a raw string
+			return true
+		}
+		val := lit.Value
+		if !strings.Contains(val, `\\`) {
+			return true
+		}
+
+		bs := false
+		for _, c := range val {
+			if !bs && c == '\\' {
+				bs = true
+				continue
+			}
+			if bs && c == '\\' {
+				bs = false
+				continue
+			}
+			if bs {
+				// backslash followed by non-backslash -> escape sequence
+				return true
+			}
+		}
+
+		f.errorf(call, 1, category("FIXME"), "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
 		return true
 	}
 	f.walk(fn)
