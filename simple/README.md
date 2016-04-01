@@ -22,7 +22,7 @@ which is accepted by lots of different editors.
 
 ## Purpose
 
-Gosimple differs from golint in that gosimple focusses on simplifying
+Gosimple differs from golint in that gosimple focuses on simplifying
 code, while golint flags common style issues. Furthermore, gosimple
 always targets the latest Go version. If a new Go release adds a
 simpler way of doing something, gosimple will suggest that way.
