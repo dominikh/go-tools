@@ -174,6 +174,7 @@ func (f *file) lint() {
 	f.lintStringsContains()
 	f.lintBytesCompare()
 	f.lintRanges()
+	f.lintForTrue()
 }
 
 type link string
@@ -815,4 +816,22 @@ func (f *file) lintRanges() {
 
 		return true
 	})
+}
+
+func (f *file) lintForTrue() {
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.ForStmt)
+		if !ok {
+			return true
+		}
+		if loop.Init != nil || loop.Post != nil {
+			return true
+		}
+		if !f.isBoolConst(loop.Cond) || !f.boolConst(loop.Cond) {
+			return true
+		}
+		f.errorf(loop, 1, category("FIXME"), "should use for {} instead of for true {}")
+		return true
+	}
+	f.walk(fn)
 }

@@ -49,3 +49,4 @@ Gosimple checks for the following unsimple constructs:
 - Using `bytes.Compare() == 0` instead of `bytes.Equal` – not only is
   the latter simpler, it's also faster.
 - Using `for _ = range x` instead of `for range x`.
+- Using `for true { ... }` instead of `for { ... }`
