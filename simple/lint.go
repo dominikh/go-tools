@@ -1046,13 +1046,18 @@ func (f *file) lintRedundantNilCheckWithLen() {
 
 		// finally check that xx type is one of array, slice, map or chan
 		// this is mainly to prevent false negative in case if xx is a pointer to an array
+		var nilType string
 		switch f.pkg.typeOf(xx).(type) {
-		case *types.Array, *types.Slice, *types.Map, *types.Chan:
+		case *types.Slice:
+			nilType = "nil slices"
+		case *types.Map:
+			nilType = "nil maps"
+		case *types.Chan:
+			nilType = "nil channels"
 		default:
 			return true
 		}
-
-		f.errorf(expr, 1, category("FIXME"), fmt.Sprintf("should use %s; nil check is redundant", f.render(y)))
+		f.errorf(expr, 1, category("FIXME"), fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType))
 		return true
 	}
 	f.walk(fn)

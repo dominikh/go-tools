@@ -53,8 +53,9 @@ constructs:
 - Use raw strings with regexp.Compile to avoid two levels of escaping
 - Don't use `if <expr> { return <bool> }; return <bool>`, use `return
   <expr>`, unless the `if` is one in a series of many early returns.
-- Don't use `x == nil || len(x) == 0`, use `len(x) == 0`
-- Don't use `x != nil && len(x) ...`, use `len(x) ...`
+- Don't check if slices, maps or channels are nil before checking
+  their length, it's redundant. `len` is defined as zero for those nil
+  values.
 
 ## gofmt -r
 

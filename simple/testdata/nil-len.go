@@ -6,18 +6,18 @@ func fn() {
 	var m map[int]int
 	var ch chan int
 
-	if s == nil || len(s) == 0 { // MATCH /should use len\(s\) == 0; nil check is redundant/
+	if s == nil || len(s) == 0 { // MATCH /should omit nil check/
 	}
-	if m == nil || len(m) == 0 { // MATCH /should use len\(m\) == 0; nil check is redundant/
+	if m == nil || len(m) == 0 { // MATCH /should omit nil check/
 	}
-	if ch == nil || len(ch) == 0 { // MATCH /should use len\(ch\) == 0; nil check is redundant/
+	if ch == nil || len(ch) == 0 { // MATCH /should omit nil check/
 	}
 
-	if s != nil && len(s) != 0 { // MATCH /should use len\(s\) != 0; nil check is redundant/
+	if s != nil && len(s) != 0 { // MATCH /should omit nil check/
 	}
-	if m != nil && len(m) > 0 { // MATCH /should use len\(m\) > 0; nil check is redundant/
+	if m != nil && len(m) > 0 { // MATCH /should omit nil check/
 	}
-	if ch != nil && len(ch) == 5 { // MATCH /should use len\(ch\) == 5; nil check is redundant/
+	if ch != nil && len(ch) == 5 { // MATCH /should omit nil check/
 	}
 
 	if pa == nil || len(pa) == 0 { // nil check cannot be removed with pointer to an array
