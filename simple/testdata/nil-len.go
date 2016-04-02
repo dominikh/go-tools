@@ -32,4 +32,7 @@ func fn() {
 	}
 	if ch != ch2 && len(ch) != 0 { // not comparing with nil
 	}
+
+	if s != nil && len(s) == 0 { // nil check is not redundant here
+	}
 }
