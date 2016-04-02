@@ -50,3 +50,13 @@ The following function calls are currently checked by staticcheck:
   by `encoding/binary`
 - `text/template.Template.Parse` and `html/template.Template.Parse` –
   Check that the template is syntactically valid
+
+## Examples
+
+```
+github.com/couchbase/indexing/secondary/tools/logd/main.go:134:33: error parsing regexp: missing closing ): ` FEED\[<=>([^\(]*)(`
+github.com/jvehent/mig/client/mig-console/action_launcher.go:312:35: parsing time "2014-01-01T00:00:00.0-": month out of range
+github.com/khlieng/dispatch/vendor/github.com/xenolf/lego/acme/crypto.go:165:42: type int cannot be used with binary.Write
+github.com/netrack/openflow/ofp.v13/error.go:246:43: type *ofp.ErrorMsg cannot be used with binary.Write
+github.com/sangelone/wigglr/benchmark_test.go:44:42: type *main.Wiggle cannot be used with binary.Write
+```
