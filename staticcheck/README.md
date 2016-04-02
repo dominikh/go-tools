@@ -1,4 +1,4 @@
-Staticcheck is a tool for statically check the input to certain
+Staticcheck is a tool for statically checking the inputs to certain
 functions, such as `regexp.Compile`.
 
 
