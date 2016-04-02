@@ -51,6 +51,8 @@ constructs:
 - Don't use `for _ = range x`, use `for range x`
 - Don't use `for true { ... }`, use `for { ... }`
 - Use raw strings with regexp.Compile to avoid two levels of escaping
+- Don't use `if <expr> { return <bool> }; return <bool>`, use `return
+  <expr>`, unless the `if` is one in a series of many early returns.
 
 ## gofmt -r
 

@@ -176,6 +176,7 @@ func (f *file) lint() {
 	f.lintRanges()
 	f.lintForTrue()
 	f.lintRegexpRaw()
+	f.lintIfReturn()
 }
 
 type link string
@@ -898,6 +899,71 @@ func (f *file) lintRegexpRaw() {
 		}
 
 		f.errorf(call, 1, category("FIXME"), "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
+		return true
+	}
+	f.walk(fn)
+}
+
+func (f *file) lintIfReturn() {
+	fn := func(node ast.Node) bool {
+		block, ok := node.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		l := len(block.List)
+		if l < 2 {
+			return true
+		}
+		n1, n2 := block.List[l-2], block.List[l-1]
+
+		if len(block.List) >= 3 {
+			if _, ok := block.List[l-3].(*ast.IfStmt); ok {
+				// Do not flag a series of if statements
+				return true
+			}
+		}
+		// if statement with no init, no else, a single condition
+		// checking an identifier or function call and just a return
+		// statement in the body, that returns a boolean constant
+		ifs, ok := n1.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		if ifs.Else != nil || ifs.Init != nil {
+			return true
+		}
+		if len(ifs.Body.List) != 1 {
+			return true
+		}
+		if op, ok := ifs.Cond.(*ast.BinaryExpr); ok {
+			switch op.Op {
+			case token.EQL, token.LSS, token.GTR, token.NEQ, token.LEQ, token.GEQ:
+			default:
+				return true
+			}
+		}
+		ret1, ok := ifs.Body.List[0].(*ast.ReturnStmt)
+		if !ok {
+			return true
+		}
+		if len(ret1.Results) != 1 {
+			return true
+		}
+		if !f.isBoolConst(ret1.Results[0]) {
+			return true
+		}
+
+		ret2, ok := n2.(*ast.ReturnStmt)
+		if !ok {
+			return true
+		}
+		if len(ret1.Results) != 1 {
+			return true
+		}
+		if !f.isBoolConst(ret2.Results[0]) {
+			return true
+		}
+		f.errorf(n1, 1, category("FIXME"), "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
 		return true
 	}
 	f.walk(fn)
