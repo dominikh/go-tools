@@ -19,6 +19,7 @@ import (
 	htmltemplate "html/template"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	texttemplate "text/template"
 	"time"
@@ -175,6 +176,7 @@ func (f *file) lint() {
 	f.checkTemplate()
 	f.checkTimeParse()
 	f.checkEncodingBinary()
+	f.checkTimeSleepConstant()
 }
 
 type link string
@@ -714,4 +716,40 @@ func validEncodingBinaryType(typ types.Type) bool {
 		return true
 	}
 	return false
+}
+
+func (f *file) checkTimeSleepConstant() {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !isPkgDot(call.Fun, "time", "Sleep") {
+			return true
+		}
+		if len(call.Args) != 1 {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok {
+			return true
+		}
+		n, err := strconv.Atoi(lit.Value)
+		if err != nil {
+			return true
+		}
+		if n == 0 || n > 120 {
+			// time.Sleep(0) is a seldomly used pattern in concurrency
+			// tests. >120 might be intentional. 120 was chosen
+			// because the user could've meant 2 minutes.
+			return true
+		}
+		recommendation := "time.Sleep(time.Nanosecond)"
+		if n != 1 {
+			recommendation = fmt.Sprintf("time.Sleep(%d * time.Nanosecond)", n)
+		}
+		f.errorf(call.Args[0], 1, category("FIXME"), "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
+		return true
+	}
+	f.walk(fn)
 }

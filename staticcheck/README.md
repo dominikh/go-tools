@@ -50,6 +50,10 @@ The following function calls are currently checked by staticcheck:
   by `encoding/binary`
 - `text/template.Template.Parse` and `html/template.Template.Parse` –
   Check that the template is syntactically valid
+- `time.Sleep` - Checks that the call doesn't use suspiciously small
+  (<120), untyped literals. This usually indicates a bug, where
+  `time.Sleep(1)` is assumed to sleep for 1 second, while in reality
+  it sleeps for 1 nanosecond.
 
 ## Examples
 
