@@ -536,6 +536,48 @@ func (c *Checker) processAST(pkg *loader.PackageInfo) {
 			return false
 		}
 
+		if node, ok := node1.(*ast.CallExpr); ok {
+			// TODO(dominikh): support conversions to types of other
+			// packages. Only relevant for whole program mode.
+			ident, ok := node.Fun.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			typDst, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
+			if !ok {
+				return true
+			}
+			ident, ok = node.Args[0].(*ast.Ident)
+			if !ok {
+				return true
+			}
+			typSrc, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
+			if !ok {
+				return true
+			}
+
+			// When we convert from type t1 to t2, were t1 and t2 are
+			// structs, all fields are relevant, as otherwise the
+			// conversion would fail.
+			//
+			// We mark t2's fields as used by t1's fields, and vice
+			// versa. That way, if no code actually refers to a field
+			// in either type, it's still correctly marked as unused.
+			// If a field is used in either struct, it's implicitly
+			// relevant in the other one, too.
+			//
+			// It works in a similar way for conversions between types
+			// of two packages, only that the extra information in the
+			// graph is redundant unless we're in whole program mode.
+			n := typDst.NumFields()
+			for i := 0; i < n; i++ {
+				fDst := typDst.Field(i)
+				fSrc := typSrc.Field(i)
+				c.graph.markUsedBy(fDst, fSrc)
+				c.graph.markUsedBy(fSrc, fDst)
+			}
+		}
+
 		if node, ok := node1.(*ast.CompositeLit); ok {
 			typ := pkg.TypeOf(node)
 			if _, ok := typ.(*types.Named); ok {
