@@ -533,21 +533,21 @@ func (c *Checker) processSelections(pkg *loader.PackageInfo) {
 // processConversion marks fields as used if they're part of a type conversion.
 func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
 	if node, ok := node.(*ast.CallExpr); ok {
-		// TODO(dominikh): support conversions to types of other
-		// packages. Only relevant for whole program mode.
-		ident, ok := node.Fun.(*ast.Ident)
+		callTyp := pkg.TypeOf(node.Fun)
+		var typDst *types.Struct
+		var ok bool
+		switch typ := callTyp.(type) {
+		case *types.Named:
+			typDst, ok = typ.Underlying().(*types.Struct)
+		case *types.Pointer:
+			typDst, ok = typ.Elem().Underlying().(*types.Struct)
+		default:
+			return
+		}
 		if !ok {
 			return
 		}
-		typDst, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
-		if !ok {
-			return
-		}
-		ident, ok = node.Args[0].(*ast.Ident)
-		if !ok {
-			return
-		}
-		typSrc, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
+		typSrc, ok := pkg.TypeOf(node.Args[0]).Underlying().(*types.Struct)
 		if !ok {
 			return
 		}
