@@ -30,6 +30,16 @@ type t6 struct {
 	b int
 }
 
+type t7 struct {
+	a int
+	b int
+}
+
+type t8 struct {
+	a int
+	b int
+}
+
 func fn() {
 	// All fields in t2 used because they're initialised in t1
 	v1 := t1{0, 1}
@@ -47,6 +57,12 @@ func fn() {
 	v6 := t6(v5)
 	println(v5.a)
 	println(v6.b)
+
+	v7 := &t7{}
+	println(v7.a)
+	println(v7.b)
+	v8 := (*t8)(v7)
+	_ = v8
 }
 
 func init() { fn() }

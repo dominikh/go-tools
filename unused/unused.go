@@ -530,6 +530,13 @@ func (c *Checker) processSelections(pkg *loader.PackageInfo) {
 	}
 }
 
+func dereferenceType(typ types.Type) types.Type {
+	if typ, ok := typ.(*types.Pointer); ok {
+		return typ.Elem()
+	}
+	return typ
+}
+
 // processConversion marks fields as used if they're part of a type conversion.
 func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
 	if node, ok := node.(*ast.CallExpr); ok {
@@ -547,7 +554,7 @@ func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
 		if !ok {
 			return
 		}
-		typSrc, ok := pkg.TypeOf(node.Args[0]).Underlying().(*types.Struct)
+		typSrc, ok := dereferenceType(pkg.TypeOf(node.Args[0])).Underlying().(*types.Struct)
 		if !ok {
 			return
 		}
