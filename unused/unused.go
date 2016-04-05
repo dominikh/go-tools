@@ -640,46 +640,11 @@ func (c *Checker) processVariableDeclaration(pkg *loader.PackageInfo, node ast.N
 }
 
 func (c *Checker) processAST(pkg *loader.PackageInfo) {
-	fn := func(node1 ast.Node) bool {
-		if node1 == nil {
-			return false
-		}
-
-		c.processConversion(pkg, node1)
-		c.processCompositeLiteral(pkg, node1)
-		c.processCgoExported(pkg, node1)
-		c.processVariableDeclaration(pkg, node1)
-
-		expr, ok := node1.(ast.Expr)
-		if !ok {
-			return true
-		}
-
-		left := pkg.TypeOf(expr)
-		if left == nil {
-			return true
-		}
-		fn2 := func(node2 ast.Node) bool {
-			if node2 == nil || node1 == node2 {
-				return true
-			}
-			switch node2 := node2.(type) {
-			case *ast.Ident:
-				right := pkg.ObjectOf(node2)
-				if right == nil {
-					return true
-				}
-			case ast.Expr:
-				right := pkg.TypeOf(expr)
-				if right == nil {
-					return true
-				}
-				c.graph.markUsedBy(right, left)
-			}
-
-			return true
-		}
-		ast.Inspect(node1, fn2)
+	fn := func(node ast.Node) bool {
+		c.processConversion(pkg, node)
+		c.processCompositeLiteral(pkg, node)
+		c.processCgoExported(pkg, node)
+		c.processVariableDeclaration(pkg, node)
 		return true
 	}
 	for _, file := range pkg.Files {
