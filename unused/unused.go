@@ -554,6 +554,18 @@ func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
 		if !ok {
 			return
 		}
+
+		if typ, ok := pkg.TypeOf(node.Args[0]).(*types.Basic); ok && typ.Kind() == types.UnsafePointer {
+			// This is an unsafe conversion. Assume that all the
+			// fields are relevant (they are, because of memory
+			// layout)
+			n := typDst.NumFields()
+			for i := 0; i < n; i++ {
+				c.graph.markUsedBy(typDst.Field(i), typDst)
+			}
+			return
+		}
+
 		typSrc, ok := dereferenceType(pkg.TypeOf(node.Args[0])).Underlying().(*types.Struct)
 		if !ok {
 			return

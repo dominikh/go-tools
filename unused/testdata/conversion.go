@@ -1,6 +1,9 @@
 package pkg
 
-import "compress/flate"
+import (
+	"compress/flate"
+	"unsafe"
+)
 
 type t1 struct {
 	a int
@@ -47,6 +50,11 @@ type t9 struct {
 	Err    error
 }
 
+type t10 struct {
+	a int
+	b int
+}
+
 func fn() {
 	// All fields in t2 used because they're initialised in t1
 	v1 := t1{0, 1}
@@ -74,6 +82,11 @@ func fn() {
 	vb := flate.ReadError{}
 	v9 := t9(vb)
 	_ = v9
+
+	// All fields are used because this is an unsafe conversion
+	var b []byte
+	v10 := (*t10)(unsafe.Pointer(&b[0]))
+	_ = v10
 }
 
 func init() { fn() }
