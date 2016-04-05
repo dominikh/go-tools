@@ -1,5 +1,7 @@
 package pkg
 
+import "compress/flate"
+
 type t1 struct {
 	a int
 	b int
@@ -40,6 +42,11 @@ type t8 struct {
 	b int
 }
 
+type t9 struct {
+	Offset int64
+	Err    error
+}
+
 func fn() {
 	// All fields in t2 used because they're initialised in t1
 	v1 := t1{0, 1}
@@ -63,6 +70,10 @@ func fn() {
 	println(v7.b)
 	v8 := (*t8)(v7)
 	_ = v8
+
+	vb := flate.ReadError{}
+	v9 := t9(vb)
+	_ = v9
 }
 
 func init() { fn() }
