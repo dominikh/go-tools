@@ -530,106 +530,125 @@ func (c *Checker) processSelections(pkg *loader.PackageInfo) {
 	}
 }
 
+// processConversion marks fields as used if they're part of a type conversion.
+func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
+	if node, ok := node.(*ast.CallExpr); ok {
+		// TODO(dominikh): support conversions to types of other
+		// packages. Only relevant for whole program mode.
+		ident, ok := node.Fun.(*ast.Ident)
+		if !ok {
+			return
+		}
+		typDst, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
+		if !ok {
+			return
+		}
+		ident, ok = node.Args[0].(*ast.Ident)
+		if !ok {
+			return
+		}
+		typSrc, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
+		if !ok {
+			return
+		}
+
+		// When we convert from type t1 to t2, were t1 and t2 are
+		// structs, all fields are relevant, as otherwise the
+		// conversion would fail.
+		//
+		// We mark t2's fields as used by t1's fields, and vice
+		// versa. That way, if no code actually refers to a field
+		// in either type, it's still correctly marked as unused.
+		// If a field is used in either struct, it's implicitly
+		// relevant in the other one, too.
+		//
+		// It works in a similar way for conversions between types
+		// of two packages, only that the extra information in the
+		// graph is redundant unless we're in whole program mode.
+		n := typDst.NumFields()
+		for i := 0; i < n; i++ {
+			fDst := typDst.Field(i)
+			fSrc := typSrc.Field(i)
+			c.graph.markUsedBy(fDst, fSrc)
+			c.graph.markUsedBy(fSrc, fDst)
+		}
+	}
+}
+
+// processCompositeLiteral marks fields as used if the struct is used
+// in a composite literal.
+func (c *Checker) processCompositeLiteral(pkg *loader.PackageInfo, node ast.Node) {
+	// XXX how does this actually work? wouldn't it match t{}?
+	if node, ok := node.(*ast.CompositeLit); ok {
+		typ := pkg.TypeOf(node)
+		if _, ok := typ.(*types.Named); ok {
+			typ = typ.Underlying()
+		}
+		if _, ok := typ.(*types.Struct); !ok {
+			return
+		}
+
+		if isBasicStruct(node.Elts) {
+			c.markFields(typ)
+		}
+	}
+}
+
+// processCgoExported marks functions as used if they're being
+// exported to cgo.
+func (c *Checker) processCgoExported(pkg *loader.PackageInfo, node ast.Node) {
+	if node, ok := node.(*ast.FuncDecl); ok {
+		if node.Doc == nil {
+			return
+		}
+		for _, cmt := range node.Doc.List {
+			if !strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
+				return
+			}
+			obj := pkg.ObjectOf(node.Name)
+			c.graph.roots = append(c.graph.roots, c.graph.getNode(obj))
+		}
+	}
+}
+
+func (c *Checker) processVariableDeclaration(pkg *loader.PackageInfo, node ast.Node) {
+	if decl, ok := node.(*ast.GenDecl); ok {
+		for _, spec := range decl.Specs {
+			spec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, name := range spec.Names {
+				if i >= len(spec.Values) {
+					break
+				}
+				value := spec.Values[i]
+				fn := func(node ast.Node) bool {
+					if node3, ok := node.(*ast.Ident); ok {
+						obj := pkg.ObjectOf(node3)
+						if _, ok := obj.(*types.PkgName); ok {
+							return true
+						}
+						c.graph.markUsedBy(obj, pkg.ObjectOf(name))
+					}
+					return true
+				}
+				ast.Inspect(value, fn)
+			}
+		}
+	}
+}
+
 func (c *Checker) processAST(pkg *loader.PackageInfo) {
 	fn := func(node1 ast.Node) bool {
 		if node1 == nil {
 			return false
 		}
 
-		if node, ok := node1.(*ast.CallExpr); ok {
-			// TODO(dominikh): support conversions to types of other
-			// packages. Only relevant for whole program mode.
-			ident, ok := node.Fun.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			typDst, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
-			if !ok {
-				return true
-			}
-			ident, ok = node.Args[0].(*ast.Ident)
-			if !ok {
-				return true
-			}
-			typSrc, ok := pkg.ObjectOf(ident).Type().Underlying().(*types.Struct)
-			if !ok {
-				return true
-			}
-
-			// When we convert from type t1 to t2, were t1 and t2 are
-			// structs, all fields are relevant, as otherwise the
-			// conversion would fail.
-			//
-			// We mark t2's fields as used by t1's fields, and vice
-			// versa. That way, if no code actually refers to a field
-			// in either type, it's still correctly marked as unused.
-			// If a field is used in either struct, it's implicitly
-			// relevant in the other one, too.
-			//
-			// It works in a similar way for conversions between types
-			// of two packages, only that the extra information in the
-			// graph is redundant unless we're in whole program mode.
-			n := typDst.NumFields()
-			for i := 0; i < n; i++ {
-				fDst := typDst.Field(i)
-				fSrc := typSrc.Field(i)
-				c.graph.markUsedBy(fDst, fSrc)
-				c.graph.markUsedBy(fSrc, fDst)
-			}
-		}
-
-		if node, ok := node1.(*ast.CompositeLit); ok {
-			typ := pkg.TypeOf(node)
-			if _, ok := typ.(*types.Named); ok {
-				typ = typ.Underlying()
-			}
-			if _, ok := typ.(*types.Struct); !ok {
-				return true
-			}
-
-			if isBasicStruct(node.Elts) {
-				c.markFields(typ)
-			}
-		}
-
-		if node, ok := node1.(*ast.FuncDecl); ok {
-			if node.Doc == nil {
-				return true
-			}
-			for _, cmt := range node.Doc.List {
-				if !strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
-					return true
-				}
-				obj := pkg.ObjectOf(node.Name)
-				c.graph.roots = append(c.graph.roots, c.graph.getNode(obj))
-			}
-		}
-
-		if decl, ok := node1.(*ast.GenDecl); ok {
-			for _, spec := range decl.Specs {
-				spec, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for i, name := range spec.Names {
-					if i >= len(spec.Values) {
-						break
-					}
-					value := spec.Values[i]
-					fn3 := func(node3 ast.Node) bool {
-						if node3, ok := node3.(*ast.Ident); ok {
-							obj := pkg.ObjectOf(node3)
-							if _, ok := obj.(*types.PkgName); ok {
-								return true
-							}
-							c.graph.markUsedBy(obj, pkg.ObjectOf(name))
-						}
-						return true
-					}
-					ast.Inspect(value, fn3)
-				}
-			}
-		}
+		c.processConversion(pkg, node1)
+		c.processCompositeLiteral(pkg, node1)
+		c.processCgoExported(pkg, node1)
+		c.processVariableDeclaration(pkg, node1)
 
 		expr, ok := node1.(ast.Expr)
 		if !ok {
