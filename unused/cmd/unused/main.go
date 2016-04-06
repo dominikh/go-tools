@@ -62,10 +62,6 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
-	if flag.NArg() == 0 {
-		flag.Usage()
-		os.Exit(2)
-	}
 	var mode unused.CheckMode
 	if fConstants {
 		mode |= unused.CheckConstants
