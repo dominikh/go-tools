@@ -22,6 +22,7 @@ var Funcs = []lint.Func{
 	CheckTimeParse,
 	CheckEncodingBinary,
 	CheckTimeSleepConstant,
+	CheckWaitgroups,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -235,6 +236,44 @@ func CheckTimeSleepConstant(f *lint.File) {
 			recommendation = fmt.Sprintf("time.Sleep(%d * time.Nanosecond)", n)
 		}
 		f.Errorf(call.Args[0], 1, lint.Category("FIXME"), "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckWaitgroups(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		g, ok := node.(*ast.GoStmt)
+		if !ok {
+			return true
+		}
+		fun, ok := g.Call.Fun.(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		if len(fun.Body.List) == 0 {
+			return true
+		}
+		stmt, ok := fun.Body.List[0].(*ast.ExprStmt)
+		if !ok {
+			return true
+		}
+		call, ok := stmt.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+		if !ok {
+			return true
+		}
+		if fn.FullName() == "(*sync.WaitGroup).Add" {
+			f.Errorf(sel, 1, "should call %s before starting the goroutine to avoid a race",
+				f.Render(stmt))
+		}
 		return true
 	}
 	f.Walk(fn)
