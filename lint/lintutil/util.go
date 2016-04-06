@@ -36,9 +36,10 @@ func usage(name string) func() {
 type runner struct {
 	funcs         []lint.Func
 	minConfidence float64
+	tags          []string
 }
 
-func resolveRelative(importPaths []string) (goFiles bool, err error) {
+func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err error) {
 	if len(importPaths) == 0 {
 		return false, nil
 	}
@@ -51,7 +52,7 @@ func resolveRelative(importPaths []string) (goFiles bool, err error) {
 		return false, err
 	}
 	ctx := build.Default
-	// ctx.BuildTags = c.Tags
+	ctx.BuildTags = runner.tags
 	for i, path := range importPaths {
 		bpkg, err := ctx.Import(path, wd, build.FindOnly)
 		if err != nil {
@@ -67,11 +68,12 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 		Usage: usage(name),
 	}
 	var minConfidence = flags.Float64("min_confidence", 0.8, "minimum confidence of a problem to print it")
+	var tags = flags.String("tags", "", "List of `build tags`")
 	flags.Parse(args)
 
-	runner := runner{funcs, *minConfidence}
+	runner := runner{funcs, *minConfidence, strings.Fields(*tags)}
 	paths := gotool.ImportPaths(flags.Args())
-	goFiles, err := resolveRelative(paths)
+	goFiles, err := runner.resolveRelative(paths)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -121,7 +123,9 @@ func (runner runner) lintFiles(filenames ...string) {
 }
 
 func (runner runner) lintPackage(pkgname string) {
-	pkg, err := build.Import(pkgname, ".", 0)
+	ctx := build.Default
+	ctx.BuildTags = runner.tags
+	pkg, err := ctx.Import(pkgname, ".", 0)
 	runner.lintImportedPackage(pkg, err)
 }
 
