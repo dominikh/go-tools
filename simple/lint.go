@@ -21,6 +21,7 @@ var Funcs = []lint.Func{
 	LintRegexpRaw,
 	LintIfReturn,
 	LintRedundantNilCheckWithLen,
+	LintSlicing,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -505,6 +506,40 @@ func LintRedundantNilCheckWithLen(f *lint.File) {
 			return true
 		}
 		f.Errorf(expr, 1, lint.Category("FIXME"), "should omit nil check; len() for %s is defined as zero", nilType)
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintSlicing(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		n, ok := node.(*ast.SliceExpr)
+		if !ok {
+			return true
+		}
+		if n.Max != nil {
+			return true
+		}
+		s, ok := n.X.(*ast.Ident)
+		if !ok || s.Obj == nil {
+			return true
+		}
+		call, ok := n.High.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+			return true
+		}
+		fun, ok := call.Fun.(*ast.Ident)
+		if !ok || fun.Name != "len" {
+			return true
+		}
+		if _, ok := f.Pkg.TypesInfo.ObjectOf(fun).(*types.Builtin); !ok {
+			return true
+		}
+		arg, ok := call.Args[0].(*ast.Ident)
+		if !ok || arg.Obj != s.Obj {
+			return true
+		}
+		f.Errorf(n, 1, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
 		return true
 	}
 	f.Walk(fn)
