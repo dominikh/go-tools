@@ -21,7 +21,7 @@ import (
 	"github.com/kisielk/gotool"
 )
 
-func usage(name string) func() {
+func usage(name string, flags *flag.FlagSet) func() {
 	return func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", name)
 		fmt.Fprintf(os.Stderr, "\t%s [flags] # runs on package in current directory\n", name)
@@ -29,7 +29,7 @@ func usage(name string) func() {
 		fmt.Fprintf(os.Stderr, "\t%s [flags] directory\n", name)
 		fmt.Fprintf(os.Stderr, "\t%s [flags] files... # must be a single package\n", name)
 		fmt.Fprintf(os.Stderr, "Flags:\n")
-		flag.PrintDefaults()
+		flags.PrintDefaults()
 	}
 }
 
@@ -64,9 +64,8 @@ func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err er
 }
 
 func ProcessArgs(name string, funcs []lint.Func, args []string) {
-	flags := flag.FlagSet{
-		Usage: usage(name),
-	}
+	flags := &flag.FlagSet{}
+	flags.Usage = usage(name, flags)
 	var minConfidence = flags.Float64("min_confidence", 0.8, "minimum confidence of a problem to print it")
 	var tags = flags.String("tags", "", "List of `build tags`")
 	flags.Parse(args)
