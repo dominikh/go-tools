@@ -1,5 +1,5 @@
-Staticcheck is a tool for statically checking the inputs to certain
-functions, such as `regexp.Compile`.
+Staticcheck is a tool for statically checking the inputs to and uses
+of certain functions, such as `regexp.Compile`.
 
 
 ## Installation
@@ -31,6 +31,10 @@ evaluating these inputs in the same way the code would at runtime.
 For example, for `regexp.Compile("foo(")`, staticcheck will find the
 call to `regexp.Compile` and check if `foo(` is a valid regexp.
 
+Furthermore, it checks that functions are used in the correct way. It
+checks, for example, that sync.WaitGroup.Add is called outside of a
+goroutine, to avoid race conditions.
+
 The main purpose of staticcheck is editor integration, or workflow
 integration in general. For example, by running staticcheck when
 saving a file, one can quickly catch simple bugs without having to run
@@ -38,6 +42,12 @@ the whole test suite or the program itself.
 
 The tool shouldn't report any errors unless there are legitimate bugs
 in the code (or the tool…)
+
+It is similar in nature to `go vet`, but differs in that staticcheck
+has tests for mistakes that happen during development but wouldn't
+make it into the final code, either due to tests, crashes or the race
+detector. It is meant to reduce the number of edit, compile and debug
+cycles by providing more instant feedback.
 
 ## Checks
 
