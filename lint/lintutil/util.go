@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // Package lintutil provides helpers for writing linter command lines.
-package lintutil
+package lintutil // import "honnef.co/go/lint/lintutil"
 
 import (
 	"flag"
@@ -17,13 +17,15 @@ import (
 	"strings"
 
 	"honnef.co/go/lint"
+
+	"github.com/kisielk/gotool"
 )
 
 func usage(name string) func() {
 	return func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", name)
 		fmt.Fprintf(os.Stderr, "\t%s [flags] # runs on package in current directory\n", name)
-		fmt.Fprintf(os.Stderr, "\t%s [flags] package\n", name)
+		fmt.Fprintf(os.Stderr, "\t%s [flags] packages\n", name)
 		fmt.Fprintf(os.Stderr, "\t%s [flags] directory\n", name)
 		fmt.Fprintf(os.Stderr, "\t%s [flags] files... # must be a single package\n", name)
 		fmt.Fprintf(os.Stderr, "Flags:\n")
@@ -36,6 +38,30 @@ type runner struct {
 	minConfidence float64
 }
 
+func resolveRelative(importPaths []string) (goFiles bool, err error) {
+	if len(importPaths) == 0 {
+		return false, nil
+	}
+	if strings.HasSuffix(importPaths[0], ".go") {
+		// User is specifying a package in terms of .go files, don't resolve
+		return true, nil
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return false, err
+	}
+	ctx := build.Default
+	// ctx.BuildTags = c.Tags
+	for i, path := range importPaths {
+		bpkg, err := ctx.Import(path, wd, build.FindOnly)
+		if err != nil {
+			return false, fmt.Errorf("can't load package %q: %v", path, err)
+		}
+		importPaths[i] = bpkg.ImportPath
+	}
+	return false, nil
+}
+
 func ProcessArgs(name string, funcs []lint.Func, args []string) {
 	flags := flag.FlagSet{
 		Usage: usage(name),
@@ -44,26 +70,17 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 	flags.Parse(args)
 
 	runner := runner{funcs, *minConfidence}
-	switch flags.NArg() {
-	case 0:
-		runner.lintDir(".")
-	case 1:
-		arg := flags.Arg(0)
-		if strings.HasSuffix(arg, "/...") && isDir(arg[:len(arg)-4]) {
-			for _, dirname := range allPackagesInFS(arg) {
-				runner.lintDir(dirname)
-			}
-		} else if isDir(arg) {
-			runner.lintDir(arg)
-		} else if exists(arg) {
-			runner.lintFiles(arg)
-		} else {
-			for _, pkgname := range importPaths([]string{arg}) {
-				runner.lintPackage(pkgname)
-			}
+	paths := gotool.ImportPaths(flags.Args())
+	goFiles, err := resolveRelative(paths)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	if goFiles {
+		runner.lintFiles(paths...)
+	} else {
+		for _, path := range paths {
+			runner.lintPackage(path)
 		}
-	default:
-		runner.lintFiles(flags.Args()...)
 	}
 }
 
@@ -101,11 +118,6 @@ func (runner runner) lintFiles(filenames ...string) {
 			fmt.Printf("%v: %s\n", p.Position, p.Text)
 		}
 	}
-}
-
-func (runner runner) lintDir(dirname string) {
-	pkg, err := build.ImportDir(dirname, 0)
-	runner.lintImportedPackage(pkg, err)
 }
 
 func (runner runner) lintPackage(pkgname string) {

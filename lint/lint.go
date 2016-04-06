@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // Package lint provides the foundation for tools like gosimple.
-package lint
+package lint // import "honnef.co/go/lint"
 
 import (
 	"bytes"
