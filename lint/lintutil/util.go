@@ -85,16 +85,6 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 	}
 }
 
-func isDir(filename string) bool {
-	fi, err := os.Stat(filename)
-	return err == nil && fi.IsDir()
-}
-
-func exists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil
-}
-
 func (runner runner) lintFiles(filenames ...string) {
 	files := make(map[string][]byte)
 	for _, filename := range filenames {
