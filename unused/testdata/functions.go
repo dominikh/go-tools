@@ -19,7 +19,18 @@ func fn1() t1     { return t1{} } // MATCH fn1
 func fn2() (x t2) { return }
 func fn3() *t3    { return nil }
 
+func fn4() {
+	const x = 1
+	const y = 2  // MATCH y
+	type foo int // MATCH foo
+	type bar int
+
+	_ = x
+	var _ bar
+}
+
 func init() {
 	fn2()
 	fn3()
+	fn4()
 }

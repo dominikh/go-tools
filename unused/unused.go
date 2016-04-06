@@ -356,8 +356,13 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 					c.graph.markUsedBy(obj, scope)
 				}
 			} else {
-				if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
-					c.graph.markUsedBy(obj, c.topmostScope(obj.Parent(), obj.Pkg()))
+				// Variables declared in functions are used. This is
+				// done so that arguments and return parameters are
+				// always marked as used.
+				if _, ok := obj.(*types.Var); ok {
+					if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
+						c.graph.markUsedBy(obj, c.topmostScope(obj.Parent(), obj.Pkg()))
+					}
 				}
 			}
 		}
