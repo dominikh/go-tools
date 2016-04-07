@@ -62,9 +62,7 @@ constructs:
 
 ## gofmt -r
 
-Some of these rules can be automatically applied via `gofmt -r`. To
-fix uses of `strings.Index*`, `bytes.Index` and `bytes.Compare`, use
-the following set of rewrite rules:
+Some of these rules can be automatically applied via `gofmt -r`:
 
 ```
 bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)
@@ -91,4 +89,6 @@ bytes.Index(a, b) == -1 -> !bytes.Contains(a, b)
 bytes.Index(a, b) < 0 -> !bytes.Contains(a, b)
 bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)
 bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)
+
+time.Now().Sub(a) -> time.Since(a)
 ```

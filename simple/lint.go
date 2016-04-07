@@ -618,7 +618,6 @@ func LintTimeSince(f *lint.File) {
 		if !ok {
 			return true
 		}
-		//spew.Dump(call)
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return true
