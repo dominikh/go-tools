@@ -64,6 +64,8 @@ The following function calls are currently checked by staticcheck:
   (<120), untyped literals. This usually indicates a bug, where
   `time.Sleep(1)` is assumed to sleep for 1 second, while in reality
   it sleeps for 1 nanosecond.
+- `sync.WaitGroup.Add` – Checks that the method is called before
+  launching the goroutine, to avoid a race condition.
 
 ## Examples
 
