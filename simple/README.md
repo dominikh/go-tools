@@ -58,6 +58,7 @@ constructs:
 - Don't check if slices, maps or channels are nil before checking
   their length, it's redundant. `len` is defined as zero for those nil
   values.
+- Don't use `time.Now().Sub(x)`, use `time.Since(x)` instead
 
 ## gofmt -r
 

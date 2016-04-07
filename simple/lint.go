@@ -23,6 +23,7 @@ var Funcs = []lint.Func{
 	LintRedundantNilCheckWithLen,
 	LintSlicing,
 	LintLoopAppend,
+	LintTimeSince,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -606,6 +607,33 @@ func LintLoopAppend(f *lint.File) {
 		}
 		f.Errorf(loop, 1, "should replace loop with %s = append(%s, %s...)",
 			f.Render(stmt.Lhs[0]), f.Render(call.Args[0]), f.Render(loop.X))
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintTimeSince(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		//spew.Dump(call)
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		subcall, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(subcall.Fun, "time", "Now") {
+			return true
+		}
+		if sel.Sel.Name != "Sub" {
+			return true
+		}
+		f.Errorf(call, 1, "should use time.Since instead of time.Now().Sub")
 		return true
 	}
 	f.Walk(fn)
