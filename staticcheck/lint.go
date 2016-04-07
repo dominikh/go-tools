@@ -22,7 +22,8 @@ var Funcs = []lint.Func{
 	CheckTimeParse,
 	CheckEncodingBinary,
 	CheckTimeSleepConstant,
-	CheckWaitgroups,
+	CheckWaitgroupAdd,
+	CheckWaitgroupCopy,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -241,7 +242,7 @@ func CheckTimeSleepConstant(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckWaitgroups(f *lint.File) {
+func CheckWaitgroupAdd(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		g, ok := node.(*ast.GoStmt)
 		if !ok {
@@ -273,6 +274,23 @@ func CheckWaitgroups(f *lint.File) {
 		if fn.FullName() == "(*sync.WaitGroup).Add" {
 			f.Errorf(sel, 1, "should call %s before starting the goroutine to avoid a race",
 				f.Render(stmt))
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckWaitgroupCopy(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncType)
+		if !ok {
+			return true
+		}
+		for _, arg := range fn.Params.List {
+			typ := f.Pkg.TypesInfo.TypeOf(arg.Type)
+			if typ != nil && typ.String() == "sync.WaitGroup" {
+				f.Errorf(arg, 1, "should pass sync.WaitGroup by pointer")
+			}
 		}
 		return true
 	}

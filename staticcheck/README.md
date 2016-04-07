@@ -66,6 +66,8 @@ The following function calls are currently checked by staticcheck:
   it sleeps for 1 nanosecond.
 - `sync.WaitGroup.Add` – Checks that the method is called before
   launching the goroutine, to avoid a race condition.
+- `sync.WaitGroup` - Checks that wait groups aren't copied when being
+  passed to functions.
 
 ## Examples
 
