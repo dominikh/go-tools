@@ -65,8 +65,6 @@ constructs:
 Some of these rules can be automatically applied via `gofmt -r`:
 
 ```
-bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)
-bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)
 strings.IndexRune(a, b) > -1 -> strings.ContainsRune(a, b)
 strings.IndexRune(a, b) >= 0 -> strings.ContainsRune(a, b)
 strings.IndexRune(a, b) != -1 -> strings.ContainsRune(a, b)
