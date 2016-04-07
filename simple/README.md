@@ -48,6 +48,8 @@ constructs:
   `strings.Contains*` and `bytes.Contains` instead.
 - Don't use `bytes.Compare` to check for equality, use `bytes.Equal`.
 - Don't use `for` loops to copy slices, use `copy`
+- Don't use `for` loops to append one slice to another, use `x =
+  append(x, y...)`
 - Don't use `for _ = range x`, use `for range x`
 - Don't use `for true { ... }`, use `for { ... }`
 - Use raw strings with regexp.Compile to avoid two levels of escaping

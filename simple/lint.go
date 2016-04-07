@@ -22,6 +22,7 @@ var Funcs = []lint.Func{
 	LintIfReturn,
 	LintRedundantNilCheckWithLen,
 	LintSlicing,
+	LintLoopAppend,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -540,6 +541,71 @@ func LintSlicing(f *lint.File) {
 			return true
 		}
 		f.Errorf(n, 1, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintLoopAppend(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+		if !lint.IsBlank(loop.Key) {
+			return true
+		}
+		val, ok := loop.Value.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if len(loop.Body.List) != 1 {
+			return true
+		}
+		stmt, ok := loop.Body.List[0].(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if stmt.Tok != token.ASSIGN || len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
+			return true
+		}
+		call, ok := stmt.Rhs[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if len(call.Args) != 2 || call.Ellipsis.IsValid() {
+			return true
+		}
+		fun, ok := call.Fun.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		obj := f.Pkg.TypesInfo.ObjectOf(fun)
+		fn, ok := obj.(*types.Builtin)
+		if !ok || fn.Name() != "append" {
+			return true
+		}
+
+		src := f.Pkg.TypesInfo.TypeOf(loop.X)
+		dst := f.Pkg.TypesInfo.TypeOf(call.Args[0])
+		// TODO(dominikh) remove nil check once Go issue #15173 has
+		// been fixed
+		if src == nil {
+			return true
+		}
+		if !types.Identical(src, dst) {
+			return true
+		}
+
+		el, ok := call.Args[1].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if f.Pkg.TypesInfo.ObjectOf(val) != f.Pkg.TypesInfo.ObjectOf(el) {
+			return true
+		}
+		f.Errorf(loop, 1, "should replace loop with %s = append(%s, %s...)",
+			f.Render(stmt.Lhs[0]), f.Render(call.Args[0]), f.Render(loop.X))
 		return true
 	}
 	f.Walk(fn)
