@@ -359,20 +359,46 @@ func CheckTestMainExit(f *lint.File) {
 			return true
 		}
 
-		hasExit := false
+		arg := f.Pkg.TypesInfo.ObjectOf(node.(*ast.FuncDecl).Type.Params.List[0].Names[0])
+		callsRun := false
 		fn2 := func(node ast.Node) bool {
-			expr, ok := node.(ast.Expr)
+			call, ok := node.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
-			if lint.IsPkgDot(expr, "os", "Exit") {
-				hasExit = true
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			ident, ok := sel.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if arg != f.Pkg.TypesInfo.ObjectOf(ident) {
+				return true
+			}
+			if sel.Sel.Name == "Run" {
+				callsRun = true
 				return false
 			}
 			return true
 		}
 		ast.Inspect(node.(*ast.FuncDecl).Body, fn2)
-		if !hasExit {
+
+		callsExit := false
+		fn3 := func(node ast.Node) bool {
+			expr, ok := node.(ast.Expr)
+			if !ok {
+				return true
+			}
+			if lint.IsPkgDot(expr, "os", "Exit") {
+				callsExit = true
+				return false
+			}
+			return true
+		}
+		ast.Inspect(node.(*ast.FuncDecl).Body, fn3)
+		if !callsExit && callsRun {
 			f.Errorf(node, 0.9, "TestMain should call os.Exit to set exit code")
 		}
 		return true
