@@ -51,7 +51,7 @@ cycles by providing more instant feedback.
 
 ## Checks
 
-The following function calls are currently checked by staticcheck:
+The following things are currently checked by staticcheck:
 
 - `regexp.Compile` and `regexp.MustCompile` - Checks that the regexp
   is valid
@@ -69,7 +69,7 @@ The following function calls are currently checked by staticcheck:
 - `sync.WaitGroup` - Checks that wait groups aren't copied when being
   passed to functions.
 - Dont use an empty `for {}` as it will spin.
-
+- Don't use `defer` in a loop that will never finish.
 ## Examples
 
 ```

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/token"
 	"go/types"
 	htmltemplate "html/template"
 	"regexp"
@@ -25,6 +26,7 @@ var Funcs = []lint.Func{
 	CheckWaitgroupAdd,
 	CheckWaitgroupCopy,
 	CheckInfiniteEmptyLoop,
+	CheckDeferInInfiniteLoop,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -305,6 +307,46 @@ func CheckInfiniteEmptyLoop(f *lint.File) {
 			return true
 		}
 		f.Errorf(loop, 1, "should not use an infinite empty loop. It will spin. Consider select{} instead.")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckDeferInInfiniteLoop(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		mightExit := false
+		var defers []ast.Stmt
+		loop, ok := node.(*ast.ForStmt)
+		if !ok || loop.Cond != nil {
+			return true
+		}
+		fn2 := func(node ast.Node) bool {
+			switch stmt := node.(type) {
+			case *ast.ReturnStmt:
+				mightExit = true
+			case *ast.BranchStmt:
+				// TODO(dominikh): if this sees a break in a switch or
+				// select, it doesn't check if it breaks the loop or
+				// just the select/switch. This causes some false
+				// negatives.
+				if stmt.Tok == token.BREAK {
+					mightExit = true
+				}
+			case *ast.DeferStmt:
+				defers = append(defers, stmt)
+			case *ast.FuncLit:
+				// Don't look into function bodies
+				return false
+			}
+			return true
+		}
+		ast.Inspect(loop.Body, fn2)
+		if mightExit {
+			return true
+		}
+		for _, stmt := range defers {
+			f.Errorf(stmt, 1, "defers in this infinite loop will never run")
+		}
 		return true
 	}
 	f.Walk(fn)
