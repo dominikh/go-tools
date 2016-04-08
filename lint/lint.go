@@ -426,6 +426,7 @@ func IsOne(expr ast.Expr) bool {
 }
 
 func IsNil(expr ast.Expr) bool {
+	// FIXME(dominikh): use type information
 	id, ok := expr.(*ast.Ident)
 	return ok && id.Name == "nil"
 }

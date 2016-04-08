@@ -49,10 +49,6 @@ func TestAll(t *testing.T, funcs []lint.Func) {
 		}
 
 		ins := parseInstructions(t, fi.Name(), src)
-		if ins == nil {
-			t.Errorf("Test file %v does not have instructions", fi.Name())
-			continue
-		}
 
 		ps, err := l.Lint(fi.Name(), src)
 		if err != nil {
