@@ -59,6 +59,22 @@ constructs:
   their length, it's redundant. `len` is defined as zero for those nil
   values.
 - Don't use `time.Now().Sub(x)`, use `time.Since(x)` instead
+- Don't write
+
+  ```
+  if err != nil {
+    return err
+  }
+  return nil
+  ```
+
+  write
+
+  ```
+  return err
+  ```
+
+  instead
 
 ## gofmt -r
 

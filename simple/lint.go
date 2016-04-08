@@ -24,6 +24,7 @@ var Funcs = []lint.Func{
 	LintSlicing,
 	LintLoopAppend,
 	LintTimeSince,
+	LintSimplerReturn,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -633,6 +634,92 @@ func LintTimeSince(f *lint.File) {
 			return true
 		}
 		f.Errorf(call, 1, "should use time.Since instead of time.Now().Sub")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintSimplerReturn(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		block, ok := node.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		if len(block.List) < 2 {
+			return true
+		}
+
+	outer:
+		for i, stmt := range block.List {
+			if i == len(block.List)-1 {
+				break
+			}
+			if i > 0 {
+				// don't flag an if in a series of ifs
+				if _, ok := block.List[i-1].(*ast.IfStmt); ok {
+					continue
+				}
+			}
+
+			// if <id1> != nil
+			ifs, ok := stmt.(*ast.IfStmt)
+			if !ok || len(ifs.Body.List) != 1 {
+				continue
+			}
+			expr, ok := ifs.Cond.(*ast.BinaryExpr)
+			if !ok || expr.Op != token.NEQ || !lint.IsNil(expr.Y) {
+				continue
+			}
+			id1, ok := expr.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+
+			// return ..., <id1>
+			ret1, ok := ifs.Body.List[0].(*ast.ReturnStmt)
+			if !ok || len(ret1.Results) == 0 {
+				continue
+			}
+			var results1 []types.Object
+			for _, res := range ret1.Results {
+				ident, ok := res.(*ast.Ident)
+				if !ok {
+					continue outer
+				}
+				results1 = append(results1, f.Pkg.TypesInfo.ObjectOf(ident))
+			}
+			if results1[len(results1)-1] != f.Pkg.TypesInfo.ObjectOf(id1) {
+				continue
+			}
+
+			// return ..., [<id1> | nil]
+			ret2, ok := block.List[i+1].(*ast.ReturnStmt)
+			if !ok || len(ret2.Results) == 0 {
+				continue
+			}
+			var results2 []types.Object
+			for _, res := range ret2.Results {
+				ident, ok := res.(*ast.Ident)
+				if !ok {
+					continue outer
+				}
+				results2 = append(results2, f.Pkg.TypesInfo.ObjectOf(ident))
+			}
+			_, isNil := results2[len(results1)-1].(*types.Nil)
+			if results2[len(results1)-1] != f.Pkg.TypesInfo.ObjectOf(id1) &&
+				!isNil {
+				continue
+			}
+			for i, v := range results1[:len(results1)-1] {
+				if v != results2[i] {
+					continue outer
+				}
+			}
+
+			f.Errorf(ifs, 1, "'if %s != nil { return %s }; return %s' can be simplified to 'return %s'",
+				f.Render(expr.X), f.RenderArgs(ret1.Results),
+				f.RenderArgs(ret2.Results), f.RenderArgs(ret1.Results))
+		}
 		return true
 	}
 	f.Walk(fn)
