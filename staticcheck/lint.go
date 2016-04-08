@@ -27,6 +27,7 @@ var Funcs = []lint.Func{
 	CheckWaitgroupCopy,
 	CheckInfiniteEmptyLoop,
 	CheckDeferInInfiniteLoop,
+	CheckTestMainExit,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -350,4 +351,49 @@ func CheckDeferInInfiniteLoop(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
+}
+
+func CheckTestMainExit(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		if !IsTestMain(f, node) {
+			return true
+		}
+
+		hasExit := false
+		fn2 := func(node ast.Node) bool {
+			expr, ok := node.(ast.Expr)
+			if !ok {
+				return true
+			}
+			if lint.IsPkgDot(expr, "os", "Exit") {
+				hasExit = true
+				return false
+			}
+			return true
+		}
+		ast.Inspect(node.(*ast.FuncDecl).Body, fn2)
+		if !hasExit {
+			f.Errorf(node, 0.9, "TestMain should call os.Exit to set exit code")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func IsTestMain(f *lint.File, node ast.Node) bool {
+	decl, ok := node.(*ast.FuncDecl)
+	if !ok {
+		return false
+	}
+	if decl.Name.Name != "TestMain" {
+		return false
+	}
+	if len(decl.Type.Params.List) != 1 {
+		return false
+	}
+	arg := decl.Type.Params.List[0]
+	if len(arg.Names) != 1 {
+		return false
+	}
+	return f.Pkg.TypesInfo.TypeOf(arg.Type).String() == "*testing.M"
 }

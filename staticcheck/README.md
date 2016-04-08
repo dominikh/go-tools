@@ -68,6 +68,10 @@ The following things are currently checked by staticcheck:
   launching the goroutine, to avoid a race condition.
 - `sync.WaitGroup` - Checks that wait groups aren't copied when being
   passed to functions.
+- `TestMain` - checks that the TestMain function calls os.Exit to
+  report test failure. -- This check may have false positive. Its
+  confidence is 0.9 and can be filtered with the `-min_confidence`
+  flag set to `1`.
 - Dont use an empty `for {}` as it will spin.
 - Don't use `defer` in a loop that will never finish.
 ## Examples
