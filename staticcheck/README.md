@@ -72,6 +72,7 @@ The following things are currently checked by staticcheck:
   report test failure. -- This check may have false positive. Its
   confidence is 0.9 and can be filtered with the `-min_confidence`
   flag set to `1`.
+- `exec.Command` - checks that the first argument looks valid
 - Dont use an empty `for {}` as it will spin.
 - Don't use `defer` in a loop that will never finish.
 

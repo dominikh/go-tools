@@ -28,6 +28,7 @@ var Funcs = []lint.Func{
 	CheckInfiniteEmptyLoop,
 	CheckDeferInInfiniteLoop,
 	CheckTestMainExit,
+	CheckExec,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -422,4 +423,33 @@ func IsTestMain(f *lint.File, node ast.Node) bool {
 		return false
 	}
 	return f.Pkg.TypesInfo.TypeOf(arg.Type).String() == "*testing.M"
+}
+
+func CheckExec(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "exec", "Command") {
+			return true
+		}
+		if len(call.Args) != 1 {
+			return true
+		}
+		typ := f.Pkg.TypesInfo.Types[call.Args[0]]
+		if typ.Value == nil {
+			return true
+		}
+		if typ.Value.Kind() != constant.String {
+			return true
+		}
+		val := constant.StringVal(typ.Value)
+		if !strings.Contains(val, " ") || strings.Contains(val, `\`) {
+			return true
+		}
+		f.Errorf(call.Args[0], 0.9, "first argument to exec.Command looks like a shell command, but a program name or path are expected")
+		return true
+	}
+	f.Walk(fn)
 }
