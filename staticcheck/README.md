@@ -1,5 +1,5 @@
 Staticcheck is a tool for statically checking the inputs to and uses
-of certain functions, such as `regexp.Compile`.
+of certain functions and constructs, such as `regexp.Compile`.
 
 
 ## Installation
@@ -31,9 +31,9 @@ evaluating these inputs in the same way the code would at runtime.
 For example, for `regexp.Compile("foo(")`, staticcheck will find the
 call to `regexp.Compile` and check if `foo(` is a valid regexp.
 
-Furthermore, it checks that functions are used in the correct way. It
-checks, for example, that sync.WaitGroup.Add is called outside of a
-goroutine, to avoid race conditions.
+Furthermore, it checks that functions and constructs are used in the
+correct way. It checks, for example, that sync.WaitGroup.Add is called
+outside of a goroutine, to avoid race conditions.
 
 The main purpose of staticcheck is editor integration, or workflow
 integration in general. For example, by running staticcheck when
@@ -68,6 +68,7 @@ The following function calls are currently checked by staticcheck:
   launching the goroutine, to avoid a race condition.
 - `sync.WaitGroup` - Checks that wait groups aren't copied when being
   passed to functions.
+- Dont use an empty `for {}` as it will spin.
 
 ## Examples
 

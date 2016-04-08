@@ -24,6 +24,7 @@ var Funcs = []lint.Func{
 	CheckTimeSleepConstant,
 	CheckWaitgroupAdd,
 	CheckWaitgroupCopy,
+	CheckInfiniteEmptyLoop,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -292,6 +293,18 @@ func CheckWaitgroupCopy(f *lint.File) {
 				f.Errorf(arg, 1, "should pass sync.WaitGroup by pointer")
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckInfiniteEmptyLoop(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.ForStmt)
+		if !ok || len(loop.Body.List) != 0 || loop.Cond != nil || loop.Init != nil {
+			return true
+		}
+		f.Errorf(loop, 1, "should not use an infinite empty loop. It will spin. Consider select{} instead.")
 		return true
 	}
 	f.Walk(fn)
