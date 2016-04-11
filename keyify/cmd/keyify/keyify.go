@@ -270,6 +270,12 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		cp.Index = copyExpr(cp.Index, line)
 		cp.Rbrack = 0
 		return &cp
+	case *ast.KeyValueExpr:
+		cp := *expr
+		cp.Key = copyExpr(cp.Key, line)
+		cp.Colon = 0
+		cp.Value = copyExpr(cp.Value, line)
+		return &cp
 	case *ast.ParenExpr:
 		cp := *expr
 		cp.Lparen = 0
