@@ -127,6 +127,9 @@ func main() {
 		log.Fatal(err)
 	}
 	conf := &loader.Config{}
+	conf.TypeCheckFuncBodies = func(s string) bool {
+		return s == bpkg.ImportPath || s == bpkg.ImportPath+"_test"
+	}
 	conf.ImportWithTests(bpkg.ImportPath)
 	lprog, err := conf.Load()
 	if err != nil {
