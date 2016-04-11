@@ -175,6 +175,13 @@ func main() {
 		return
 	}
 
+	var calcPos func(int) token.Pos
+	if fOneLine {
+		calcPos = func(int) token.Pos { return token.Pos(1) }
+	} else {
+		calcPos = func(i int) token.Pos { return token.Pos(2 + i) }
+	}
+
 	newFset := token.NewFileSet()
 	newFile := newFset.AddFile("", -1, st.NumFields()+2)
 	newComplit := &ast.CompositeLit{
@@ -182,14 +189,17 @@ func main() {
 		Lbrace: 1,
 		Rbrace: token.Pos(st.NumFields() + 2),
 	}
+	if fOneLine {
+		newComplit.Rbrace = 1
+	}
 	newFile.AddLine(1)
 	newFile.AddLine(st.NumFields() + 2)
 	for i := 0; i < st.NumFields(); i++ {
 		newFile.AddLine(2 + i)
 		field := st.Field(i)
 		elt := &ast.KeyValueExpr{
-			Key:   &ast.Ident{NamePos: token.Pos(2 + i), Name: field.Name()},
-			Value: copyExpr(complit.Elts[i], token.Pos(2+i)),
+			Key:   &ast.Ident{NamePos: calcPos(i), Name: field.Name()},
+			Value: copyExpr(complit.Elts[i], calcPos(i)),
 		}
 		newComplit.Elts = append(newComplit.Elts, elt)
 	}
