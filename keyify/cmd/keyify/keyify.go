@@ -245,7 +245,9 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		for i, v := range cp.Args {
 			cp.Args[i] = copyExpr(v, line)
 		}
-		cp.Ellipsis = line
+		if cp.Ellipsis != 0 {
+			cp.Ellipsis = line
+		}
 		cp.Rparen = 0
 		return &cp
 	case *ast.CompositeLit:
