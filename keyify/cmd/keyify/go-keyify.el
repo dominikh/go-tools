@@ -24,7 +24,7 @@ Call with point on or in a struct literal."
   (let ((res (json-read-from-string
               (shell-command-to-string (format "keyify -json %s:#%d"
                                                (shell-quote-argument (buffer-file-name))
-                                               (position-bytes (point))))))
+                                               (1- (position-bytes (point)))))))
         (point (point)))
     (delete-region
      (1+ (cdr (assoc 'start res)))
