@@ -166,7 +166,12 @@ func main() {
 		return
 	}
 	if _, ok := complit.Elts[0].(*ast.KeyValueExpr); ok {
-		printComplit(complit, complit, lprog.Fset, lprog.Fset)
+		// TODO turn into multi- or single-line, depending on flags
+		lit := complit
+		if fOneLine {
+			lit = copyExpr(complit, 1).(*ast.CompositeLit)
+		}
+		printComplit(complit, lit, lprog.Fset, lprog.Fset)
 		return
 	}
 	st, ok := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
