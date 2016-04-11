@@ -10,6 +10,7 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -91,37 +92,60 @@ func init() {
 	flag.BoolVar(&fJSON, "json", false, "print new struct initializer as JSON")
 }
 
+func usage() {
+	fmt.Printf("Usage: %s [flags] <position>\n\n", os.Args[0])
+	flag.PrintDefaults()
+}
+
 func main() {
+	log.SetFlags(0)
+	flag.Usage = usage
 	flag.Parse()
 	if flag.NArg() != 1 {
-		// XXX
+		flag.Usage()
+		os.Exit(2)
 	}
 	pos := flag.Args()[0]
 	name, start, _, err := parsePos(pos)
-	_ = err                                // XXX
-	eval, _ := filepath.EvalSymlinks(name) // XXX
-	name, _ = filepath.Abs(eval)           // XXX
-	cwd, _ := os.Getwd()                   // XXX
+	if err != nil {
+		log.Fatal(err)
+	}
+	eval, err := filepath.EvalSymlinks(name)
+	if err != nil {
+		log.Fatal(err)
+	}
+	name, err = filepath.Abs(eval)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
 	bpkg, err := buildutil.ContainingPackage(&build.Default, cwd, name)
-	_ = err // XXX
+	if err != nil {
+		log.Fatal(err)
+	}
 	conf := &loader.Config{}
 	conf.ImportWithTests(bpkg.ImportPath)
-	lprog, _ := conf.Load() // XXX
+	lprog, err := conf.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
 	var tf *token.File
 	var af *ast.File
 	pkg := lprog.InitialPackages()[0]
 	for _, ff := range pkg.Files {
 		file := lprog.Fset.File(ff.Pos())
-		if file.Name() == name { // FIXME abspath
+		if file.Name() == name {
 			af = ff
 			tf = file
 			break
 		}
 	}
-	/// XXX check that we found a file
 	tstart, tend, err := fileOffsetToPos(tf, start, start)
 	if err != nil {
-		// XXX
+		log.Fatal(err)
 	}
 	path, _ := astutil.PathEnclosingInterval(af, tstart, tend)
 	var complit *ast.CompositeLit
@@ -131,15 +155,20 @@ func main() {
 			break
 		}
 	}
-	// XXX check that we found a complit
+	if complit == nil {
+		log.Fatal("no composite literal found near point")
+	}
 	if len(complit.Elts) == 0 {
+		printComplit(complit, complit, lprog.Fset, lprog.Fset)
 		return
 	}
 	if _, ok := complit.Elts[0].(*ast.KeyValueExpr); ok {
+		printComplit(complit, complit, lprog.Fset, lprog.Fset)
 		return
 	}
 	st, ok := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
 	if !ok {
+		log.Fatal("not a struct initialiser")
 		return
 	}
 
@@ -161,23 +190,24 @@ func main() {
 		}
 		newComplit.Elts = append(newComplit.Elts, elt)
 	}
+	printComplit(complit, newComplit, lprog.Fset, newFset)
+}
 
+func printComplit(oldlit, newlit *ast.CompositeLit, oldfset, newfset *token.FileSet) {
 	buf := &bytes.Buffer{}
 	cfg := printer.Config{Mode: printer.UseSpaces | printer.TabIndent, Tabwidth: 8}
-	err = cfg.Fprint(buf, newFset, newComplit)
-	_ = err // XXX
-
+	_ = cfg.Fprint(buf, newfset, newlit)
 	if fJSON {
 		output := struct {
 			Start       int    `json:"start"`
 			End         int    `json:"end"`
 			Replacement string `json:"replacement"`
 		}{
-			lprog.Fset.Position(complit.Pos()).Offset,
-			lprog.Fset.Position(complit.End()).Offset,
+			oldfset.Position(oldlit.Pos()).Offset,
+			oldfset.Position(oldlit.End()).Offset,
 			buf.String(),
 		}
-		json.NewEncoder(os.Stdout).Encode(output)
+		_ = json.NewEncoder(os.Stdout).Encode(output)
 	} else {
 		fmt.Println(buf.String())
 	}
