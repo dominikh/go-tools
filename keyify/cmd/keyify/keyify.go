@@ -202,9 +202,17 @@ func isZero(val ast.Expr, pkg *loader.PackageInfo) bool {
 		if typ == nil {
 			return false
 		}
-		_, ok1 := typ.Underlying().(*types.Struct)
-		_, ok2 := typ.Underlying().(*types.Array)
-		return (ok1 || ok2) && len(val.Elts) == 0
+		switch typ.Underlying().(type) {
+		case *types.Struct, *types.Array:
+		default:
+			return false
+		}
+		for _, elt := range val.Elts {
+			if !isZero(elt, pkg) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
