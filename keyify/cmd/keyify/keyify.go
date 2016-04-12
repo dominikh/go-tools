@@ -353,6 +353,10 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		cp.Elt = copyExpr(cp.Elt, line)
 		cp.Ellipsis = line
 		return &cp
+	case *ast.InterfaceType:
+		cp := *expr
+		cp.Interface = 0
+		return &cp
 	case nil:
 		return nil
 	default:
