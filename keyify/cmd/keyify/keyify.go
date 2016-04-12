@@ -357,6 +357,10 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		cp := *expr
 		cp.Interface = 0
 		return &cp
+	case *ast.StructType:
+		cp := *expr
+		cp.Struct = 0
+		return &cp
 	case nil:
 		return nil
 	default:
