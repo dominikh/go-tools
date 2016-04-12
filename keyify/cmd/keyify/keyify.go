@@ -115,12 +115,25 @@ func main() {
 		printComplit(complit, lit, lprog.Fset, lprog.Fset)
 		return
 	}
-	st, ok := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
+	_, ok := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
 	if !ok {
 		log.Fatal("not a struct initialiser")
 		return
 	}
 
+	newComplit, lines := keyify(pkg, complit)
+	newFset := token.NewFileSet()
+	newFile := newFset.AddFile("", -1, lines)
+	for i := 1; i <= lines; i++ {
+		newFile.AddLine(i)
+	}
+	printComplit(complit, newComplit, lprog.Fset, newFset)
+}
+
+func keyify(
+	pkg *loader.PackageInfo,
+	complit *ast.CompositeLit,
+) (*ast.CompositeLit, int) {
 	var calcPos func(int) token.Pos
 	if fOneLine {
 		calcPos = func(int) token.Pos { return token.Pos(1) }
@@ -128,8 +141,7 @@ func main() {
 		calcPos = func(i int) token.Pos { return token.Pos(2 + i) }
 	}
 
-	newFset := token.NewFileSet()
-	newFile := newFset.AddFile("", -1, st.NumFields()+2)
+	st, _ := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
 	newComplit := &ast.CompositeLit{
 		Type:   complit.Type,
 		Lbrace: 1,
@@ -138,13 +150,20 @@ func main() {
 	if fOneLine {
 		newComplit.Rbrace = 1
 	}
-	newFile.AddLine(1)
-	newFile.AddLine(st.NumFields() + 2)
+	numLines := 2 + st.NumFields()
 	n := 0
 	for i := 0; i < st.NumFields(); i++ {
-		newFile.AddLine(2 + n)
 		field := st.Field(i)
 		val := complit.Elts[i]
+		if fRecursive {
+			if val2, ok := val.(*ast.CompositeLit); ok {
+				if _, ok := pkg.TypeOf(val2.Type).Underlying().(*types.Struct); ok {
+					var lines int
+					numLines += lines
+					val, lines = keyify(pkg, val2)
+				}
+			}
+		}
 		if fMinify && isZero(val, pkg) {
 			continue
 		}
@@ -155,7 +174,7 @@ func main() {
 		newComplit.Elts = append(newComplit.Elts, elt)
 		n++
 	}
-	printComplit(complit, newComplit, lprog.Fset, newFset)
+	return newComplit, numLines
 }
 
 func isZero(val ast.Expr, pkg *loader.PackageInfo) bool {
