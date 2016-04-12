@@ -361,6 +361,8 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		cp := *expr
 		cp.Struct = 0
 		return &cp
+	case *ast.FuncLit:
+		return expr
 	case nil:
 		return nil
 	default:
