@@ -256,6 +256,23 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		cp.OpPos = 0
 		cp.X = copyExpr(cp.X, line)
 		return &cp
+	case *ast.MapType:
+		cp := *expr
+		cp.Map = 0
+		cp.Key = copyExpr(cp.Key, line)
+		cp.Value = copyExpr(cp.Value, line)
+		return &cp
+	case *ast.ArrayType:
+		cp := *expr
+		cp.Lbrack = 0
+		cp.Len = copyExpr(cp.Len, line)
+		cp.Elt = copyExpr(cp.Elt, line)
+		return &cp
+	case *ast.Ellipsis:
+		cp := *expr
+		cp.Elt = copyExpr(cp.Elt, line)
+		cp.Ellipsis = line
+		return &cp
 	case nil:
 		return nil
 	default:
