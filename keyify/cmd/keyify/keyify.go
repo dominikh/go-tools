@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
+	"go/constant"
 	"go/printer"
 	"go/token"
 	"go/types"
@@ -23,12 +24,14 @@ var (
 	fRecursive bool
 	fOneLine   bool
 	fJSON      bool
+	fMinify    bool
 )
 
 func init() {
 	flag.BoolVar(&fRecursive, "r", false, "keyify struct initializers recursively")
 	flag.BoolVar(&fOneLine, "o", false, "print new struct initializer on a single line")
 	flag.BoolVar(&fJSON, "json", false, "print new struct initializer as JSON")
+	flag.BoolVar(&fMinify, "m", false, "omit fields that are set to their zero value")
 }
 
 func usage() {
@@ -137,16 +140,54 @@ func main() {
 	}
 	newFile.AddLine(1)
 	newFile.AddLine(st.NumFields() + 2)
+	n := 0
 	for i := 0; i < st.NumFields(); i++ {
-		newFile.AddLine(2 + i)
+		newFile.AddLine(2 + n)
 		field := st.Field(i)
+		val := complit.Elts[i]
+		if fMinify && isZero(val, pkg) {
+			continue
+		}
 		elt := &ast.KeyValueExpr{
-			Key:   &ast.Ident{NamePos: calcPos(i), Name: field.Name()},
-			Value: copyExpr(complit.Elts[i], calcPos(i)),
+			Key:   &ast.Ident{NamePos: calcPos(n), Name: field.Name()},
+			Value: copyExpr(val, calcPos(n)),
 		}
 		newComplit.Elts = append(newComplit.Elts, elt)
+		n++
 	}
 	printComplit(complit, newComplit, lprog.Fset, newFset)
+}
+
+func isZero(val ast.Expr, pkg *loader.PackageInfo) bool {
+	switch val := val.(type) {
+	case *ast.BasicLit:
+		switch val.Value {
+		case `""`, "``", "0", "0.0", "0i", "0.":
+			return true
+		default:
+			return false
+		}
+	case *ast.Ident:
+		if _, ok := pkg.ObjectOf(val).(*types.Nil); ok {
+			return true
+		}
+		if c, ok := pkg.ObjectOf(val).(*types.Const); ok {
+			if c.Val().Kind() != constant.Bool {
+				return false
+			}
+			return !constant.BoolVal(c.Val())
+		}
+		return false
+	case *ast.CompositeLit:
+		typ := pkg.TypeOf(val.Type)
+		if typ == nil {
+			return false
+		}
+		_, ok1 := typ.Underlying().(*types.Struct)
+		_, ok2 := typ.Underlying().(*types.Array)
+		return (ok1 || ok2) && len(val.Elts) == 0
+	}
+	return false
 }
 
 func printComplit(oldlit, newlit *ast.CompositeLit, oldfset, newfset *token.FileSet) {
