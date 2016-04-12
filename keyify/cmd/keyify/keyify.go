@@ -164,7 +164,8 @@ func keyify(
 				}
 			}
 		}
-		if fMinify && isZero(val, pkg) {
+		_, isIface := st.Field(i).Type().Underlying().(*types.Interface)
+		if fMinify && (isNil(val, pkg) || (!isIface && isZero(val, pkg))) {
 			continue
 		}
 		elt := &ast.KeyValueExpr{
@@ -177,6 +178,23 @@ func keyify(
 	return newComplit, numLines
 }
 
+func isNil(val ast.Expr, pkg *loader.PackageInfo) bool {
+	ident, ok := val.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	if _, ok := pkg.ObjectOf(ident).(*types.Nil); ok {
+		return true
+	}
+	if c, ok := pkg.ObjectOf(ident).(*types.Const); ok {
+		if c.Val().Kind() != constant.Bool {
+			return false
+		}
+		return !constant.BoolVal(c.Val())
+	}
+	return false
+}
+
 func isZero(val ast.Expr, pkg *loader.PackageInfo) bool {
 	switch val := val.(type) {
 	case *ast.BasicLit:
@@ -187,28 +205,22 @@ func isZero(val ast.Expr, pkg *loader.PackageInfo) bool {
 			return false
 		}
 	case *ast.Ident:
-		if _, ok := pkg.ObjectOf(val).(*types.Nil); ok {
-			return true
-		}
-		if c, ok := pkg.ObjectOf(val).(*types.Const); ok {
-			if c.Val().Kind() != constant.Bool {
-				return false
-			}
-			return !constant.BoolVal(c.Val())
-		}
-		return false
+		return isNil(val, pkg)
 	case *ast.CompositeLit:
 		typ := pkg.TypeOf(val.Type)
 		if typ == nil {
 			return false
 		}
-		switch typ.Underlying().(type) {
-		case *types.Struct, *types.Array:
+		isIface := false
+		switch typ := typ.Underlying().(type) {
+		case *types.Struct:
+		case *types.Array:
+			_, isIface = typ.Elem().Underlying().(*types.Interface)
 		default:
 			return false
 		}
 		for _, elt := range val.Elts {
-			if !isZero(elt, pkg) {
+			if isNil(elt, pkg) || (!isIface && !isZero(elt, pkg)) {
 				return false
 			}
 		}
