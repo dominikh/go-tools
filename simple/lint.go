@@ -663,7 +663,7 @@ func LintSimplerReturn(f *lint.File) {
 
 			// if <id1> != nil
 			ifs, ok := stmt.(*ast.IfStmt)
-			if !ok || len(ifs.Body.List) != 1 {
+			if !ok || len(ifs.Body.List) != 1 || ifs.Else != nil {
 				continue
 			}
 			expr, ok := ifs.Cond.(*ast.BinaryExpr)

@@ -1,5 +1,7 @@
 package pkg
 
+import "errors"
+
 func fn1() error {
 	var err error
 
@@ -65,6 +67,15 @@ func fn3() error {
 	}
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func fn4(i int, err error) error {
+	if err != nil {
+		return err
+	} else if i == 1 {
+		return errors.New("some non-nil error")
 	}
 	return nil
 }
