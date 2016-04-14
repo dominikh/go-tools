@@ -37,6 +37,8 @@ type runner struct {
 	funcs         []lint.Func
 	minConfidence float64
 	tags          []string
+
+	unclean bool
 }
 
 func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err error) {
@@ -70,7 +72,11 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 	var tags = flags.String("tags", "", "List of `build tags`")
 	flags.Parse(args)
 
-	runner := runner{funcs, *minConfidence, strings.Fields(*tags)}
+	runner := &runner{
+		funcs:         funcs,
+		minConfidence: *minConfidence,
+		tags:          strings.Fields(*tags),
+	}
 	paths := gotool.ImportPaths(flags.Args())
 	goFiles, err := runner.resolveRelative(paths)
 	if err != nil {
@@ -83,9 +89,13 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 			runner.lintPackage(path)
 		}
 	}
+
+	if runner.unclean {
+		os.Exit(1)
+	}
 }
 
-func (runner runner) lintFiles(filenames ...string) {
+func (runner *runner) lintFiles(filenames ...string) {
 	files := make(map[string][]byte)
 	for _, filename := range filenames {
 		src, err := ioutil.ReadFile(filename)
@@ -104,6 +114,9 @@ func (runner runner) lintFiles(filenames ...string) {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
+	if len(ps) > 0 {
+		runner.unclean = true
+	}
 	for _, p := range ps {
 		if p.Confidence >= runner.minConfidence {
 			fmt.Printf("%v: %s\n", p.Position, p.Text)
@@ -111,14 +124,14 @@ func (runner runner) lintFiles(filenames ...string) {
 	}
 }
 
-func (runner runner) lintPackage(pkgname string) {
+func (runner *runner) lintPackage(pkgname string) {
 	ctx := build.Default
 	ctx.BuildTags = runner.tags
 	pkg, err := ctx.Import(pkgname, ".", 0)
 	runner.lintImportedPackage(pkg, err)
 }
 
-func (runner runner) lintImportedPackage(pkg *build.Package, err error) {
+func (runner *runner) lintImportedPackage(pkg *build.Package, err error) {
 	if err != nil {
 		if _, nogo := err.(*build.NoGoError); nogo {
 			// Don't complain if the failure is due to no Go source files.
