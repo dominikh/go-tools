@@ -25,6 +25,7 @@ var (
 	fOneLine   bool
 	fJSON      bool
 	fMinify    bool
+	fModified  bool
 )
 
 func init() {
@@ -32,6 +33,7 @@ func init() {
 	flag.BoolVar(&fOneLine, "o", false, "print new struct initializer on a single line")
 	flag.BoolVar(&fJSON, "json", false, "print new struct initializer as JSON")
 	flag.BoolVar(&fMinify, "m", false, "omit fields that are set to their zero value")
+	flag.BoolVar(&fModified, "modified", false, "read an archive of modified files from standard input")
 }
 
 func usage() {
@@ -64,11 +66,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	bpkg, err := buildutil.ContainingPackage(&build.Default, cwd, name)
+	ctx := &build.Default
+	if fModified {
+		overlay, err := buildutil.ParseOverlayArchive(os.Stdin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ctx = buildutil.OverlayContext(ctx, overlay)
+	}
+	bpkg, err := buildutil.ContainingPackage(ctx, cwd, name)
 	if err != nil {
 		log.Fatal(err)
 	}
-	conf := &loader.Config{}
+	conf := &loader.Config{
+		Build: ctx,
+	}
 	conf.TypeCheckFuncBodies = func(s string) bool {
 		return s == bpkg.ImportPath || s == bpkg.ImportPath+"_test"
 	}

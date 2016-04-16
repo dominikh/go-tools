@@ -21,17 +21,30 @@
 
 Call with point on or in a struct literal."
   (interactive)
-  (let ((res (json-read-from-string
-              (shell-command-to-string (format "keyify -json %s:#%d"
-                                               (shell-quote-argument (buffer-file-name))
-                                               (1- (position-bytes (point)))))))
-        (point (point)))
-    (delete-region
-     (1+ (cdr (assoc 'start res)))
-     (1+ (cdr (assoc 'end res))))
-    (insert (cdr (assoc 'replacement res)))
-    (indent-region (1+ (cdr (assoc 'start res))) (point))
-    (goto-char point)))
+  (let* ((name (buffer-file-name))
+         (point (point))
+         (bpoint (1- (position-bytes point)))
+         (out (get-buffer-create "*go-keyify-output")))
+    (with-current-buffer out
+      (setq buffer-read-only nil)
+      (erase-buffer))
+    (with-current-buffer (get-buffer-create "*go-keyify-input*")
+      (setq buffer-read-only nil)
+      (erase-buffer)
+      (go--insert-modified-files)
+      (call-process-region (point-min) (point-max) "keyify" t out nil
+                           "-modified"
+                           "-json"
+                           (format "%s:#%d" name bpoint)))
+    (let ((res (with-current-buffer out
+                 (goto-char (point-min))
+                 (json-read))))
+      (delete-region
+       (1+ (cdr (assoc 'start res)))
+       (1+ (cdr (assoc 'end res))))
+      (insert (cdr (assoc 'replacement res)))
+      (indent-region (1+ (cdr (assoc 'start res))) (point))
+      (goto-char point))))
 
 (provide 'go-keyify)
 
