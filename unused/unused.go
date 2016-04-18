@@ -663,12 +663,23 @@ func (c *Checker) processVariableDeclaration(pkg *loader.PackageInfo, node ast.N
 	}
 }
 
+func (c *Checker) processArrayConstants(pkg *loader.PackageInfo, node ast.Node) {
+	if decl, ok := node.(*ast.ArrayType); ok {
+		ident, ok := decl.Len.(*ast.Ident)
+		if !ok {
+			return
+		}
+		c.graph.markUsedBy(pkg.ObjectOf(ident), pkg.TypeOf(decl))
+	}
+}
+
 func (c *Checker) processAST(pkg *loader.PackageInfo) {
 	fn := func(node ast.Node) bool {
 		c.processConversion(pkg, node)
 		c.processCompositeLiteral(pkg, node)
 		c.processCgoExported(pkg, node)
 		c.processVariableDeclaration(pkg, node)
+		c.processArrayConstants(pkg, node)
 		return true
 	}
 	for _, file := range pkg.Files {
