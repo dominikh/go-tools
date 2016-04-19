@@ -25,6 +25,7 @@ var Funcs = []lint.Func{
 	LintLoopAppend,
 	LintTimeSince,
 	LintSimplerReturn,
+	LintReceiveIntoBlank,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -719,6 +720,34 @@ func LintSimplerReturn(f *lint.File) {
 			f.Errorf(ifs, 1, "'if %s != nil { return %s }; return %s' can be simplified to 'return %s'",
 				f.Render(expr.X), f.RenderArgs(ret1.Results),
 				f.RenderArgs(ret2.Results), f.RenderArgs(ret1.Results))
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintReceiveIntoBlank(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		stmt, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if len(stmt.Lhs) != len(stmt.Rhs) {
+			return true
+		}
+		for i, lh := range stmt.Lhs {
+			rh := stmt.Rhs[i]
+			if !lint.IsBlank(lh) {
+				continue
+			}
+			expr, ok := rh.(*ast.UnaryExpr)
+			if !ok {
+				continue
+			}
+			if expr.Op != token.ARROW {
+				continue
+			}
+			f.Errorf(lh, 1, "'_ = <-ch' can be simplified to '<-ch'")
 		}
 		return true
 	}

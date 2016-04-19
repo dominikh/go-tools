@@ -75,6 +75,7 @@ constructs:
   ```
 
   instead
+- Don't use `_ = <-ch`, use `<-ch` instead
 
 ## gofmt -r
 

@@ -15,7 +15,8 @@ outer:
 
 	for { // MATCH /should use for range/
 		select {
-		case _ = <-ch:
+		case x := <-ch:
+			_ = x
 		}
 	}
 
