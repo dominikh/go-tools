@@ -74,6 +74,8 @@ The following things are currently checked by staticcheck:
   flag set to `1`.
 - `exec.Command` - checks that the first argument looks valid
 - Dont use an empty `for {}` as it will spin.
+- Don't have an empty `default` branch in a `select` in a loop as it
+  will spin.
 - Don't use `defer` in a loop that will never finish.
 
 ## Examples

@@ -29,6 +29,7 @@ var Funcs = []lint.Func{
 	CheckDeferInInfiniteLoop,
 	CheckTestMainExit,
 	CheckExec,
+	CheckLoopEmptyDefault,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -449,6 +450,26 @@ func CheckExec(f *lint.File) {
 			return true
 		}
 		f.Errorf(call.Args[0], 0.9, "first argument to exec.Command looks like a shell command, but a program name or path are expected")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckLoopEmptyDefault(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.ForStmt)
+		if !ok || len(loop.Body.List) != 1 || loop.Cond != nil || loop.Init != nil {
+			return true
+		}
+		sel, ok := loop.Body.List[0].(*ast.SelectStmt)
+		if !ok {
+			return true
+		}
+		for _, c := range sel.Body.List {
+			if comm, ok := c.(*ast.CommClause); ok && comm.Comm == nil && len(comm.Body) == 0 {
+				f.Errorf(comm, 1, "should not have an empty default case in a for+select loop. The loop will spin.")
+			}
+		}
 		return true
 	}
 	f.Walk(fn)
