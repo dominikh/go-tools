@@ -620,6 +620,10 @@ func LintLoopAppend(f *lint.File) {
 			return true
 		}
 
+		if f.Render(stmt.Lhs[0]) != f.Render(call.Args[0]) {
+			return true
+		}
+
 		el, ok := call.Args[1].(*ast.Ident)
 		if !ok {
 			return true

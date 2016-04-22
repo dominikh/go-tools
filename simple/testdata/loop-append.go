@@ -29,6 +29,12 @@ func fn1() {
 	for _, tt := range t {
 		m2[tt.F] = append(m2[tt.F], tt)
 	}
+
+	var out []T
+	for _, tt := range t {
+		out = append(m2[tt.F], tt)
+	}
+	_ = out
 }
 
 func fn2() {
@@ -51,4 +57,22 @@ func fn3() {
 	for _, tt := range t {
 		out = append(out, m2[tt.F])
 	}
+}
+
+func fn4() {
+	var a, b, c []int
+	for _, v := range a {
+		b = append(c, v)
+	}
+	_ = b
+}
+
+func fn5() {
+	var t []T
+	var m2 map[string][]T
+	var out []T
+	for _, tt := range t {
+		out = append(m2[tt.F], tt)
+	}
+	_ = out
 }
