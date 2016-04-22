@@ -335,10 +335,7 @@ func (p *Pkg) IsMain() bool {
 }
 
 func (f *File) IsMain() bool {
-	if f.File.Name.Name == "main" {
-		return true
-	}
-	return false
+	return f.File.Name.Name == "main"
 }
 
 // exportedType reports whether typ is an exported type.
