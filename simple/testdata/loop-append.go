@@ -1,6 +1,10 @@
 package pkg
 
-func fn() {
+type T struct {
+	F string
+}
+
+func fn1() {
 	var x []interface{}
 	var y []int
 
@@ -17,5 +21,34 @@ func fn() {
 	var c []int
 	for _, v := range m {
 		c = append(c, v)
+	}
+
+	var t []T
+	var m2 map[string][]T
+
+	for _, tt := range t {
+		m2[tt.F] = append(m2[tt.F], tt)
+	}
+}
+
+func fn2() {
+	var v struct {
+		V int
+	}
+	var in []int
+	var out []int
+
+	for _, v.V = range in {
+		out = append(out, v.V)
+	}
+}
+
+func fn3() {
+	var t []T
+	var out [][]T
+	var m2 map[string][]T
+
+	for _, tt := range t {
+		out = append(out, m2[tt.F])
 	}
 }

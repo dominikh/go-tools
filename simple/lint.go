@@ -549,6 +549,23 @@ func LintSlicing(f *lint.File) {
 	f.Walk(fn)
 }
 
+func refersTo(info *types.Info, expr ast.Expr, ident *ast.Ident) bool {
+	found := false
+	fn := func(node ast.Node) bool {
+		ident2, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if info.ObjectOf(ident) == info.ObjectOf(ident2) {
+			found = true
+			return false
+		}
+		return true
+	}
+	ast.Inspect(expr, fn)
+	return found
+}
+
 func LintLoopAppend(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		loop, ok := node.(*ast.RangeStmt)
@@ -570,6 +587,9 @@ func LintLoopAppend(f *lint.File) {
 			return true
 		}
 		if stmt.Tok != token.ASSIGN || len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
+			return true
+		}
+		if refersTo(f.Pkg.TypesInfo, stmt.Lhs[0], val) {
 			return true
 		}
 		call, ok := stmt.Rhs[0].(*ast.CallExpr)
