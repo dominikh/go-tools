@@ -30,6 +30,7 @@ var Funcs = []lint.Func{
 	CheckTestMainExit,
 	CheckExec,
 	CheckLoopEmptyDefault,
+	CheckLhsRhsIdentical,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -470,6 +471,54 @@ func CheckLoopEmptyDefault(f *lint.File) {
 				f.Errorf(comm, 1, "should not have an empty default case in a for+select loop. The loop will spin.")
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckLhsRhsIdentical(f *lint.File) {
+	hasFnCall := func(expr ast.Expr) bool {
+		hasCall := false
+		fn := func(node ast.Node) bool {
+			if _, ok := node.(*ast.CallExpr); ok {
+				hasCall = true
+				return false
+			}
+			return true
+		}
+		ast.Inspect(expr, fn)
+		return hasCall
+	}
+
+	fn := func(node ast.Node) bool {
+		op, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		switch op.Op {
+		case token.EQL, token.NEQ:
+			if basic, ok := f.Pkg.TypesInfo.TypeOf(op.X).(*types.Basic); ok {
+				if kind := basic.Kind(); kind == types.Float32 || kind == types.Float64 {
+					// f == f and f != f might be used to check for NaN
+					return true
+				}
+			}
+		case token.SUB, token.QUO, token.AND, token.REM, token.OR, token.XOR, token.AND_NOT,
+			token.LAND, token.LOR, token.LSS, token.GTR, token.LEQ, token.GEQ:
+		default:
+			// For some ops, such as + and *, it can make sense to
+			// have identical operands
+			return true
+		}
+
+		if f.Render(op.X) != f.Render(op.Y) {
+			return true
+		}
+		confidence := 1.0
+		if hasFnCall(op) {
+			confidence = 0.9
+		}
+		f.Errorf(op, confidence, "identical expressions on the left and right side of the '%s' operator", op.Op)
 		return true
 	}
 	f.Walk(fn)

@@ -40,14 +40,12 @@ integration in general. For example, by running staticcheck when
 saving a file, one can quickly catch simple bugs without having to run
 the whole test suite or the program itself.
 
-The tool shouldn't report any errors unless there are legitimate bugs
-in the code (or the tool…)
+The tool shouldn't report any errors unless there are legitimate
+bugs - or very dubious constructs - in the code.
 
-It is similar in nature to `go vet`, but differs in that staticcheck
-has tests for mistakes that happen during development but wouldn't
-make it into the final code, either due to tests, crashes or the race
-detector. It is meant to reduce the number of edit, compile and debug
-cycles by providing more instant feedback.
+It is similar in nature to `go vet`, but has more checks that catch
+bugs that would also be caught easily at runtime, to reduce the number
+of edit, compile and debug cycles.
 
 ## Checks
 
@@ -77,6 +75,11 @@ The following things are currently checked by staticcheck:
 - Don't have an empty `default` branch in a `select` in a loop as it
   will spin.
 - Don't use `defer` in a loop that will never finish.
+- Checks that two operands of a binary expression aren't identical.
+  This is a common mistake when copy & pasting code. Example: `if x[0]
+  == 1 || x[0] == 1` checks the same index of x twice and probably
+  meant to check two different indices. When the operand contains a
+  function call, the confidence will be 0.9, otherwise it will be 1.
 
 ## Examples
 
