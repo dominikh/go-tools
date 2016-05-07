@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	htmltemplate "html/template"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,6 +34,7 @@ var Funcs = []lint.Func{
 	CheckLhsRhsIdentical,
 	CheckScopedBreak,
 	CheckUnsafePrintf,
+	CheckURLs,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -600,6 +602,35 @@ func CheckUnsafePrintf(f *lint.File) {
 			return true
 		}
 		f.Errorf(call.Args[0], 1, "printf-style function with dynamic first argument and no further arguments should use print-style function instead")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckURLs(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "url", "Parse") {
+			return true
+		}
+		if len(call.Args) != 1 {
+			return true
+		}
+		typ := f.Pkg.TypesInfo.Types[call.Args[0]]
+		if typ.Value == nil {
+			return true
+		}
+		if typ.Value.Kind() != constant.String {
+			return true
+		}
+		s := constant.StringVal(typ.Value)
+		_, err := url.Parse(s)
+		if err != nil {
+			f.Errorf(call.Args[0], 1, "invalid argument to url.Parse: %s", err)
+		}
 		return true
 	}
 	f.Walk(fn)
