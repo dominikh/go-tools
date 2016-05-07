@@ -3,8 +3,11 @@ package simple // import "honnef.co/go/simple"
 
 import (
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
+	"math"
+	"strconv"
 	"strings"
 
 	"honnef.co/go/lint"
@@ -26,6 +29,7 @@ var Funcs = []lint.Func{
 	LintTimeSince,
 	LintSimplerReturn,
 	LintReceiveIntoBlank,
+	LintFormatInt,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -772,6 +776,102 @@ func LintReceiveIntoBlank(f *lint.File) {
 				continue
 			}
 			f.Errorf(lh, 1, "'_ = <-ch' can be simplified to '<-ch'")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintFormatInt(f *lint.File) {
+	checkBasic := func(v ast.Expr) bool {
+		typ, ok := f.Pkg.TypesInfo.TypeOf(v).(*types.Basic)
+		if !ok {
+			return false
+		}
+		switch typ.Kind() {
+		case types.Int, types.Int32:
+			return true
+		}
+		return false
+	}
+	checkConst := func(v *ast.Ident) bool {
+		c, ok := f.Pkg.TypesInfo.ObjectOf(v).(*types.Const)
+		if !ok {
+			return false
+		}
+		if c.Val().Kind() != constant.Int {
+			return false
+		}
+		i, _ := constant.Int64Val(c.Val())
+		if i <= math.MaxInt32 {
+			return true
+		}
+		return false
+	}
+	checkConstStrict := func(v *ast.Ident) bool {
+		if !checkConst(v) {
+			return false
+		}
+		basic, ok := f.Pkg.TypesInfo.ObjectOf(v).(*types.Const).Type().(*types.Basic)
+		return ok && basic.Kind() == types.UntypedInt
+	}
+
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "strconv", "FormatInt") {
+			return true
+		}
+		if len(call.Args) != 2 {
+			return true
+		}
+		if lit, ok := call.Args[1].(*ast.BasicLit); !ok || lit.Value != "10" {
+			return true
+		}
+
+		matches := false
+		switch v := call.Args[0].(type) {
+		case *ast.CallExpr:
+			if len(v.Args) != 1 {
+				return true
+			}
+			obj, ok := f.Pkg.TypesInfo.ObjectOf(v.Fun.(*ast.Ident)).(*types.TypeName)
+			if !ok || obj.Parent() != types.Universe || obj.Name() != "int64" {
+				return true
+			}
+
+			switch vv := v.Args[0].(type) {
+			case *ast.BasicLit:
+				i, _ := strconv.ParseInt(vv.Value, 10, 64)
+				if i <= math.MaxInt32 {
+					matches = true
+				}
+			case *ast.Ident:
+				if checkConst(vv) || checkBasic(v.Args[0]) {
+					matches = true
+				}
+			default:
+				if checkBasic(v.Args[0]) {
+					matches = true
+				}
+			}
+		case *ast.BasicLit:
+			if v.Kind != token.INT {
+				return true
+			}
+			i, _ := strconv.ParseInt(v.Value, 10, 64)
+			if i <= math.MaxInt32 {
+				matches = true
+			}
+		case *ast.Ident:
+			if checkConstStrict(v) {
+				matches = true
+			}
+		}
+		if matches {
+			f.Errorf(call, 1, "should use strconv.Itoa instead of strconv.FormatInt")
 		}
 		return true
 	}
