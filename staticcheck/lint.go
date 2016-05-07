@@ -60,7 +60,7 @@ func CheckRegexps(f *lint.File) {
 		s := constant.StringVal(typ.Value)
 		_, err := regexp.Compile(s)
 		if err != nil {
-			f.Errorf(call.Args[0], 1, lint.Category("FIXME"), "%s", err)
+			f.Errorf(call.Args[0], 1, "%s", err)
 		}
 		return true
 	}
@@ -115,7 +115,7 @@ func CheckTemplate(f *lint.File) {
 		if err != nil {
 			// TODO(dominikh): whitelist other parse errors, if any
 			if strings.Contains(err.Error(), "unexpected") {
-				f.Errorf(call.Args[0], 1, lint.Category("FIXME"), "%s", err)
+				f.Errorf(call.Args[0], 1, "%s", err)
 			}
 		}
 		return true
@@ -147,7 +147,7 @@ func CheckTimeParse(f *lint.File) {
 		s = strings.Replace(s, "Z", "-", -1)
 		_, err := time.Parse(s, s)
 		if err != nil {
-			f.Errorf(call.Args[0], 1, lint.Category("FIXME"), "%s", err)
+			f.Errorf(call.Args[0], 1, "%s", err)
 		}
 		return true
 	}
@@ -182,7 +182,7 @@ func CheckEncodingBinary(f *lint.File) {
 		if validEncodingBinaryType(dataType) {
 			return true
 		}
-		f.Errorf(call.Args[2], 1, lint.Category("FIXME"), "type %s cannot be used with binary.Write",
+		f.Errorf(call.Args[2], 1, "type %s cannot be used with binary.Write",
 			f.Pkg.TypesInfo.TypeOf(call.Args[2]))
 		return true
 	}
@@ -247,7 +247,7 @@ func CheckTimeSleepConstant(f *lint.File) {
 		if n != 1 {
 			recommendation = fmt.Sprintf("time.Sleep(%d * time.Nanosecond)", n)
 		}
-		f.Errorf(call.Args[0], 1, lint.Category("FIXME"), "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
+		f.Errorf(call.Args[0], 1, "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
 		return true
 	}
 	f.Walk(fn)
