@@ -32,6 +32,7 @@ var Funcs = []lint.Func{
 	CheckLoopEmptyDefault,
 	CheckLhsRhsIdentical,
 	CheckScopedBreak,
+	CheckUnsafePrintf,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -574,6 +575,31 @@ func CheckScopedBreak(f *lint.File) {
 				}
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckUnsafePrintf(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "fmt", "Printf") &&
+			!lint.IsPkgDot(call.Fun, "fmt", "Sprintf") &&
+			!lint.IsPkgDot(call.Fun, "log", "Printf") {
+			return true
+		}
+		if len(call.Args) != 1 {
+			return true
+		}
+		switch call.Args[0].(type) {
+		case *ast.CallExpr, *ast.Ident:
+		default:
+			return true
+		}
+		f.Errorf(call.Args[0], 1, "printf-style function with dynamic first argument and no further arguments should use print-style function instead")
 		return true
 	}
 	f.Walk(fn)

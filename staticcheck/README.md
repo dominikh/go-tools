@@ -82,6 +82,9 @@ The following things are currently checked by staticcheck:
   function call, the confidence will be 0.9, otherwise it will be 1.
 - Checks that break statements aren't missing labels when trying to
   break out of a loop from inside a switch or select statement.
+- Don't use printf-style functions to print dynamic strings with no
+  formatting directives. For example, `fmt.Printf(fn())` will produce
+  unexpected results if `fn` returns `"%s"`.
 
 ## Examples
 
