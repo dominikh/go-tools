@@ -803,10 +803,7 @@ func LintFormatInt(f *lint.File) {
 			return false
 		}
 		i, _ := constant.Int64Val(c.Val())
-		if i <= math.MaxInt32 {
-			return true
-		}
-		return false
+		return i <= math.MaxInt32
 	}
 	checkConstStrict := func(v *ast.Ident) bool {
 		if !checkConst(v) {
