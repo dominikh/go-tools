@@ -80,6 +80,8 @@ The following things are currently checked by staticcheck:
   == 1 || x[0] == 1` checks the same index of x twice and probably
   meant to check two different indices. When the operand contains a
   function call, the confidence will be 0.9, otherwise it will be 1.
+- Checks that break statements aren't missing labels when trying to
+  break out of a loop from inside a switch or select statement.
 
 ## Examples
 

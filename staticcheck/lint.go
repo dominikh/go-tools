@@ -31,6 +31,7 @@ var Funcs = []lint.Func{
 	CheckExec,
 	CheckLoopEmptyDefault,
 	CheckLhsRhsIdentical,
+	CheckScopedBreak,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -519,6 +520,60 @@ func CheckLhsRhsIdentical(f *lint.File) {
 			confidence = 0.9
 		}
 		f.Errorf(op, confidence, "identical expressions on the left and right side of the '%s' operator", op.Op)
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckScopedBreak(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.ForStmt)
+		if !ok {
+			return true
+		}
+		for _, stmt := range loop.Body.List {
+			var blocks [][]ast.Stmt
+			switch stmt := stmt.(type) {
+			case *ast.SwitchStmt:
+				for _, c := range stmt.Body.List {
+					blocks = append(blocks, c.(*ast.CaseClause).Body)
+				}
+			case *ast.SelectStmt:
+				for _, c := range stmt.Body.List {
+					blocks = append(blocks, c.(*ast.CommClause).Body)
+				}
+			default:
+				continue
+			}
+
+			for _, body := range blocks {
+				if len(body) == 0 {
+					continue
+				}
+				lasts := []ast.Stmt{body[len(body)-1]}
+				// TODO(dh): unfold all levels of nested block
+				// statements, not just a single level if statement
+				if ifs, ok := lasts[0].(*ast.IfStmt); ok {
+					if len(ifs.Body.List) == 0 {
+						continue
+					}
+					lasts[0] = ifs.Body.List[len(ifs.Body.List)-1]
+
+					if block, ok := ifs.Else.(*ast.BlockStmt); ok {
+						if len(block.List) != 0 {
+							lasts = append(lasts, block.List[len(block.List)-1])
+						}
+					}
+				}
+				for _, last := range lasts {
+					branch, ok := last.(*ast.BranchStmt)
+					if !ok || branch.Tok != token.BREAK || branch.Label != nil {
+						continue
+					}
+					f.Errorf(branch, 1, "ineffective break statement. Did you mean to break out of the outer loop?")
+				}
+			}
+		}
 		return true
 	}
 	f.Walk(fn)
