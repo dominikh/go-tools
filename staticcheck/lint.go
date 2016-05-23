@@ -35,6 +35,7 @@ var Funcs = []lint.Func{
 	CheckScopedBreak,
 	CheckUnsafePrintf,
 	CheckURLs,
+	CheckEarlyDefer,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -630,6 +631,78 @@ func CheckURLs(f *lint.File) {
 		_, err := url.Parse(s)
 		if err != nil {
 			f.Errorf(call.Args[0], 1, "invalid argument to url.Parse: %s", err)
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckEarlyDefer(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		block, ok := node.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		if len(block.List) < 2 {
+			return true
+		}
+		for i, stmt := range block.List {
+			if i == len(block.List)-1 {
+				break
+			}
+			assign, ok := stmt.(*ast.AssignStmt)
+			if !ok {
+				continue
+			}
+			if len(assign.Rhs) != 1 {
+				continue
+			}
+			if len(assign.Lhs) < 2 {
+				continue
+			}
+			if lhs, ok := assign.Lhs[len(assign.Lhs)-1].(*ast.Ident); ok && lhs.Name == "_" {
+				continue
+			}
+			call, ok := assign.Rhs[0].(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			sig, ok := f.Pkg.TypesInfo.TypeOf(call.Fun).(*types.Signature)
+			if !ok {
+				continue
+			}
+			if sig.Results().Len() < 2 {
+				continue
+			}
+			last := sig.Results().At(sig.Results().Len() - 1)
+			// FIXME(dh): check that it's error from universe, not
+			// another type of the same name
+			if last.Type().String() != "error" {
+				continue
+			}
+			lhs, ok := assign.Lhs[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			def, ok := block.List[i+1].(*ast.DeferStmt)
+			if !ok {
+				continue
+			}
+			sel, ok := def.Call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+			ident, ok := sel.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if ident.Obj != lhs.Obj {
+				continue
+			}
+			if sel.Sel.Name != "Close" {
+				continue
+			}
+			f.Errorf(def, 1, "should check returned error before deferring %s", f.Render(def.Call))
 		}
 		return true
 	}

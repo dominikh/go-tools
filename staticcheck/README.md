@@ -86,6 +86,8 @@ The following things are currently checked by staticcheck:
 - Don't use printf-style functions to print dynamic strings with no
   formatting directives. For example, `fmt.Printf(fn())` will produce
   unexpected results if `fn` returns `"%s"`.
+- Don't `defer rc.Close()` before having checked the error returned by
+  `Open` or similar.
 
 ## Examples
 
