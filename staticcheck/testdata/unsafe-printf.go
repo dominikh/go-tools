@@ -11,7 +11,7 @@ func fn() {
 	fmt.Printf(fn2())  // MATCH /should use print-style function/
 	fmt.Sprintf(fn2()) // MATCH /should use print-style function/
 	log.Printf(fn2())  // MATCH /should use print-style function/
-	fmt.Printf(s)
+	fmt.Printf(s)      // MATCH /should use print-style function/
 	fmt.Printf(s, "")
 
 	fmt.Printf(fn2(), "")
