@@ -168,7 +168,11 @@ func CheckEncodingBinary(f *lint.File) {
 		if len(call.Args) != 3 {
 			return true
 		}
-		dataType := f.Pkg.TypesInfo.TypeOf(call.Args[2]).Underlying()
+		typ := f.Pkg.TypesInfo.TypeOf(call.Args[2])
+		if typ == nil {
+			return true
+		}
+		dataType := typ.Underlying()
 		if typ, ok := dataType.(*types.Pointer); ok {
 			dataType = typ.Elem().Underlying()
 		}
@@ -429,7 +433,8 @@ func IsTestMain(f *lint.File, node ast.Node) bool {
 	if len(arg.Names) != 1 {
 		return false
 	}
-	return f.Pkg.TypesInfo.TypeOf(arg.Type).String() == "*testing.M"
+	typ := f.Pkg.TypesInfo.TypeOf(arg.Type)
+	return typ != nil && typ.String() == "*testing.M"
 }
 
 func CheckExec(f *lint.File) {
