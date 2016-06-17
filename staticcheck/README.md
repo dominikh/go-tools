@@ -88,6 +88,9 @@ The following things are currently checked by staticcheck:
   unexpected results if `fn` returns `"%s"`.
 - Don't `defer rc.Close()` before having checked the error returned by
   `Open` or similar.
+- Checks for empty critical sections, e.g. `(*sync.Mutex).Lock`
+  directly followed by `(*sync.Mutex).Unlock`. This usually indicates
+  a missing `defer`, or otherwise questionable code.
 
 ## Examples
 
