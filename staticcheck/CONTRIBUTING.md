@@ -6,7 +6,7 @@
 
 Check you have the latest version of its dependencies. Run
 ```
-go get -u honnef.co/go/simple
+go get -u honnef.co/go/staticcheck
 ```
 If you still have problems, consider searching for existing issues before filing a new issue.
 
