@@ -74,3 +74,22 @@ func fn8() {
 	x.Lock()
 	x.Unlock() // MATCH /empty critical section/
 }
+
+func fn9() {
+	x := &struct {
+		sync.Locker
+	}{&sync.Mutex{}}
+	x.Lock()
+	x.Unlock() // MATCH /empty critical section/
+}
+
+type T struct{}
+
+func (T) Lock() int { return 0 }
+func (T) Unlock()   {}
+
+func fn10() {
+	var t T
+	t.Lock()
+	t.Unlock()
+}
