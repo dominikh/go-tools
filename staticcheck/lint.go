@@ -36,6 +36,7 @@ var Funcs = []lint.Func{
 	CheckUnsafePrintf,
 	CheckURLs,
 	CheckEarlyDefer,
+	CheckEmptyCriticalSection,
 }
 
 func CheckRegexps(f *lint.File) {
@@ -708,6 +709,81 @@ func CheckEarlyDefer(f *lint.File) {
 				continue
 			}
 			f.Errorf(def, 1, "should check returned error before deferring %s", f.Render(def.Call))
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckEmptyCriticalSection(f *lint.File) {
+	mutexParams := func(s ast.Stmt) (selectorTokens []string, selectorType string, funFullName string, ok bool) {
+		expr, ok := s.(*ast.ExprStmt)
+		if !ok {
+			return nil, "", "", false
+		}
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
+			return nil, "", "", false
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return nil, "", "", false
+		}
+
+		// Make sure it's chain of identifiers without any function calls
+		chain := []string{}
+	Loop:
+		for nsel := sel.X; ; {
+			switch s := nsel.(type) {
+			case *ast.Ident:
+				chain = append(chain, s.Name)
+				break Loop
+			case *ast.SelectorExpr:
+				chain = append(chain, s.Sel.Name)
+				nsel = s.X
+			default:
+				return nil, "", "", false
+			}
+		}
+
+		fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+		if !ok {
+			return nil, "", "", false
+		}
+
+		return chain, f.Pkg.TypesInfo.TypeOf(sel.X).String(), fn.FullName(), true
+	}
+
+	fn := func(node ast.Node) bool {
+		block, ok := node.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		if len(block.List) < 2 {
+			return true
+		}
+		for i := range block.List[:len(block.List)-1] {
+			sel1, selT1, method1, ok1 := mutexParams(block.List[i])
+			sel2, selT2, method2, ok2 := mutexParams(block.List[i+1])
+
+			if !ok1 || !ok2 || len(sel1) != len(sel2) {
+				continue
+			}
+
+			equal := true
+			for i := range sel1 {
+				equal = equal && (sel1[i] == sel2[i])
+			}
+			if !equal {
+				continue
+			}
+
+			if (method1 == "(*sync.Mutex).Lock" && method2 == "(*sync.Mutex).Unlock") ||
+				(method1 == "(*sync.RWMutex).Lock" && method2 == "(*sync.RWMutex).Unlock") ||
+				(selT1 == "sync.Locker" && selT2 == "sync.Locker" && method1 == "(interface).Lock" && method2 == "(interface).Unlock") ||
+				(method1 == "(*sync.RWMutex).RLock" && method2 == "(*sync.RWMutex).RUnlock") {
+				f.Errorf(block.List[i+1], 1, "empty critical section")
+			}
 		}
 		return true
 	}
