@@ -81,6 +81,7 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 	goFiles, err := runner.resolveRelative(paths)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		runner.unclean = true
 	}
 	if goFiles {
 		runner.lintFiles(paths...)
@@ -101,6 +102,7 @@ func (runner *runner) lintFiles(filenames ...string) {
 		src, err := ioutil.ReadFile(filename)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			runner.unclean = true
 			continue
 		}
 		files[filename] = src
@@ -112,6 +114,7 @@ func (runner *runner) lintFiles(filenames ...string) {
 	ps, err := l.LintFiles(files)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
+		runner.unclean = true
 		return
 	}
 	if len(ps) > 0 {
@@ -138,6 +141,7 @@ func (runner *runner) lintImportedPackage(pkg *build.Package, err error) {
 			return
 		}
 		fmt.Fprintln(os.Stderr, err)
+		runner.unclean = true
 		return
 	}
 
