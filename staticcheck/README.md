@@ -91,6 +91,8 @@ The following things are currently checked by staticcheck:
 - Checks for empty critical sections, e.g. `(*sync.Mutex).Lock`
   directly followed by `(*sync.Mutex).Unlock`. This usually indicates
   a missing `defer`, or otherwise questionable code.
+- Don't use `*&x` or `&*x` to copy values. The compiler will optimize
+  it to `x`.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:

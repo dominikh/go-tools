@@ -37,6 +37,7 @@ var Funcs = []lint.Func{
 	CheckURLs,
 	CheckEarlyDefer,
 	CheckEmptyCriticalSection,
+	CheckIneffectiveCopy,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -819,6 +820,24 @@ func CheckEmptyCriticalSection(f *lint.File) {
 			if (method1 == "Lock" && method2 == "Unlock") ||
 				(method1 == "RLock" && method2 == "RUnlock") {
 				f.Errorf(block.List[i+1], 1, "empty critical section")
+			}
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckIneffectiveCopy(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		if unary, ok := node.(*ast.UnaryExpr); ok {
+			if _, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
+				f.Errorf(unary, 1, "&*x will be simplified to x. It will not copy x.")
+			}
+		}
+
+		if star, ok := node.(*ast.StarExpr); ok {
+			if unary, ok := star.X.(*ast.UnaryExpr); ok && unary.Op == token.AND {
+				f.Errorf(star, 1, "*&x will be simplified to x. It will not copy x.")
 			}
 		}
 		return true
