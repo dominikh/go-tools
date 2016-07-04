@@ -79,3 +79,27 @@ func fn4(i int, err error) error {
 	}
 	return nil
 }
+
+func fn4() interface{} {
+	var i *int
+	if i != nil {
+		return i
+	}
+	return nil
+
+	var v interface{}
+	if v != nil { // MATCH /simplified/
+		return v
+	}
+	return nil
+}
+
+func fn5() {
+	func() error {
+		var err error
+		if err != nil { // MATCH /simplified/
+			return err
+		}
+		return nil
+	}
+}
