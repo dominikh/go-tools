@@ -425,7 +425,7 @@ func LintIfReturn(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if len(ret1.Results) != 1 {
+		if len(ret2.Results) != 1 {
 			return true
 		}
 		if !f.IsBoolConst(ret2.Results[0]) {
