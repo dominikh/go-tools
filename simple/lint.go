@@ -867,7 +867,11 @@ func LintFormatInt(f *lint.File) {
 			if len(v.Args) != 1 {
 				return true
 			}
-			obj, ok := f.Pkg.TypesInfo.ObjectOf(v.Fun.(*ast.Ident)).(*types.TypeName)
+			ident, ok := v.Fun.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			obj, ok := f.Pkg.TypesInfo.ObjectOf(ident).(*types.TypeName)
 			if !ok || obj.Parent() != types.Universe || obj.Name() != "int64" {
 				return true
 			}
