@@ -765,7 +765,11 @@ func LintSimplerReturn(f *lint.File) {
 					}
 				}
 
-				_, idIface := f.Pkg.TypesInfo.ObjectOf(id1).Type().Underlying().(*types.Interface)
+				id1Obj := f.Pkg.TypesInfo.ObjectOf(id1)
+				if id1Obj == nil {
+					continue
+				}
+				_, idIface := id1Obj.Type().Underlying().(*types.Interface)
 				_, retIface := f.Pkg.TypesInfo.TypeOf(ret.List[ret.NumFields()-1].Type).Underlying().(*types.Interface)
 
 				if retIface && !idIface {
