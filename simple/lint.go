@@ -103,13 +103,19 @@ func LintLoopCopy(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if f.Pkg.TypesInfo.ObjectOf(lidx) != f.Pkg.TypesInfo.ObjectOf(key) ||
-			!types.Identical(f.Pkg.TypesInfo.TypeOf(lhs.X), f.Pkg.TypesInfo.TypeOf(loop.X)) {
+		if f.Pkg.TypesInfo.TypeOf(lhs) == nil || f.Pkg.TypesInfo.TypeOf(stmt.Rhs[0]) == nil {
+			return true
+		}
+		if f.Pkg.TypesInfo.ObjectOf(lidx) != f.Pkg.TypesInfo.ObjectOf(key) {
+			return true
+		}
+		if !types.Identical(f.Pkg.TypesInfo.TypeOf(lhs), f.Pkg.TypesInfo.TypeOf(stmt.Rhs[0])) {
 			return true
 		}
 		if _, ok := f.Pkg.TypesInfo.TypeOf(loop.X).(*types.Slice); !ok {
 			return true
 		}
+
 		if rhs, ok := stmt.Rhs[0].(*ast.IndexExpr); ok {
 			rx, ok := rhs.X.(*ast.Ident)
 			_ = rx

@@ -5,4 +5,20 @@ func fn() {
 	for i, v := range b1 { // MATCH /should use copy/
 		b2[i] = v
 	}
+
+	for i := range b1 { // MATCH /should use copy/
+		b2[i] = b1[i]
+	}
+
+	type T [][16]byte
+	var a T
+	b := make([]interface{}, len(a))
+	for i := range b {
+		b[i] = a[i]
+	}
+
+	var b3, b4 []*byte
+	for i := range b3 { // MATCH /should use copy/
+		b4[i] = b3[i]
+	}
 }
