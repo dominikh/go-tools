@@ -754,8 +754,8 @@ func LintSimplerReturn(f *lint.File) {
 					}
 					results2 = append(results2, f.Pkg.TypesInfo.ObjectOf(ident))
 				}
-				_, isNil := results2[len(results1)-1].(*types.Nil)
-				if results2[len(results1)-1] != f.Pkg.TypesInfo.ObjectOf(id1) &&
+				_, isNil := results2[len(results2)-1].(*types.Nil)
+				if results2[len(results2)-1] != f.Pkg.TypesInfo.ObjectOf(id1) &&
 					!isNil {
 					continue
 				}
