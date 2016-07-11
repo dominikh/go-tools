@@ -117,8 +117,6 @@ type Pkg struct {
 	TypesPkg  *types.Package
 	TypesInfo *types.Info
 
-	// sortable is the set of types in the package that implement sort.Interface.
-	sortable map[string]bool
 	// main is whether this is a "main" package.
 	main bool
 
@@ -145,7 +143,6 @@ func (p *Pkg) lint(linters []Func) []Problem {
 		*/
 	}
 
-	p.scanSortable()
 	p.main = p.IsMain()
 
 	for _, f := range p.files {
@@ -291,38 +288,6 @@ func (p *Pkg) ScopeOf(id *ast.Ident) *types.Scope {
 		}
 	}
 	return scope
-}
-
-func (p *Pkg) scanSortable() {
-	p.sortable = make(map[string]bool)
-
-	// bitfield for which methods exist on each type.
-	const (
-		Len = 1 << iota
-		Less
-		Swap
-	)
-	nmap := map[string]int{"Len": Len, "Less": Less, "Swap": Swap}
-	has := make(map[string]int)
-	for _, f := range p.files {
-		f.Walk(func(n ast.Node) bool {
-			fn, ok := n.(*ast.FuncDecl)
-			if !ok || fn.Recv == nil || len(fn.Recv.List) == 0 {
-				return true
-			}
-			// TODO(dsymonds): We could check the signature to be more precise.
-			recv := ReceiverType(fn)
-			if i, ok := nmap[fn.Name.Name]; ok {
-				has[recv] |= i
-			}
-			return false
-		})
-	}
-	for typ, ms := range has {
-		if ms == Len|Less|Swap {
-			p.sortable[typ] = true
-		}
-	}
 }
 
 func (p *Pkg) IsMain() bool {
