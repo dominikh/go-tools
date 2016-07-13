@@ -92,6 +92,12 @@ The following things are currently checked by staticcheck:
   directly followed by `(*sync.Mutex).Unlock`. This usually indicates
   a missing `defer`, or otherwise questionable code.
 
+Additionally, if the `-dubious` flag is used, the following possibly
+wrong constructs will be flagged:
+
+- defers in loops that range over a channel. These defers may run if
+  the channel gets closed, but the code is likely to be wrong.
+
 ## Examples
 
 ```

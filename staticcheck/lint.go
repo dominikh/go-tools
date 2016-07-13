@@ -39,6 +39,10 @@ var Funcs = []lint.Func{
 	CheckEmptyCriticalSection,
 }
 
+var DubiousFuncs = []lint.Func{
+	CheckDubiousDeferInChannelRangeLoop,
+}
+
 func CheckRegexps(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -360,6 +364,36 @@ func CheckDeferInInfiniteLoop(f *lint.File) {
 		}
 		for _, stmt := range defers {
 			f.Errorf(stmt, 1, "defers in this infinite loop will never run")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		var defers []ast.Stmt
+		loop, ok := node.(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+		_, ok = f.Pkg.TypesInfo.TypeOf(loop.X).Underlying().(*types.Chan)
+		if !ok {
+			return true
+		}
+		fn2 := func(node ast.Node) bool {
+			switch stmt := node.(type) {
+			case *ast.DeferStmt:
+				defers = append(defers, stmt)
+			case *ast.FuncLit:
+				// Don't look into function bodies
+				return false
+			}
+			return true
+		}
+		ast.Inspect(loop.Body, fn2)
+		for _, stmt := range defers {
+			f.Errorf(stmt, 1, "defers in this range loop won't run unless the channel gets closed")
 		}
 		return true
 	}

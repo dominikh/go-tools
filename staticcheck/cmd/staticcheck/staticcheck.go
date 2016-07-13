@@ -8,6 +8,19 @@ import (
 	"honnef.co/go/staticcheck"
 )
 
+var checkDubious bool
+
 func main() {
-	lintutil.ProcessArgs("staticcheck", staticcheck.Funcs, os.Args[1:])
+	var args []string
+	for _, arg := range os.Args[1:] {
+		if arg == "-dubious" {
+			checkDubious = true
+			continue
+		}
+		args = append(args, arg)
+	}
+	lintutil.ProcessArgs("staticcheck", staticcheck.Funcs, args)
+	if checkDubious {
+		lintutil.ProcessArgs("staticcheck", staticcheck.DubiousFuncs, args)
+	}
 }
