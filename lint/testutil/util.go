@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"io/ioutil"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,14 +24,14 @@ import (
 
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
 
-func TestAll(t *testing.T, funcs []lint.Func) {
+func TestAll(t *testing.T, funcs []lint.Func, dir string) {
 	l := &lint.Linter{Funcs: funcs}
 	rx, err := regexp.Compile(*lintMatch)
 	if err != nil {
 		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
 	}
 
-	baseDir := "testdata"
+	baseDir := filepath.Join("testdata", dir)
 	fis, err := ioutil.ReadDir(baseDir)
 	if err != nil {
 		t.Fatalf("ioutil.ReadDir: %v", err)
@@ -40,6 +41,9 @@ func TestAll(t *testing.T, funcs []lint.Func) {
 	}
 	for _, fi := range fis {
 		if !rx.MatchString(fi.Name()) {
+			continue
+		}
+		if !strings.HasSuffix(fi.Name(), ".go") {
 			continue
 		}
 		//t.Logf("Testing %s", fi.Name())
