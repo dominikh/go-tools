@@ -103,6 +103,7 @@ wrong constructs will be flagged:
 
 - defers in loops that range over a channel. These defers may run if
   the channel gets closed, but the code is likely to be wrong.
+- Checks that arguments to `sync.Pool.Put` are pointers.
 
 ## Examples
 

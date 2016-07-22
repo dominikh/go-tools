@@ -45,6 +45,7 @@ var Funcs = []lint.Func{
 }
 
 var DubiousFuncs = []lint.Func{
+	CheckDubiousSyncPoolPointers,
 	CheckDubiousDeferInChannelRangeLoop,
 }
 
@@ -754,6 +755,37 @@ func CheckEarlyDefer(f *lint.File) {
 			f.Errorf(def, 1, "should check returned error before deferring %s", f.Render(def.Call))
 		}
 		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckDubiousSyncPoolPointers(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if sel.Sel.Name != "Put" {
+			return true
+		}
+		typ := f.Pkg.TypesInfo.TypeOf(sel.X)
+		if typ == nil || (typ.String() != "sync.Pool" && typ.String() != "*sync.Pool") {
+			return true
+		}
+
+		arg := f.Pkg.TypesInfo.TypeOf(call.Args[0]).Underlying()
+		switch arg.(type) {
+		case *types.Pointer, *types.Map, *types.Chan, *types.Interface:
+			// all pointer types
+			return true
+		}
+		f.Errorf(call.Args[0], 1, "non-pointer type %T put into sync.Pool", arg)
+		return false
 	}
 	f.Walk(fn)
 }
