@@ -378,7 +378,11 @@ func CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 		if !ok {
 			return true
 		}
-		_, ok = f.Pkg.TypesInfo.TypeOf(loop.X).Underlying().(*types.Chan)
+		typ := f.Pkg.TypesInfo.TypeOf(loop.X)
+		if typ == nil {
+			return true
+		}
+		_, ok = typ.Underlying().(*types.Chan)
 		if !ok {
 			return true
 		}
