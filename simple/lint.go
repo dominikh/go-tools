@@ -440,12 +440,31 @@ func LintIfReturn(f *lint.File) {
 	f.Walk(fn)
 }
 
-// lintRedundantNilCheckWithLen checks for the following reduntant nil-checks:
+// LintRedundantNilCheckWithLen checks for the following reduntant nil-checks:
 //
 //   if x == nil || len(x) == 0 {}
-//   if x != nil && len(x) ... {  // or any operator len(x) > 0, len(x) != 0, len(x) > 10000
+//   if x != nil && len(x) != 0 {}
+//   if x != nil && len(x) == N {} (where N != 0)
+//   if x != nil && len(x) > N {}
+//   if x != nil && len(x) >= N {} (where N != 0)
 //
 func LintRedundantNilCheckWithLen(f *lint.File) {
+	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
+		lit, ok := expr.(*ast.BasicLit)
+		if ok {
+			return true, lit.Kind == token.INT && lit.Value == "0"
+		}
+		id, ok := expr.(*ast.Ident)
+		if !ok {
+			return false, false
+		}
+		c, ok := f.Pkg.TypesInfo.ObjectOf(id).(*types.Const)
+		if !ok {
+			return false, false
+		}
+		return true, c.Val().Kind() == constant.Int && c.Val().String() == "0"
+	}
+
 	fn := func(node ast.Node) bool {
 		// check that expr is "x || y" or "x && y"
 		expr, ok := node.(*ast.BinaryExpr)
@@ -504,13 +523,36 @@ func LintRedundantNilCheckWithLen(f *lint.File) {
 			return true
 		}
 
-		// avoid false positive for "xx != nil && len(xx) == 0"
-		if !eqNil && lint.IsZero(y.Y) && y.Op == token.EQL {
-			return true
+		if !eqNil {
+			isConst, isZero := isConstZero(y.Y)
+			if !isConst {
+				return true
+			}
+			switch y.Op {
+			case token.EQL:
+				// avoid false positive for "xx != nil && len(xx) == 0"
+				if isZero {
+					return true
+				}
+			case token.GEQ:
+				// avoid false positive for "xx != nil && len(xx) >= 0"
+				if isZero {
+					return true
+				}
+			case token.NEQ:
+				// avoid false positive for "xx != nil && len(xx) != <non-zero>"
+				if !isZero {
+					return true
+				}
+			case token.GTR:
+				// ok
+			default:
+				return true
+			}
 		}
 
 		// finally check that xx type is one of array, slice, map or chan
-		// this is mainly to prevent false negative in case if xx is a pointer to an array
+		// this is to prevent false positive in case if xx is a pointer to an array
 		var nilType string
 		switch f.Pkg.TypesInfo.TypeOf(xx).(type) {
 		case *types.Slice:

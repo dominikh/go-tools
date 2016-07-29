@@ -17,6 +17,14 @@ func fn() {
 	}
 	if m != nil && len(m) > 0 { // MATCH /should omit nil check/
 	}
+	if s != nil && len(s) > 5 { // MATCH /should omit nil check/
+	}
+	if s != nil && len(s) >= 5 { // MATCH /should omit nil check/
+	}
+	const five = 5
+	if s != nil && len(s) == five { // MATCH /should omit nil check/
+	}
+
 	if ch != nil && len(ch) == 5 { // MATCH /should omit nil check/
 	}
 
@@ -33,6 +41,24 @@ func fn() {
 	if ch != ch2 && len(ch) != 0 { // not comparing with nil
 	}
 
+	const zero = 0
+	if s != nil && len(s) == zero { // nil check is not redundant here
+	}
 	if s != nil && len(s) == 0 { // nil check is not redundant here
+	}
+	if s != nil && len(s) >= 0 { // nil check is not redundant here (though len(s) >= 0 is)
+	}
+	one := 1
+	if s != nil && len(s) == one { // nil check is not redundant here
+	}
+	if s != nil && len(s) == len(m) { // nil check is not redundant here
+	}
+	if s != nil && len(s) != 1 { // nil check is not redundant here
+	}
+	if s != nil && len(s) < 5 { // nil check is not redundant here
+	}
+	if s != nil && len(s) <= 5 { // nil check is not redundant here
+	}
+	if s != nil && len(s) != len(ch) { // nil check is not redundant here
 	}
 }
