@@ -95,6 +95,9 @@ func LintLoopCopy(f *lint.File) {
 		if !ok {
 			return true
 		}
+		if _, ok := f.Pkg.TypesInfo.TypeOf(lhs.X).(*types.Slice); !ok {
+			return true
+		}
 		lidx, ok := lhs.Index.(*ast.Ident)
 		if !ok {
 			return true

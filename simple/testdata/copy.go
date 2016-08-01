@@ -21,4 +21,10 @@ func fn() {
 	for i := range b3 { // MATCH /should use copy/
 		b4[i] = b3[i]
 	}
+
+	var m map[int]byte
+	for i, v := range b1 {
+		m[i] = v
+	}
+
 }
