@@ -38,6 +38,7 @@ var Funcs = []lint.Func{
 	CheckEarlyDefer,
 	CheckEmptyCriticalSection,
 	CheckIneffectiveCopy,
+	CheckDiffSizeComparison,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -844,6 +845,91 @@ func CheckIneffectiveCopy(f *lint.File) {
 				f.Errorf(star, 1, "*&x will be simplified to x. It will not copy x.")
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func constantInt(f *lint.File, expr ast.Expr) (int, bool) {
+	tv := f.Pkg.TypesInfo.Types[expr]
+	if tv.Value == nil {
+		return 0, false
+	}
+	if tv.Value.Kind() != constant.Int {
+		return 0, false
+	}
+	v, ok := constant.Int64Val(tv.Value)
+	if !ok {
+		return 0, false
+	}
+	return int(v), true
+}
+
+func sliceSize(f *lint.File, expr ast.Expr) (int, bool) {
+	if sel, ok := expr.(*ast.SelectorExpr); ok {
+		if ident, ok := sel.X.(*ast.Ident); ok {
+			// Workaround for code that checks runtime.GOOS and
+			// related.
+			if ident.String() == "runtime" {
+				return 0, false
+			}
+		}
+	}
+	if slice, ok := expr.(*ast.SliceExpr); ok {
+		low := 0
+		high := 0
+		if slice.Low != nil {
+			v, ok := constantInt(f, slice.Low)
+			if !ok {
+				return 0, false
+			}
+			low = v
+		}
+		if slice.High == nil {
+			v, ok := sliceSize(f, slice.X)
+			if !ok {
+				return 0, false
+			}
+			high = v
+		} else {
+			v, ok := constantInt(f, slice.High)
+			if !ok {
+				return 0, false
+			}
+			high = v
+		}
+		return high - low, true
+	}
+
+	tv := f.Pkg.TypesInfo.Types[expr]
+	if tv.Value == nil {
+		return 0, false
+	}
+	if tv.Value.Kind() != constant.String {
+		return 0, false
+	}
+	return len(constant.StringVal(tv.Value)), true
+}
+
+func CheckDiffSizeComparison(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		expr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		if expr.Op != token.EQL && expr.Op != token.NEQ {
+			return true
+		}
+
+		left, ok1 := sliceSize(f, expr.X)
+		right, ok2 := sliceSize(f, expr.Y)
+		if !ok1 || !ok2 {
+			return true
+		}
+		if left == right {
+			return true
+		}
+		f.Errorf(expr, 1, "Comparing strings of different sizes for equality will always return false")
 		return true
 	}
 	f.Walk(fn)
