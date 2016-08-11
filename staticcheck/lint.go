@@ -866,15 +866,6 @@ func constantInt(f *lint.File, expr ast.Expr) (int, bool) {
 }
 
 func sliceSize(f *lint.File, expr ast.Expr) (int, bool) {
-	if sel, ok := expr.(*ast.SelectorExpr); ok {
-		if ident, ok := sel.X.(*ast.Ident); ok {
-			// Workaround for code that checks runtime.GOOS and
-			// related.
-			if ident.String() == "runtime" {
-				return 0, false
-			}
-		}
-	}
 	if slice, ok := expr.(*ast.SliceExpr); ok {
 		low := 0
 		high := 0
@@ -921,6 +912,14 @@ func CheckDiffSizeComparison(f *lint.File) {
 			return true
 		}
 
+		_, isSlice1 := expr.X.(*ast.SliceExpr)
+		_, isSlice2 := expr.Y.(*ast.SliceExpr)
+		if !isSlice1 && !isSlice2 {
+			// Only do the check if at least one side has a slicing
+			// expression. Otherwise we'll just run into false
+			// positives because of debug toggles and the like.
+			return true
+		}
 		left, ok1 := sliceSize(f, expr.X)
 		right, ok2 := sliceSize(f, expr.Y)
 		if !ok1 || !ok2 {

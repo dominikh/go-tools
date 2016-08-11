@@ -93,9 +93,8 @@ The following things are currently checked by staticcheck:
   a missing `defer`, or otherwise questionable code.
 - Don't use `*&x` or `&*x` to copy values. The compiler will optimize
   it to `x`.
-- Checks that a string comparison isn't impossible, based on string
-  lengths. E.g. comparing two strings of lengths 2 and 3 for equality
-  will never return true.
+- Checks that comparing sliced strings won't always return the same
+  result due to mismatching lengths.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:
