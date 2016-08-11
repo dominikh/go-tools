@@ -362,6 +362,7 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 				if _, ok := obj.(*types.Var); ok {
 					if obj.Parent() != obj.Pkg().Scope() && obj.Parent() != nil {
 						c.graph.markUsedBy(obj, c.topmostScope(obj.Parent(), obj.Pkg()))
+						c.graph.markUsedBy(obj.Type(), obj)
 					}
 				}
 			}
