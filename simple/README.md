@@ -77,6 +77,8 @@ constructs:
   instead
 - Don't use `_ = <-ch`, use `<-ch` instead
 - Use `strconv.Itoa` instead of `strconv.FormatInt` when it's simpler.
+- Don't use a struct composite literal when a simple type conversion
+  is enough
 
 ## gofmt -r
 

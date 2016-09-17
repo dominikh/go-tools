@@ -30,6 +30,7 @@ var Funcs = []lint.Func{
 	LintSimplerReturn,
 	LintReceiveIntoBlank,
 	LintFormatInt,
+	LintSimplerStructConversion,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -956,6 +957,103 @@ func LintFormatInt(f *lint.File) {
 		if matches {
 			f.Errorf(call, 1, "should use strconv.Itoa instead of strconv.FormatInt")
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintSimplerStructConversion(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		lit, ok := node.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		typ1 := f.Pkg.TypesInfo.TypeOf(lit.Type)
+		if typ1 == nil {
+			return true
+		}
+		// FIXME support pointer to struct
+		s1, ok := typ1.Underlying().(*types.Struct)
+		if !ok {
+			return true
+		}
+
+		n := s1.NumFields()
+		var typ2 types.Type
+		var ident *ast.Ident
+		getSelType := func(expr ast.Expr) (types.Type, *ast.Ident, bool) {
+			sel, ok := expr.(*ast.SelectorExpr)
+			if !ok {
+				return nil, nil, false
+			}
+			ident, ok := sel.X.(*ast.Ident)
+			if !ok {
+				return nil, nil, false
+			}
+			typ := f.Pkg.TypesInfo.TypeOf(sel.X)
+			return typ, ident, typ != nil
+		}
+		if len(lit.Elts) == 0 {
+			return true
+		}
+		for i, elt := range lit.Elts {
+			n--
+			var t types.Type
+			var id *ast.Ident
+			var ok bool
+			switch elt := elt.(type) {
+			case *ast.SelectorExpr:
+				t, id, ok = getSelType(elt)
+				if !ok {
+					return true
+				}
+				if i >= s1.NumFields() || s1.Field(i).Name() != elt.Sel.Name {
+					return true
+				}
+			case *ast.KeyValueExpr:
+				var sel *ast.SelectorExpr
+				sel, ok = elt.Value.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+
+				if elt.Key.(*ast.Ident).Name != sel.Sel.Name {
+					return true
+				}
+				t, id, ok = getSelType(elt.Value)
+			}
+			if !ok {
+				return true
+			}
+			if typ2 != nil && typ2 != t {
+				return true
+			}
+			if ident != nil && ident.Obj != id.Obj {
+				return true
+			}
+			typ2 = t
+			ident = id
+		}
+
+		if n != 0 {
+			return true
+		}
+
+		if typ2 == nil {
+			return true
+		}
+
+		s2, ok := typ2.Underlying().(*types.Struct)
+		if !ok {
+			return true
+		}
+		if typ1 == typ2 {
+			return true
+		}
+		if !structsIdentical(s1, s2) {
+			return true
+		}
+		f.Errorf(node, 1, "should use type conversion instead of struct literal")
 		return true
 	}
 	f.Walk(fn)
