@@ -25,6 +25,7 @@ var (
 	fDebug        string
 	fTags         string
 	fWholeProgram bool
+	fReflection   bool
 )
 
 func init() {
@@ -36,6 +37,7 @@ func init() {
 	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
 	flag.StringVar(&fTags, "tags", "", "List of build tags")
 	flag.BoolVar(&fWholeProgram, "exported", false, "Treat arguments as a program and report unused exported identifiers")
+	flag.BoolVar(&fReflection, "reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -56,6 +58,7 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 
 	checker.Tags = strings.Fields(fTags)
 	checker.WholeProgram = fWholeProgram
+	checker.ConsiderReflection = fReflection
 	return checker
 }
 

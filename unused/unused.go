@@ -91,10 +91,11 @@ type Unused struct {
 }
 
 type Checker struct {
-	Mode         CheckMode
-	Tags         []string
-	WholeProgram bool
-	Debug        io.Writer
+	Mode               CheckMode
+	Tags               []string
+	WholeProgram       bool
+	ConsiderReflection bool
+	Debug              io.Writer
 
 	graph *graph
 
@@ -329,7 +330,25 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 			c.graph.markUsedBy(obj.Type(), obj) // TODO is this needed?
 			c.graph.markUsedBy(obj, obj.Type())
 
-			c.useExportedFields(obj.Type())
+			// We mark all exported fields as used. For normal
+			// operation, we have to. The user may use these fields
+			// without us knowing.
+			//
+			// TODO(dh): In whole-program mode, however, we mark them
+			// as used because of reflection (such as JSON
+			// marshaling). Strictly speaking, we would only need to
+			// mark them used if an instance of the type was
+			// accessible via an interface value.
+			if !c.WholeProgram || c.ConsiderReflection {
+				c.useExportedFields(obj.Type())
+			}
+
+			// TODO(dh): Traditionally we have not marked all exported
+			// methods as exported, even though they're strictly
+			// speaking accessible through reflection. We've done that
+			// because using methods just via reflection is rare, and
+			// not worth the false negatives. With the new -reflect
+			// flag, however, we should reconsider that choice.
 			if !c.WholeProgram {
 				c.useExportedMethods(obj.Type())
 			}
@@ -470,6 +489,15 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 		}
 	}
 
+	// Pretend that all types are meant to implement as many
+	// interfaces as possible.
+	//
+	// TODO(dh): For normal operations, that's the best we can do, as
+	// we have no idea what external users will do with our types. In
+	// whole-program mode, we could be more conservative, in two ways:
+	// 1) Only consider interfaces if a type has been assigned to one
+	// 2) Use SSA and flow analysis and determine the exact set of
+	// interfaces that is relevant.
 	fn := func(iface *types.Interface) {
 		for obj, objPtr := range named {
 			if !types.Implements(obj, iface) && !types.Implements(objPtr, iface) {
