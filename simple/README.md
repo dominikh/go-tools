@@ -79,6 +79,20 @@ constructs:
 - Use `strconv.Itoa` instead of `strconv.FormatInt` when it's simpler.
 - Don't use a struct composite literal when a simple type conversion
   is enough
+- Don't write
+
+  ```
+  if strings.HasPrefix(s1, s2) {
+      s1 = s1[len(s2):]
+  }
+  ```
+
+  write
+
+  ```
+  s1 = strings.TrimPrefix(s1, s2)
+  ```
+  instead
 
 ## gofmt -r
 

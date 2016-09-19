@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"go/types"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -31,6 +32,7 @@ var Funcs = []lint.Func{
 	LintReceiveIntoBlank,
 	LintFormatInt,
 	LintSimplerStructConversion,
+	LintTrim,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
@@ -1057,4 +1059,212 @@ func LintSimplerStructConversion(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
+}
+
+func LintTrim(f *lint.File) {
+	// TODO(dh): implement the same for suffix
+	sameNonDynamic := func(node1, node2 ast.Node) bool {
+		if reflect.TypeOf(node1) != reflect.TypeOf(node2) {
+			return false
+		}
+
+		switch node1 := node1.(type) {
+		case *ast.Ident:
+			return node1.Obj == node2.(*ast.Ident).Obj
+		case *ast.SelectorExpr:
+			return f.Render(node1) == f.Render(node2)
+		case *ast.IndexExpr:
+			return f.Render(node1) == f.Render(node2)
+		}
+		return false
+	}
+
+	isLenOnIdent := func(fn ast.Expr, ident ast.Expr) bool {
+		call, ok := fn.(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		if fn, ok := call.Fun.(*ast.Ident); !ok || fn.Name != "len" {
+			return false
+		}
+		if len(call.Args) != 1 {
+			return false
+		}
+		return sameNonDynamic(call.Args[0], ident)
+	}
+
+	fn := func(node ast.Node) bool {
+		var pkg string
+		var fun string
+
+		ifstmt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		if ifstmt.Init != nil {
+			return true
+		}
+		if ifstmt.Else != nil {
+			return true
+		}
+		if len(ifstmt.Body.List) != 1 {
+			return true
+		}
+		condCall, ok := ifstmt.Cond.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		call, ok := condCall.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if lint.IsIdent(call.X, "strings") {
+			pkg = "strings"
+		} else if lint.IsIdent(call.X, "bytes") {
+			pkg = "bytes"
+		} else {
+			return true
+		}
+		if lint.IsIdent(call.Sel, "HasPrefix") {
+			fun = "HasPrefix"
+		} else if lint.IsIdent(call.Sel, "HasSuffix") {
+			fun = "HasSuffix"
+		} else {
+			return true
+		}
+
+		assign, ok := ifstmt.Body.List[0].(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if assign.Tok != token.ASSIGN {
+			return true
+		}
+		if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		if !sameNonDynamic(condCall.Args[0], assign.Lhs[0]) {
+			return true
+		}
+		slice, ok := assign.Rhs[0].(*ast.SliceExpr)
+		if !ok {
+			return true
+		}
+		if slice.Slice3 {
+			return true
+		}
+		if !sameNonDynamic(slice.X, condCall.Args[0]) {
+			return true
+		}
+		var index ast.Expr
+		switch fun {
+		case "HasPrefix":
+			// TODO(dh) We could detect a High that is len(s), but another
+			// rule will already flag that, anyway.
+			if slice.High != nil {
+				return true
+			}
+			index = slice.Low
+		case "HasSuffix":
+			if slice.Low != nil {
+				n, ok := intLit(f, slice.Low)
+				if !ok || n != 0 {
+					return true
+				}
+			}
+			index = slice.High
+		}
+
+		switch index := index.(type) {
+		case *ast.CallExpr:
+			if fun != "HasPrefix" {
+				return true
+			}
+			if fn, ok := index.Fun.(*ast.Ident); !ok || fn.Name != "len" {
+				return true
+			}
+			if len(index.Args) != 1 {
+				return true
+			}
+			id3 := index.Args[0]
+			switch oid3 := condCall.Args[1].(type) {
+			case *ast.BasicLit:
+				if pkg != "strings" {
+					return false
+				}
+				lit, ok := id3.(*ast.BasicLit)
+				if !ok {
+					return true
+				}
+				s1, ok1 := stringLit(f, lit)
+				s2, ok2 := stringLit(f, condCall.Args[1])
+				if !ok1 || !ok2 || s1 != s2 {
+					return true
+				}
+			default:
+				if !sameNonDynamic(id3, oid3) {
+					return true
+				}
+			}
+		case *ast.BasicLit, *ast.Ident:
+			if fun != "HasPrefix" {
+				return true
+			}
+			if pkg != "strings" {
+				return true
+			}
+			string, ok1 := stringLit(f, condCall.Args[1])
+			int, ok2 := intLit(f, slice.Low)
+			if !ok1 || !ok2 || int != int64(len(string)) {
+				return true
+			}
+		case *ast.BinaryExpr:
+			if fun != "HasSuffix" {
+				return true
+			}
+			if index.Op != token.SUB {
+				return true
+			}
+			if !isLenOnIdent(index.X, condCall.Args[0]) ||
+				!isLenOnIdent(index.Y, condCall.Args[1]) {
+				return true
+			}
+		default:
+			return true
+		}
+
+		var replacement string
+		switch fun {
+		case "HasPrefix":
+			replacement = "TrimPrefix"
+		case "HasSuffix":
+			replacement = "TrimSuffix"
+		}
+		f.Errorf(ifstmt, 1, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
+		return true
+	}
+	f.Walk(fn)
+}
+
+func stringLit(f *lint.File, expr ast.Expr) (string, bool) {
+	tv := f.Pkg.TypesInfo.Types[expr]
+	if tv.Value == nil {
+		return "", false
+	}
+	if tv.Value.Kind() != constant.String {
+		return "", false
+	}
+	return constant.StringVal(tv.Value), true
+}
+
+func intLit(f *lint.File, expr ast.Expr) (int64, bool) {
+	tv := f.Pkg.TypesInfo.Types[expr]
+	if tv.Value == nil {
+		return 0, false
+	}
+	if tv.Value.Kind() != constant.Int {
+		return 0, false
+	}
+	val, _ := constant.Int64Val(tv.Value)
+	return val, true
 }
