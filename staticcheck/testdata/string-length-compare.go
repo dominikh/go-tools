@@ -2,16 +2,16 @@ package pkg
 
 func fn1() {
 	const s1 = "foobar"
-	_ = "a"[:] == s1           // MATCH /Comparing strings of different sizes/
-	_ = s1 == "a"[:]           // MATCH /Comparing strings of different sizes/
-	_ = "a"[:] == s1[:2]       // MATCH /Comparing strings of different sizes/
-	_ = "ab"[:] == s1[1:2]     // MATCH /Comparing strings of different sizes/
-	_ = "ab"[:] == s1[0+1:2]   // MATCH /Comparing strings of different sizes/
-	_ = "a"[:] == "abc"        // MATCH /Comparing strings of different sizes/
-	_ = "a"[:] == "a"+"bc"     // MATCH /Comparing strings of different sizes/
-	_ = "foobar"[:] == s1+"bc" // MATCH /Comparing strings of different sizes/
-	_ = "a"[:] == "abc"[:]     // MATCH /Comparing strings of different sizes/
-	_ = "a"[:] == "abc"[:2]    // MATCH /Comparing strings of different sizes/
+	_ = "a"[:] == s1           // MATCH /comparing strings of different sizes/
+	_ = s1 == "a"[:]           // MATCH /comparing strings of different sizes/
+	_ = "a"[:] == s1[:2]       // MATCH /comparing strings of different sizes/
+	_ = "ab"[:] == s1[1:2]     // MATCH /comparing strings of different sizes/
+	_ = "ab"[:] == s1[0+1:2]   // MATCH /comparing strings of different sizes/
+	_ = "a"[:] == "abc"        // MATCH /comparing strings of different sizes/
+	_ = "a"[:] == "a"+"bc"     // MATCH /comparing strings of different sizes/
+	_ = "foobar"[:] == s1+"bc" // MATCH /comparing strings of different sizes/
+	_ = "a"[:] == "abc"[:]     // MATCH /comparing strings of different sizes/
+	_ = "a"[:] == "abc"[:2]    // MATCH /comparing strings of different sizes/
 
 	_ = "a" == s1 // ignores
 	_ = s1 == "a" // ignored

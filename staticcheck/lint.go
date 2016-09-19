@@ -928,7 +928,7 @@ func CheckDiffSizeComparison(f *lint.File) {
 		if left == right {
 			return true
 		}
-		f.Errorf(expr, 1, "Comparing strings of different sizes for equality will always return false")
+		f.Errorf(expr, 1, "comparing strings of different sizes for equality will always return false")
 		return true
 	}
 	f.Walk(fn)
