@@ -34,7 +34,19 @@ func main() {
 	if len(args) == 0 {
 		return
 	}
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	pkgs := gotool.ImportPaths(args)
+	for i, pkg := range pkgs {
+		bpkg, err := ctx.Import(pkg, wd, build.FindOnly)
+		if err != nil {
+			continue
+		}
+		pkgs[i] = bpkg.ImportPath
+	}
 	_, reverse, errors := importgraph.Build(&ctx)
 	_ = errors
 	for _, pkg := range pkgs {
