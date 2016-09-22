@@ -1,5 +1,9 @@
 // rdeps scans GOPATH for all reverse dependencies of a set of Go
 // packages.
+//
+// rdeps will not sort or deduplicate its output, and the order of the
+// output is undefined. Pipe its output through sort [-u] if you need
+// stable output.
 package main
 
 import (
