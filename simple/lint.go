@@ -229,9 +229,6 @@ func LintStringsContains(f *lint.File) {
 		if pkgIdent.Name != "strings" && pkgIdent.Name != "bytes" {
 			return true
 		}
-		if pkgIdent.Name == "bytes" && funIdent.Name != "Index" {
-			return true
-		}
 		newFunc := ""
 		switch funIdent.Name {
 		case "IndexRune":
