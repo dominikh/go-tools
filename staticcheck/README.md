@@ -95,6 +95,7 @@ The following things are currently checked by staticcheck:
   it to `x`.
 - Checks that comparing sliced strings won't always return the same
   result due to mismatching lengths.
+- Checks that values in http.Header are accessed by canonicalized keys.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:

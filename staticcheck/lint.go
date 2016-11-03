@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	htmltemplate "html/template"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -39,6 +40,7 @@ var Funcs = []lint.Func{
 	CheckEmptyCriticalSection,
 	CheckIneffectiveCopy,
 	CheckDiffSizeComparison,
+	CheckCanonicalHeaderKey,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -929,6 +931,48 @@ func CheckDiffSizeComparison(f *lint.File) {
 			return true
 		}
 		f.Errorf(expr, 1, "comparing strings of different sizes for equality will always return false")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckCanonicalHeaderKey(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if ok {
+			// TODO(dh): This risks missing some Header reads, for
+			// example in `h1["foo"] = h2["foo"]` – these edge
+			// cases are probably rare enough to ignore for now.
+			for _, expr := range assign.Lhs {
+				op, ok := expr.(*ast.IndexExpr)
+				if !ok {
+					continue
+				}
+				if types.TypeString(f.Pkg.TypesInfo.TypeOf(op.X), nil) == "net/http.Header" {
+					return false
+				}
+			}
+			return true
+		}
+		op, ok := node.(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+		if types.TypeString(f.Pkg.TypesInfo.TypeOf(op.X), nil) != "net/http.Header" {
+			return true
+		}
+		typ := f.Pkg.TypesInfo.Types[op.Index]
+		if typ.Value == nil {
+			return true
+		}
+		if typ.Value.Kind() != constant.String {
+			return true
+		}
+		s := constant.StringVal(typ.Value)
+		if s == http.CanonicalHeaderKey(s) {
+			return true
+		}
+		f.Errorf(op, 1, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		return true
 	}
 	f.Walk(fn)
