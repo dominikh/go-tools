@@ -41,6 +41,7 @@ var Funcs = []lint.Func{
 	CheckIneffectiveCopy,
 	CheckDiffSizeComparison,
 	CheckCanonicalHeaderKey,
+	CheckBenchmarkN,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -973,6 +974,31 @@ func CheckCanonicalHeaderKey(f *lint.File) {
 			return true
 		}
 		f.Errorf(op, 1, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckBenchmarkN(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		sel, ok := assign.Lhs[0].(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if sel.Sel.Name != "N" {
+			return true
+		}
+		if types.TypeString(f.Pkg.TypesInfo.TypeOf(sel.X), nil) != "*testing.B" {
+			return true
+		}
+		f.Errorf(assign, 1, "should not assign to %s", f.Render(sel))
 		return true
 	}
 	f.Walk(fn)
