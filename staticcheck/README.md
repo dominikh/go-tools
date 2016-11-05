@@ -97,6 +97,11 @@ The following things are currently checked by staticcheck:
   result due to mismatching lengths.
 - Checks that values in http.Header are accessed by canonicalized keys.
 - Don't assign to b.N.
+- Detect assignment to nil maps
+- Detect boolean expressions statically known to always be true or
+  false.
+- Detect irrelevant variable assignments.
+- Detect irrelevant assignments to struct fields.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:

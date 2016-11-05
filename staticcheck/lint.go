@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	htmltemplate "html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,6 +18,8 @@ import (
 	"time"
 
 	"honnef.co/go/lint"
+
+	"golang.org/x/tools/go/ssa"
 )
 
 var Funcs = []lint.Func{
@@ -41,6 +44,11 @@ var Funcs = []lint.Func{
 	CheckDiffSizeComparison,
 	CheckCanonicalHeaderKey,
 	CheckBenchmarkN,
+
+	CheckIneffecitiveFieldAssignments,
+	CheckUnreadVariableValues,
+	CheckPredeterminedBooleanExprs,
+	CheckNilMaps,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -1017,4 +1025,300 @@ func CheckBenchmarkN(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
+}
+
+func CheckIneffecitiveFieldAssignments(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		if fn.Recv == nil {
+			return true
+		}
+		ssafn := ssapkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		if ssafn == nil {
+			return true
+		}
+
+		if len(ssafn.Blocks) == 0 {
+			// External function
+			return true
+		}
+
+		reads := map[*ssa.BasicBlock]map[ssa.Value]bool{}
+		writes := map[*ssa.BasicBlock]map[ssa.Value]bool{}
+
+		recv := ssafn.Params[0]
+		if _, ok := recv.Type().Underlying().(*types.Struct); !ok {
+			return true
+		}
+		recvPtrs := map[ssa.Value]bool{
+			recv: true,
+		}
+		if len(ssafn.Locals) == 0 || ssafn.Locals[0].Heap {
+			return true
+		}
+		blocks := ssafn.DomPreorder()
+		for _, block := range blocks {
+			if writes[block] == nil {
+				writes[block] = map[ssa.Value]bool{}
+			}
+			if reads[block] == nil {
+				reads[block] = map[ssa.Value]bool{}
+			}
+
+			for _, ins := range block.Instrs {
+				switch ins := ins.(type) {
+				case *ssa.Store:
+					if recvPtrs[ins.Val] {
+						recvPtrs[ins.Addr] = true
+					}
+					fa, ok := ins.Addr.(*ssa.FieldAddr)
+					if !ok {
+						continue
+					}
+					if !recvPtrs[fa.X] {
+						continue
+					}
+					writes[block][fa] = true
+				case *ssa.UnOp:
+					if ins.Op != token.MUL {
+						continue
+					}
+					if recvPtrs[ins.X] {
+						reads[block][ins] = true
+						continue
+					}
+					fa, ok := ins.X.(*ssa.FieldAddr)
+					if !ok {
+						continue
+					}
+					if !recvPtrs[fa.X] {
+						continue
+					}
+					reads[block][fa] = true
+				}
+			}
+		}
+
+		for block, writes := range writes {
+			seen := map[*ssa.BasicBlock]bool{}
+			var hasRead func(block *ssa.BasicBlock, write *ssa.FieldAddr) bool
+			hasRead = func(block *ssa.BasicBlock, write *ssa.FieldAddr) bool {
+				seen[block] = true
+				for read := range reads[block] {
+					switch ins := read.(type) {
+					case *ssa.FieldAddr:
+						if ins.Field == write.Field && read.Pos() > write.Pos() {
+							return true
+						}
+					case *ssa.UnOp:
+						if ins.Pos() >= write.Pos() {
+							return true
+						}
+					}
+				}
+				for _, succ := range block.Succs {
+					if !seen[succ] {
+						if hasRead(succ, write) {
+							return true
+						}
+					}
+				}
+				return false
+			}
+			for write := range writes {
+				fa := write.(*ssa.FieldAddr)
+				if !hasRead(block, fa) {
+					name := recv.Type().Underlying().(*types.Struct).Field(fa.Field).Name()
+					f.Errorf(fa, 1, "ineffective assignment to field %s", name)
+				}
+			}
+		}
+
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckUnreadVariableValues(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		// FIXME support multiple assignments
+		if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		if ident, ok := assign.Lhs[0].(*ast.Ident); ok && ident.Name == "_" {
+			return true
+		}
+		fn := f.EnclosingSSAFunction(node)
+		if fn == nil {
+			return true
+		}
+
+		val, _ := fn.ValueForExpr(assign.Rhs[0])
+		if val == nil {
+			return true
+		}
+
+		refs := val.Referrers()
+		if refs == nil {
+			// TODO investigate why refs can be nil
+			return true
+		}
+		if len(filterDebug(*val.Referrers())) == 0 {
+			f.Errorf(node, 1, "this value of %s is never used", assign.Lhs[0])
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckPredeterminedBooleanExprs(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		binop, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		switch binop.Op {
+		case token.GTR, token.LSS, token.EQL, token.NEQ, token.LEQ, token.GEQ:
+		default:
+			return true
+		}
+		fn := f.EnclosingSSAFunction(binop)
+		if fn == nil {
+			return true
+		}
+		val, _ := fn.ValueForExpr(binop)
+		ssabinop, ok := val.(*ssa.BinOp)
+		if !ok {
+			return true
+		}
+		xs, ok1 := consts(ssabinop.X, nil, nil)
+		ys, ok2 := consts(ssabinop.Y, nil, nil)
+		if !ok1 || !ok2 || len(xs) == 0 || len(ys) == 0 {
+			return true
+		}
+
+		trues := 0
+		for _, x := range xs {
+			for _, y := range ys {
+				log.Printf("%T %T", x.Value, y.Value)
+				if constant.Compare(x.Value, ssabinop.Op, y.Value) {
+					trues++
+				}
+			}
+		}
+		b := trues != 0
+		if trues == 0 || trues == len(xs)*len(ys) {
+			f.Errorf(binop, 1, "%s is always %t for all possible values (%s %s %s)",
+				f.Render(binop), b, xs, binop.Op, ys)
+		}
+
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckNilMaps(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		ssafn := ssapkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		if ssafn == nil {
+			return true
+		}
+
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				mu, ok := ins.(*ssa.MapUpdate)
+				if !ok {
+					continue
+				}
+				c, ok := mu.Map.(*ssa.Const)
+				if !ok {
+					continue
+				}
+				if c.Value != nil {
+					continue
+				}
+				f.Errorf(mu, 1, "assignment to nil map")
+			}
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func filterDebug(instr []ssa.Instruction) []ssa.Instruction {
+	var out []ssa.Instruction
+	for _, ins := range instr {
+		if _, ok := ins.(*ssa.DebugRef); !ok {
+			out = append(out, ins)
+		}
+	}
+	return out
+}
+
+func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ssa.Const, bool) {
+	if visitedPhis == nil {
+		visitedPhis = map[string]bool{}
+	}
+	var ok bool
+	switch val := val.(type) {
+	case *ssa.Phi:
+		if visitedPhis[val.Name()] {
+			break
+		}
+		visitedPhis[val.Name()] = true
+		vals := val.Operands(nil)
+		for _, phival := range vals {
+			out, ok = consts(*phival, out, visitedPhis)
+			if !ok {
+				return nil, false
+			}
+		}
+	case *ssa.Const:
+		out = append(out, val)
+	case *ssa.Convert:
+		out, ok = consts(val.X, out, visitedPhis)
+		if !ok {
+			return nil, false
+		}
+	default:
+		return nil, false
+	}
+	if len(out) < 2 {
+		return out, true
+	}
+	uniq := []*ssa.Const{out[0]}
+	for _, val := range out[1:] {
+		if val.Value == uniq[len(uniq)-1].Value {
+			continue
+		}
+		uniq = append(uniq, val)
+	}
+	return uniq, true
 }

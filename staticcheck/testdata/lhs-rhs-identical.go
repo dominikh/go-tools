@@ -1,6 +1,6 @@
 package pkg
 
-func fn() {
+func fn(a int, s []int, f float64) {
 	if 1 == 1 { // MATCH /identical expressions/
 	}
 	if a == a { // MATCH /identical expressions/
@@ -13,7 +13,6 @@ func fn() {
 	}
 	if (1 + 2 + 3) == (1 + 2 + 3) { // MATCH /identical expressions/
 	}
-	var f float64
 	if f == f {
 	}
 	if f != f {
