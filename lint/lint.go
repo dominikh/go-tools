@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/gcimporter15"
+	"golang.org/x/tools/go/ssa"
 )
 
 type Func func(*File)
@@ -116,6 +117,7 @@ type Pkg struct {
 
 	TypesPkg  *types.Package
 	TypesInfo *types.Info
+	SSAPkg    *ssa.Package
 
 	// main is whether this is a "main" package.
 	main bool
@@ -174,10 +176,14 @@ func (f *File) IsTest() bool { return strings.HasSuffix(f.Filename, "_test.go") 
 type Link string
 type Category string
 
+type Positioner interface {
+	Pos() token.Pos
+}
+
 // The variadic arguments may start with link and category types,
 // and must end with a format string and any arguments.
 // It returns the new Problem.
-func (f *File) Errorf(n ast.Node, confidence float64, args ...interface{}) *Problem {
+func (f *File) Errorf(n Positioner, confidence float64, args ...interface{}) *Problem {
 	pos := f.Fset.Position(n.Pos())
 	if pos.Filename == "" {
 		pos.Filename = f.Filename
@@ -232,6 +238,64 @@ func (i importer) Import(path string) (*types.Package, error) {
 
 // (importer).ImportFrom is in lint16.go.
 
+// BuildPackage builds an SSA program with IR for a single package.
+//
+// It populates pkg by type-checking the specified file ASTs.  All
+// dependencies are loaded using the importer specified by tc, which
+// typically loads compiler export data; SSA code cannot be built for
+// those packages.  BuildPackage then constructs an ssa.Program with all
+// dependency packages created, and builds and returns the SSA package
+// corresponding to pkg.
+//
+// The caller must have set pkg.Path() to the import path.
+//
+// The operation fails if there were any type-checking or import errors.
+//
+// See ../ssa/example_test.go for an example.
+//
+func buildPackage(tc *types.Config, fset *token.FileSet, pkg *types.Package, files []*ast.File, mode ssa.BuilderMode) (*ssa.Package, *types.Info, error) {
+	if fset == nil {
+		panic("no token.FileSet")
+	}
+	if pkg.Path() == "" {
+		panic("package has no import path")
+	}
+
+	info := &types.Info{
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+		Defs:       make(map[*ast.Ident]types.Object),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Implicits:  make(map[ast.Node]types.Object),
+		Scopes:     make(map[ast.Node]*types.Scope),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+	}
+	if err := types.NewChecker(tc, fset, pkg, info).Files(files); err != nil {
+		return nil, info, err
+	}
+
+	prog := ssa.NewProgram(fset, mode)
+
+	// Create SSA packages for all imports.
+	// Order is not significant.
+	created := make(map[*types.Package]bool)
+	var createAll func(pkgs []*types.Package)
+	createAll = func(pkgs []*types.Package) {
+		for _, p := range pkgs {
+			if !created[p] {
+				created[p] = true
+				prog.CreatePackage(p, nil, nil, true)
+				createAll(p.Imports())
+			}
+		}
+	}
+	createAll(pkg.Imports())
+
+	// Create and build the primary package.
+	ssapkg := prog.CreatePackage(pkg, files, info, false)
+	ssapkg.Build()
+	return ssapkg, info, nil
+}
+
 func (p *Pkg) typeCheck() error {
 	config := &types.Config{
 		// By setting a no-op error reporter, the type checker does as much work as possible.
@@ -253,12 +317,17 @@ func (p *Pkg) typeCheck() error {
 		anyFile = f
 		astFiles = append(astFiles, f.File)
 	}
-	pkg, err := config.Check(anyFile.File.Name.Name, p.fset, astFiles, info)
+	pkg := types.NewPackage(anyFile.File.Name.Name, "")
+	ssapkg, info, err := buildPackage(config, p.fset, pkg, astFiles, ssa.GlobalDebug)
 	// Remember the typechecking info, even if config.Check failed,
 	// since we will get partial information.
 	p.TypesPkg = pkg
 	p.TypesInfo = info
-	return err
+	if err != nil {
+		return err
+	}
+	p.SSAPkg = ssapkg
+	return nil
 }
 
 func (p *Pkg) IsNamedType(typ types.Type, importPath, name string) bool {
