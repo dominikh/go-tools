@@ -17,7 +17,7 @@ func fn() {
 	}()
 
 	wg.Add(1)
-	go func(wg sync.WaitGroup) { // MATCH /should pass sync.WaitGroup by pointer/
+	go func(wg sync.WaitGroup) {
 		wg.Done()
 	}(wg)
 
@@ -29,6 +29,6 @@ func fn() {
 	wg.Wait()
 }
 
-func fn2(wg sync.WaitGroup) { // MATCH /should pass sync.WaitGroup by pointer/
+func fn2(wg sync.WaitGroup) {
 	wg.Add(1)
 }
