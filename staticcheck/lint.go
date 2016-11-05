@@ -778,13 +778,14 @@ func CheckDubiousSyncPoolPointers(f *lint.File) {
 			return true
 		}
 
-		arg := f.Pkg.TypesInfo.TypeOf(call.Args[0]).Underlying()
-		switch arg.(type) {
+		arg := f.Pkg.TypesInfo.TypeOf(call.Args[0])
+		underlying := arg.Underlying()
+		switch underlying.(type) {
 		case *types.Pointer, *types.Map, *types.Chan, *types.Interface:
 			// all pointer types
 			return true
 		}
-		f.Errorf(call.Args[0], 1, "non-pointer type %T put into sync.Pool", arg)
+		f.Errorf(call.Args[0], 1, "non-pointer type %s put into sync.Pool", arg.String())
 		return false
 	}
 	f.Walk(fn)
