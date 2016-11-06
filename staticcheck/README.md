@@ -102,6 +102,8 @@ The following things are currently checked by staticcheck:
   false.
 - Detect irrelevant variable assignments.
 - Detect irrelevant assignments to struct fields.
+- Detects always true/always false comparisons involving unsigned
+  integers and 0.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:

@@ -44,6 +44,7 @@ var Funcs = []lint.Func{
 	CheckDiffSizeComparison,
 	CheckCanonicalHeaderKey,
 	CheckBenchmarkN,
+	CheckUnsignedComparison,
 
 	CheckIneffecitiveFieldAssignments,
 	CheckUnreadVariableValues,
@@ -1272,6 +1273,40 @@ func CheckNilMaps(f *lint.File) {
 	f.Walk(fn)
 }
 
+func CheckUnsignedComparison(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		expr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		tx := f.Pkg.TypesInfo.TypeOf(expr.X)
+		ty := f.Pkg.TypesInfo.TypeOf(expr.Y)
+		if tx == nil || ty == nil {
+			return true
+		}
+		basic, ok := tx.Underlying().(*types.Basic)
+		if !ok {
+			return true
+		}
+		if (basic.Info() & types.IsUnsigned) == 0 {
+			return true
+		}
+		lit, ok := expr.Y.(*ast.BasicLit)
+		if !ok || lit.Value != "0" {
+			return true
+		}
+		switch expr.Op {
+		case token.GEQ:
+			f.Errorf(expr, 1, "unsigned values are always >= 0")
+		case token.LSS:
+			f.Errorf(expr, 1, "unsigned values are never < 0")
+		case token.LEQ:
+			f.Errorf(expr, 1, "'x <= 0' for unsigned values of x is the same as 'x == 0'")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
 func filterDebug(instr []ssa.Instruction) []ssa.Instruction {
 	var out []ssa.Instruction
 	for _, ins := range instr {
