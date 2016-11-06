@@ -50,6 +50,7 @@ var Funcs = []lint.Func{
 	CheckUnreadVariableValues,
 	CheckPredeterminedBooleanExprs,
 	CheckNilMaps,
+	CheckLoopCondition,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -1356,4 +1357,59 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 		uniq = append(uniq, val)
 	}
 	return uniq, true
+}
+
+func CheckLoopCondition(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		loop, ok := node.(*ast.ForStmt)
+		if !ok {
+			return true
+		}
+		if loop.Init == nil || loop.Cond == nil || loop.Post == nil {
+			return true
+		}
+		init, ok := loop.Init.(*ast.AssignStmt)
+		if !ok || len(init.Lhs) != 1 || len(init.Rhs) != 1 {
+			return true
+		}
+		cond, ok := loop.Cond.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		x, ok := cond.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		lhs, ok := init.Lhs[0].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if x.Obj != lhs.Obj {
+			return true
+		}
+		if _, ok := loop.Post.(*ast.IncDecStmt); !ok {
+			return true
+		}
+
+		ssafn := f.EnclosingSSAFunction(cond)
+		if ssafn == nil {
+			return true
+		}
+		v, isAddr := ssafn.ValueForExpr(cond.X)
+		if v == nil || isAddr {
+			return true
+		}
+		switch v.(type) {
+		case *ssa.Phi, *ssa.UnOp:
+			return true
+		}
+		f.Errorf(cond, 1, "variable in loop condition never changes")
+
+		return true
+	}
+	f.Walk(fn)
 }

@@ -102,6 +102,9 @@ The following things are currently checked by staticcheck:
   false.
 - Detect irrelevant variable assignments.
 - Detect irrelevant assignments to struct fields.
+- Detect loops where the condition variable doesn't change between
+  iterations. This is often the case when incrementing the wrong loop
+  variable.
 - Detects always true/always false comparisons involving unsigned
   integers and 0.
 
