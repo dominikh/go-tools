@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"go/types"
 	htmltemplate "html/template"
-	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1223,7 +1222,12 @@ func CheckPredeterminedBooleanExprs(f *lint.File) {
 		trues := 0
 		for _, x := range xs {
 			for _, y := range ys {
-				log.Printf("%T %T", x.Value, y.Value)
+				if x.Value == nil {
+					if y.Value == nil {
+						trues++
+					}
+					continue
+				}
 				if constant.Compare(x.Value, ssabinop.Op, y.Value) {
 					trues++
 				}
