@@ -105,6 +105,8 @@ The following things are currently checked by staticcheck:
 - Detect loops where the condition variable doesn't change between
   iterations. This is often the case when incrementing the wrong loop
   variable.
+- Detect loops that only loop once due to unconditional break or
+  return statements.
 - Detects always true/always false comparisons involving unsigned
   integers and 0.
 

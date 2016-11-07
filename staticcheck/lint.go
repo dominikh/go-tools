@@ -45,12 +45,14 @@ var Funcs = []lint.Func{
 	CheckCanonicalHeaderKey,
 	CheckBenchmarkN,
 	CheckUnsignedComparison,
+	CheckIneffectiveLoop,
 
 	CheckIneffecitiveFieldAssignments,
 	CheckUnreadVariableValues,
 	CheckPredeterminedBooleanExprs,
 	CheckNilMaps,
 	CheckLoopCondition,
+	CheckArgOverwritten,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -1409,6 +1411,178 @@ func CheckLoopCondition(f *lint.File) {
 		}
 		f.Errorf(cond, 1, "variable in loop condition never changes")
 
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckArgOverwritten(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		if fn.Body == nil {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(fn)
+		if ssafn == nil {
+			return true
+		}
+		if len(fn.Type.Params.List) == 0 {
+			return true
+		}
+		for _, field := range fn.Type.Params.List {
+			for _, arg := range field.Names {
+				obj := f.Pkg.TypesInfo.ObjectOf(arg)
+				var ssaobj *ssa.Parameter
+				for _, param := range ssafn.Params {
+					if param.Object() == obj {
+						ssaobj = param
+						break
+					}
+				}
+				if ssaobj == nil {
+					continue
+				}
+				refs := ssaobj.Referrers()
+				if refs == nil {
+					continue
+				}
+				if len(filterDebug(*refs)) != 0 {
+					continue
+				}
+
+				assigned := false
+				ast.Inspect(fn.Body, func(node ast.Node) bool {
+					assign, ok := node.(*ast.AssignStmt)
+					if !ok {
+						return true
+					}
+					for _, lhs := range assign.Lhs {
+						ident, ok := lhs.(*ast.Ident)
+						if !ok {
+							continue
+						}
+						if f.Pkg.TypesInfo.ObjectOf(ident) == obj {
+							assigned = true
+							return false
+						}
+					}
+					return true
+				})
+				if assigned {
+					f.Errorf(arg, 1, "argument %s is overwritten before first use", arg)
+				}
+			}
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckIneffectiveLoop(f *lint.File) {
+	// This check detects some, but not all unconditional loop exits.
+	// We give up in the following cases:
+	//
+	// - a goto anywhere in the loop. The goto might skip over our
+	// return, and we don't check that it doesn't.
+	//
+	// - any nested, unlabelled continue, even if it is in another
+	// loop or closure.
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		if fn.Body == nil {
+			return true
+		}
+		labels := map[*ast.Object]ast.Stmt{}
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			label, ok := node.(*ast.LabeledStmt)
+			if !ok {
+				return true
+			}
+			labels[label.Label.Obj] = label.Stmt
+			return true
+		})
+
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			var loop ast.Node
+			var body *ast.BlockStmt
+			switch node := node.(type) {
+			case *ast.ForStmt:
+				body = node.Body
+				loop = node
+			case *ast.RangeStmt:
+				if _, ok := f.Pkg.TypesInfo.TypeOf(node.X).Underlying().(*types.Map); ok {
+					// looping once over a map is a valid pattern for
+					// getting an arbitrary element.
+					return true
+				}
+				body = node.Body
+				loop = node
+			default:
+				return true
+			}
+			if len(body.List) < 2 {
+				// avoid flagging the somewhat common pattern of using
+				// a range loop to get the first element in a slice,
+				// or the first rune in a string.
+				return true
+			}
+			var unconditionalExit ast.Node
+			hasBranching := false
+			for _, stmt := range body.List {
+				switch stmt := stmt.(type) {
+				case *ast.BranchStmt:
+					switch stmt.Tok {
+					case token.BREAK:
+						if stmt.Label == nil || labels[stmt.Label.Obj] == loop {
+							unconditionalExit = stmt
+						}
+					case token.CONTINUE:
+						if stmt.Label == nil || labels[stmt.Label.Obj] == loop {
+							unconditionalExit = nil
+							return false
+						}
+					}
+				case *ast.ReturnStmt:
+					unconditionalExit = stmt
+				case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.SelectStmt:
+					hasBranching = true
+				}
+			}
+			if unconditionalExit == nil || !hasBranching {
+				return false
+			}
+			ast.Inspect(body, func(node ast.Node) bool {
+				if branch, ok := node.(*ast.BranchStmt); ok {
+
+					switch branch.Tok {
+					case token.GOTO:
+						unconditionalExit = nil
+						return false
+					case token.CONTINUE:
+						if branch.Label != nil && labels[branch.Label.Obj] != loop {
+							return true
+						}
+						unconditionalExit = nil
+						return false
+					}
+				}
+				return true
+			})
+			if unconditionalExit != nil {
+				f.Errorf(unconditionalExit, 1, "the surrounding loop is unconditionally terminated")
+			}
+			return true
+		})
 		return true
 	}
 	f.Walk(fn)
