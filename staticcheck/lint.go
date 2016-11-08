@@ -1524,7 +1524,11 @@ func CheckIneffectiveLoop(f *lint.File) {
 				body = node.Body
 				loop = node
 			case *ast.RangeStmt:
-				if _, ok := f.Pkg.TypesInfo.TypeOf(node.X).Underlying().(*types.Map); ok {
+				typ := f.Pkg.TypesInfo.TypeOf(node.X)
+				if typ == nil {
+					return true
+				}
+				if _, ok := typ.Underlying().(*types.Map); ok {
 					// looping once over a map is a valid pattern for
 					// getting an arbitrary element.
 					return true
