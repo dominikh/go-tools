@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/gcimporter15"
 	"golang.org/x/tools/go/ssa"
 )
@@ -585,4 +586,9 @@ func ExprToInt(expr ast.Expr) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+func (f *File) EnclosingSSAFunction(node Positioner) *ssa.Function {
+	path, _ := astutil.PathEnclosingInterval(f.File, node.Pos(), node.Pos())
+	return ssa.EnclosingFunction(f.Pkg.SSAPkg, path)
 }
