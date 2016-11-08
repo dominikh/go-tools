@@ -1155,35 +1155,41 @@ func CheckUnreadVariableValues(f *lint.File) {
 		return
 	}
 	fn := func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
+		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
 			return true
 		}
-		// FIXME support multiple assignments
-		if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+		ssafn := f.EnclosingSSAFunction(fn)
+		if ssafn == nil {
 			return true
 		}
-		if ident, ok := assign.Lhs[0].(*ast.Ident); ok && ident.Name == "_" {
-			return true
-		}
-		fn := f.EnclosingSSAFunction(node)
-		if fn == nil {
-			return true
-		}
+		ast.Inspect(fn, func(node ast.Node) bool {
+			assign, ok := node.(*ast.AssignStmt)
+			if !ok {
+				return true
+			}
+			// FIXME support multiple assignments
+			if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+				return true
+			}
+			if ident, ok := assign.Lhs[0].(*ast.Ident); !ok || ok && ident.Name == "_" {
+				return true
+			}
+			val, _ := ssafn.ValueForExpr(assign.Rhs[0])
+			if val == nil {
+				return true
+			}
 
-		val, _ := fn.ValueForExpr(assign.Rhs[0])
-		if val == nil {
+			refs := val.Referrers()
+			if refs == nil {
+				// TODO investigate why refs can be nil
+				return true
+			}
+			if len(filterDebug(*val.Referrers())) == 0 {
+				f.Errorf(node, 1, "this value of %s is never used", assign.Lhs[0])
+			}
 			return true
-		}
-
-		refs := val.Referrers()
-		if refs == nil {
-			// TODO investigate why refs can be nil
-			return true
-		}
-		if len(filterDebug(*val.Referrers())) == 0 {
-			f.Errorf(node, 1, "this value of %s is never used", assign.Lhs[0])
-		}
+		})
 		return true
 	}
 	f.Walk(fn)
