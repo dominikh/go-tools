@@ -11,14 +11,14 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
-	"io/ioutil"
+	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"honnef.co/go/lint"
 
 	"github.com/kisielk/gotool"
+	"golang.org/x/tools/go/loader"
 )
 
 func usage(name string, flags *flag.FlagSet) func() {
@@ -84,80 +84,60 @@ func ProcessArgs(name string, funcs []lint.Func, args []string) {
 		runner.unclean = true
 	}
 	if goFiles {
-		runner.lintFiles(paths...)
+		conf := &loader.Config{}
+		conf.CreateFromFilenames("adhoc", paths...)
+		lprog, err := conf.Load()
+		if err != nil {
+			log.Fatal(err)
+		}
+		ps := runner.lint(lprog)
+		for _, ps := range ps {
+			for _, p := range ps {
+				runner.unclean = true
+				if p.Confidence >= runner.minConfidence {
+					fmt.Printf("%v: %s\n", p.Position, p.Text)
+				}
+			}
+		}
 	} else {
+		ctx := build.Default
+		conf := &loader.Config{
+			Build: &ctx,
+			TypeCheckFuncBodies: func(s string) bool {
+				for _, path := range paths {
+					if s == path || s == path+"_test" {
+						return true
+					}
+				}
+				return false
+			},
+		}
 		for _, path := range paths {
-			runner.lintPackage(path)
+			conf.ImportWithTests(path)
+		}
+		lprog, err := conf.Load()
+		if err != nil {
+			log.Fatal(err)
+		}
+		ps := runner.lint(lprog)
+		for _, ps := range ps {
+			for _, p := range ps {
+				runner.unclean = true
+				if p.Confidence >= runner.minConfidence {
+					fmt.Printf("%v: %s\n", p.Position, p.Text)
+				}
+			}
+
 		}
 	}
-
 	if runner.unclean {
 		os.Exit(1)
 	}
 }
 
-func (runner *runner) lintFiles(filenames ...string) {
-	files := make(map[string][]byte)
-	for _, filename := range filenames {
-		src, err := ioutil.ReadFile(filename)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			runner.unclean = true
-			continue
-		}
-		files[filename] = src
-	}
-
+func (runner *runner) lint(lprog *loader.Program) map[string][]lint.Problem {
 	l := &lint.Linter{
 		Funcs: runner.funcs,
 	}
-	ps, err := l.LintFiles(files)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		runner.unclean = true
-		return
-	}
-	if len(ps) > 0 {
-		runner.unclean = true
-	}
-	for _, p := range ps {
-		if p.Confidence >= runner.minConfidence {
-			fmt.Printf("%v: %s\n", p.Position, p.Text)
-		}
-	}
-}
-
-func (runner *runner) lintPackage(pkgname string) {
-	ctx := build.Default
-	ctx.BuildTags = runner.tags
-	pkg, err := ctx.Import(pkgname, ".", 0)
-	runner.lintImportedPackage(pkg, err)
-}
-
-func (runner *runner) lintImportedPackage(pkg *build.Package, err error) {
-	if err != nil {
-		if _, nogo := err.(*build.NoGoError); nogo {
-			// Don't complain if the failure is due to no Go source files.
-			return
-		}
-		fmt.Fprintln(os.Stderr, err)
-		runner.unclean = true
-		return
-	}
-
-	var files []string
-	xtest := pkg.XTestGoFiles
-	files = append(files, pkg.GoFiles...)
-	files = append(files, pkg.CgoFiles...)
-	files = append(files, pkg.TestGoFiles...)
-	if pkg.Dir != "." {
-		for i, f := range files {
-			files[i] = filepath.Join(pkg.Dir, f)
-		}
-		for i, f := range xtest {
-			xtest[i] = filepath.Join(pkg.Dir, f)
-		}
-	}
-	runner.lintFiles(xtest...)
-	runner.lintFiles(files...)
+	return l.Lint(lprog)
 }

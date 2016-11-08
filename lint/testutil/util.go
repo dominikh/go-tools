@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"honnef.co/go/lint"
+
+	"golang.org/x/tools/go/loader"
 )
 
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
@@ -47,19 +49,34 @@ func TestAll(t *testing.T, funcs []lint.Func, dir string) {
 			continue
 		}
 		//t.Logf("Testing %s", fi.Name())
-		src, err := ioutil.ReadFile(path.Join(baseDir, fi.Name()))
+		filename := path.Join(baseDir, fi.Name())
+		src, err := ioutil.ReadFile(filename)
 		if err != nil {
-			t.Fatalf("Failed reading %s: %v", fi.Name(), err)
-		}
-
-		ins := parseInstructions(t, fi.Name(), src)
-
-		ps, err := l.Lint(fi.Name(), src)
-		if err != nil {
-			t.Errorf("Linting %s: %v", fi.Name(), err)
+			t.Errorf("Failed reading %s: %v", fi.Name(), err)
 			continue
 		}
-
+		conf := &loader.Config{}
+		f, err := conf.ParseFile(filename, src)
+		if err != nil {
+			t.Errorf("error parsing %s: %s", filename, err)
+			continue
+		}
+		conf.CreateFromFiles("adhoc", f)
+		lprog, err := conf.Load()
+		if err != nil {
+			t.Errorf("error loading program %s: %s", filename, err)
+			continue
+		}
+		ins := parseInstructions(t, fi.Name(), src)
+		res := l.Lint(lprog)
+		if len(res) != 1 {
+			t.Fatalf("expected one typechecked package, got %d", len(res))
+		}
+		var ps []lint.Problem
+		for _, v := range res {
+			ps = v
+			break
+		}
 		for _, in := range ins {
 			ok := false
 			for i, p := range ps {
