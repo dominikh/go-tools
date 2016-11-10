@@ -1,6 +1,6 @@
 package pkg
 
-func fn2() int { return 0 }
+func fn2() bool { return true }
 
 func fn() {
 	for { // MATCH /infinite empty loop/

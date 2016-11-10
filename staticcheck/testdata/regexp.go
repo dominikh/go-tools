@@ -13,7 +13,7 @@ var re2 = regexp.MustCompile(c1)       // MATCH /error parsing regexp/
 var re3 = regexp.MustCompile(c2)
 
 func fn() {
-	re4, err := regexp.Compile(`foo(`) // MATCH /error parsing regexp/
+	_, err := regexp.Compile(`foo(`) // MATCH /error parsing regexp/
 	if err != nil {
 		panic(err)
 	}

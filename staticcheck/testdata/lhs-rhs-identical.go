@@ -18,7 +18,3 @@ func fn(a int, s []int, f float64) {
 	if f != f {
 	}
 }
-
-/*
-../../testdata/lhs-rhs-identical.go:4:5: identical expressions on the left and right side of the '==' operator
-*/

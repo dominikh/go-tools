@@ -8,5 +8,5 @@ import (
 func helper(m *testing.M) { os.Exit(m.Run()) }
 
 func TestMain(m *testing.M) {
-	helper()
+	helper(m)
 }

@@ -1,6 +1,7 @@
 package pkg
 
 func fn() {
+	var ch chan int
 	for {
 		switch {
 		case true:
