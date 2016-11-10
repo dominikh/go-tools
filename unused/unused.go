@@ -702,9 +702,53 @@ func (c *Checker) processArrayConstants(pkg *loader.PackageInfo, node ast.Node) 
 	}
 }
 
+func (c *Checker) processKnownReflectMethodCallers(pkg *loader.PackageInfo, node ast.Node) {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	if types.TypeString(pkg.TypeOf(sel.X), nil) != "*net/rpc.Server" {
+		x, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return
+		}
+		pkgname, ok := pkg.ObjectOf(x).(*types.PkgName)
+		if !ok {
+			return
+		}
+		if pkgname.Imported().Path() != "net/rpc" {
+			return
+		}
+	}
+
+	var arg ast.Expr
+	switch sel.Sel.Name {
+	case "Register":
+		if len(call.Args) != 1 {
+			return
+		}
+		arg = call.Args[0]
+	case "RegisterName":
+		if len(call.Args) != 2 {
+			return
+		}
+		arg = call.Args[1]
+	}
+	typ := pkg.TypeOf(arg)
+	ms := types.NewMethodSet(typ)
+	for i := 0; i < ms.Len(); i++ {
+		c.graph.markUsedBy(ms.At(i).Obj(), typ)
+	}
+}
+
 func (c *Checker) processAST(pkg *loader.PackageInfo) {
 	fn := func(node ast.Node) bool {
 		c.processConversion(pkg, node)
+		c.processKnownReflectMethodCallers(pkg, node)
 		c.processCompositeLiteral(pkg, node)
 		c.processCgoExported(pkg, node)
 		c.processVariableDeclaration(pkg, node)
