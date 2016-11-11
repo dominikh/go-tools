@@ -4,6 +4,7 @@ package main // import "honnef.co/go/staticcheck/cmd/staticcheck"
 import (
 	"os"
 
+	"honnef.co/go/lint"
 	"honnef.co/go/lint/lintutil"
 	"honnef.co/go/staticcheck"
 )
@@ -19,8 +20,10 @@ func main() {
 		}
 		args = append(args, arg)
 	}
-	lintutil.ProcessArgs("staticcheck", staticcheck.Funcs, args)
+	var funcs []lint.Func
+	funcs = append(funcs, staticcheck.Funcs...)
 	if checkDubious {
-		lintutil.ProcessArgs("staticcheck", staticcheck.DubiousFuncs, args)
+		funcs = append(funcs, staticcheck.DubiousFuncs...)
 	}
+	lintutil.ProcessArgs("staticcheck", funcs, args)
 }
