@@ -1,5 +1,6 @@
 package pkg
 
+func fn() bool { return true }
 func fn1() bool {
 	x := true
 	if x { // MATCH /should use 'return <expr>'/
@@ -20,6 +21,7 @@ func fn2() bool {
 }
 
 func fn3() int {
+	var x bool
 	if x {
 		return 1
 	}
@@ -29,7 +31,7 @@ func fn3() int {
 func fn4() bool { return true }
 
 func fn5() bool {
-	if fn3() { // MATCH /should use 'return <expr>'/
+	if fn() { // MATCH /should use 'return <expr>'/
 		return false
 	}
 	return true
@@ -50,7 +52,7 @@ func fn7() bool {
 }
 
 func fn8() bool {
-	if fn3() || fn3() {
+	if fn() || fn() {
 		return true
 	}
 	return false

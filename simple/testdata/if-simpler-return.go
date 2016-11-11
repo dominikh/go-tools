@@ -10,7 +10,7 @@ func fn1() error {
 	}
 	return nil
 
-	_ = nil
+	_ = 0
 
 	if err != nil { // MATCH /simplified/
 		return err
@@ -29,28 +29,28 @@ func fn2() (int, string, error) {
 	}
 	return x, y, nil
 
-	_ = nil
+	_ = 0
 
 	if err != nil { // MATCH /simplified/
 		return x, y, err
 	}
 	return x, y, err
 
-	_ = nil
+	_ = 0
 
 	if err != nil {
 		return x, y, err
 	}
 	return z, y, err
 
-	_ = nil
+	_ = 0
 
 	if err != nil {
 		return 0, "", err
 	}
 	return x, y, err
 
-	_ = nil
+	_ = 0
 
 	// TODO(dominikh): currently, only returning identifiers is
 	// supported
@@ -80,7 +80,7 @@ func fn4(i int, err error) error {
 	return nil
 }
 
-func fn4() interface{} {
+func fn5() interface{} {
 	var i *int
 	if i != nil {
 		return i
@@ -94,8 +94,8 @@ func fn4() interface{} {
 	return nil
 }
 
-func fn5() {
-	func() error {
+func fn6() {
+	_ = func() error {
 		var err error
 		if err != nil { // MATCH /simplified/
 			return err

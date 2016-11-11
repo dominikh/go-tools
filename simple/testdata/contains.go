@@ -33,7 +33,7 @@ func fn() {
 	_ = strings.Index("", "") != 0
 	_ = strings.Index("", "") < 0 // MATCH /!strings.Contains/
 
-	_ = bytes.IndexRune("", 'x') > -1 // MATCH / bytes.ContainsRune/
-	_ = bytes.IndexAny("", "") > -1   // MATCH / bytes.ContainsAny/
-	_ = bytes.Index(nil, nil) > -1    // MATCH / bytes.Contains/
+	_ = bytes.IndexRune(nil, 'x') > -1 // MATCH / bytes.ContainsRune/
+	_ = bytes.IndexAny(nil, "") > -1   // MATCH / bytes.ContainsAny/
+	_ = bytes.Index(nil, nil) > -1     // MATCH / bytes.Contains/
 }
