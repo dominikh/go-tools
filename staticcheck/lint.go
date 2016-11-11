@@ -52,6 +52,7 @@ var Funcs = []lint.Func{
 	CheckNilMaps,
 	CheckLoopCondition,
 	CheckArgOverwritten,
+	CheckStdlibUsage,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -1597,6 +1598,39 @@ func CheckIneffectiveLoop(f *lint.File) {
 			}
 			return true
 		})
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckStdlibUsage(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if types.TypeString(f.Pkg.TypesInfo.TypeOf(sel.X), nil) != "*regexp.Regexp" {
+			return true
+		}
+		if !strings.HasPrefix(sel.Sel.Name, "FindAll") {
+			return true
+		}
+		if len(call.Args) != 2 {
+			return true
+		}
+		lit, ok := call.Args[1].(*ast.BasicLit)
+		if !ok || lit.Value != "0" {
+			return true
+		}
+		f.Errorf(lit, 1, "calling a FindAll method with n == 0 will return no results, did you mean -1?")
 		return true
 	}
 	f.Walk(fn)

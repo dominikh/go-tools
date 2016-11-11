@@ -109,6 +109,7 @@ The following things are currently checked by staticcheck:
   return statements.
 - Detects always true/always false comparisons involving unsigned
   integers and 0.
+- Detect misuses of standard library functions.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:
