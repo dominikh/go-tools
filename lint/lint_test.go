@@ -14,28 +14,6 @@ import (
 	"testing"
 )
 
-func TestLine(t *testing.T) {
-	tests := []struct {
-		src    string
-		offset int
-		want   string
-	}{
-		{"single line file", 5, "single line file"},
-		{"single line file with newline\n", 5, "single line file with newline\n"},
-		{"first\nsecond\nthird\n", 2, "first\n"},
-		{"first\nsecond\nthird\n", 9, "second\n"},
-		{"first\nsecond\nthird\n", 14, "third\n"},
-		{"first\nsecond\nthird with no newline", 16, "third with no newline"},
-		{"first byte\n", 0, "first byte\n"},
-	}
-	for _, test := range tests {
-		got := SrcLine([]byte(test.src), token.Position{Offset: test.offset})
-		if got != test.want {
-			t.Errorf("srcLine(%q, offset=%d) = %q, want %q", test.src, test.offset, got, test.want)
-		}
-	}
-}
-
 func TestExportedType(t *testing.T) {
 	tests := []struct {
 		typString string

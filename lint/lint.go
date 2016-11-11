@@ -16,7 +16,6 @@ import (
 	"go/token"
 	"go/types"
 	"io/ioutil"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -33,7 +32,6 @@ type Problem struct {
 	Text       string         // the prose that describes the problem
 	Link       string         // (optional) the link to the style guide for the problem
 	Confidence float64        // a value in (0,1] estimating the confidence in this problem's correctness
-	LineText   string         // the source line
 	Category   string         // a short name for the general category of the problem
 
 	// If the problem has a suggested fix (the minority case),
@@ -179,11 +177,6 @@ func (p *Pkg) ErrorfAt(pos token.Position, confidence float64, args ...interface
 		Position:   pos,
 		Confidence: confidence,
 	}
-	if pos.Filename != "" {
-		if f, ok := p.files[pos.Filename]; ok {
-			problem.LineText = SrcLine(f.Source(), pos)
-		}
-	}
 
 argLoop:
 	for len(args) > 1 { // always leave at least the format string in args
@@ -326,48 +319,6 @@ func (f *File) IsUntypedConst(expr ast.Expr) (defType string, ok bool) {
 	}
 
 	return "", false
-}
-
-// firstLineOf renders the given node and returns its first line.
-// It will also match the indentation of another node.
-func (f *File) FirstLineOf(node, match ast.Node) string {
-	line := f.Render(node)
-	if i := strings.Index(line, "\n"); i >= 0 {
-		line = line[:i]
-	}
-	return f.IndentOf(match) + line
-}
-
-func (f *File) IndentOf(node ast.Node) string {
-	line := SrcLine(f.Source(), f.Fset.Position(node.Pos()))
-	for i, r := range line {
-		switch r {
-		case ' ', '\t':
-		default:
-			return line[:i]
-		}
-	}
-	return line // unusual or empty line
-}
-
-func (f *File) SrcLineWithMatch(node ast.Node, pattern string) (m []string) {
-	line := SrcLine(f.Source(), f.Fset.Position(node.Pos()))
-	line = strings.TrimSuffix(line, "\n")
-	rx := regexp.MustCompile(pattern)
-	return rx.FindStringSubmatch(line)
-}
-
-// srcLine returns the complete line at p, including the terminating newline.
-func SrcLine(src []byte, p token.Position) string {
-	// Run to end of line in both directions if not at line start/end.
-	lo, hi := p.Offset, p.Offset+1
-	for lo > 0 && src[lo-1] != '\n' {
-		lo--
-	}
-	for hi < len(src) && src[hi-1] != '\n' {
-		hi++
-	}
-	return string(src[lo:hi])
 }
 
 func (f *File) BoolConst(expr ast.Expr) bool {
