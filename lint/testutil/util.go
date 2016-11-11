@@ -41,6 +41,9 @@ func TestAll(t *testing.T, funcs []lint.Func, dir string) {
 	if len(fis) == 0 {
 		t.Fatalf("no files in %v", baseDir)
 	}
+
+	conf := &loader.Config{}
+	files := map[string][]byte{}
 	for _, fi := range fis {
 		if !rx.MatchString(fi.Name()) {
 			continue
@@ -48,35 +51,30 @@ func TestAll(t *testing.T, funcs []lint.Func, dir string) {
 		if !strings.HasSuffix(fi.Name(), ".go") {
 			continue
 		}
-		//t.Logf("Testing %s", fi.Name())
 		filename := path.Join(baseDir, fi.Name())
 		src, err := ioutil.ReadFile(filename)
 		if err != nil {
 			t.Errorf("Failed reading %s: %v", fi.Name(), err)
 			continue
 		}
-		conf := &loader.Config{}
 		f, err := conf.ParseFile(filename, src)
 		if err != nil {
 			t.Errorf("error parsing %s: %s", filename, err)
 			continue
 		}
-		conf.CreateFromFiles("adhoc", f)
-		lprog, err := conf.Load()
-		if err != nil {
-			t.Errorf("error loading program %s: %s", filename, err)
-			continue
-		}
-		ins := parseInstructions(t, fi.Name(), src)
-		res := l.Lint(lprog)
-		if len(res) != 1 {
-			t.Fatalf("expected one typechecked package, got %d", len(res))
-		}
-		var ps []lint.Problem
-		for _, v := range res {
-			ps = v
-			break
-		}
+		files[fi.Name()] = src
+		conf.CreateFromFiles(fi.Name(), f)
+	}
+
+	lprog, err := conf.Load()
+	if err != nil {
+		t.Fatalf("error loading program: %s", err)
+	}
+	res := l.Lint(lprog)
+	for name, src := range files {
+		ins := parseInstructions(t, name, src)
+
+		ps := res[name]
 		for _, in := range ins {
 			ok := false
 			for i, p := range ps {
@@ -92,7 +90,7 @@ func TestAll(t *testing.T, funcs []lint.Func, dir string) {
 							r = r[:i]
 						}
 						if r != in.Replacement {
-							t.Errorf("Lint failed at %s:%d; got replacement %q, want %q", fi.Name(), in.Line, r, in.Replacement)
+							t.Errorf("Lint failed at %s:%d; got replacement %q, want %q", name, in.Line, r, in.Replacement)
 						}
 					}
 
@@ -106,11 +104,11 @@ func TestAll(t *testing.T, funcs []lint.Func, dir string) {
 				}
 			}
 			if !ok {
-				t.Errorf("Lint failed at %s:%d; /%v/ did not match", fi.Name(), in.Line, in.Match)
+				t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
 			}
 		}
 		for _, p := range ps {
-			t.Errorf("Unexpected problem at %s:%d: %v", fi.Name(), p.Position.Line, p.Text)
+			t.Errorf("Unexpected problem at %s:%d: %v", name, p.Position.Line, p.Text)
 		}
 	}
 }
