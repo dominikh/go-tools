@@ -344,7 +344,7 @@ func LintRegexpRaw(f *lint.File) {
 			// invalid function call
 			return true
 		}
-		if f.Src[f.Fset.Position(lit.Pos()).Offset] != '"' {
+		if f.Source()[f.Fset.Position(lit.Pos()).Offset] != '"' {
 			// already a raw string
 			return true
 		}
@@ -604,7 +604,7 @@ func LintSlicing(f *lint.File) {
 	f.Walk(fn)
 }
 
-func refersTo(info *types.Info, expr ast.Expr, ident *ast.Ident) bool {
+func refersTo(info types.Info, expr ast.Expr, ident *ast.Ident) bool {
 	found := false
 	fn := func(node ast.Node) bool {
 		ident2, ok := node.(*ast.Ident)
