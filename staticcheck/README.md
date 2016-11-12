@@ -1,5 +1,5 @@
-Staticcheck is a tool for statically checking the inputs to and uses
-of certain functions and constructs, such as `regexp.Compile`.
+Staticcheck is `go vet` on steroids, applying a ton of static analysis
+checks you might be used to from tools like ReSharper for C#.
 
 
 ## Installation
@@ -22,18 +22,6 @@ The output of this tool is a list of suggestions in Vim quickfix format,
 which is accepted by lots of different editors.
 
 ## Purpose
-
-Staticcheck checks the input to functions like `regexp.Compile` and
-time.Parse and makes sure that they conform to the API contract. It
-does so by finding function calls with constant inputs and then
-evaluating these inputs in the same way the code would at runtime.
-
-For example, for `regexp.Compile("foo(")`, staticcheck will find the
-call to `regexp.Compile` and check if `foo(` is a valid regexp.
-
-Furthermore, it checks that functions and constructs are used in the
-correct way. It checks, for example, that sync.WaitGroup.Add is called
-outside of a goroutine, to avoid race conditions.
 
 The main purpose of staticcheck is editor integration, or workflow
 integration in general. For example, by running staticcheck when
@@ -120,12 +108,3 @@ wrong constructs will be flagged:
   the channel gets closed, but the code is likely to be wrong.
 - Checks that arguments to `sync.Pool.Put` are pointers.
 
-## Examples
-
-```
-github.com/couchbase/indexing/secondary/tools/logd/main.go:134:33: error parsing regexp: missing closing ): ` FEED\[<=>([^\(]*)(`
-github.com/jvehent/mig/client/mig-console/action_launcher.go:312:35: parsing time "2014-01-01T00:00:00.0-": month out of range
-github.com/khlieng/dispatch/vendor/github.com/xenolf/lego/acme/crypto.go:165:42: type int cannot be used with binary.Write
-github.com/netrack/openflow/ofp.v13/error.go:246:43: type *ofp.ErrorMsg cannot be used with binary.Write
-github.com/sangelone/wigglr/benchmark_test.go:44:42: type *main.Wiggle cannot be used with binary.Write
-```
