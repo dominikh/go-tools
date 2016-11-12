@@ -101,6 +101,8 @@ The following things are currently checked by staticcheck:
 - Detects variables that are technically unused, but not detected by
   the compiler as such because they're used in `append`.
 - Detect incorrect usage of testing.T.FailNow and related in goroutines.
+- Detect finalizers that close over the finalized object, thus forming
+  a cycle and preventing the object from ever being collected.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:

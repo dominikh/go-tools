@@ -18,6 +18,7 @@ import (
 
 	"honnef.co/go/lint"
 
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -55,6 +56,7 @@ var Funcs = []lint.Func{
 	CheckArgOverwritten,
 	CheckStdlibUsage,
 	CheckIneffectiveAppend,
+	CheckCyclicFinalizer,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -1787,6 +1789,80 @@ func CheckConcurrentTesting(f *lint.File) {
 					}
 				}
 			}
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckCyclicFinalizer(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "runtime", "SetFinalizer") {
+			return true
+		}
+		if len(call.Args) != 2 {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(call)
+		if ssafn == nil {
+			return true
+		}
+		ident, ok := call.Args[0].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		obj := f.Pkg.TypesInfo.ObjectOf(ident)
+		checkFn := func(fn *ssa.Function) {
+			if len(fn.FreeVars) == 0 {
+				return
+			}
+			for _, v := range fn.FreeVars {
+				path, _ := astutil.PathEnclosingInterval(f.File, v.Pos(), v.Pos())
+				if len(path) == 0 {
+					continue
+				}
+				ident, ok := path[0].(*ast.Ident)
+				if !ok {
+					continue
+				}
+				if f.Pkg.TypesInfo.ObjectOf(ident) == obj {
+					pos := f.Fset.Position(fn.Pos())
+					f.Errorf(call, 1, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
+					break
+				}
+			}
+		}
+		var checkValue func(val ssa.Value)
+		seen := map[ssa.Value]bool{}
+		checkValue = func(val ssa.Value) {
+			if seen[val] {
+				return
+			}
+			seen[val] = true
+			switch val := val.(type) {
+			case *ssa.Phi:
+				for _, val := range val.Operands(nil) {
+					checkValue(*val)
+				}
+			case *ssa.MakeClosure:
+				checkFn(val.Fn.(*ssa.Function))
+			default:
+				return
+			}
+		}
+
+		switch arg := call.Args[1].(type) {
+		case *ast.Ident, *ast.FuncLit:
+			r, _ := ssafn.ValueForExpr(arg)
+			checkValue(r)
 		}
 		return true
 	}
