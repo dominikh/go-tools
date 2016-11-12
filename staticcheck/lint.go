@@ -53,6 +53,7 @@ var Funcs = []lint.Func{
 	CheckLoopCondition,
 	CheckArgOverwritten,
 	CheckStdlibUsage,
+	CheckIneffectiveAppend,
 }
 
 var DubiousFuncs = []lint.Func{
@@ -1631,6 +1632,93 @@ func CheckStdlibUsage(f *lint.File) {
 			return true
 		}
 		f.Errorf(lit, 1, "calling a FindAll method with n == 0 will return no results, did you mean -1?")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckIneffectiveAppend(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		ident, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok || ident.Name == "_" {
+			return true
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if callIdent, ok := call.Fun.(*ast.Ident); !ok || callIdent.Name != "append" {
+			// XXX check that it's the built-in append
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(assign)
+		if ssafn == nil {
+			return true
+		}
+		tfn, ok := ssafn.Object().(*types.Func)
+		if ok {
+			res := tfn.Type().(*types.Signature).Results()
+			for i := 0; i < res.Len(); i++ {
+				if res.At(i) == f.Pkg.TypesInfo.ObjectOf(ident) {
+					// Don't flag appends assigned to named return arguments
+					return true
+				}
+			}
+		}
+		isAppend := func(ins ssa.Value) bool {
+			call, ok := ins.(*ssa.Call)
+			if !ok {
+				return false
+			}
+			if call.Call.IsInvoke() {
+				return false
+			}
+			if builtin, ok := call.Call.Value.(*ssa.Builtin); !ok || builtin.Name() != "append" {
+				return false
+			}
+			return true
+		}
+		isUsed := false
+		visited := map[ssa.Instruction]bool{}
+		var walkRefs func(refs []ssa.Instruction)
+		walkRefs = func(refs []ssa.Instruction) {
+		loop:
+			for _, ref := range refs {
+				if visited[ref] {
+					continue
+				}
+				visited[ref] = true
+				if _, ok := ref.(*ssa.DebugRef); ok {
+					continue
+				}
+				switch ref := ref.(type) {
+				case *ssa.Phi:
+					walkRefs(*ref.Referrers())
+				case ssa.Value:
+					if !isAppend(ref) {
+						isUsed = true
+					} else {
+						walkRefs(*ref.Referrers())
+					}
+				case ssa.Instruction:
+					isUsed = true
+					break loop
+				}
+			}
+		}
+		expr, _ := ssafn.ValueForExpr(call)
+		walkRefs(*expr.Referrers())
+		if !isUsed {
+			f.Errorf(assign, 1, "this result of append is never used, except maybe in other appends")
+		}
 		return true
 	}
 	f.Walk(fn)

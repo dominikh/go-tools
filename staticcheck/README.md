@@ -110,6 +110,8 @@ The following things are currently checked by staticcheck:
 - Detects always true/always false comparisons involving unsigned
   integers and 0.
 - Detect misuses of standard library functions.
+- Detects variables that are technically unused, but not detected by
+  the compiler as such because they're used in `append`.
 
 Additionally, if the `-dubious` flag is used, the following possibly
 wrong constructs will be flagged:
