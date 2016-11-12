@@ -1173,25 +1173,27 @@ func CheckUnreadVariableValues(f *lint.File) {
 			if !ok {
 				return true
 			}
-			// FIXME support multiple assignments
-			if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			if len(assign.Lhs) != len(assign.Rhs) {
 				return true
 			}
-			if ident, ok := assign.Lhs[0].(*ast.Ident); !ok || ok && ident.Name == "_" {
-				return true
-			}
-			val, _ := ssafn.ValueForExpr(assign.Rhs[0])
-			if val == nil {
-				return true
-			}
+			for i, lhs := range assign.Lhs {
+				rhs := assign.Rhs[i]
+				if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
+					continue
+				}
+				val, _ := ssafn.ValueForExpr(rhs)
+				if val == nil {
+					continue
+				}
 
-			refs := val.Referrers()
-			if refs == nil {
-				// TODO investigate why refs can be nil
-				return true
-			}
-			if len(filterDebug(*val.Referrers())) == 0 {
-				f.Errorf(node, 1, "this value of %s is never used", assign.Lhs[0])
+				refs := val.Referrers()
+				if refs == nil {
+					// TODO investigate why refs can be nil
+					return true
+				}
+				if len(filterDebug(*val.Referrers())) == 0 {
+					f.Errorf(node, 1, "this value of %s is never used", lhs)
+				}
 			}
 			return true
 		})
