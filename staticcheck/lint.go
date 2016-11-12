@@ -46,6 +46,7 @@ var Funcs = []lint.Func{
 	CheckUnsignedComparison,
 	CheckIneffectiveLoop,
 
+	CheckConcurrentTesting,
 	CheckIneffecitiveFieldAssignments,
 	CheckUnreadVariableValues,
 	CheckPredeterminedBooleanExprs,
@@ -1718,6 +1719,74 @@ func CheckIneffectiveAppend(f *lint.File) {
 		walkRefs(*expr.Referrers())
 		if !isUsed {
 			f.Errorf(assign, 1, "this result of append is never used, except maybe in other appends")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckConcurrentTesting(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(fn)
+		if ssafn == nil {
+			return true
+		}
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				gostmt, ok := ins.(*ssa.Go)
+				if !ok {
+					continue
+				}
+				var fn *ssa.Function
+				switch val := gostmt.Call.Value.(type) {
+				case *ssa.Function:
+					fn = val
+				case *ssa.MakeClosure:
+					fn = val.Fn.(*ssa.Function)
+				default:
+					continue
+				}
+				if fn.Blocks == nil {
+					continue
+				}
+				for _, block := range fn.Blocks {
+					for _, ins := range block.Instrs {
+						call, ok := ins.(*ssa.Call)
+						if !ok {
+							continue
+						}
+						if call.Call.IsInvoke() {
+							continue
+						}
+						callee := call.Call.StaticCallee()
+						if callee == nil {
+							continue
+						}
+						recv := callee.Signature.Recv()
+						if recv == nil {
+							continue
+						}
+						if types.TypeString(recv.Type(), nil) != "*testing.common" {
+							continue
+						}
+						fn, ok := call.Call.StaticCallee().Object().(*types.Func)
+						if !ok {
+							continue
+						}
+						name := fn.Name()
+						switch name {
+						case "FailNow", "Fatal", "Fatalf", "SkipNow", "Skip", "Skipf":
+						default:
+							continue
+						}
+						f.Errorf(gostmt, 1, "the goroutine calls T.%s, which must be called in the same goroutine as the test", name)
+					}
+				}
+			}
 		}
 		return true
 	}
