@@ -15,6 +15,7 @@ import (
 	"strings"
 	texttemplate "text/template"
 	"time"
+	"unicode/utf8"
 
 	"honnef.co/go/lint"
 
@@ -1610,10 +1611,11 @@ func CheckIneffectiveLoop(f *lint.File) {
 }
 
 func CheckStdlibUsage(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
+	checkStdlibUsageRegexpFindAll(f)
+	checkStdlibUsageUTF8Cutset(f)
+}
+
+func checkStdlibUsageRegexpFindAll(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1637,6 +1639,36 @@ func CheckStdlibUsage(f *lint.File) {
 			return true
 		}
 		f.Errorf(lit, 1, "calling a FindAll method with n == 0 will return no results, did you mean -1?")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func checkStdlibUsageUTF8Cutset(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if len(call.Args) != 2 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !lint.IsIdent(sel.X, "strings") {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "IndexAny", "LastIndexAny", "ConstainsAny", "Trim", "TrimLeft", "TrimRight":
+		default:
+			return true
+		}
+		typ := f.Pkg.TypesInfo.Types[call.Args[1]]
+		if typ.Value == nil || typ.Value.Kind() != constant.String {
+			return true
+		}
+		if !utf8.ValidString(constant.StringVal(typ.Value)) {
+			f.Errorf(call.Args[1], 0.9, "the second argument to %s should be a valid UTF-8 encoded string", f.Render(call.Fun))
+		}
 		return true
 	}
 	f.Walk(fn)
