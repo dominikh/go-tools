@@ -741,7 +741,7 @@ func CheckEarlyDefer(f *lint.File) {
 			if !ok {
 				continue
 			}
-			ident, ok := sel.X.(*ast.Ident)
+			ident, ok := selectorX(sel).(*ast.Ident)
 			if !ok {
 				continue
 			}
@@ -756,6 +756,15 @@ func CheckEarlyDefer(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
+}
+
+func selectorX(sel *ast.SelectorExpr) ast.Node {
+	switch x := sel.X.(type) {
+	case *ast.SelectorExpr:
+		return selectorX(x)
+	default:
+		return x
+	}
 }
 
 func CheckDubiousSyncPoolPointers(f *lint.File) {

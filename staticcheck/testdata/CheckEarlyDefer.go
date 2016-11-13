@@ -6,6 +6,14 @@ func fn1() (io.ReadCloser, error) {
 	return nil, nil
 }
 
+type T struct {
+	rc io.ReadCloser
+}
+
+func fn3() (T, error) {
+	return T{}, nil
+}
+
 func fn2() {
 	rc, err := fn1()
 	defer rc.Close() // MATCH /should check returned error before deferring rc.Close/
@@ -19,4 +27,9 @@ func fn2() {
 	if err != nil {
 	}
 	defer rc.Close()
+
+	t, err := fn3()
+	defer t.rc.Close() // MATCH /should check returned error before deferring t.rc.Close/
+	if err != nil {
+	}
 }
