@@ -1613,6 +1613,7 @@ func CheckIneffectiveLoop(f *lint.File) {
 func CheckStdlibUsage(f *lint.File) {
 	checkStdlibUsageRegexpFindAll(f)
 	checkStdlibUsageUTF8Cutset(f)
+	checkStdlibUsageNilContext(f)
 }
 
 func checkStdlibUsageRegexpFindAll(f *lint.File) {
@@ -1669,6 +1670,35 @@ func checkStdlibUsageUTF8Cutset(f *lint.File) {
 		if !utf8.ValidString(constant.StringVal(typ.Value)) {
 			f.Errorf(call.Args[1], 0.9, "the second argument to %s should be a valid UTF-8 encoded string", f.Render(call.Fun))
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func checkStdlibUsageNilContext(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if len(call.Args) == 0 {
+			return true
+		}
+		if typ, ok := f.Pkg.TypesInfo.TypeOf(call.Args[0]).(*types.Basic); !ok || typ.Kind() != types.UntypedNil {
+			return true
+		}
+		sig, ok := f.Pkg.TypesInfo.TypeOf(call.Fun).(*types.Signature)
+		if !ok {
+			return true
+		}
+		if sig.Params().Len() == 0 {
+			return true
+		}
+		if types.TypeString(sig.Params().At(0).Type(), nil) != "context.Context" {
+			return true
+		}
+		f.Errorf(call.Args[0], 1,
+			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use")
 		return true
 	}
 	f.Walk(fn)
