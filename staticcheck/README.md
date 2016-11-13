@@ -53,8 +53,6 @@ The following things are currently checked by staticcheck:
   it sleeps for 1 nanosecond.
 - `sync.WaitGroup.Add` – Checks that the method is called before
   launching the goroutine, to avoid a race condition.
-- `sync.WaitGroup` - Checks that wait groups aren't copied when being
-  passed to functions.
 - `TestMain` - checks that the TestMain function calls os.Exit to
   report test failure. -- This check may have false positive. Its
   confidence is 0.9 and can be filtered with the `-min_confidence`
