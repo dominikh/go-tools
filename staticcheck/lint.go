@@ -92,7 +92,7 @@ func CheckRegexps(f *lint.File) {
 		s := constant.StringVal(typ.Value)
 		_, err := regexp.Compile(s)
 		if err != nil {
-			f.Errorf(call.Args[0], 1, "%s", err)
+			f.Errorf(call.Args[0], "%s", err)
 		}
 		return true
 	}
@@ -147,7 +147,7 @@ func CheckTemplate(f *lint.File) {
 		if err != nil {
 			// TODO(dominikh): whitelist other parse errors, if any
 			if strings.Contains(err.Error(), "unexpected") {
-				f.Errorf(call.Args[0], 1, "%s", err)
+				f.Errorf(call.Args[0], "%s", err)
 			}
 		}
 		return true
@@ -179,7 +179,7 @@ func CheckTimeParse(f *lint.File) {
 		s = strings.Replace(s, "Z", "-", -1)
 		_, err := time.Parse(s, s)
 		if err != nil {
-			f.Errorf(call.Args[0], 1, "%s", err)
+			f.Errorf(call.Args[0], "%s", err)
 		}
 		return true
 	}
@@ -218,7 +218,7 @@ func CheckEncodingBinary(f *lint.File) {
 		if validEncodingBinaryType(dataType) {
 			return true
 		}
-		f.Errorf(call.Args[2], 1, "type %s cannot be used with binary.Write",
+		f.Errorf(call.Args[2], "type %s cannot be used with binary.Write",
 			f.Pkg.TypesInfo.TypeOf(call.Args[2]))
 		return true
 	}
@@ -283,7 +283,7 @@ func CheckTimeSleepConstant(f *lint.File) {
 		if n != 1 {
 			recommendation = fmt.Sprintf("time.Sleep(%d * time.Nanosecond)", n)
 		}
-		f.Errorf(call.Args[0], 1, "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
+		f.Errorf(call.Args[0], "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
 		return true
 	}
 	f.Walk(fn)
@@ -319,7 +319,7 @@ func CheckWaitgroupAdd(f *lint.File) {
 			return true
 		}
 		if fn.FullName() == "(*sync.WaitGroup).Add" {
-			f.Errorf(sel, 1, "should call %s before starting the goroutine to avoid a race",
+			f.Errorf(sel, "should call %s before starting the goroutine to avoid a race",
 				f.Render(stmt))
 		}
 		return true
@@ -333,7 +333,7 @@ func CheckInfiniteEmptyLoop(f *lint.File) {
 		if !ok || len(loop.Body.List) != 0 || loop.Cond != nil || loop.Init != nil {
 			return true
 		}
-		f.Errorf(loop, 1, "should not use an infinite empty loop. It will spin. Consider select{} instead.")
+		f.Errorf(loop, "should not use an infinite empty loop. It will spin. Consider select{} instead.")
 		return true
 	}
 	f.Walk(fn)
@@ -372,7 +372,7 @@ func CheckDeferInInfiniteLoop(f *lint.File) {
 			return true
 		}
 		for _, stmt := range defers {
-			f.Errorf(stmt, 1, "defers in this infinite loop will never run")
+			f.Errorf(stmt, "defers in this infinite loop will never run")
 		}
 		return true
 	}
@@ -406,7 +406,7 @@ func CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 		}
 		ast.Inspect(loop.Body, fn2)
 		for _, stmt := range defers {
-			f.Errorf(stmt, 1, "defers in this range loop won't run unless the channel gets closed")
+			f.Errorf(stmt, "defers in this range loop won't run unless the channel gets closed")
 		}
 		return true
 	}
@@ -459,7 +459,7 @@ func CheckTestMainExit(f *lint.File) {
 		}
 		ast.Inspect(node.(*ast.FuncDecl).Body, fn3)
 		if !callsExit && callsRun {
-			f.Errorf(node, 0.9, "TestMain should call os.Exit to set exit code")
+			f.Errorf(node, "TestMain should call os.Exit to set exit code")
 		}
 		return true
 	}
@@ -508,7 +508,7 @@ func CheckExec(f *lint.File) {
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) {
 			return true
 		}
-		f.Errorf(call.Args[0], 0.9, "first argument to exec.Command looks like a shell command, but a program name or path are expected")
+		f.Errorf(call.Args[0], "first argument to exec.Command looks like a shell command, but a program name or path are expected")
 		return true
 	}
 	f.Walk(fn)
@@ -526,7 +526,7 @@ func CheckLoopEmptyDefault(f *lint.File) {
 		}
 		for _, c := range sel.Body.List {
 			if comm, ok := c.(*ast.CommClause); ok && comm.Comm == nil && len(comm.Body) == 0 {
-				f.Errorf(comm, 1, "should not have an empty default case in a for+select loop. The loop will spin.")
+				f.Errorf(comm, "should not have an empty default case in a for+select loop. The loop will spin.")
 			}
 		}
 		return true
@@ -535,19 +535,6 @@ func CheckLoopEmptyDefault(f *lint.File) {
 }
 
 func CheckLhsRhsIdentical(f *lint.File) {
-	hasFnCall := func(expr ast.Expr) bool {
-		hasCall := false
-		fn := func(node ast.Node) bool {
-			if _, ok := node.(*ast.CallExpr); ok {
-				hasCall = true
-				return false
-			}
-			return true
-		}
-		ast.Inspect(expr, fn)
-		return hasCall
-	}
-
 	fn := func(node ast.Node) bool {
 		op, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -572,11 +559,7 @@ func CheckLhsRhsIdentical(f *lint.File) {
 		if f.Render(op.X) != f.Render(op.Y) {
 			return true
 		}
-		confidence := 1.0
-		if hasFnCall(op) {
-			confidence = 0.9
-		}
-		f.Errorf(op, confidence, "identical expressions on the left and right side of the '%s' operator", op.Op)
+		f.Errorf(op, "identical expressions on the left and right side of the '%s' operator", op.Op)
 		return true
 	}
 	f.Walk(fn)
@@ -627,7 +610,7 @@ func CheckScopedBreak(f *lint.File) {
 					if !ok || branch.Tok != token.BREAK || branch.Label != nil {
 						continue
 					}
-					f.Errorf(branch, 1, "ineffective break statement. Did you mean to break out of the outer loop?")
+					f.Errorf(branch, "ineffective break statement. Did you mean to break out of the outer loop?")
 				}
 			}
 		}
@@ -655,7 +638,7 @@ func CheckUnsafePrintf(f *lint.File) {
 		default:
 			return true
 		}
-		f.Errorf(call.Args[0], 1, "printf-style function with dynamic first argument and no further arguments should use print-style function instead")
+		f.Errorf(call.Args[0], "printf-style function with dynamic first argument and no further arguments should use print-style function instead")
 		return true
 	}
 	f.Walk(fn)
@@ -683,7 +666,7 @@ func CheckURLs(f *lint.File) {
 		s := constant.StringVal(typ.Value)
 		_, err := url.Parse(s)
 		if err != nil {
-			f.Errorf(call.Args[0], 1, "invalid argument to url.Parse: %s", err)
+			f.Errorf(call.Args[0], "invalid argument to url.Parse: %s", err)
 		}
 		return true
 	}
@@ -755,7 +738,7 @@ func CheckEarlyDefer(f *lint.File) {
 			if sel.Sel.Name != "Close" {
 				continue
 			}
-			f.Errorf(def, 1, "should check returned error before deferring %s", f.Render(def.Call))
+			f.Errorf(def, "should check returned error before deferring %s", f.Render(def.Call))
 		}
 		return true
 	}
@@ -797,7 +780,7 @@ func CheckDubiousSyncPoolPointers(f *lint.File) {
 			// all pointer types
 			return true
 		}
-		f.Errorf(call.Args[0], 1, "non-pointer type %s put into sync.Pool", arg.String())
+		f.Errorf(call.Args[0], "non-pointer type %s put into sync.Pool", arg.String())
 		return false
 	}
 	f.Walk(fn)
@@ -872,7 +855,7 @@ func CheckEmptyCriticalSection(f *lint.File) {
 
 			if (method1 == "Lock" && method2 == "Unlock") ||
 				(method1 == "RLock" && method2 == "RUnlock") {
-				f.Errorf(block.List[i+1], 1, "empty critical section")
+				f.Errorf(block.List[i+1], "empty critical section")
 			}
 		}
 		return true
@@ -884,13 +867,13 @@ func CheckIneffectiveCopy(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		if unary, ok := node.(*ast.UnaryExpr); ok {
 			if _, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
-				f.Errorf(unary, 1, "&*x will be simplified to x. It will not copy x.")
+				f.Errorf(unary, "&*x will be simplified to x. It will not copy x.")
 			}
 		}
 
 		if star, ok := node.(*ast.StarExpr); ok {
 			if unary, ok := star.X.(*ast.UnaryExpr); ok && unary.Op == token.AND {
-				f.Errorf(star, 1, "*&x will be simplified to x. It will not copy x.")
+				f.Errorf(star, "*&x will be simplified to x. It will not copy x.")
 			}
 		}
 		return true
@@ -976,7 +959,7 @@ func CheckDiffSizeComparison(f *lint.File) {
 		if left == right {
 			return true
 		}
-		f.Errorf(expr, 1, "comparing strings of different sizes for equality will always return false")
+		f.Errorf(expr, "comparing strings of different sizes for equality will always return false")
 		return true
 	}
 	f.Walk(fn)
@@ -1018,7 +1001,7 @@ func CheckCanonicalHeaderKey(f *lint.File) {
 		if s == http.CanonicalHeaderKey(s) {
 			return true
 		}
-		f.Errorf(op, 1, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
+		f.Errorf(op, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		return true
 	}
 	f.Walk(fn)
@@ -1043,7 +1026,7 @@ func CheckBenchmarkN(f *lint.File) {
 		if types.TypeString(f.Pkg.TypesInfo.TypeOf(sel.X), nil) != "*testing.B" {
 			return true
 		}
-		f.Errorf(assign, 1, "should not assign to %s", f.Render(sel))
+		f.Errorf(assign, "should not assign to %s", f.Render(sel))
 		return true
 	}
 	f.Walk(fn)
@@ -1158,7 +1141,7 @@ func CheckIneffecitiveFieldAssignments(f *lint.File) {
 				fa := write.(*ssa.FieldAddr)
 				if !hasRead(block, fa) {
 					name := recv.Type().Underlying().(*types.Struct).Field(fa.Field).Name()
-					f.Errorf(fa, 1, "ineffective assignment to field %s", name)
+					f.Errorf(fa, "ineffective assignment to field %s", name)
 				}
 			}
 		}
@@ -1206,7 +1189,7 @@ func CheckUnreadVariableValues(f *lint.File) {
 					return true
 				}
 				if len(filterDebug(*val.Referrers())) == 0 {
-					f.Errorf(node, 1, "this value of %s is never used", lhs)
+					f.Errorf(node, "this value of %s is never used", lhs)
 				}
 			}
 			return true
@@ -1262,7 +1245,7 @@ func CheckPredeterminedBooleanExprs(f *lint.File) {
 		}
 		b := trues != 0
 		if trues == 0 || trues == len(xs)*len(ys) {
-			f.Errorf(binop, 1, "%s is always %t for all possible values (%s %s %s)",
+			f.Errorf(binop, "%s is always %t for all possible values (%s %s %s)",
 				f.Render(binop), b, xs, binop.Op, ys)
 		}
 
@@ -1299,7 +1282,7 @@ func CheckNilMaps(f *lint.File) {
 				if c.Value != nil {
 					continue
 				}
-				f.Errorf(mu, 1, "assignment to nil map")
+				f.Errorf(mu, "assignment to nil map")
 			}
 		}
 		return true
@@ -1331,11 +1314,11 @@ func CheckUnsignedComparison(f *lint.File) {
 		}
 		switch expr.Op {
 		case token.GEQ:
-			f.Errorf(expr, 1, "unsigned values are always >= 0")
+			f.Errorf(expr, "unsigned values are always >= 0")
 		case token.LSS:
-			f.Errorf(expr, 1, "unsigned values are never < 0")
+			f.Errorf(expr, "unsigned values are never < 0")
 		case token.LEQ:
-			f.Errorf(expr, 1, "'x <= 0' for unsigned values of x is the same as 'x == 0'")
+			f.Errorf(expr, "'x <= 0' for unsigned values of x is the same as 'x == 0'")
 		}
 		return true
 	}
@@ -1440,7 +1423,7 @@ func CheckLoopCondition(f *lint.File) {
 		case *ssa.Phi, *ssa.UnOp:
 			return true
 		}
-		f.Errorf(cond, 1, "variable in loop condition never changes")
+		f.Errorf(cond, "variable in loop condition never changes")
 
 		return true
 	}
@@ -1507,7 +1490,7 @@ func CheckArgOverwritten(f *lint.File) {
 					return true
 				})
 				if assigned {
-					f.Errorf(arg, 1, "argument %s is overwritten before first use", arg)
+					f.Errorf(arg, "argument %s is overwritten before first use", arg)
 				}
 			}
 		}
@@ -1614,7 +1597,7 @@ func CheckIneffectiveLoop(f *lint.File) {
 				return true
 			})
 			if unconditionalExit != nil {
-				f.Errorf(unconditionalExit, 1, "the surrounding loop is unconditionally terminated")
+				f.Errorf(unconditionalExit, "the surrounding loop is unconditionally terminated")
 			}
 			return true
 		})
@@ -1652,7 +1635,7 @@ func checkStdlibUsageRegexpFindAll(f *lint.File) {
 		if !ok || lit.Value != "0" {
 			return true
 		}
-		f.Errorf(lit, 1, "calling a FindAll method with n == 0 will return no results, did you mean -1?")
+		f.Errorf(lit, "calling a FindAll method with n == 0 will return no results, did you mean -1?")
 		return true
 	}
 	f.Walk(fn)
@@ -1681,7 +1664,7 @@ func checkStdlibUsageUTF8Cutset(f *lint.File) {
 			return true
 		}
 		if !utf8.ValidString(constant.StringVal(typ.Value)) {
-			f.Errorf(call.Args[1], 0.9, "the second argument to %s should be a valid UTF-8 encoded string", f.Render(call.Fun))
+			f.Errorf(call.Args[1], "the second argument to %s should be a valid UTF-8 encoded string", f.Render(call.Fun))
 		}
 		return true
 	}
@@ -1710,7 +1693,7 @@ func checkStdlibUsageNilContext(f *lint.File) {
 		if types.TypeString(sig.Params().At(0).Type(), nil) != "context.Context" {
 			return true
 		}
-		f.Errorf(call.Args[0], 1,
+		f.Errorf(call.Args[0],
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use")
 		return true
 	}
@@ -1797,7 +1780,7 @@ func CheckIneffectiveAppend(f *lint.File) {
 		expr, _ := ssafn.ValueForExpr(call)
 		walkRefs(*expr.Referrers())
 		if !isUsed {
-			f.Errorf(assign, 1, "this result of append is never used, except maybe in other appends")
+			f.Errorf(assign, "this result of append is never used, except maybe in other appends")
 		}
 		return true
 	}
@@ -1862,7 +1845,7 @@ func CheckConcurrentTesting(f *lint.File) {
 						default:
 							continue
 						}
-						f.Errorf(gostmt, 1, "the goroutine calls T.%s, which must be called in the same goroutine as the test", name)
+						f.Errorf(gostmt, "the goroutine calls T.%s, which must be called in the same goroutine as the test", name)
 					}
 				}
 			}
@@ -1912,7 +1895,7 @@ func CheckCyclicFinalizer(f *lint.File) {
 				}
 				if f.Pkg.TypesInfo.ObjectOf(ident) == obj {
 					pos := f.Fset.Position(fn.Pos())
-					f.Errorf(call, 1, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
+					f.Errorf(call, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
 					break
 				}
 			}
@@ -1974,7 +1957,7 @@ func CheckSliceOutOfBounds(f *lint.File) {
 				switch x := ia.X.(type) {
 				case *ssa.Const:
 					if x.Value == nil {
-						f.Errorf(ia, 1, "index out of bounds")
+						f.Errorf(ia, "index out of bounds")
 					}
 				case *ssa.Slice:
 					high := int64(-1)
@@ -1996,7 +1979,7 @@ func CheckSliceOutOfBounds(f *lint.File) {
 						high, _ = constant.Int64Val(c.Value)
 					}
 					if idx >= high {
-						f.Errorf(ia, 1, "index out of bounds")
+						f.Errorf(ia, "index out of bounds")
 					}
 				}
 			}
