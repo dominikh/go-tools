@@ -34,7 +34,7 @@ func usage(name string, flags *flag.FlagSet) func() {
 }
 
 type runner struct {
-	funcs         []lint.Func
+	funcs         map[string]lint.Func
 	minConfidence float64
 	tags          []string
 
@@ -65,7 +65,7 @@ func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err er
 	return false, nil
 }
 
-func ProcessArgs(name string, funcs []lint.Func, args []string) {
+func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 	flags := &flag.FlagSet{}
 	flags.Usage = usage(name, flags)
 	var minConfidence = flags.Float64("min_confidence", 0.8, "minimum confidence of a problem to print it")

@@ -69,7 +69,7 @@ func (p ByPosition) Less(i, j int) bool {
 
 // A Linter lints Go source code.
 type Linter struct {
-	Funcs []Func
+	Funcs map[string]Func
 }
 
 func buildPackage(pkg *types.Package, files []*ast.File, info *types.Info, fset *token.FileSet, mode ssa.BuilderMode) *ssa.Package {
@@ -97,25 +97,35 @@ func buildPackage(pkg *types.Package, files []*ast.File, info *types.Info, fset 
 }
 
 func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
+	var keys []string
+	for k := range l.Funcs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	out := map[string][]Problem{}
 	for _, pkginfo := range lprog.InitialPackages() {
 		ssapkg := buildPackage(pkginfo.Pkg, pkginfo.Files, &pkginfo.Info, lprog.Fset, ssa.GlobalDebug)
 		pkg := &Pkg{
-			files:     map[string]*File{},
 			TypesPkg:  pkginfo.Pkg,
 			TypesInfo: pkginfo.Info,
 			SSAPkg:    ssapkg,
 		}
 		for _, file := range pkginfo.Files {
 			path := lprog.Fset.Position(file.Pos()).Filename
-			f := &File{
-				Pkg:      pkg,
-				File:     file,
-				Filename: path,
-				Fset:     lprog.Fset,
-			}
-			pkg.files[path] = f
-			for _, fn := range l.Funcs {
+			for _, k := range keys {
+				f := &File{
+					Pkg:      pkg,
+					File:     file,
+					Filename: path,
+					Fset:     lprog.Fset,
+					check:    k,
+				}
+
+				fn := l.Funcs[k]
+				if fn == nil {
+					continue
+				}
 				fn(f)
 			}
 		}
@@ -138,7 +148,6 @@ func (f *File) Source() []byte {
 
 // pkg represents a package being linted.
 type Pkg struct {
-	files     map[string]*File
 	TypesPkg  *types.Package
 	TypesInfo types.Info
 	SSAPkg    *ssa.Package
@@ -153,6 +162,7 @@ type File struct {
 	Filename string
 	Fset     *token.FileSet
 	src      []byte
+	check    string
 }
 
 func (f *File) IsTest() bool { return strings.HasSuffix(f.Filename, "_test.go") }
@@ -169,10 +179,10 @@ type Positioner interface {
 // It returns the new Problem.
 func (f *File) Errorf(n Positioner, confidence float64, args ...interface{}) *Problem {
 	pos := f.Fset.Position(n.Pos())
-	return f.Pkg.ErrorfAt(pos, confidence, args...)
+	return f.Pkg.errorfAt(pos, confidence, f.check, args...)
 }
 
-func (p *Pkg) ErrorfAt(pos token.Position, confidence float64, args ...interface{}) *Problem {
+func (p *Pkg) errorfAt(pos token.Position, confidence float64, check string, args ...interface{}) *Problem {
 	problem := Problem{
 		Position:   pos,
 		Confidence: confidence,
@@ -191,7 +201,7 @@ argLoop:
 		args = args[1:]
 	}
 
-	problem.Text = fmt.Sprintf(args[0].(string), args[1:]...)
+	problem.Text = fmt.Sprintf(args[0].(string), args[1:]...) + fmt.Sprintf(" (%s)", check)
 
 	p.problems = append(p.problems, problem)
 	return &p.problems[len(p.problems)-1]
