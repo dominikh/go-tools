@@ -59,7 +59,7 @@ func LintSingleCaseSelect(f *lint.File) {
 				return true
 			}
 			seen[v.Body.List[0]] = struct{}{}
-			f.Errorf(node, 1, lint.Category("range-loop"), "should use for range instead of for { select {} }")
+			f.Errorf(node, "should use for range instead of for { select {} }")
 		case *ast.SelectStmt:
 			if _, ok := seen[v]; ok {
 				return true
@@ -67,7 +67,7 @@ func LintSingleCaseSelect(f *lint.File) {
 			if !isSingleSelect(v) {
 				return true
 			}
-			f.Errorf(node, 1, lint.Category("FIXME"), "should use a simple channel send/receive instead of select with a single case")
+			f.Errorf(node, "should use a simple channel send/receive instead of select with a single case")
 			return true
 		}
 		return true
@@ -146,7 +146,7 @@ func LintLoopCopy(f *lint.File) {
 		} else {
 			return true
 		}
-		f.Errorf(loop, 1, lint.Category("FIXME"), "should use copy() instead of a loop")
+		f.Errorf(loop, "should use copy() instead of a loop")
 		return true
 	}
 	f.Walk(fn)
@@ -174,7 +174,7 @@ func LintIfBoolCmp(f *lint.File) {
 			if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
 				op = "!"
 			}
-			f.Errorf(expr, 1, lint.Category("FIXME"), "should omit comparison to bool constant, can be simplified to %s%s",
+			f.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s%s",
 				op, f.Render(other))
 		}
 		return true
@@ -245,7 +245,7 @@ func LintStringsContains(f *lint.File) {
 		if !b {
 			prefix = "!"
 		}
-		f.Errorf(node, 1, "should use %s%s.%s(%s) instead", prefix, pkgIdent.Name, newFunc, f.RenderArgs(call.Args))
+		f.Errorf(node, "should use %s%s.%s(%s) instead", prefix, pkgIdent.Name, newFunc, f.RenderArgs(call.Args))
 
 		return true
 	}
@@ -280,7 +280,7 @@ func LintBytesCompare(f *lint.File) {
 		if expr.Op == token.NEQ {
 			prefix = "!"
 		}
-		f.Errorf(node, 1, lint.Category("FIXME"), "should use %sbytes.Equal(%s) instead", prefix, args)
+		f.Errorf(node, "should use %sbytes.Equal(%s) instead", prefix, args)
 		return true
 	}
 	f.Walk(fn)
@@ -293,7 +293,7 @@ func LintRanges(f *lint.File) {
 			return true
 		}
 		if lint.IsIdent(rs.Key, "_") && (rs.Value == nil || lint.IsIdent(rs.Value, "_")) {
-			f.Errorf(rs.Key, 1, lint.Category("range-loop"), "should omit values from range; this loop is equivalent to `for range ...`")
+			f.Errorf(rs.Key, "should omit values from range; this loop is equivalent to `for range ...`")
 		}
 
 		return true
@@ -312,7 +312,7 @@ func LintForTrue(f *lint.File) {
 		if !f.IsBoolConst(loop.Cond) || !f.BoolConst(loop.Cond) {
 			return true
 		}
-		f.Errorf(loop, 1, lint.Category("FIXME"), "should use for {} instead of for true {}")
+		f.Errorf(loop, "should use for {} instead of for true {}")
 		return true
 	}
 	f.Walk(fn)
@@ -369,7 +369,7 @@ func LintRegexpRaw(f *lint.File) {
 			}
 		}
 
-		f.Errorf(call, 1, lint.Category("FIXME"), "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
+		f.Errorf(call, "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
 		return true
 	}
 	f.Walk(fn)
@@ -434,7 +434,7 @@ func LintIfReturn(f *lint.File) {
 		if !f.IsBoolConst(ret2.Results[0]) {
 			return true
 		}
-		f.Errorf(n1, 1, lint.Category("FIXME"), "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
+		f.Errorf(n1, "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
 		return true
 	}
 	f.Walk(fn)
@@ -564,7 +564,7 @@ func LintRedundantNilCheckWithLen(f *lint.File) {
 		default:
 			return true
 		}
-		f.Errorf(expr, 1, lint.Category("FIXME"), "should omit nil check; len() for %s is defined as zero", nilType)
+		f.Errorf(expr, "should omit nil check; len() for %s is defined as zero", nilType)
 		return true
 	}
 	f.Walk(fn)
@@ -598,7 +598,7 @@ func LintSlicing(f *lint.File) {
 		if !ok || arg.Obj != s.Obj {
 			return true
 		}
-		f.Errorf(n, 1, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
+		f.Errorf(n, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
 		return true
 	}
 	f.Walk(fn)
@@ -686,7 +686,7 @@ func LintLoopAppend(f *lint.File) {
 		if f.Pkg.TypesInfo.ObjectOf(val) != f.Pkg.TypesInfo.ObjectOf(el) {
 			return true
 		}
-		f.Errorf(loop, 1, "should replace loop with %s = append(%s, %s...)",
+		f.Errorf(loop, "should replace loop with %s = append(%s, %s...)",
 			f.Render(stmt.Lhs[0]), f.Render(call.Args[0]), f.Render(loop.X))
 		return true
 	}
@@ -713,7 +713,7 @@ func LintTimeSince(f *lint.File) {
 		if sel.Sel.Name != "Sub" {
 			return true
 		}
-		f.Errorf(call, 1, "should use time.Since instead of time.Now().Sub")
+		f.Errorf(call, "should use time.Since instead of time.Now().Sub")
 		return true
 	}
 	f.Walk(fn)
@@ -824,7 +824,7 @@ func LintSimplerReturn(f *lint.File) {
 					continue
 				}
 
-				f.Errorf(ifs, 1, "'if %s != nil { return %s }; return %s' can be simplified to 'return %s'",
+				f.Errorf(ifs, "'if %s != nil { return %s }; return %s' can be simplified to 'return %s'",
 					f.Render(expr.X), f.RenderArgs(ret1.Results),
 					f.RenderArgs(ret2.Results), f.RenderArgs(ret1.Results))
 			}
@@ -857,7 +857,7 @@ func LintReceiveIntoBlank(f *lint.File) {
 			if expr.Op != token.ARROW {
 				continue
 			}
-			f.Errorf(lh, 1, "'_ = <-ch' can be simplified to '<-ch'")
+			f.Errorf(lh, "'_ = <-ch' can be simplified to '<-ch'")
 		}
 		return true
 	}
@@ -954,7 +954,7 @@ func LintFormatInt(f *lint.File) {
 			}
 		}
 		if matches {
-			f.Errorf(call, 1, "should use strconv.Itoa instead of strconv.FormatInt")
+			f.Errorf(call, "should use strconv.Itoa instead of strconv.FormatInt")
 		}
 		return true
 	}
@@ -1052,7 +1052,7 @@ func LintSimplerStructConversion(f *lint.File) {
 		if !structsIdentical(s1, s2) {
 			return true
 		}
-		f.Errorf(node, 1, "should use type conversion instead of struct literal")
+		f.Errorf(node, "should use type conversion instead of struct literal")
 		return true
 	}
 	f.Walk(fn)
@@ -1237,7 +1237,7 @@ func LintTrim(f *lint.File) {
 		case "HasSuffix":
 			replacement = "TrimSuffix"
 		}
-		f.Errorf(ifstmt, 1, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
+		f.Errorf(ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
 		return true
 	}
 	f.Walk(fn)
