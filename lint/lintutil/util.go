@@ -8,6 +8,7 @@
 package lintutil // import "honnef.co/go/lint/lintutil"
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"go/build"
@@ -37,6 +38,7 @@ type runner struct {
 	funcs         map[string]lint.Func
 	minConfidence float64
 	tags          []string
+	ignores       []lint.Ignore
 
 	unclean bool
 }
@@ -65,17 +67,41 @@ func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err er
 	return false, nil
 }
 
+func parseIgnore(s string) ([]lint.Ignore, error) {
+	var out []lint.Ignore
+	if len(s) == 0 {
+		return nil, nil
+	}
+	for _, part := range strings.Split(s, " ") {
+		p := strings.Split(part, ":")
+		if len(p) != 2 {
+			return nil, errors.New("malformed ignore string")
+		}
+		path := p[0]
+		checks := strings.Split(p[1], ",")
+		out = append(out, lint.Ignore{Pattern: path, Checks: checks})
+	}
+	return out, nil
+}
+
 func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 	flags := &flag.FlagSet{}
 	flags.Usage = usage(name, flags)
-	var minConfidence = flags.Float64("min_confidence", 0.8, "minimum confidence of a problem to print it")
-	var tags = flags.String("tags", "", "List of `build tags`")
+	minConfidence := flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
+	tags := flags.String("tags", "", "List of `build tags`")
+	ignore := flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Parse(args)
 
+	ignores, err := parseIgnore(*ignore)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	runner := &runner{
 		funcs:         funcs,
 		minConfidence: *minConfidence,
 		tags:          strings.Fields(*tags),
+		ignores:       ignores,
 	}
 	paths := gotool.ImportPaths(flags.Args())
 	goFiles, err := runner.resolveRelative(paths)
@@ -137,7 +163,8 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 
 func (runner *runner) lint(lprog *loader.Program) map[string][]lint.Problem {
 	l := &lint.Linter{
-		Funcs: runner.funcs,
+		Funcs:   runner.funcs,
+		Ignores: runner.ignores,
 	}
 	return l.Lint(lprog)
 }

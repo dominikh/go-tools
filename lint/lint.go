@@ -16,6 +16,7 @@ import (
 	"go/token"
 	"go/types"
 	"io/ioutil"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -23,6 +24,11 @@ import (
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/ssa"
 )
+
+type Ignore struct {
+	Pattern string
+	Checks  []string
+}
 
 type Func func(*File)
 
@@ -69,7 +75,8 @@ func (p ByPosition) Less(i, j int) bool {
 
 // A Linter lints Go source code.
 type Linter struct {
-	Funcs map[string]Func
+	Funcs   map[string]Func
+	Ignores []Ignore
 }
 
 func buildPackage(pkg *types.Package, files []*ast.File, info *types.Info, fset *token.FileSet, mode ssa.BuilderMode) *ssa.Package {
@@ -94,6 +101,25 @@ func buildPackage(pkg *types.Package, files []*ast.File, info *types.Info, fset 
 	ssapkg := prog.CreatePackage(pkg, files, info, false)
 	ssapkg.Build()
 	return ssapkg
+}
+
+func (l *Linter) ignore(f *File, check string) bool {
+	for _, ig := range l.Ignores {
+		pkg := f.Pkg.TypesPkg.Path()
+		if strings.HasSuffix(pkg, "_test") {
+			pkg = pkg[:len(pkg)-len("_test")]
+		}
+		name := filepath.Join(pkg, filepath.Base(f.Filename))
+		if m, _ := filepath.Match(ig.Pattern, name); !m {
+			continue
+		}
+		for _, c := range ig.Checks {
+			if c == check {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
@@ -124,6 +150,9 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 
 				fn := l.Funcs[k]
 				if fn == nil {
+					continue
+				}
+				if l.ignore(f, k) {
 					continue
 				}
 				fn(f)
