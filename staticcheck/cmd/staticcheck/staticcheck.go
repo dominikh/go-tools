@@ -20,10 +20,14 @@ func main() {
 		}
 		args = append(args, arg)
 	}
-	var funcs []lint.Func
-	funcs = append(funcs, staticcheck.Funcs...)
+	funcs := map[string]lint.Func{}
+	for k, v := range staticcheck.Funcs {
+		funcs[k] = v
+	}
 	if checkDubious {
-		funcs = append(funcs, staticcheck.DubiousFuncs...)
+		for k, v := range staticcheck.DubiousFuncs {
+			funcs[k] = v
+		}
 	}
 	lintutil.ProcessArgs("staticcheck", funcs, args)
 }

@@ -23,46 +23,49 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-var Funcs = []lint.Func{
-	CheckRegexps,
-	CheckTemplate,
-	CheckTimeParse,
-	CheckEncodingBinary,
-	CheckTimeSleepConstant,
-	CheckWaitgroupAdd,
-	CheckInfiniteEmptyLoop,
-	CheckDeferInInfiniteLoop,
-	CheckTestMainExit,
-	CheckExec,
-	CheckLoopEmptyDefault,
-	CheckLhsRhsIdentical,
-	CheckScopedBreak,
-	CheckUnsafePrintf,
-	CheckURLs,
-	CheckEarlyDefer,
-	CheckEmptyCriticalSection,
-	CheckIneffectiveCopy,
-	CheckDiffSizeComparison,
-	CheckCanonicalHeaderKey,
-	CheckBenchmarkN,
-	CheckUnsignedComparison,
-	CheckIneffectiveLoop,
+var Funcs = map[string]lint.Func{
+	"SA1000": CheckRegexps,
+	"SA1001": CheckTemplate,
+	"SA1002": CheckTimeParse,
+	"SA1003": CheckEncodingBinary,
+	"SA1004": CheckTimeSleepConstant,
+	"SA1005": CheckExec,
+	"SA1006": CheckUnsafePrintf,
+	"SA1007": CheckURLs,
+	"SA1008": CheckCanonicalHeaderKey,
+	"SA1009": CheckStdlibUsage,
 
-	CheckConcurrentTesting,
-	CheckIneffecitiveFieldAssignments,
-	CheckUnreadVariableValues,
-	CheckPredeterminedBooleanExprs,
-	CheckNilMaps,
-	CheckLoopCondition,
-	CheckArgOverwritten,
-	CheckStdlibUsage,
-	CheckIneffectiveAppend,
-	CheckCyclicFinalizer,
+	"SA2000": CheckWaitgroupAdd,
+	"SA2001": CheckEmptyCriticalSection,
+	"SA2002": CheckConcurrentTesting,
+
+	"SA3000": CheckTestMainExit,
+	"SA3001": CheckBenchmarkN,
+
+	"SA4000": CheckLhsRhsIdentical,
+	"SA4001": CheckIneffectiveCopy,
+	"SA4002": CheckDiffSizeComparison,
+	"SA4003": CheckUnsignedComparison,
+	"SA4004": CheckIneffectiveLoop,
+	"SA4005": CheckIneffecitiveFieldAssignments,
+	"SA4006": CheckUnreadVariableValues,
+	"SA4007": CheckPredeterminedBooleanExprs,
+	"SA4008": CheckLoopCondition,
+	"SA4009": CheckArgOverwritten,
+	"SA4010": CheckIneffectiveAppend,
+	"SA4011": CheckScopedBreak,
+
+	"SA5000": CheckNilMaps,
+	"SA5001": CheckEarlyDefer,
+	"SA5002": CheckInfiniteEmptyLoop,
+	"SA5003": CheckDeferInInfiniteLoop,
+	"SA5004": CheckLoopEmptyDefault,
+	"SA5005": CheckCyclicFinalizer,
 }
 
-var DubiousFuncs = []lint.Func{
-	CheckDubiousSyncPoolPointers,
-	CheckDubiousDeferInChannelRangeLoop,
+var DubiousFuncs = map[string]lint.Func{
+	"SA9000": CheckDubiousSyncPoolPointers,
+	"SA9001": CheckDubiousDeferInChannelRangeLoop,
 }
 
 func CheckRegexps(f *lint.File) {
