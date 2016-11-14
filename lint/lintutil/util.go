@@ -35,10 +35,9 @@ func usage(name string, flags *flag.FlagSet) func() {
 }
 
 type runner struct {
-	funcs         map[string]lint.Func
-	minConfidence float64
-	tags          []string
-	ignores       []lint.Ignore
+	funcs   map[string]lint.Func
+	tags    []string
+	ignores []lint.Ignore
 
 	unclean bool
 }
@@ -87,7 +86,7 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 	flags := &flag.FlagSet{}
 	flags.Usage = usage(name, flags)
-	minConfidence := flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
+	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
 	tags := flags.String("tags", "", "List of `build tags`")
 	ignore := flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Parse(args)
@@ -98,10 +97,9 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 		os.Exit(1)
 	}
 	runner := &runner{
-		funcs:         funcs,
-		minConfidence: *minConfidence,
-		tags:          strings.Fields(*tags),
-		ignores:       ignores,
+		funcs:   funcs,
+		tags:    strings.Fields(*tags),
+		ignores: ignores,
 	}
 	paths := gotool.ImportPaths(flags.Args())
 	goFiles, err := runner.resolveRelative(paths)
@@ -120,9 +118,7 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 		for _, ps := range ps {
 			for _, p := range ps {
 				runner.unclean = true
-				if p.Confidence >= runner.minConfidence {
-					fmt.Printf("%v: %s\n", p.Position, p.Text)
-				}
+				fmt.Printf("%v: %s\n", p.Position, p.Text)
 			}
 		}
 	} else {
@@ -149,9 +145,7 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 		for _, ps := range ps {
 			for _, p := range ps {
 				runner.unclean = true
-				if p.Confidence >= runner.minConfidence {
-					fmt.Printf("%v: %s\n", p.Position, p.Text)
-				}
+				fmt.Printf("%v: %s\n", p.Position, p.Text)
 			}
 
 		}

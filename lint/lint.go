@@ -34,11 +34,8 @@ type Func func(*File)
 
 // Problem represents a problem in some source code.
 type Problem struct {
-	Position   token.Position // position in source file
-	Text       string         // the prose that describes the problem
-	Link       string         // (optional) the link to the style guide for the problem
-	Confidence float64        // a value in (0,1] estimating the confidence in this problem's correctness
-	Category   string         // a short name for the general category of the problem
+	Position token.Position // position in source file
+	Text     string         // the prose that describes the problem
 
 	// If the problem has a suggested fix (the minority case),
 	// ReplacementLine is a full replacement for the relevant line of the source file.
@@ -46,9 +43,6 @@ type Problem struct {
 }
 
 func (p *Problem) String() string {
-	if p.Link != "" {
-		return p.Text + "\n\n" + p.Link
-	}
 	return p.Text
 }
 
@@ -196,42 +190,21 @@ type File struct {
 
 func (f *File) IsTest() bool { return strings.HasSuffix(f.Filename, "_test.go") }
 
-type Link string
-type Category string
-
 type Positioner interface {
 	Pos() token.Pos
 }
 
-// The variadic arguments may start with link and category types,
-// and must end with a format string and any arguments.
-// It returns the new Problem.
-func (f *File) Errorf(n Positioner, confidence float64, args ...interface{}) *Problem {
+func (f *File) Errorf(n Positioner, args ...interface{}) *Problem {
 	pos := f.Fset.Position(n.Pos())
-	return f.Pkg.errorfAt(pos, confidence, f.check, args...)
+	return f.Pkg.errorfAt(pos, f.check, args...)
 }
 
-func (p *Pkg) errorfAt(pos token.Position, confidence float64, check string, args ...interface{}) *Problem {
+func (p *Pkg) errorfAt(pos token.Position, check string, args ...interface{}) *Problem {
 	problem := Problem{
-		Position:   pos,
-		Confidence: confidence,
-	}
-
-argLoop:
-	for len(args) > 1 { // always leave at least the format string in args
-		switch v := args[0].(type) {
-		case Link:
-			problem.Link = string(v)
-		case Category:
-			problem.Category = string(v)
-		default:
-			break argLoop
-		}
-		args = args[1:]
+		Position: pos,
 	}
 
 	problem.Text = fmt.Sprintf(args[0].(string), args[1:]...) + fmt.Sprintf(" (%s)", check)
-
 	p.problems = append(p.problems, problem)
 	return &p.problems[len(p.problems)-1]
 }
