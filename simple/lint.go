@@ -14,25 +14,25 @@ import (
 	"honnef.co/go/lint"
 )
 
-var Funcs = []lint.Func{
-	LintSingleCaseSelect,
-	LintLoopCopy,
-	LintIfBoolCmp,
-	LintStringsContains,
-	LintBytesCompare,
-	LintRanges,
-	LintForTrue,
-	LintRegexpRaw,
-	LintIfReturn,
-	LintRedundantNilCheckWithLen,
-	LintSlicing,
-	LintLoopAppend,
-	LintTimeSince,
-	LintSimplerReturn,
-	LintReceiveIntoBlank,
-	LintFormatInt,
-	LintSimplerStructConversion,
-	LintTrim,
+var Funcs = map[string]lint.Func{
+	"S1000": LintSingleCaseSelect,
+	"S1001": LintLoopCopy,
+	"S1002": LintIfBoolCmp,
+	"S1003": LintStringsContains,
+	"S1004": LintBytesCompare,
+	"S1005": LintRanges,
+	"S1006": LintForTrue,
+	"S1007": LintRegexpRaw,
+	"S1008": LintIfReturn,
+	"S1009": LintRedundantNilCheckWithLen,
+	"S1010": LintSlicing,
+	"S1011": LintLoopAppend,
+	"S1012": LintTimeSince,
+	"S1013": LintSimplerReturn,
+	"S1014": LintReceiveIntoBlank,
+	"S1015": LintFormatInt,
+	"S1016": LintSimplerStructConversion,
+	"S1017": LintTrim,
 }
 
 func LintSingleCaseSelect(f *lint.File) {
