@@ -83,6 +83,7 @@ The following things are currently checked by staticcheck:
 | SA5003     | Defers in infinite loops will never execute                                                                |
 | SA5004     | `for { select { ...` with an empty default branch spins                                                    |
 | SA5005     | The finalizer references the finalized object, preventing garbage collection                               |
+| SA5006     | Slice index out of bounds                                                                                  |
 |            |                                                                                                            |
 | **SA9???** | **Dubious code constructs that have a high probability of being wrong**                                    |
 | SA9000     | Storing non-pointer values in sync.Pool allocates memory                                                   |

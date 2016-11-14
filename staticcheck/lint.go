@@ -61,6 +61,7 @@ var Funcs = map[string]lint.Func{
 	"SA5003": CheckDeferInInfiniteLoop,
 	"SA5004": CheckLoopEmptyDefault,
 	"SA5005": CheckCyclicFinalizer,
+	"SA5006": CheckSliceOutOfBounds,
 }
 
 var DubiousFuncs = map[string]lint.Func{
@@ -1939,6 +1940,66 @@ func CheckCyclicFinalizer(f *lint.File) {
 		case *ast.Ident, *ast.FuncLit:
 			r, _ := ssafn.ValueForExpr(arg)
 			checkValue(r)
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckSliceOutOfBounds(f *lint.File) {
+	ssapkg := f.Pkg.SSAPkg
+	if ssapkg == nil {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		ssafn := ssapkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		if ssafn == nil {
+			return true
+		}
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				ia, ok := ins.(*ssa.IndexAddr)
+				if !ok {
+					continue
+				}
+				ic, ok := ia.Index.(*ssa.Const)
+				if !ok || ic.Value == nil {
+					continue
+				}
+				idx, _ := constant.Int64Val(ic.Value)
+				switch x := ia.X.(type) {
+				case *ssa.Const:
+					if x.Value == nil {
+						f.Errorf(ia, 1, "index out of bounds")
+					}
+				case *ssa.Slice:
+					high := int64(-1)
+					if x.High == nil {
+						if alloc, ok := x.X.(*ssa.Alloc); ok {
+							if array, ok := alloc.Type().(*types.Pointer).Elem().(*types.Array); ok {
+								high = array.Len()
+							}
+						}
+					}
+					if high == -1 {
+						c, ok := x.High.(*ssa.Const)
+						if !ok {
+							break
+						}
+						if c.Value == nil {
+							break
+						}
+						high, _ = constant.Int64Val(c.Value)
+					}
+					if idx >= high {
+						f.Errorf(ia, 1, "index out of bounds")
+					}
+				}
+			}
 		}
 		return true
 	}
