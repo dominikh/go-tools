@@ -194,17 +194,17 @@ type Positioner interface {
 	Pos() token.Pos
 }
 
-func (f *File) Errorf(n Positioner, args ...interface{}) *Problem {
+func (f *File) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	pos := f.Fset.Position(n.Pos())
-	return f.Pkg.errorfAt(pos, f.check, args...)
+	return f.Pkg.errorfAt(pos, f.check, format, args...)
 }
 
-func (p *Pkg) errorfAt(pos token.Position, check string, args ...interface{}) *Problem {
+func (p *Pkg) errorfAt(pos token.Position, check string, format string, args ...interface{}) *Problem {
 	problem := Problem{
 		Position: pos,
 	}
 
-	problem.Text = fmt.Sprintf(args[0].(string), args[1:]...) + fmt.Sprintf(" (%s)", check)
+	problem.Text = fmt.Sprintf(format, args...) + fmt.Sprintf(" (%s)", check)
 	p.problems = append(p.problems, problem)
 	return &p.problems[len(p.problems)-1]
 }
