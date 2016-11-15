@@ -89,3 +89,36 @@ The following things are currently checked by staticcheck:
 | **SA9???** | **Dubious code constructs that have a high probability of being wrong**                                    |
 | SA9000     | Storing non-pointer values in sync.Pool allocates memory                                                   |
 | SA9001     | `defer`s in `for range` loops may not run when you expect them to                                          |
+
+## Ignoring checks
+
+staticcheck allows disabling some or all checks for certain files. The
+`-ignore` flag takes a whitespace-separated list of
+`glob:check1,check2,...` pairs. `glob` is a glob pattern matching
+files in packages, and `check1,check2,...` are checks named by their
+IDs.
+
+For example, to ignore assignment to nil maps in all test files in the
+`os/exec` package, you would write `-ignore
+"os/exec/*_test.go:SA5000"`
+
+Additionally, the check IDs support globbing, too. Using a pattern
+such as `os/exec/*.gen.go:*` would disable all checks in all
+auto-generated files in the os/exec package.
+
+Any whitespace can be used to separate rules, including newlines. This
+allows for a setup like the following:
+
+```
+$ cat stdlib.ignore
+sync/*_test.go:SA2001
+testing/benchmark.go:SA3001
+runtime/string_test.go:SA4007
+runtime/proc_test.go:SA5004
+runtime/lfstack_test.go:SA4010
+runtime/append_test.go:SA4010
+errors/errors_test.go:SA4000
+reflect/all_test.go:SA4000
+
+$ staticcheck -ignore "$(cat stdlib.ignore)" std
+```
