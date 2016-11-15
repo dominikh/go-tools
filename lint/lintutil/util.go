@@ -71,7 +71,7 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 	if len(s) == 0 {
 		return nil, nil
 	}
-	for _, part := range strings.Split(s, " ") {
+	for _, part := range strings.Fields(s) {
 		p := strings.Split(part, ":")
 		if len(p) != 2 {
 			return nil, errors.New("malformed ignore string")
