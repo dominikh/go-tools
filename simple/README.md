@@ -89,3 +89,31 @@ bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)
 
 time.Now().Sub(a) -> time.Since(a)
 ```
+
+## Ignoring checks
+
+gosimple allows disabling some or all checks for certain files. The
+`-ignore` flag takes a whitespace-separated list of
+`glob:check1,check2,...` pairs. `glob` is a glob pattern matching
+files in packages, and `check1,check2,...` are checks named by their
+IDs.
+
+For example, to ignore uses of strconv.FormatInt in all test files in the
+`os/exec` package, you would write `-ignore
+"os/exec/*_test.go:S1015"`
+
+Additionally, the check IDs support globbing, too. Using a pattern
+such as `os/exec/*.gen.go:*` would disable all checks in all
+auto-generated files in the os/exec package.
+
+Any whitespace can be used to separate rules, including newlines. This
+allows for a setup like the following:
+
+```
+$ cat stdlib.ignore
+sync/*_test.go:S1000
+testing/benchmark.go:S1016
+runtime/string_test.go:S1005
+
+$ gosimple -ignore "$(cat stdlib.ignore)" std
+```
