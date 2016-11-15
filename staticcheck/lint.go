@@ -64,9 +64,7 @@ var Funcs = map[string]lint.Func{
 	"SA5004": CheckLoopEmptyDefault,
 	"SA5005": CheckCyclicFinalizer,
 	"SA5006": CheckSliceOutOfBounds,
-}
 
-var DubiousFuncs = map[string]lint.Func{
 	"SA9000": CheckDubiousSyncPoolPointers,
 	"SA9001": CheckDubiousDeferInChannelRangeLoop,
 }
