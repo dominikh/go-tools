@@ -1059,7 +1059,6 @@ func LintSimplerStructConversion(f *lint.File) {
 }
 
 func LintTrim(f *lint.File) {
-	// TODO(dh): implement the same for suffix
 	sameNonDynamic := func(node1, node2 ast.Node) bool {
 		if reflect.TypeOf(node1) != reflect.TypeOf(node2) {
 			return false
