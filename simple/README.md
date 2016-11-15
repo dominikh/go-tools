@@ -38,61 +38,26 @@ and gosimple together and consider gosimple an addon to golint.
 Gosimple makes the following recommendations for avoiding unsimple
 constructs:
 
-- Don't use `select{}` with a single case. Instead, use a plain
-  channel send or receive.
-- Don't use `for { select {} }` with a single receive case. Instead,
-  use `range` to iterate over the channel.
-- Don't compare boolean expressions to the constants `true` or
-  `false`. `if x == true` can be written as `if x` instead.
-- Don't use `strings.Index*` or `bytes.Index` when you could use
-  `strings.Contains*` and `bytes.Contains` instead.
-- Don't use `bytes.Compare` to check for equality, use `bytes.Equal`.
-- Don't use `for` loops to copy slices, use `copy`
-- Don't use `for` loops to append one slice to another, use `x =
-  append(x, y...)`
-- Don't use `for _ = range x`, use `for range x`
-- Don't use `for true { ... }`, use `for { ... }`
-- Use raw strings with regexp.Compile to avoid two levels of escaping
-- Don't use `if <expr> { return <bool> }; return <bool>`, use `return
-  <expr>`, unless the `if` is one in a series of many early returns.
-- Don't check if slices, maps or channels are nil before checking
-  their length, it's redundant. `len` is defined as zero for those nil
-  values.
-- Don't use `time.Now().Sub(x)`, use `time.Since(x)` instead
-- Don't write
-
-  ```
-  if err != nil {
-    return err
-  }
-  return nil
-  ```
-
-  write
-
-  ```
-  return err
-  ```
-
-  instead
-- Don't use `_ = <-ch`, use `<-ch` instead
-- Use `strconv.Itoa` instead of `strconv.FormatInt` when it's simpler.
-- Don't use a struct composite literal when a simple type conversion
-  is enough
-- Don't write
-
-  ```
-  if strings.HasPrefix(s1, s2) {
-      s1 = s1[len(s2):]
-  }
-  ```
-
-  write
-
-  ```
-  s1 = strings.TrimPrefix(s1, s2)
-  ```
-  instead
+| Check | Description                                                                 | Suggestion                                                             |
+|-------|-----------------------------------------------------------------------------|------------------------------------------------------------------------ |
+| S1000 | `select{}` with a single case                                               | Use a plain channel send or receive                                    |
+| S1001 | A loop copying elements of `s2` to `s1`                                     | `copy(s1, s2)`                                                         |
+| S1002 | `if b == true`                                                              | `if b`                                                                 |
+| S1003 | `strings.Index*(x, y) != -1`                                                | `strings.Contains(x, y)`                                               |
+| S1004 | `bytes.Compare(x, y) == 0`                                                  | `bytes.Equal(x, y)`                                                    |
+| S1005 | `for _ = range x`                                                           | `for range x`                                                          |
+| S1006 | `for true {...}`                                                            | `for {...}`                                                            |
+| S1007 | Using double quotes and escaping for regular expressions                    | Use raw strings                                                        |
+| S1008 | `if <expr> { return <bool> }; return <bool>`                                | `return <expr>`                                                        |
+| S1009 | Checking a slice against nil and also checking its length against zero      | Nil slices are defined to have length zero, the nil check is redundant |
+| S1010 | `s[a:len(s)]`                                                               | `s[a:]`                                                                |
+| S1011 | A loop appending each element of `s2` to `s1`                               | `append(s1, s2...)`                                                    |
+| S1012 | `time.Now().Sub(x)`                                                         | `time.Since(x)`                                                        |
+| S1013 | `if err != nil { return err }; return nil`                                  | `return err`                                                           |
+| S1014 | `_ = <-x`                                                                   | `<-x`                                                                  |
+| S1015 | Using `strconv.FormatInt` when `strconv.Atoi` would be more straightforward |                                                                        |
+| S1016 | Converting two struct types by manually copying each field                  | A type conversion: `T(v)`                                              |
+| S1017 | `if strings.HasPrefix` + string slicing                                     | Call `strings.TrimPrefix` unconditionally                              |
 
 ## gofmt -r
 
