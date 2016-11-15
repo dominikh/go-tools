@@ -108,7 +108,7 @@ func (l *Linter) ignore(f *File, check string) bool {
 			continue
 		}
 		for _, c := range ig.Checks {
-			if c == check {
+			if m, _ := filepath.Match(c, check); m {
 				return true
 			}
 		}
