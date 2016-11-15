@@ -1610,6 +1610,7 @@ func CheckStdlibUsage(f *lint.File) {
 	checkStdlibUsageRegexpFindAll(f)
 	checkStdlibUsageUTF8Cutset(f)
 	checkStdlibUsageNilContext(f)
+	checkStdlibUsageSeeker(f)
 }
 
 func checkStdlibUsageRegexpFindAll(f *lint.File) {
@@ -1695,6 +1696,44 @@ func checkStdlibUsageNilContext(f *lint.File) {
 		}
 		f.Errorf(call.Args[0],
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func checkStdlibUsageSeeker(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if sel.Sel.Name != "Seek" {
+			return true
+		}
+		if len(call.Args) != 2 {
+			return true
+		}
+		arg0, ok := call.Args[0].(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch arg0.Sel.Name {
+		case "SeekStart", "SeekCurrent", "SeekEnd":
+		default:
+			return true
+		}
+		pkg, ok := arg0.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if pkg.Name != "io" {
+			return true
+		}
+		f.Errorf(call, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
 		return true
 	}
 	f.Walk(fn)
