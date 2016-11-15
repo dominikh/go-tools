@@ -57,6 +57,7 @@ The following things are currently checked by staticcheck:
 | SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                              |
 | SA2001     | Empty critical section, did you mean to `defer` the unlock?                                                |
 | SA2002     | Called testing.T.FailNow or SkipNow in a goroutine, which isn't allowed                                    |
+| SA2003     | Deferred Lock right after locking, likely meant to defer Unlock instead                                    |
 |            |                                                                                                            |
 | **SA3???** | **Testing issues**                                                                                         |
 | SA3000     | TestMain doesn't call os.Exit, hiding test failures                                                        |

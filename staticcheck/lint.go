@@ -38,6 +38,7 @@ var Funcs = map[string]lint.Func{
 	"SA2000": CheckWaitgroupAdd,
 	"SA2001": CheckEmptyCriticalSection,
 	"SA2002": CheckConcurrentTesting,
+	"SA2003": CheckDeferLock,
 
 	"SA3000": CheckTestMainExit,
 	"SA3001": CheckBenchmarkN,
@@ -2022,6 +2023,47 @@ func CheckSliceOutOfBounds(f *lint.File) {
 					}
 				}
 			}
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckDeferLock(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		block, ok := node.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		if len(block.List) < 2 {
+			return true
+		}
+		for i, stmt := range block.List[:len(block.List)-1] {
+			expr, ok := stmt.(*ast.ExprStmt)
+			if !ok {
+				continue
+			}
+			call, ok := expr.X.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || (sel.Sel.Name != "Lock" && sel.Sel.Name != "RLock") || len(call.Args) != 0 {
+				continue
+			}
+			d, ok := block.List[i+1].(*ast.DeferStmt)
+			if !ok || len(d.Call.Args) != 0 {
+				continue
+			}
+			dsel, ok := d.Call.Fun.(*ast.SelectorExpr)
+			if !ok || dsel.Sel.Name != sel.Sel.Name || f.Render(dsel.X) != f.Render(sel.X) {
+				continue
+			}
+			unlock := "Unlock"
+			if sel.Sel.Name[0] == 'R' {
+				unlock = "RUnlock"
+			}
+			f.Errorf(d, "deferring %s right after having locked already; did you mean to defer %s?", sel.Sel.Name, unlock)
 		}
 		return true
 	}
