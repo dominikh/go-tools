@@ -71,7 +71,6 @@ The following things are currently checked by staticcheck:
 | SA4004     | The loop exits unconditionally after one iteration                                                         |
 | SA4005     | Field assignment that will never be observed. Did you mean to use a pointer receiver?                      |
 | SA4006     | A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code? |
-| SA4007     | Boolean expression always evaluates to the same result based on all known values of the operands           |
 | SA4008     | The variable in the loop condition never changes, are you incrementing the wrong variable?                 |
 | SA4009     | A function argument is overwritten before its first use                                                    |
 | SA4010     | The result of `append` will never be observed anywhere                                                     |

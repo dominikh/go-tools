@@ -7,4 +7,4 @@ func fn() {
 	}
 }
 
-// MATCH:5 /j < 10 is always true for all possible values/
+// M_ATCH:5 /j < 10 is always true for all possible values/
