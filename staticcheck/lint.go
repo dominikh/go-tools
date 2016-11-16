@@ -991,10 +991,6 @@ func CheckBenchmarkN(f *lint.File) {
 }
 
 func CheckIneffecitiveFieldAssignments(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1003,7 +999,7 @@ func CheckIneffecitiveFieldAssignments(f *lint.File) {
 		if fn.Recv == nil {
 			return true
 		}
-		ssafn := ssapkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		ssafn := f.Pkg.SSAPkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
 		if ssafn == nil {
 			return true
 		}
@@ -1110,10 +1106,6 @@ func CheckIneffecitiveFieldAssignments(f *lint.File) {
 }
 
 func CheckUnreadVariableValues(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1158,10 +1150,6 @@ func CheckUnreadVariableValues(f *lint.File) {
 }
 
 func CheckPredeterminedBooleanExprs(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		binop, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -1213,16 +1201,12 @@ func CheckPredeterminedBooleanExprs(f *lint.File) {
 }
 
 func CheckNilMaps(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
 			return true
 		}
-		ssafn := ssapkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		ssafn := f.Pkg.SSAPkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
 		if ssafn == nil {
 			return true
 		}
@@ -1334,10 +1318,6 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 }
 
 func CheckLoopCondition(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		loop, ok := node.(*ast.ForStmt)
 		if !ok {
@@ -1389,10 +1369,6 @@ func CheckLoopCondition(f *lint.File) {
 }
 
 func CheckArgOverwritten(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1698,10 +1674,6 @@ func checkStdlibUsageSeeker(f *lint.File) {
 }
 
 func CheckIneffectiveAppend(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
@@ -1853,10 +1825,6 @@ func CheckConcurrentTesting(f *lint.File) {
 }
 
 func CheckCyclicFinalizer(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1927,16 +1895,12 @@ func CheckCyclicFinalizer(f *lint.File) {
 }
 
 func CheckSliceOutOfBounds(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	if ssapkg == nil {
-		return
-	}
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
 			return true
 		}
-		ssafn := ssapkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		ssafn := f.Pkg.SSAPkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
 		if ssafn == nil {
 			return true
 		}
