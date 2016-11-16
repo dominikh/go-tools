@@ -788,7 +788,7 @@ func CheckDubiousSyncPoolPointers(f *lint.File) {
 }
 
 func CheckEmptyCriticalSection(f *lint.File) {
-	mutexParams := func(s ast.Stmt) (selectorTokens []string, funcName string, ok bool) {
+	mutexParams := func(s ast.Stmt) (x ast.Expr, funcName string, ok bool) {
 		expr, ok := s.(*ast.ExprStmt)
 		if !ok {
 			return nil, "", false
@@ -802,22 +802,6 @@ func CheckEmptyCriticalSection(f *lint.File) {
 			return nil, "", false
 		}
 
-		// Make sure it's chain of identifiers without any function calls
-		chain := []string{}
-	Loop:
-		for nsel := sel.X; ; {
-			switch s := nsel.(type) {
-			case *ast.Ident:
-				chain = append(chain, s.Name)
-				break Loop
-			case *ast.SelectorExpr:
-				chain = append(chain, s.Sel.Name)
-				nsel = s.X
-			default:
-				return nil, "", false
-			}
-		}
-
 		fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
 		if !ok {
 			return nil, "", false
@@ -827,7 +811,7 @@ func CheckEmptyCriticalSection(f *lint.File) {
 			return nil, "", false
 		}
 
-		return chain, fn.Name(), true
+		return sel.X, fn.Name(), true
 	}
 
 	fn := func(node ast.Node) bool {
@@ -842,18 +826,9 @@ func CheckEmptyCriticalSection(f *lint.File) {
 			sel1, method1, ok1 := mutexParams(block.List[i])
 			sel2, method2, ok2 := mutexParams(block.List[i+1])
 
-			if !ok1 || !ok2 || len(sel1) != len(sel2) {
+			if !ok1 || !ok2 || f.Render(sel1) != f.Render(sel2) {
 				continue
 			}
-
-			equal := true
-			for i := range sel1 {
-				equal = equal && (sel1[i] == sel2[i])
-			}
-			if !equal {
-				continue
-			}
-
 			if (method1 == "Lock" && method2 == "Unlock") ||
 				(method1 == "RLock" && method2 == "RUnlock") {
 				f.Errorf(block.List[i+1], "empty critical section")

@@ -41,7 +41,7 @@ func fn4() {
 	}
 
 	x.m().Lock()
-	x.m().Unlock()
+	x.m().Unlock() // MATCH /empty critical section/
 }
 
 func fn5() {
