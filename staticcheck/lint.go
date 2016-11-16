@@ -70,6 +70,21 @@ var Funcs = map[string]lint.Func{
 	"SA9001": CheckDubiousDeferInChannelRangeLoop,
 }
 
+func constantString(f *lint.File, expr ast.Expr) (string, bool) {
+	val := f.Pkg.TypesInfo.Types[expr].Value
+	if val == nil {
+		return "", false
+	}
+	if val.Kind() != constant.String {
+		return "", false
+	}
+	return constant.StringVal(val), true
+}
+
+func hasType(f *lint.File, expr ast.Expr, name string) bool {
+	return types.TypeString(f.Pkg.TypesInfo.TypeOf(expr), nil) == name
+}
+
 func CheckRegexps(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -83,14 +98,10 @@ func CheckRegexps(f *lint.File) {
 		if len(call.Args) != 1 {
 			return true
 		}
-		typ := f.Pkg.TypesInfo.Types[call.Args[0]]
-		if typ.Value == nil {
+		s, ok := constantString(f, call.Args[0])
+		if !ok {
 			return true
 		}
-		if typ.Value.Kind() != constant.String {
-			return true
-		}
-		s := constant.StringVal(typ.Value)
 		_, err := regexp.Compile(s)
 		if err != nil {
 			f.Errorf(call.Args[0], "%s", err)
@@ -117,27 +128,17 @@ func CheckTemplate(f *lint.File) {
 			return true
 		}
 		var kind string
-		typ := f.Pkg.TypesInfo.TypeOf(sel.X)
-		if typ == nil {
-			return true
-		}
-		switch typ.String() {
-		case "*text/template.Template":
+		if hasType(f, sel.X, "*text/template.Template") {
 			kind = "text"
-		case "*html/template.Template":
+		} else if hasType(f, sel.X, "*html/template.Template") {
 			kind = "html"
-		default:
+		} else {
 			return true
 		}
-
-		val := f.Pkg.TypesInfo.Types[call.Args[0]].Value
-		if val == nil {
+		s, ok := constantString(f, call.Args[0])
+		if !ok {
 			return true
 		}
-		if val.Kind() != constant.String {
-			return true
-		}
-		s := constant.StringVal(val)
 		var err error
 		switch kind {
 		case "text":
@@ -168,14 +169,10 @@ func CheckTimeParse(f *lint.File) {
 		if len(call.Args) != 2 {
 			return true
 		}
-		typ := f.Pkg.TypesInfo.Types[call.Args[0]]
-		if typ.Value == nil {
+		s, ok := constantString(f, call.Args[0])
+		if !ok {
 			return true
 		}
-		if typ.Value.Kind() != constant.String {
-			return true
-		}
-		s := constant.StringVal(typ.Value)
 		s = strings.Replace(s, "_", " ", -1)
 		s = strings.Replace(s, "Z", "-", -1)
 		_, err := time.Parse(s, s)
@@ -498,14 +495,10 @@ func CheckExec(f *lint.File) {
 		if len(call.Args) != 1 {
 			return true
 		}
-		typ := f.Pkg.TypesInfo.Types[call.Args[0]]
-		if typ.Value == nil {
+		val, ok := constantString(f, call.Args[0])
+		if !ok {
 			return true
 		}
-		if typ.Value.Kind() != constant.String {
-			return true
-		}
-		val := constant.StringVal(typ.Value)
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) {
 			return true
 		}
@@ -657,14 +650,10 @@ func CheckURLs(f *lint.File) {
 		if len(call.Args) != 1 {
 			return true
 		}
-		typ := f.Pkg.TypesInfo.Types[call.Args[0]]
-		if typ.Value == nil {
+		s, ok := constantString(f, call.Args[0])
+		if !ok {
 			return true
 		}
-		if typ.Value.Kind() != constant.String {
-			return true
-		}
-		s := constant.StringVal(typ.Value)
 		_, err := url.Parse(s)
 		if err != nil {
 			f.Errorf(call.Args[0], "invalid argument to url.Parse: %s", err)
@@ -899,14 +888,11 @@ func sliceSize(f *lint.File, expr ast.Expr) (int, bool) {
 		return high - low, true
 	}
 
-	tv := f.Pkg.TypesInfo.Types[expr]
-	if tv.Value == nil {
+	s, ok := constantString(f, expr)
+	if !ok {
 		return 0, false
 	}
-	if tv.Value.Kind() != constant.String {
-		return 0, false
-	}
-	return len(constant.StringVal(tv.Value)), true
+	return len(s), true
 }
 
 func CheckDiffSizeComparison(f *lint.File) {
@@ -953,7 +939,7 @@ func CheckCanonicalHeaderKey(f *lint.File) {
 				if !ok {
 					continue
 				}
-				if types.TypeString(f.Pkg.TypesInfo.TypeOf(op.X), nil) == "net/http.Header" {
+				if hasType(f, op.X, "net/http.Header") {
 					return false
 				}
 			}
@@ -963,17 +949,13 @@ func CheckCanonicalHeaderKey(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if types.TypeString(f.Pkg.TypesInfo.TypeOf(op.X), nil) != "net/http.Header" {
+		if !hasType(f, op.X, "net/http.Header") {
 			return true
 		}
-		typ := f.Pkg.TypesInfo.Types[op.Index]
-		if typ.Value == nil {
+		s, ok := constantString(f, op.Index)
+		if !ok {
 			return true
 		}
-		if typ.Value.Kind() != constant.String {
-			return true
-		}
-		s := constant.StringVal(typ.Value)
 		if s == http.CanonicalHeaderKey(s) {
 			return true
 		}
@@ -999,7 +981,7 @@ func CheckBenchmarkN(f *lint.File) {
 		if sel.Sel.Name != "N" {
 			return true
 		}
-		if types.TypeString(f.Pkg.TypesInfo.TypeOf(sel.X), nil) != "*testing.B" {
+		if !hasType(f, sel.X, "*testing.B") {
 			return true
 		}
 		f.Errorf(assign, "should not assign to %s", f.Render(sel))
@@ -1599,7 +1581,7 @@ func checkStdlibUsageRegexpFindAll(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if types.TypeString(f.Pkg.TypesInfo.TypeOf(sel.X), nil) != "*regexp.Regexp" {
+		if !hasType(f, sel.X, "*regexp.Regexp") {
 			return true
 		}
 		if !strings.HasPrefix(sel.Sel.Name, "FindAll") {
@@ -1636,11 +1618,11 @@ func checkStdlibUsageUTF8Cutset(f *lint.File) {
 		default:
 			return true
 		}
-		typ := f.Pkg.TypesInfo.Types[call.Args[1]]
-		if typ.Value == nil || typ.Value.Kind() != constant.String {
+		s, ok := constantString(f, call.Args[1])
+		if !ok {
 			return true
 		}
-		if !utf8.ValidString(constant.StringVal(typ.Value)) {
+		if !utf8.ValidString(s) {
 			f.Errorf(call.Args[1], "the second argument to %s should be a valid UTF-8 encoded string", f.Render(call.Fun))
 		}
 		return true
