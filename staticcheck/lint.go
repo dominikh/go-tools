@@ -56,6 +56,7 @@ var Funcs = map[string]lint.Func{
 	"SA4009": CheckArgOverwritten,
 	"SA4010": CheckIneffectiveAppend,
 	"SA4011": CheckScopedBreak,
+	"SA4012": CheckNaNComparison,
 
 	"SA5000": CheckNilMaps,
 	"SA5001": CheckEarlyDefer,
@@ -2063,6 +2064,27 @@ func CheckDeferLock(f *lint.File) {
 				unlock = "RUnlock"
 			}
 			f.Errorf(d, "deferring %s right after having locked already; did you mean to defer %s?", sel.Sel.Name, unlock)
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckNaNComparison(f *lint.File) {
+	isNaN := func(x ast.Expr) bool {
+		call, ok := x.(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		return lint.IsPkgDot(call.Fun, "math", "NaN")
+	}
+	fn := func(node ast.Node) bool {
+		op, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		if isNaN(op.X) || isNaN(op.Y) {
+			f.Errorf(op, "no value is equal to NaN, not even NaN itself")
 		}
 		return true
 	}

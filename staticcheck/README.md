@@ -75,6 +75,7 @@ The following things are currently checked by staticcheck:
 | SA4009     | A function argument is overwritten before its first use                                                    |
 | SA4010     | The result of `append` will never be observed anywhere                                                     |
 | SA4011     | Break statement with no effect. Did you mean to break out of an outer loop?                                |
+| SA4012     | Comparing a value against NaN even though no value is equal to NaN                                         |
 |            |                                                                                                            |
 | **SA5???** | **Correctness issues**                                                                                     |
 | SA5000     | Assignment to nil map                                                                                      |
