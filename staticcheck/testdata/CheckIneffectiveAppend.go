@@ -49,3 +49,9 @@ func fn9() {
 	// MATCH:50 /this value of s is never used/
 	s = append(s, 1) // MATCH /this result of append is never used/
 }
+
+func fn10() {
+	var s []int
+	return
+	s = append(s, 1)
+}

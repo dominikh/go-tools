@@ -1747,7 +1747,14 @@ func CheckIneffectiveAppend(f *lint.File) {
 			}
 		}
 		expr, _ := ssafn.ValueForExpr(call)
-		walkRefs(*expr.Referrers())
+		if expr == nil {
+			return true
+		}
+		refs := expr.Referrers()
+		if refs == nil {
+			return true
+		}
+		walkRefs(*refs)
 		if !isUsed {
 			f.Errorf(assign, "this result of append is never used, except maybe in other appends")
 		}
