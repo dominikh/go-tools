@@ -9,59 +9,17 @@ package unused
 import (
 	"go/parser"
 	"go/token"
-	"io/ioutil"
-	"path"
 	"strings"
 	"testing"
+
+	"honnef.co/go/lint"
+	"honnef.co/go/lint/testutil"
 )
 
 func TestAll(t *testing.T) {
-	baseDir := "testdata/"
-	fis, err := ioutil.ReadDir(baseDir)
-	if err != nil {
-		t.Fatalf("ioutil.ReadDir: %v", err)
-	}
-	if len(fis) == 0 {
-		t.Fatalf("no files in %v", baseDir)
-	}
-	for _, fi := range fis {
-		checker := NewChecker(CheckAll)
-		src, err := ioutil.ReadFile(path.Join(baseDir, fi.Name()))
-		if err != nil {
-			t.Fatalf("Failed reading %s: %v", fi.Name(), err)
-		}
-
-		ins := parseInstructions(t, fi.Name(), src)
-
-		unused, err := checker.Check([]string{baseDir + fi.Name()})
-		if err != nil {
-			t.Errorf("checking %s: %v", fi.Name(), err)
-			continue
-		}
-
-		for _, in := range ins {
-			n := len(in.IDs)
-			for _, id := range in.IDs {
-				for i, u := range unused {
-					if u.Position.Line != in.Line {
-						continue
-					}
-					if id == u.Obj.Name() {
-						n--
-						copy(unused[i:], unused[i+1:])
-						unused = unused[:len(unused)-1]
-						break
-					}
-				}
-			}
-			if n != 0 {
-				t.Errorf("unused failed at %s:%d; %v did not match", fi.Name(), in.Line, in.IDs)
-			}
-		}
-		for _, u := range unused {
-			t.Errorf("Unexpected unused identifier at %s:%d: %v", fi.Name(), u.Position.Line, u.Obj.Name())
-		}
-	}
+	checker := NewChecker(CheckAll)
+	l := NewLintRunner(checker)
+	testutil.TestAll(t, map[string]lint.Func{"U1000": l}, "")
 }
 
 type instruction struct {

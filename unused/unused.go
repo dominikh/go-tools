@@ -3,18 +3,67 @@ package unused // import "honnef.co/go/unused"
 import (
 	"fmt"
 	"go/ast"
-	"go/build"
-	"go/parser"
 	"go/token"
 	"go/types"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"honnef.co/go/lint"
 
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/types/typeutil"
 )
+
+func NewLintRunner(c *Checker) lint.Func {
+	l := &lintRunner{
+		c:     c,
+		seen:  map[*loader.Program]struct{}{},
+		found: map[string][]Unused{},
+	}
+	return l.Lint
+}
+
+type lintRunner struct {
+	c     *Checker
+	seen  map[*loader.Program]struct{}
+	found map[string][]Unused
+}
+
+func typString(obj types.Object) string {
+	switch obj := obj.(type) {
+	case *types.Func:
+		return "func"
+	case *types.Var:
+		if obj.IsField() {
+			return "field"
+		}
+		return "var"
+	case *types.Const:
+		return "const"
+	case *types.TypeName:
+		return "type"
+	default:
+		// log.Printf("%T", obj)
+		return "identifier"
+	}
+}
+
+func (l *lintRunner) Lint(f *lint.File) {
+	if _, ok := l.seen[f.Program]; !ok {
+		l.seen[f.Program] = struct{}{}
+		unused := l.c.Check(f.Program)
+		for _, u := range unused {
+			name := u.Position.Filename
+			l.found[name] = append(l.found[name], u)
+		}
+	}
+
+	unused := l.found[f.Filename]
+	for _, u := range unused {
+		f.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), u.Obj.Name())
+	}
+}
 
 type graph struct {
 	roots []*graphNode
@@ -92,7 +141,6 @@ type Unused struct {
 
 type Checker struct {
 	Mode               CheckMode
-	Tags               []string
 	WholeProgram       bool
 	ConsiderReflection bool
 	Debug              io.Writer
@@ -141,61 +189,9 @@ func (e Error) Error() string {
 	return fmt.Sprintf("errors in %d packages", len(e.Errors))
 }
 
-func (c *Checker) Check(paths []string) ([]Unused, error) {
-	// We resolve paths manually instead of relying on go/loader so
-	// that our TypeCheckFuncBodies implementation continues to work.
-	goFiles, err := c.resolveRelative(paths)
-	if err != nil {
-		return nil, err
-	}
+func (c *Checker) Check(lprog *loader.Program) []Unused {
 	var unused []Unused
-
-	conf := loader.Config{
-		AllowErrors: true, // We'll return manually if there are errors
-		ParserMode:  parser.ParseComments,
-	}
-	conf.TypeChecker.Error = func(err error) {}
-	ctx := build.Default
-	ctx.BuildTags = c.Tags
-	conf.Build = &ctx
-	pkgs := map[string]bool{}
-	for _, path := range paths {
-		pkgs[path] = true
-		pkgs[path+"_test"] = true
-	}
-	if !goFiles {
-		// Only type-check the packages we directly import. Unless
-		// we're specifying a package in terms of individual files,
-		// because then we don't know the import path.
-		conf.TypeCheckFuncBodies = func(s string) bool {
-			return pkgs[s]
-		}
-	}
-	_, err = conf.FromArgs(paths, true)
-	if err != nil {
-		return nil, err
-	}
-	c.lprog, err = conf.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	finalError := Error{
-		Errors: make(map[string][]error),
-	}
-	for _, pkg := range c.lprog.InitialPackages() {
-		if len(pkg.Errors) == 0 {
-			continue
-		}
-		k := pkg.Pkg.Path()
-		s := finalError.Errors[k]
-		s = append(s, pkg.Errors...)
-		finalError.Errors[k] = s
-	}
-	if len(finalError.Errors) > 0 {
-		return nil, finalError
-	}
-
+	c.lprog = lprog
 	if c.WholeProgram {
 		c.findExportedInterfaces()
 	}
@@ -270,7 +266,7 @@ func (c *Checker) Check(paths []string) ([]Unused, error) {
 		}
 		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
-	return unused, nil
+	return unused
 }
 
 func (c *Checker) useExportedFields(typ types.Type) {
@@ -767,30 +763,6 @@ func isBasicStruct(elts []ast.Expr) bool {
 		}
 	}
 	return false
-}
-
-func (c *Checker) resolveRelative(importPaths []string) (goFiles bool, err error) {
-	if len(importPaths) == 0 {
-		return false, nil
-	}
-	if strings.HasSuffix(importPaths[0], ".go") {
-		// User is specifying a package in terms of .go files, don't resolve
-		return true, nil
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return false, err
-	}
-	ctx := build.Default
-	ctx.BuildTags = c.Tags
-	for i, path := range importPaths {
-		bpkg, err := ctx.Import(path, wd, build.FindOnly)
-		if err != nil {
-			return false, fmt.Errorf("can't load package %q: %v", path, err)
-		}
-		importPaths[i] = bpkg.ImportPath
-	}
-	return false, nil
 }
 
 func isPkgScope(obj types.Object) bool {

@@ -17,12 +17,12 @@ type t2 struct {
 
 type t3 struct {
 	a int
-	b int // MATCH b
+	b int // MATCH /b is unused/
 }
 
 type t4 struct {
 	a int
-	b int // MATCH b
+	b int // MATCH /b is unused/
 }
 
 type t5 struct {
