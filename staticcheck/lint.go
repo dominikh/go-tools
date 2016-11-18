@@ -33,7 +33,11 @@ var Funcs = map[string]lint.Func{
 	"SA1006": CheckUnsafePrintf,
 	"SA1007": CheckURLs,
 	"SA1008": CheckCanonicalHeaderKey,
-	"SA1009": CheckStdlibUsage,
+	"SA1009": nil,
+	"SA1010": CheckRegexpFindAll,
+	"SA1011": CheckUTF8Cutset,
+	"SA1012": CheckNilContext,
+	"SA1013": CheckSeeker,
 
 	"SA2000": CheckWaitgroupAdd,
 	"SA2001": CheckEmptyCriticalSection,
@@ -1541,14 +1545,7 @@ func CheckIneffectiveLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckStdlibUsage(f *lint.File) {
-	checkStdlibUsageRegexpFindAll(f)
-	checkStdlibUsageUTF8Cutset(f)
-	checkStdlibUsageNilContext(f)
-	checkStdlibUsageSeeker(f)
-}
-
-func checkStdlibUsageRegexpFindAll(f *lint.File) {
+func CheckRegexpFindAll(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1577,7 +1574,7 @@ func checkStdlibUsageRegexpFindAll(f *lint.File) {
 	f.Walk(fn)
 }
 
-func checkStdlibUsageUTF8Cutset(f *lint.File) {
+func CheckUTF8Cutset(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1607,7 +1604,7 @@ func checkStdlibUsageUTF8Cutset(f *lint.File) {
 	f.Walk(fn)
 }
 
-func checkStdlibUsageNilContext(f *lint.File) {
+func CheckNilContext(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1636,7 +1633,7 @@ func checkStdlibUsageNilContext(f *lint.File) {
 	f.Walk(fn)
 }
 
-func checkStdlibUsageSeeker(f *lint.File) {
+func CheckSeeker(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
