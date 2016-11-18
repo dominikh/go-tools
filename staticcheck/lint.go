@@ -126,17 +126,10 @@ func CheckTemplate(f *lint.File) {
 		if len(call.Args) != 1 {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		if sel.Sel.Name != "Parse" {
-			return true
-		}
 		var kind string
-		if hasType(f, sel.X, "*text/template.Template") {
+		if isFunctionCallName(f, call, "(*text/template.Template).Parse") {
 			kind = "text"
-		} else if hasType(f, sel.X, "*html/template.Template") {
+		} else if isFunctionCallName(f, call, "(*html/template.Template).Parse") {
 			kind = "html"
 		} else {
 			return true
