@@ -38,6 +38,7 @@ var Funcs = map[string]lint.Func{
 	"SA1011": CheckUTF8Cutset,
 	"SA1012": CheckNilContext,
 	"SA1013": CheckSeeker,
+	"SA1014": CheckUnmarshalPointer,
 
 	"SA2000": CheckWaitgroupAdd,
 	"SA2001": CheckEmptyCriticalSection,
@@ -2063,6 +2064,61 @@ func CheckInfiniteRecursion(f *lint.File) {
 				f.Errorf(call, "infinite recursive call")
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func isFunctionCallName(f *lint.File, node ast.Node, name string) bool {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+	return ok && fn.FullName() == name
+}
+
+func isFunctionCallNameAny(f *lint.File, node ast.Node, names []string) bool {
+	for _, name := range names {
+		if isFunctionCallName(f, node, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func CheckUnmarshalPointer(f *lint.File) {
+	names := []string{
+		"encoding/xml.Unmarshal",
+		"(*encoding/xml.Decoder).Decode",
+		"encoding/json.Unmarshal",
+		"(*encoding/json.Decoder).Decode",
+	}
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		if len(call.Args) == 0 {
+			return true
+		}
+		if !isFunctionCallNameAny(f, call, names) {
+			return true
+		}
+		arg := call.Args[len(call.Args)-1]
+		switch f.Pkg.TypesInfo.TypeOf(arg).Underlying().(type) {
+		case *types.Pointer, *types.Interface:
+			return true
+		}
+		f.Errorf(arg, "%s expects to unmarshal into a pointer, but the provided value is not a pointer", sel.Sel.Name)
 		return true
 	}
 	f.Walk(fn)
