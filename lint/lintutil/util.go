@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
+	"go/parser"
 	"log"
 	"os"
 	"strings"
@@ -110,7 +111,8 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 	ctx := build.Default
 	ctx.BuildTags = runner.tags
 	conf := &loader.Config{
-		Build: &ctx,
+		Build:      &ctx,
+		ParserMode: parser.ParseComments,
 	}
 	if goFiles {
 		conf.CreateFromFilenames("adhoc", paths...)

@@ -42,7 +42,9 @@ func TestAll(t *testing.T, funcs map[string]lint.Func, dir string) {
 		t.Fatalf("no files in %v", baseDir)
 	}
 
-	conf := &loader.Config{}
+	conf := &loader.Config{
+		ParserMode: parser.ParseComments,
+	}
 	files := map[string][]byte{}
 	for _, fi := range fis {
 		if !rx.MatchString(fi.Name()) {
