@@ -139,6 +139,7 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 					File:     file,
 					Filename: path,
 					Fset:     lprog.Fset,
+					Program:  lprog,
 					check:    k,
 				}
 
@@ -184,6 +185,7 @@ type File struct {
 	File     *ast.File
 	Filename string
 	Fset     *token.FileSet
+	Program  *loader.Program
 	src      []byte
 	check    string
 }
