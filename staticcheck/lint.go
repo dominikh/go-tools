@@ -134,6 +134,15 @@ func CheckTemplate(f *lint.File) {
 		} else {
 			return true
 		}
+		sel := call.Fun.(*ast.SelectorExpr)
+		if !isFunctionCallName(f, sel.X, "text/template.New") &&
+			!isFunctionCallName(f, sel.X, "html/template.New") {
+			// TODO(dh): this is a cheap workaround for templates with
+			// different delims. A better solution with less false
+			// negatives would use data flow analysis to see where the
+			// template comes from and where it has been
+			return true
+		}
 		s, ok := constantString(f, call.Args[0])
 		if !ok {
 			return true
