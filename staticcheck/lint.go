@@ -65,6 +65,7 @@ var Funcs = map[string]lint.Func{
 	"SA5004": CheckLoopEmptyDefault,
 	"SA5005": CheckCyclicFinalizer,
 	"SA5006": CheckSliceOutOfBounds,
+	"SA5007": CheckInfiniteRecursion,
 
 	"SA9000": CheckDubiousSyncPoolPointers,
 	"SA9001": CheckDubiousDeferInChannelRangeLoop,
@@ -2013,6 +2014,57 @@ func CheckNaNComparison(f *lint.File) {
 		}
 		if isNaN(op.X) || isNaN(op.Y) {
 			f.Errorf(op, "no value is equal to NaN, not even NaN itself")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func CheckInfiniteRecursion(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(fn)
+		if ssafn == nil {
+			return true
+		}
+		if len(ssafn.Blocks) == 0 {
+			return true
+		}
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				call, ok := ins.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				if call.Common().IsInvoke() {
+					continue
+				}
+				subfn, ok := call.Common().Value.(*ssa.Function)
+				if !ok || subfn != ssafn {
+					continue
+				}
+
+				canReturn := false
+				for _, b := range subfn.Blocks {
+					if block.Dominates(b) {
+						continue
+					}
+					if len(b.Instrs) == 0 {
+						continue
+					}
+					if _, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return); ok {
+						canReturn = true
+						break
+					}
+				}
+				if canReturn {
+					continue
+				}
+				f.Errorf(call, "infinite recursive call")
+			}
 		}
 		return true
 	}
