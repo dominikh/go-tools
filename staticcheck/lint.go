@@ -113,21 +113,7 @@ func flattenPhis(fn *ssa.Function) {
 				newInstrs = append(newInstrs, ins)
 				continue
 			}
-			if len(phi.Edges) > 1 {
-				continue
-			}
-			refs := phi.Referrers()
-			if refs != nil {
-				for _, ref := range *refs {
-					ops := ref.Operands(nil)
-					for _, op := range ops {
-						if *op == phi {
-							*op = phi.Edges[0]
-						}
-					}
-				}
-				*refs = nil
-			}
+			ssa.ReplaceAll(phi, phi.Edges[0])
 		}
 		block.Instrs = newInstrs
 	}
