@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 
-	"honnef.co/go/lint"
 	"honnef.co/go/lint/lintutil"
 	"honnef.co/go/unused"
 )
@@ -75,6 +74,6 @@ func main() {
 	}
 
 	checker := newChecker(mode)
-	l := unused.NewLintRunner(checker)
-	lintutil.ProcessArgs("unused", map[string]lint.Func{"U1000": l}, flag.Args())
+	l := unused.NewLintChecker(checker)
+	lintutil.ProcessArgs("unused", l, flag.Args())
 }

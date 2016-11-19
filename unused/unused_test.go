@@ -12,14 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"honnef.co/go/lint"
 	"honnef.co/go/lint/testutil"
 )
 
 func TestAll(t *testing.T) {
 	checker := NewChecker(CheckAll)
-	l := NewLintRunner(checker)
-	testutil.TestAll(t, map[string]lint.Func{"U1000": l}, "")
+	l := NewLintChecker(checker)
+	testutil.TestAll(t, l, "")
 }
 
 type instruction struct {

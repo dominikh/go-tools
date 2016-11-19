@@ -15,19 +15,26 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-func NewLintRunner(c *Checker) lint.Func {
-	l := &lintRunner{
+func NewLintChecker(c *Checker) *LintChecker {
+	l := &LintChecker{
 		c:     c,
 		seen:  map[*loader.Program]struct{}{},
 		found: map[string][]Unused{},
 	}
-	return l.Lint
+	return l
 }
 
-type lintRunner struct {
+type LintChecker struct {
 	c     *Checker
 	seen  map[*loader.Program]struct{}
 	found map[string][]Unused
+}
+
+func (l *LintChecker) Init(*lint.Program) {}
+func (l *LintChecker) Funcs() map[string]lint.Func {
+	return map[string]lint.Func{
+		"U1000": l.Lint,
+	}
 }
 
 func typString(obj types.Object) string {
@@ -49,7 +56,7 @@ func typString(obj types.Object) string {
 	}
 }
 
-func (l *lintRunner) Lint(f *lint.File) {
+func (l *LintChecker) Lint(f *lint.File) {
 	if _, ok := l.seen[f.Program]; !ok {
 		l.seen[f.Program] = struct{}{}
 		unused := l.c.Check(f.Program)
