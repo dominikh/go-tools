@@ -106,9 +106,11 @@ func flattenPhis(fn *ssa.Function) {
 		return
 	}
 	for _, block := range fn.Blocks {
+		var newInstrs []ssa.Instruction
 		for _, ins := range block.Instrs {
 			phi, ok := ins.(*ssa.Phi)
-			if !ok {
+			if !ok || len(phi.Edges) > 1 {
+				newInstrs = append(newInstrs, ins)
 				continue
 			}
 			if len(phi.Edges) > 1 {
@@ -127,6 +129,7 @@ func flattenPhis(fn *ssa.Function) {
 				*refs = nil
 			}
 		}
+		block.Instrs = newInstrs
 	}
 }
 
