@@ -22,7 +22,7 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/ssa"
+	"honnef.co/go/ssa"
 )
 
 type Ignore struct {
