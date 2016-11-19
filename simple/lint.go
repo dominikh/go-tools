@@ -35,6 +35,12 @@ var Funcs = map[string]lint.Func{
 	"S1017": LintTrim,
 }
 
+type Checker struct{}
+
+func NewChecker() *Checker                     { return &Checker{} }
+func (c *Checker) Init(*lint.Program)          {}
+func (c *Checker) Funcs() map[string]lint.Func { return Funcs }
+
 func LintSingleCaseSelect(f *lint.File) {
 	isSingleSelect := func(node ast.Node) bool {
 		v, ok := node.(*ast.SelectStmt)

@@ -8,5 +8,5 @@ import (
 )
 
 func main() {
-	lintutil.ProcessArgs("gosimple", simple.Funcs, os.Args[1:])
+	lintutil.ProcessArgs("gosimple", simple.NewChecker(), os.Args[1:])
 }
