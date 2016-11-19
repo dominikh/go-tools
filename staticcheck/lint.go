@@ -20,7 +20,7 @@ import (
 	"honnef.co/go/lint"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/ssa"
+	"honnef.co/go/ssa"
 )
 
 type Checker struct {
@@ -89,6 +89,139 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 func (c *Checker) Init(prog *lint.Program) {
 	c.terminatesCache = map[*ssa.Function]bool{}
+
+	for _, pkg := range prog.Packages {
+		for _, m := range pkg.SSAPkg.Members {
+			if fn, ok := m.(*ssa.Function); ok {
+				detectInfiniteLoops(fn)
+				flattenPhis(fn)
+				ssa.OptimizeBlocks(fn)
+			}
+		}
+	}
+}
+
+func flattenPhis(fn *ssa.Function) {
+	if len(fn.Blocks) == 0 {
+		return
+	}
+	for _, block := range fn.Blocks {
+		for _, ins := range block.Instrs {
+			phi, ok := ins.(*ssa.Phi)
+			if !ok {
+				continue
+			}
+			if len(phi.Edges) > 1 {
+				continue
+			}
+			refs := phi.Referrers()
+			if refs != nil {
+				for _, ref := range *refs {
+					ops := ref.Operands(nil)
+					for _, op := range ops {
+						if *op == phi {
+							*op = phi.Edges[0]
+						}
+					}
+				}
+				*refs = nil
+			}
+		}
+	}
+}
+
+func detectInfiniteLoops(fn *ssa.Function) {
+	if len(fn.Blocks) == 0 {
+		return
+	}
+
+	// Detect loops that can terminate from a compiler POV, but can't
+	// due to stdlib behaviour
+	for _, block := range fn.Blocks {
+		if len(block.Instrs) < 3 {
+			continue
+		}
+		if len(block.Succs) != 2 {
+			continue
+		}
+		var instrs []*ssa.Instruction
+		for i, ins := range block.Instrs {
+			if _, ok := ins.(*ssa.DebugRef); ok {
+				continue
+			}
+			instrs = append(instrs, &block.Instrs[i])
+		}
+
+		for i, ins := range instrs {
+			unop, ok := (*ins).(*ssa.UnOp)
+			if !ok || unop.Op != token.ARROW {
+				continue
+			}
+			call, ok := unop.X.(*ssa.Call)
+			if !ok || call.Common().IsInvoke() {
+				continue
+			}
+			fn, ok := call.Common().Value.(*ssa.Function).Object().(*types.Func)
+			if !ok {
+				continue
+			}
+			if fn.FullName() != "time.Tick" {
+				continue
+			}
+			// XXX check if we're extracting ok from our unop
+			if _, ok := (*instrs[i+1]).(*ssa.Extract); !ok {
+				continue
+			}
+			// XXX check that we're branching on our extract result
+			if _, ok := (*instrs[i+2]).(*ssa.If); !ok {
+				continue
+			}
+
+			loop := false
+			for _, pred := range block.Preds {
+				// This will only detect natural loops, which is fine
+				// for detecting `for range`.
+				if block.Dominates(pred) {
+					loop = true
+					break
+				}
+			}
+			if !loop {
+				continue
+			}
+			*instrs[i+2] = ssa.NewJump(block)
+			succ := block.Succs[1]
+			block.Succs = block.Succs[0:1]
+			preds := succ.Preds
+			var drop []int
+			var newPreds []*ssa.BasicBlock
+			for i, pred := range preds {
+				if pred == block {
+					drop = append(drop, i)
+				} else {
+					newPreds = append(newPreds, pred)
+				}
+			}
+			for _, ins := range succ.Instrs {
+				phi, ok := ins.(*ssa.Phi)
+				if !ok {
+					continue
+				}
+				var newEdges []ssa.Value
+			edgeLoop:
+				for i, edge := range phi.Edges {
+					for _, n := range drop {
+						if i == n {
+							continue edgeLoop
+						}
+					}
+					newEdges = append(newEdges, edge)
+				}
+				phi.Edges = newEdges
+			}
+			succ.Preds = newPreds
+		}
+	}
 }
 
 func constantString(f *lint.File, expr ast.Expr) (string, bool) {
@@ -121,6 +254,8 @@ func (c *Checker) terminates(fn *ssa.Function) (ret bool) {
 		// choice
 		return true
 	}
+
+	// Detect ranging over a time.Tick channel
 	for _, block := range fn.Blocks {
 		if len(block.Instrs) == 0 {
 			continue
@@ -2208,44 +2343,6 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 		}
 		if !c.terminates(ssafn) {
 			return true
-		}
-		val, _ := ssafn.ValueForExpr(node.(*ast.CallExpr))
-		if val == nil {
-			return true
-		}
-		refs := val.Referrers()
-		if refs == nil {
-			return true
-		}
-		for _, ref := range *refs {
-			if _, ok := ref.(*ssa.DebugRef); ok {
-				continue
-			}
-			if ref, ok := ref.(*ssa.UnOp); !ok || ref.Op != token.ARROW {
-				continue
-			}
-			block := ref.Block()
-			if block.Instrs[0] != ref {
-				continue
-			}
-			if len(block.Succs) != 2 {
-				continue
-			}
-			loop := false
-			for _, pred := range block.Preds {
-				// This will only detect natural loops, which is fine
-				// for detecting `for range`.
-				if block.Dominates(pred) {
-					loop = true
-					break
-				}
-			}
-			if !loop {
-				continue
-			}
-			if !flowTerminates(block, block, nil) {
-				return true
-			}
 		}
 		f.Errorf(node, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
 		return true
