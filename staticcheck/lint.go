@@ -193,34 +193,7 @@ func detectInfiniteLoops(fn *ssa.Function) {
 			*instrs[i+2] = ssa.NewJump(block)
 			succ := block.Succs[1]
 			block.Succs = block.Succs[0:1]
-			preds := succ.Preds
-			var drop []int
-			var newPreds []*ssa.BasicBlock
-			for i, pred := range preds {
-				if pred == block {
-					drop = append(drop, i)
-				} else {
-					newPreds = append(newPreds, pred)
-				}
-			}
-			for _, ins := range succ.Instrs {
-				phi, ok := ins.(*ssa.Phi)
-				if !ok {
-					continue
-				}
-				var newEdges []ssa.Value
-			edgeLoop:
-				for i, edge := range phi.Edges {
-					for _, n := range drop {
-						if i == n {
-							continue edgeLoop
-						}
-					}
-					newEdges = append(newEdges, edge)
-				}
-				phi.Edges = newEdges
-			}
-			succ.Preds = newPreds
+			succ.RemovePred(block)
 		}
 	}
 }
