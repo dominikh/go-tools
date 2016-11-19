@@ -7,5 +7,6 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	testutil.TestAll(t, Funcs, "")
+	c := NewChecker()
+	testutil.TestAll(t, c, "")
 }

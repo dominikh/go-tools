@@ -23,57 +23,72 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-var Funcs = map[string]lint.Func{
-	"SA1000": CheckRegexps,
-	"SA1001": CheckTemplate,
-	"SA1002": CheckTimeParse,
-	"SA1003": CheckEncodingBinary,
-	"SA1004": CheckTimeSleepConstant,
-	"SA1005": CheckExec,
-	"SA1006": CheckUnsafePrintf,
-	"SA1007": CheckURLs,
-	"SA1008": CheckCanonicalHeaderKey,
-	"SA1009": nil,
-	"SA1010": CheckRegexpFindAll,
-	"SA1011": CheckUTF8Cutset,
-	"SA1012": CheckNilContext,
-	"SA1013": CheckSeeker,
-	"SA1014": CheckUnmarshalPointer,
+type Checker struct {
+	terminatesCache map[*ssa.Function]bool
+}
 
-	"SA2000": CheckWaitgroupAdd,
-	"SA2001": CheckEmptyCriticalSection,
-	"SA2002": CheckConcurrentTesting,
-	"SA2003": CheckDeferLock,
+func NewChecker() *Checker {
+	return &Checker{}
+}
 
-	"SA3000": CheckTestMainExit,
-	"SA3001": CheckBenchmarkN,
+func (c *Checker) Funcs() map[string]lint.Func {
+	return map[string]lint.Func{
+		"SA1000": c.CheckRegexps,
+		"SA1001": c.CheckTemplate,
+		"SA1002": c.CheckTimeParse,
+		"SA1003": c.CheckEncodingBinary,
+		"SA1004": c.CheckTimeSleepConstant,
+		"SA1005": c.CheckExec,
+		"SA1006": c.CheckUnsafePrintf,
+		"SA1007": c.CheckURLs,
+		"SA1008": c.CheckCanonicalHeaderKey,
+		"SA1009": nil,
+		"SA1010": c.CheckRegexpFindAll,
+		"SA1011": c.CheckUTF8Cutset,
+		"SA1012": c.CheckNilContext,
+		"SA1013": c.CheckSeeker,
+		"SA1014": c.CheckUnmarshalPointer,
+		// "SA1015": c.CheckLeakyTimeTick,
 
-	"SA4000": CheckLhsRhsIdentical,
-	"SA4001": CheckIneffectiveCopy,
-	"SA4002": CheckDiffSizeComparison,
-	"SA4003": CheckUnsignedComparison,
-	"SA4004": CheckIneffectiveLoop,
-	"SA4005": CheckIneffecitiveFieldAssignments,
-	"SA4006": CheckUnreadVariableValues,
-	// "SA4007": CheckPredeterminedBooleanExprs,
-	"SA4007": nil,
-	"SA4008": CheckLoopCondition,
-	"SA4009": CheckArgOverwritten,
-	"SA4010": CheckIneffectiveAppend,
-	"SA4011": CheckScopedBreak,
-	"SA4012": CheckNaNComparison,
+		"SA2000": c.CheckWaitgroupAdd,
+		"SA2001": c.CheckEmptyCriticalSection,
+		"SA2002": c.CheckConcurrentTesting,
+		"SA2003": c.CheckDeferLock,
 
-	"SA5000": CheckNilMaps,
-	"SA5001": CheckEarlyDefer,
-	"SA5002": CheckInfiniteEmptyLoop,
-	"SA5003": CheckDeferInInfiniteLoop,
-	"SA5004": CheckLoopEmptyDefault,
-	"SA5005": CheckCyclicFinalizer,
-	"SA5006": CheckSliceOutOfBounds,
-	"SA5007": CheckInfiniteRecursion,
+		"SA3000": c.CheckTestMainExit,
+		"SA3001": c.CheckBenchmarkN,
 
-	"SA9000": CheckDubiousSyncPoolPointers,
-	"SA9001": CheckDubiousDeferInChannelRangeLoop,
+		"SA4000": c.CheckLhsRhsIdentical,
+		"SA4001": c.CheckIneffectiveCopy,
+		"SA4002": c.CheckDiffSizeComparison,
+		"SA4003": c.CheckUnsignedComparison,
+		"SA4004": c.CheckIneffectiveLoop,
+		"SA4005": c.CheckIneffecitiveFieldAssignments,
+		"SA4006": c.CheckUnreadVariableValues,
+		// "SA4007": c.CheckPredeterminedBooleanExprs,
+		"SA4007": nil,
+		"SA4008": c.CheckLoopCondition,
+		"SA4009": c.CheckArgOverwritten,
+		"SA4010": c.CheckIneffectiveAppend,
+		"SA4011": c.CheckScopedBreak,
+		"SA4012": c.CheckNaNComparison,
+
+		"SA5000": c.CheckNilMaps,
+		"SA5001": c.CheckEarlyDefer,
+		"SA5002": c.CheckInfiniteEmptyLoop,
+		"SA5003": c.CheckDeferInInfiniteLoop,
+		"SA5004": c.CheckLoopEmptyDefault,
+		"SA5005": c.CheckCyclicFinalizer,
+		"SA5006": c.CheckSliceOutOfBounds,
+		"SA5007": c.CheckInfiniteRecursion,
+
+		"SA9000": c.CheckDubiousSyncPoolPointers,
+		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
+	}
+}
+
+func (c *Checker) Init(prog *lint.Program) {
+	c.terminatesCache = map[*ssa.Function]bool{}
 }
 
 func constantString(f *lint.File, expr ast.Expr) (string, bool) {
@@ -91,7 +106,7 @@ func hasType(f *lint.File, expr ast.Expr, name string) bool {
 	return types.TypeString(f.Pkg.TypesInfo.TypeOf(expr), nil) == name
 }
 
-func CheckRegexps(f *lint.File) {
+func (c *Checker) CheckRegexps(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -117,7 +132,7 @@ func CheckRegexps(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckTemplate(f *lint.File) {
+func (c *Checker) CheckTemplate(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -165,7 +180,7 @@ func CheckTemplate(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckTimeParse(f *lint.File) {
+func (c *Checker) CheckTimeParse(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -192,7 +207,7 @@ func CheckTimeParse(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckEncodingBinary(f *lint.File) {
+func (c *Checker) CheckEncodingBinary(f *lint.File) {
 	// TODO(dominikh): also check binary.Read
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -259,7 +274,7 @@ func validEncodingBinaryType(typ types.Type) bool {
 	return false
 }
 
-func CheckTimeSleepConstant(f *lint.File) {
+func (c *Checker) CheckTimeSleepConstant(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -295,7 +310,7 @@ func CheckTimeSleepConstant(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckWaitgroupAdd(f *lint.File) {
+func (c *Checker) CheckWaitgroupAdd(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		g, ok := node.(*ast.GoStmt)
 		if !ok {
@@ -333,7 +348,7 @@ func CheckWaitgroupAdd(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckInfiniteEmptyLoop(f *lint.File) {
+func (c *Checker) CheckInfiniteEmptyLoop(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		loop, ok := node.(*ast.ForStmt)
 		if !ok || len(loop.Body.List) != 0 || loop.Cond != nil || loop.Init != nil {
@@ -345,7 +360,7 @@ func CheckInfiniteEmptyLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckDeferInInfiniteLoop(f *lint.File) {
+func (c *Checker) CheckDeferInInfiniteLoop(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		mightExit := false
 		var defers []ast.Stmt
@@ -385,7 +400,7 @@ func CheckDeferInInfiniteLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
+func (c *Checker) CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		var defers []ast.Stmt
 		loop, ok := node.(*ast.RangeStmt)
@@ -419,7 +434,7 @@ func CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckTestMainExit(f *lint.File) {
+func (c *Checker) CheckTestMainExit(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		if !IsTestMain(f, node) {
 			return true
@@ -491,7 +506,7 @@ func IsTestMain(f *lint.File, node ast.Node) bool {
 	return typ != nil && typ.String() == "*testing.M"
 }
 
-func CheckExec(f *lint.File) {
+func (c *Checker) CheckExec(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -516,7 +531,7 @@ func CheckExec(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckLoopEmptyDefault(f *lint.File) {
+func (c *Checker) CheckLoopEmptyDefault(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		loop, ok := node.(*ast.ForStmt)
 		if !ok || len(loop.Body.List) != 1 || loop.Cond != nil || loop.Init != nil {
@@ -536,7 +551,7 @@ func CheckLoopEmptyDefault(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckLhsRhsIdentical(f *lint.File) {
+func (c *Checker) CheckLhsRhsIdentical(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		op, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -567,7 +582,7 @@ func CheckLhsRhsIdentical(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckScopedBreak(f *lint.File) {
+func (c *Checker) CheckScopedBreak(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		loop, ok := node.(*ast.ForStmt)
 		if !ok {
@@ -621,7 +636,7 @@ func CheckScopedBreak(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckUnsafePrintf(f *lint.File) {
+func (c *Checker) CheckUnsafePrintf(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -646,7 +661,7 @@ func CheckUnsafePrintf(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckURLs(f *lint.File) {
+func (c *Checker) CheckURLs(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -671,7 +686,7 @@ func CheckURLs(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckEarlyDefer(f *lint.File) {
+func (c *Checker) CheckEarlyDefer(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		block, ok := node.(*ast.BlockStmt)
 		if !ok {
@@ -752,7 +767,7 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 	}
 }
 
-func CheckDubiousSyncPoolPointers(f *lint.File) {
+func (c *Checker) CheckDubiousSyncPoolPointers(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -784,7 +799,7 @@ func CheckDubiousSyncPoolPointers(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckEmptyCriticalSection(f *lint.File) {
+func (c *Checker) CheckEmptyCriticalSection(f *lint.File) {
 	mutexParams := func(s ast.Stmt) (x ast.Expr, funcName string, ok bool) {
 		expr, ok := s.(*ast.ExprStmt)
 		if !ok {
@@ -836,7 +851,7 @@ func CheckEmptyCriticalSection(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckIneffectiveCopy(f *lint.File) {
+func (c *Checker) CheckIneffectiveCopy(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		if unary, ok := node.(*ast.UnaryExpr); ok {
 			if _, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
@@ -903,7 +918,7 @@ func sliceSize(f *lint.File, expr ast.Expr) (int, bool) {
 	return len(s), true
 }
 
-func CheckDiffSizeComparison(f *lint.File) {
+func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -935,7 +950,7 @@ func CheckDiffSizeComparison(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckCanonicalHeaderKey(f *lint.File) {
+func (c *Checker) CheckCanonicalHeaderKey(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if ok {
@@ -973,7 +988,7 @@ func CheckCanonicalHeaderKey(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckBenchmarkN(f *lint.File) {
+func (c *Checker) CheckBenchmarkN(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok {
@@ -998,7 +1013,7 @@ func CheckBenchmarkN(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckIneffecitiveFieldAssignments(f *lint.File) {
+func (c *Checker) CheckIneffecitiveFieldAssignments(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1113,7 +1128,7 @@ func CheckIneffecitiveFieldAssignments(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckUnreadVariableValues(f *lint.File) {
+func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1157,7 +1172,7 @@ func CheckUnreadVariableValues(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckPredeterminedBooleanExprs(f *lint.File) {
+func (c *Checker) CheckPredeterminedBooleanExprs(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		binop, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -1208,7 +1223,7 @@ func CheckPredeterminedBooleanExprs(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckNilMaps(f *lint.File) {
+func (c *Checker) CheckNilMaps(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1240,7 +1255,7 @@ func CheckNilMaps(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckUnsignedComparison(f *lint.File) {
+func (c *Checker) CheckUnsignedComparison(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -1325,7 +1340,7 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 	return uniq, true
 }
 
-func CheckLoopCondition(f *lint.File) {
+func (c *Checker) CheckLoopCondition(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		loop, ok := node.(*ast.ForStmt)
 		if !ok {
@@ -1376,7 +1391,7 @@ func CheckLoopCondition(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckArgOverwritten(f *lint.File) {
+func (c *Checker) CheckArgOverwritten(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1441,7 +1456,7 @@ func CheckArgOverwritten(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckIneffectiveLoop(f *lint.File) {
+func (c *Checker) CheckIneffectiveLoop(f *lint.File) {
 	// This check detects some, but not all unconditional loop exits.
 	// We give up in the following cases:
 	//
@@ -1548,7 +1563,7 @@ func CheckIneffectiveLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckRegexpFindAll(f *lint.File) {
+func (c *Checker) CheckRegexpFindAll(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1577,7 +1592,7 @@ func CheckRegexpFindAll(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckUTF8Cutset(f *lint.File) {
+func (c *Checker) CheckUTF8Cutset(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1607,7 +1622,7 @@ func CheckUTF8Cutset(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckNilContext(f *lint.File) {
+func (c *Checker) CheckNilContext(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1636,7 +1651,7 @@ func CheckNilContext(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckSeeker(f *lint.File) {
+func (c *Checker) CheckSeeker(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1674,7 +1689,7 @@ func CheckSeeker(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckIneffectiveAppend(f *lint.File) {
+func (c *Checker) CheckIneffectiveAppend(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
@@ -1764,7 +1779,7 @@ func CheckIneffectiveAppend(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckConcurrentTesting(f *lint.File) {
+func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1832,7 +1847,7 @@ func CheckConcurrentTesting(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckCyclicFinalizer(f *lint.File) {
+func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1902,7 +1917,7 @@ func CheckCyclicFinalizer(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckSliceOutOfBounds(f *lint.File) {
+func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -1958,7 +1973,7 @@ func CheckSliceOutOfBounds(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckDeferLock(f *lint.File) {
+func (c *Checker) CheckDeferLock(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		block, ok := node.(*ast.BlockStmt)
 		if !ok {
@@ -1999,7 +2014,7 @@ func CheckDeferLock(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckNaNComparison(f *lint.File) {
+func (c *Checker) CheckNaNComparison(f *lint.File) {
 	isNaN := func(x ast.Expr) bool {
 		call, ok := x.(*ast.CallExpr)
 		if !ok {
@@ -2020,7 +2035,7 @@ func CheckNaNComparison(f *lint.File) {
 	f.Walk(fn)
 }
 
-func CheckInfiniteRecursion(f *lint.File) {
+func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		fn, ok := node.(*ast.FuncDecl)
 		if !ok {
@@ -2093,7 +2108,7 @@ func isFunctionCallNameAny(f *lint.File, node ast.Node, names []string) bool {
 	return false
 }
 
-func CheckUnmarshalPointer(f *lint.File) {
+func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
 	names := []string{
 		"encoding/xml.Unmarshal",
 		"(*encoding/xml.Decoder).Decode",

@@ -16,5 +16,6 @@ func main() {
 		}
 		args = append(args, arg)
 	}
-	lintutil.ProcessArgs("staticcheck", staticcheck.Funcs, args)
+	c := staticcheck.NewChecker()
+	lintutil.ProcessArgs("staticcheck", c, args)
 }
