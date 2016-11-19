@@ -36,7 +36,7 @@ func usage(name string, flags *flag.FlagSet) func() {
 }
 
 type runner struct {
-	funcs   map[string]lint.Func
+	checker lint.Checker
 	tags    []string
 	ignores []lint.Ignore
 
@@ -84,7 +84,7 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 	return out, nil
 }
 
-func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
+func ProcessArgs(name string, c lint.Checker, args []string) {
 	flags := &flag.FlagSet{}
 	flags.Usage = usage(name, flags)
 	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
@@ -98,7 +98,7 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 		os.Exit(1)
 	}
 	runner := &runner{
-		funcs:   funcs,
+		checker: c,
 		tags:    strings.Fields(*tags),
 		ignores: ignores,
 	}
@@ -159,7 +159,7 @@ func ProcessArgs(name string, funcs map[string]lint.Func, args []string) {
 
 func (runner *runner) lint(lprog *loader.Program) map[string][]lint.Problem {
 	l := &lint.Linter{
-		Funcs:   runner.funcs,
+		Checker: runner.checker,
 		Ignores: runner.ignores,
 	}
 	return l.Lint(lprog)

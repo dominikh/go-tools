@@ -30,6 +30,11 @@ type Ignore struct {
 	Checks  []string
 }
 
+type Program struct {
+	Prog     *loader.Program
+	Packages []*Pkg
+}
+
 type Func func(*File)
 
 // Problem represents a problem in some source code.
@@ -67,9 +72,14 @@ func (p ByPosition) Less(i, j int) bool {
 	return p[i].Text < p[j].Text
 }
 
+type Checker interface {
+	Init(*Program)
+	Funcs() map[string]Func
+}
+
 // A Linter lints Go source code.
 type Linter struct {
-	Funcs   map[string]Func
+	Checker Checker
 	Ignores []Ignore
 }
 
@@ -117,20 +127,33 @@ func (l *Linter) ignore(f *File, check string) bool {
 }
 
 func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
-	var keys []string
-	for k := range l.Funcs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	out := map[string][]Problem{}
+	var pkgs []*Pkg
 	for _, pkginfo := range lprog.InitialPackages() {
 		ssapkg := buildPackage(pkginfo.Pkg, pkginfo.Files, &pkginfo.Info, lprog.Fset, ssa.GlobalDebug)
 		pkg := &Pkg{
 			TypesPkg:  pkginfo.Pkg,
 			TypesInfo: pkginfo.Info,
 			SSAPkg:    ssapkg,
+			PkgInfo:   pkginfo,
 		}
+		pkgs = append(pkgs, pkg)
+	}
+	prog := &Program{
+		Prog:     lprog,
+		Packages: pkgs,
+	}
+	l.Checker.Init(prog)
+
+	funcs := l.Checker.Funcs()
+	var keys []string
+	for k := range funcs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	out := map[string][]Problem{}
+	for _, pkg := range pkgs {
+		pkginfo := pkg.PkgInfo
 		for _, file := range pkginfo.Files {
 			path := lprog.Fset.Position(file.Pos()).Filename
 			for _, k := range keys {
@@ -143,7 +166,7 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 					check:    k,
 				}
 
-				fn := l.Funcs[k]
+				fn := funcs[k]
 				if fn == nil {
 					continue
 				}
@@ -175,6 +198,7 @@ type Pkg struct {
 	TypesPkg  *types.Package
 	TypesInfo types.Info
 	SSAPkg    *ssa.Package
+	PkgInfo   *loader.PackageInfo
 
 	problems []Problem
 }

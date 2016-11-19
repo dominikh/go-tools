@@ -26,8 +26,8 @@ import (
 
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
 
-func TestAll(t *testing.T, funcs map[string]lint.Func, dir string) {
-	l := &lint.Linter{Funcs: funcs}
+func TestAll(t *testing.T, c lint.Checker, dir string) {
+	l := &lint.Linter{Checker: c}
 	rx, err := regexp.Compile(*lintMatch)
 	if err != nil {
 		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
