@@ -39,61 +39,62 @@ of edit, compile and debug cycles.
 
 The following things are currently checked by staticcheck:
 
-| Check      | Description                                                                                                    |
-|------------|----------------------------------------------------------------------------------------------------------------|
-| **SA1???** | **Various misuses of the standard library**                                                                    |
-| SA1000     | Invalid regular expression                                                                                     |
-| SA1001     | Invalid template                                                                                               |
-| SA1002     | Invalid format in time.Parse                                                                                   |
-| SA1003     | Unsupported argument to functions in encoding/binary                                                           |
-| SA1004     | Suspiciously small untyped constant in time.Sleep                                                              |
-| SA1005     | Invalid first argument to exec.Command                                                                         |
-| SA1006     | Printf with dynamic first argument and no further arguments                                                    |
-| SA1007     | Invalid URL in net/url.Parse                                                                                   |
-| SA1008     | Non-canonical key in http.Header map                                                                           |
-| SA1010     | `(*regexp.Regexp).FindAll` called with n == 0, which will always return zero results                           |
-| SA1011     | Various methods in the `strings` package expect valid UTF-8, but invalid input is provided                     |
-| SA1012     | A nil `context.Context` is being passed to a function, consider using context.TODO instead                     |
-| SA1013     | `io.Seeker.Seek` is being called with the `whence` constant as the first argument, but it should be the second |
-| SA1014     | Non-pointer value passed to Unmarshal or Decode                                                                |
-|            |                                                                                                                |
-| **SA2???** | **Concurrency issues**                                                                                         |
-| SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                                  |
-| SA2001     | Empty critical section, did you mean to `defer` the unlock?                                                    |
-| SA2002     | Called testing.T.FailNow or SkipNow in a goroutine, which isn't allowed                                        |
-| SA2003     | Deferred Lock right after locking, likely meant to defer Unlock instead                                        |
-|            |                                                                                                                |
-| **SA3???** | **Testing issues**                                                                                             |
-| SA3000     | TestMain doesn't call os.Exit, hiding test failures                                                            |
-| SA3001     | Assigning to `b.N` in benchmarks distorts the results                                                          |
-|            |                                                                                                                |
-| **SA4???** | **Code that isn't really doing anything**                                                                      |
-| SA4000     | Boolean expression has identical expressions on both sides                                                     |
-| SA4001     | `&*x` gets simplified to `x`, it does not copy `x`                                                             |
-| SA4002     | Comparing strings with known different sizes has predictable results                                           |
-| SA4003     | Comparing unsigned values against negative values is pointless                                                 |
-| SA4004     | The loop exits unconditionally after one iteration                                                             |
-| SA4005     | Field assignment that will never be observed. Did you mean to use a pointer receiver?                          |
-| SA4006     | A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?     |
-| SA4008     | The variable in the loop condition never changes, are you incrementing the wrong variable?                     |
-| SA4009     | A function argument is overwritten before its first use                                                        |
-| SA4010     | The result of `append` will never be observed anywhere                                                         |
-| SA4011     | Break statement with no effect. Did you mean to break out of an outer loop?                                    |
-| SA4012     | Comparing a value against NaN even though no value is equal to NaN                                             |
-|            |                                                                                                                |
-| **SA5???** | **Correctness issues**                                                                                         |
-| SA5000     | Assignment to nil map                                                                                          |
-| SA5001     | Defering `Close` before checking for a possible error                                                          |
-| SA5002     | The empty `for` loop (`for {}`) spins and can block the scheduler                                              |
-| SA5003     | Defers in infinite loops will never execute                                                                    |
-| SA5004     | `for { select { ...` with an empty default branch spins                                                        |
-| SA5005     | The finalizer references the finalized object, preventing garbage collection                                   |
-| SA5006     | Slice index out of bounds                                                                                      |
-| SA5007     | Infinite recursive call                                                                                        |
-|            |                                                                                                                |
-| **SA9???** | **Dubious code constructs that have a high probability of being wrong**                                        |
-| SA9000     | Storing non-pointer values in sync.Pool allocates memory                                                       |
-| SA9001     | `defer`s in `for range` loops may not run when you expect them to                                              |
+| Check      | Description                                                                                                                                   |
+|------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| **SA1???** | **Various misuses of the standard library**                                                                                                   |
+| SA1000     | Invalid regular expression                                                                                                                    |
+| SA1001     | Invalid template                                                                                                                              |
+| SA1002     | Invalid format in time.Parse                                                                                                                  |
+| SA1003     | Unsupported argument to functions in encoding/binary                                                                                          |
+| SA1004     | Suspiciously small untyped constant in time.Sleep                                                                                             |
+| SA1005     | Invalid first argument to exec.Command                                                                                                        |
+| SA1006     | Printf with dynamic first argument and no further arguments                                                                                   |
+| SA1007     | Invalid URL in net/url.Parse                                                                                                                  |
+| SA1008     | Non-canonical key in http.Header map                                                                                                          |
+| SA1010     | `(*regexp.Regexp).FindAll` called with n == 0, which will always return zero results                                                          |
+| SA1011     | Various methods in the `strings` package expect valid UTF-8, but invalid input is provided                                                    |
+| SA1012     | A nil `context.Context` is being passed to a function, consider using context.TODO instead                                                    |
+| SA1013     | `io.Seeker.Seek` is being called with the `whence` constant as the first argument, but it should be the second                                |
+| SA1014     | Non-pointer value passed to Unmarshal or Decode                                                                                               |
+| SA1015     | Using `time.Tick` in a way that will leak. Consider using `time.NewTicker`, and only use `time.Tick` in tests, commands and endless functions |
+|            |                                                                                                                                               |
+| **SA2???** | **Concurrency issues**                                                                                                                        |
+| SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                                                                 |
+| SA2001     | Empty critical section, did you mean to `defer` the unlock?                                                                                   |
+| SA2002     | Called testing.T.FailNow or SkipNow in a goroutine, which isn't allowed                                                                       |
+| SA2003     | Deferred Lock right after locking, likely meant to defer Unlock instead                                                                       |
+|            |                                                                                                                                               |
+| **SA3???** | **Testing issues**                                                                                                                            |
+| SA3000     | TestMain doesn't call os.Exit, hiding test failures                                                                                           |
+| SA3001     | Assigning to `b.N` in benchmarks distorts the results                                                                                         |
+|            |                                                                                                                                               |
+| **SA4???** | **Code that isn't really doing anything**                                                                                                     |
+| SA4000     | Boolean expression has identical expressions on both sides                                                                                    |
+| SA4001     | `&*x` gets simplified to `x`, it does not copy `x`                                                                                            |
+| SA4002     | Comparing strings with known different sizes has predictable results                                                                          |
+| SA4003     | Comparing unsigned values against negative values is pointless                                                                                |
+| SA4004     | The loop exits unconditionally after one iteration                                                                                            |
+| SA4005     | Field assignment that will never be observed. Did you mean to use a pointer receiver?                                                         |
+| SA4006     | A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?                                    |
+| SA4008     | The variable in the loop condition never changes, are you incrementing the wrong variable?                                                    |
+| SA4009     | A function argument is overwritten before its first use                                                                                       |
+| SA4010     | The result of `append` will never be observed anywhere                                                                                        |
+| SA4011     | Break statement with no effect. Did you mean to break out of an outer loop?                                                                   |
+| SA4012     | Comparing a value against NaN even though no value is equal to NaN                                                                            |
+|            |                                                                                                                                               |
+| **SA5???** | **Correctness issues**                                                                                                                        |
+| SA5000     | Assignment to nil map                                                                                                                         |
+| SA5001     | Defering `Close` before checking for a possible error                                                                                         |
+| SA5002     | The empty `for` loop (`for {}`) spins and can block the scheduler                                                                             |
+| SA5003     | Defers in infinite loops will never execute                                                                                                   |
+| SA5004     | `for { select { ...` with an empty default branch spins                                                                                       |
+| SA5005     | The finalizer references the finalized object, preventing garbage collection                                                                  |
+| SA5006     | Slice index out of bounds                                                                                                                     |
+| SA5007     | Infinite recursive call                                                                                                                       |
+|            |                                                                                                                                               |
+| **SA9???** | **Dubious code constructs that have a high probability of being wrong**                                                                       |
+| SA9000     | Storing non-pointer values in sync.Pool allocates memory                                                                                      |
+| SA9001     | `defer`s in `for range` loops may not run when you expect them to                                                                             |
 
 ## Ignoring checks
 

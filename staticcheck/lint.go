@@ -48,7 +48,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1012": c.CheckNilContext,
 		"SA1013": c.CheckSeeker,
 		"SA1014": c.CheckUnmarshalPointer,
-		// "SA1015": c.CheckLeakyTimeTick,
+		"SA1015": c.CheckLeakyTimeTick,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -104,6 +104,32 @@ func constantString(f *lint.File, expr ast.Expr) (string, bool) {
 
 func hasType(f *lint.File, expr ast.Expr, name string) bool {
 	return types.TypeString(f.Pkg.TypesInfo.TypeOf(expr), nil) == name
+}
+
+// terminates reports whether fn is supposed to return, that is if it
+// has at least one theoretic path that returns from the function.
+// Explicit panics do not count as terminating.
+func (c *Checker) terminates(fn *ssa.Function) (ret bool) {
+	if b, ok := c.terminatesCache[fn]; ok {
+		return b
+	}
+	defer func() {
+		c.terminatesCache[fn] = ret
+	}()
+	if fn.Blocks == nil {
+		// assuming that a function terminates is the conservative
+		// choice
+		return true
+	}
+	for _, block := range fn.Blocks {
+		if len(block.Instrs) == 0 {
+			continue
+		}
+		if _, ok := block.Instrs[len(block.Instrs)-1].(*ssa.Return); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Checker) CheckRegexps(f *lint.File) {
@@ -2136,6 +2162,92 @@ func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
 			return true
 		}
 		f.Errorf(arg, "%s expects to unmarshal into a pointer, but the provided value is not a pointer", sel.Sel.Name)
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
+	if f.IsMain() || f.IsTest() {
+		return
+	}
+	var flowTerminates func(start, b *ssa.BasicBlock, seen map[*ssa.BasicBlock]bool) bool
+	flowTerminates = func(start, b *ssa.BasicBlock, seen map[*ssa.BasicBlock]bool) bool {
+		if seen == nil {
+			seen = map[*ssa.BasicBlock]bool{}
+		}
+		if seen[b] {
+			return false
+		}
+		seen[b] = true
+		for _, ins := range b.Instrs {
+			if _, ok := ins.(*ssa.Return); ok {
+				return true
+			}
+		}
+		if b == start {
+			if flowTerminates(start, b.Succs[0], seen) {
+				return true
+			}
+		} else {
+			for _, succ := range b.Succs {
+				if flowTerminates(start, succ, seen) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	fn := func(node ast.Node) bool {
+		if !isFunctionCallName(f, node, "time.Tick") {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(node)
+		if ssafn == nil {
+			return false
+		}
+		if !c.terminates(ssafn) {
+			return true
+		}
+		val, _ := ssafn.ValueForExpr(node.(*ast.CallExpr))
+		if val == nil {
+			return true
+		}
+		refs := val.Referrers()
+		if refs == nil {
+			return true
+		}
+		for _, ref := range *refs {
+			if _, ok := ref.(*ssa.DebugRef); ok {
+				continue
+			}
+			if ref, ok := ref.(*ssa.UnOp); !ok || ref.Op != token.ARROW {
+				continue
+			}
+			block := ref.Block()
+			if block.Instrs[0] != ref {
+				continue
+			}
+			if len(block.Succs) != 2 {
+				continue
+			}
+			loop := false
+			for _, pred := range block.Preds {
+				// This will only detect natural loops, which is fine
+				// for detecting `for range`.
+				if block.Dominates(pred) {
+					loop = true
+					break
+				}
+			}
+			if !loop {
+				continue
+			}
+			if !flowTerminates(block, block, nil) {
+				return true
+			}
+		}
+		f.Errorf(node, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
 		return true
 	}
 	f.Walk(fn)
