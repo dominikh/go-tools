@@ -25,3 +25,11 @@ func fn3() {
 		}
 	}
 }
+
+type T struct{}
+
+func (t *T) foo() {
+	for range time.Tick(0) {
+		println("")
+	}
+}

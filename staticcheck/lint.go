@@ -18,9 +18,9 @@ import (
 	"unicode/utf8"
 
 	"honnef.co/go/lint"
+	"honnef.co/go/ssa"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"honnef.co/go/ssa"
 )
 
 type Checker struct {
@@ -97,11 +97,23 @@ func (c *Checker) Init(prog *lint.Program) {
 				flattenPhis(fn)
 				ssa.OptimizeBlocks(fn)
 			}
+			if typ, ok := m.(*ssa.Type); ok {
+				ttyp := typ.Type().(*types.Named)
+				ptr := types.NewPointer(ttyp)
+				for i := 0; i < ttyp.NumMethods(); i++ {
+					meth := ttyp.Method(i)
+					fn := pkg.SSAPkg.Prog.LookupMethod(ptr, pkg.TypesPkg, meth.Name())
+					detectInfiniteLoops(fn)
+					flattenPhis(fn)
+					ssa.OptimizeBlocks(fn)
+				}
+			}
 		}
 	}
 }
 
 func flattenPhis(fn *ssa.Function) {
+	ssa.OptimizeBlocks(fn)
 	if len(fn.Blocks) == 0 {
 		return
 	}
