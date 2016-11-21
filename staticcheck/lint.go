@@ -19,12 +19,14 @@ import (
 
 	"honnef.co/go/lint"
 	"honnef.co/go/ssa"
+	"honnef.co/go/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
 )
 
 type Checker struct {
 	terminatesCache map[*ssa.Function]bool
+	ranges          map[*ssa.Function]*vrp.Graph
 }
 
 func NewChecker() *Checker {
@@ -89,51 +91,43 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 func (c *Checker) Init(prog *lint.Program) {
 	c.terminatesCache = map[*ssa.Function]bool{}
+	c.ranges = map[*ssa.Function]*vrp.Graph{}
 
+	var fns []*ssa.Function
 	for _, pkg := range prog.Packages {
 		for _, m := range pkg.SSAPkg.Members {
 			if fn, ok := m.(*ssa.Function); ok {
-				if fn.Blocks == nil {
-					continue
-				}
-				detectInfiniteLoops(fn)
-				flattenPhis(fn)
-				ssa.OptimizeBlocks(fn)
+				fns = append(fns, fn)
 			}
 			if typ, ok := m.(*ssa.Type); ok {
 				ttyp := typ.Type().(*types.Named)
+				if _, ok := ttyp.Underlying().(*types.Interface); ok {
+					continue
+				}
 				ptr := types.NewPointer(ttyp)
-				for i := 0; i < ttyp.NumMethods(); i++ {
-					meth := ttyp.Method(i)
-					fn := pkg.SSAPkg.Prog.LookupMethod(ptr, pkg.TypesPkg, meth.Name())
-					if fn.Blocks == nil {
-						continue
-					}
-					detectInfiniteLoops(fn)
-					flattenPhis(fn)
-					ssa.OptimizeBlocks(fn)
+				ms := pkg.SSAPkg.Prog.MethodSets.MethodSet(ptr)
+				for i := 0; i < ms.Len(); i++ {
+					fns = append(fns, pkg.SSAPkg.Prog.MethodValue(ms.At(i)))
+				}
+				ms = pkg.SSAPkg.Prog.MethodSets.MethodSet(ttyp)
+				for i := 0; i < ms.Len(); i++ {
+					fns = append(fns, pkg.SSAPkg.Prog.MethodValue(ms.At(i)))
 				}
 			}
 		}
 	}
-}
 
-func flattenPhis(fn *ssa.Function) {
-	ssa.OptimizeBlocks(fn)
-	if len(fn.Blocks) == 0 {
-		return
-	}
-	for _, block := range fn.Blocks {
-		var newInstrs []ssa.Instruction
-		for _, ins := range block.Instrs {
-			phi, ok := ins.(*ssa.Phi)
-			if !ok || len(phi.Edges) > 1 {
-				newInstrs = append(newInstrs, ins)
-				continue
-			}
-			ssa.ReplaceAll(phi, phi.Edges[0])
+	for _, fn := range fns {
+		if fn.Blocks == nil {
+			continue
 		}
-		block.Instrs = newInstrs
+		detectInfiniteLoops(fn)
+		ssa.OptimizeBlocks(fn)
+
+		g := vrp.BuildGraph(fn)
+		g.Solve()
+		//fmt.Println(g.Graphviz())
+		c.ranges[fn] = g
 	}
 }
 
