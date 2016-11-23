@@ -51,6 +51,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1013": c.CheckSeeker,
 		"SA1014": c.CheckUnmarshalPointer,
 		"SA1015": c.CheckLeakyTimeTick,
+		"SA1016": CheckUntrappableSignal,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -243,6 +244,48 @@ func (c *Checker) terminates(fn *ssa.Function) (ret bool) {
 		}
 	}
 	return false
+}
+
+func isTypeName(f *lint.File, node ast.Node, pkgName, name string) bool {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	tn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.TypeName)
+	return ok && tn.Pkg().Name() == pkgName && tn.Name() == name
+}
+
+func CheckUntrappableSignal(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "signal", "Ignore") &&
+			!lint.IsPkgDot(call.Fun, "signal", "Notify") &&
+			!lint.IsPkgDot(call.Fun, "signal", "Reset") {
+			return true
+		}
+		for _, callArg := range call.Args {
+			arg := callArg
+			if isTypeName(f, arg, "os", "Signal") && len(arg.(*ast.CallExpr).Args) == 1 {
+				arg = arg.(*ast.CallExpr).Args[0]
+			}
+
+			switch {
+			case lint.IsPkgDot(arg, "os", "Kill"), lint.IsPkgDot(arg, "syscall", "SIGKILL"):
+				f.Errorf(arg, "SIGKILL signal cannot be trapped (did you mean syscall.SIGTERM?)")
+			case lint.IsPkgDot(arg, "syscall", "SIGSTOP"):
+				f.Errorf(arg, "SIGSTOP signal cannot be trapped")
+			}
+		}
+		return true
+	}
+	f.Walk(fn)
 }
 
 func (c *Checker) CheckRegexps(f *lint.File) {

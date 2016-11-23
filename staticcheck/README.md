@@ -57,6 +57,7 @@ The following things are currently checked by staticcheck:
 | SA1013     | `io.Seeker.Seek` is being called with the `whence` constant as the first argument, but it should be the second                                |
 | SA1014     | Non-pointer value passed to Unmarshal or Decode                                                                                               |
 | SA1015     | Using `time.Tick` in a way that will leak. Consider using `time.NewTicker`, and only use `time.Tick` in tests, commands and endless functions |
+| SA1016     | Trapping a signal that cannot be trapped                                                                                                      |
 |            |                                                                                                                                               |
 | **SA2???** | **Concurrency issues**                                                                                                                        |
 | SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                                                                 |
