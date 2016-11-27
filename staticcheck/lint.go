@@ -93,6 +93,9 @@ func (c *Checker) Init(prog *lint.Program) {
 	for _, pkg := range prog.Packages {
 		for _, m := range pkg.SSAPkg.Members {
 			if fn, ok := m.(*ssa.Function); ok {
+				if fn.Blocks == nil {
+					continue
+				}
 				detectInfiniteLoops(fn)
 				flattenPhis(fn)
 				ssa.OptimizeBlocks(fn)
@@ -103,6 +106,9 @@ func (c *Checker) Init(prog *lint.Program) {
 				for i := 0; i < ttyp.NumMethods(); i++ {
 					meth := ttyp.Method(i)
 					fn := pkg.SSAPkg.Prog.LookupMethod(ptr, pkg.TypesPkg, meth.Name())
+					if fn.Blocks == nil {
+						continue
+					}
 					detectInfiniteLoops(fn)
 					flattenPhis(fn)
 					ssa.OptimizeBlocks(fn)
