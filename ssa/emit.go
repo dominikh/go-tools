@@ -267,6 +267,11 @@ func emitJump(f *Function, target *BasicBlock) {
 	f.currentBlock = nil
 }
 
+func (b *BasicBlock) emitJump(target *BasicBlock) {
+	b.emit(new(Jump))
+	addEdge(b, target)
+}
+
 // emitIf emits to f a conditional jump to tblock or fblock based on
 // cond, and updates the control-flow graph.
 // Postcondition: f.currentBlock is nil.
@@ -274,9 +279,51 @@ func emitJump(f *Function, target *BasicBlock) {
 func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) {
 	b := f.currentBlock
 	b.emit(&If{Cond: cond})
-	addEdge(b, tblock)
-	addEdge(b, fblock)
+
+	tt := f.newBasicBlock("if.pi")
+	ft := f.newBasicBlock("if.pi")
+
+	addEdge(b, tt)
+	addEdge(b, ft)
+
+	switch cond := cond.(type) {
+	case *BinOp:
+		switch x := cond.X.(type) {
+		case *UnOp:
+			emitSigma(f, tt, x, true)
+			emitSigma(f, ft, x, false)
+		case *Const:
+		}
+		switch y := cond.Y.(type) {
+		case *UnOp:
+			emitSigma(f, tt, y, true)
+			emitSigma(f, ft, y, false)
+		case *Const:
+		}
+	}
+
+	tt.emitJump(tblock)
+	ft.emitJump(fblock)
+
 	f.currentBlock = nil
+}
+
+func emitSigma(f *Function, b *BasicBlock, v Value, branch bool) {
+	f.currentBlock = b
+	unop, ok := v.(*UnOp)
+	if !ok {
+		return
+	}
+	if alloc, ok := unop.X.(*Alloc); !ok || alloc.Heap {
+		return
+	}
+	pi := &Sigma{
+		X:      v,
+		Branch: branch,
+	}
+	pi.setType(v.Type())
+	pv := f.emit(pi)
+	emitStore(f, unop.X, pv, 0)
 }
 
 // emitExtract emits to f an instruction to extract the index'th

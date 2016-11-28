@@ -353,9 +353,54 @@ func (f *Function) finishBody() {
 		printMu.Unlock()
 	}
 
+	flattenPhis(f)
+	cullSigmas(f)
+	optimizeBlocks(f)
+
 	if f.Prog.mode&SanityCheckFunctions != 0 {
 		mustSanityCheck(f, nil)
 	}
+}
+
+func cullSigmas(fn *Function) {
+	if len(fn.Blocks) == 0 {
+		return
+	}
+	for _, block := range fn.Blocks {
+		var instrs []Instruction
+		for _, ins := range block.Instrs {
+			if sigma, ok := ins.(*Sigma); ok {
+				if refs := sigma.Referrers(); refs == nil || len(*refs) > 0 {
+					instrs = append(instrs, ins)
+				}
+			} else {
+				instrs = append(instrs, ins)
+			}
+		}
+		block.Instrs = instrs
+	}
+}
+
+func flattenPhis(fn *Function) {
+	if len(fn.Blocks) == 0 {
+		return
+	}
+	for _, block := range fn.Blocks {
+		var newInstrs []Instruction
+		for _, ins := range block.Instrs {
+			phi, ok := ins.(*Phi)
+			if !ok || len(phi.Edges) > 1 {
+				newInstrs = append(newInstrs, ins)
+				continue
+			}
+			ReplaceAll(phi, phi.Edges[0])
+		}
+		block.Instrs = newInstrs
+	}
+}
+
+func (f *Function) RemoveNilBlocks() {
+	f.removeNilBlocks()
 }
 
 // removeNilBlocks eliminates nils from f.Blocks and updates each

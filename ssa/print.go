@@ -85,7 +85,7 @@ func (v *Alloc) String() string {
 
 func (v *Phi) String() string {
 	var b bytes.Buffer
-	b.WriteString("phi [")
+	b.WriteString("φ [")
 	for i, edge := range v.Edges {
 		if i > 0 {
 			b.WriteString(", ")

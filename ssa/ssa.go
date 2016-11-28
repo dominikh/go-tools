@@ -504,6 +504,31 @@ type Alloc struct {
 	index   int // dense numbering; for lifting
 }
 
+var _ Instruction = (*Sigma)(nil)
+var _ Value = (*Sigma)(nil)
+
+type Sigma struct {
+	register
+	X      Value
+	Branch bool
+}
+
+func (p *Sigma) Value() Value {
+	v := p.X
+	for {
+		pi, ok := v.(*Sigma)
+		if !ok {
+			break
+		}
+		v = pi
+	}
+	return v
+}
+
+func (p *Sigma) String() string {
+	return fmt.Sprintf("σ [%s.%t]", relName(p.X, p), p.Branch)
+}
+
 // The Phi instruction represents an SSA φ-node, which combines values
 // that differ across incoming control-flow edges and yields a new
 // value.  Within a block, all φ-nodes must appear before all non-φ
@@ -1642,6 +1667,10 @@ func (v *Next) Operands(rands []*Value) []*Value {
 
 func (s *Panic) Operands(rands []*Value) []*Value {
 	return append(rands, &s.X)
+}
+
+func (v *Sigma) Operands(rands []*Value) []*Value {
+	return append(rands, &v.X)
 }
 
 func (v *Phi) Operands(rands []*Value) []*Value {

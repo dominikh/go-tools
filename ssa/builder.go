@@ -1289,7 +1289,11 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 			// followed by If.  Don't forget conversions
 			// though.
 			cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), token.NoPos)
-			emitIf(fn, cond, body, nextCond)
+
+			thunk := fn.newBasicBlock("switch.pi")
+			emitIf(fn, cond, thunk, nextCond)
+			fn.currentBlock = thunk
+			emitJump(fn, body)
 			fn.currentBlock = nextCond
 		}
 		fn.currentBlock = body
