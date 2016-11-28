@@ -1515,8 +1515,24 @@ func (c *Checker) CheckLoopCondition(f *lint.File) {
 		if v == nil || isAddr {
 			return true
 		}
-		switch v.(type) {
-		case *ssa.Phi, *ssa.UnOp:
+		switch v := v.(type) {
+		case *ssa.Phi:
+			ops := v.Operands(nil)
+			if len(ops) != 2 {
+				return true
+			}
+			_, ok := (*ops[0]).(*ssa.Const)
+			if !ok {
+				return true
+			}
+			sigma, ok := (*ops[1]).(*ssa.Sigma)
+			if !ok {
+				return true
+			}
+			if sigma.X != v {
+				return true
+			}
+		case *ssa.UnOp:
 			return true
 		}
 		f.Errorf(cond, "variable in loop condition never changes")
