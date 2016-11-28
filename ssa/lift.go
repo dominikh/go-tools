@@ -109,6 +109,10 @@ func buildDomFrontier(fn *Function) domFrontier {
 	return df
 }
 
+func RemoveInstr(refs []Instruction, instr Instruction) []Instruction {
+	return removeInstr(refs, instr)
+}
+
 func removeInstr(refs []Instruction, instr Instruction) []Instruction {
 	i := 0
 	for _, ref := range refs {
@@ -438,6 +442,10 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 	}
 
 	return true
+}
+
+func ReplaceAll(x, y Value) {
+	replaceAll(x, y)
 }
 
 // replaceAll replaces all intraprocedural uses of x with y,

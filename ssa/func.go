@@ -62,6 +62,10 @@ func (b *BasicBlock) hasPhi() bool {
 	return ok
 }
 
+func (b *BasicBlock) Phis() []Instruction {
+	return b.phis()
+}
+
 // phis returns the prefix of b.Instrs containing all the block's φ-nodes.
 func (b *BasicBlock) phis() []Instruction {
 	for i, instr := range b.Instrs {
@@ -92,6 +96,10 @@ func (b *BasicBlock) replaceSucc(p, q *BasicBlock) {
 			b.Succs[i] = q
 		}
 	}
+}
+
+func (b *BasicBlock) RemovePred(p *BasicBlock) {
+	b.removePred(p)
 }
 
 // removePred removes all occurrences of p in b's
