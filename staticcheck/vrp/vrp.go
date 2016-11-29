@@ -73,6 +73,113 @@ func isSupportedType(typ types.Type) bool {
 	return true
 }
 
+func sigmaIntegerFuture(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
+	op := cond.Op
+	if !ins.Branch {
+		op = (invertToken(op))
+	}
+
+	c := &FutureIntersectionConstraint{
+		aConstraint: aConstraint{
+			y: ins,
+		},
+		ranges:      g.ranges,
+		lowerOffset: NewZ(&big.Int{}),
+		upperOffset: NewZ(&big.Int{}),
+	}
+	var other ssa.Value
+	if (*ops[0]) == ins.X {
+		c.X = *ops[0]
+		other = *ops[1]
+	} else {
+		c.X = *ops[1]
+		other = *ops[0]
+		op = invertToken(op)
+	}
+
+	switch op {
+	case token.EQL:
+		c.lower = other
+		c.upper = other
+	case token.GTR, token.GEQ:
+		off := int64(0)
+		if cond.Op == token.GTR {
+			off = 1
+		}
+		c.lower = other
+		c.lowerOffset = NewZ(big.NewInt(off))
+		c.upper = nil
+		c.upperOffset = PInfinity
+	case token.LSS, token.LEQ:
+		off := int64(0)
+		if cond.Op == token.LSS {
+			off = -1
+		}
+		c.lower = nil
+		c.lowerOffset = NInfinity
+		c.upper = other
+		c.upperOffset = NewZ(big.NewInt(off))
+	default:
+		return nil
+	}
+	return c
+}
+
+func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
+	op := cond.Op
+	if !ins.Branch {
+		op = (invertToken(op))
+	}
+
+	k, ok := (*ops[1]).(*ssa.Const)
+	// XXX investigate in what cases this wouldn't be a Const
+	if !ok {
+		return nil
+	}
+	// XXX signs, bits
+	v, _ := constant.Int64Val(k.Value)
+	c := &IntersectionConstraint{
+		aConstraint: aConstraint{
+			y: ins,
+		},
+		X: *ops[0],
+	}
+	switch op {
+	case token.EQL:
+		c.I = NewInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+	case token.GTR, token.GEQ:
+		off := int64(0)
+		if cond.Op == token.GTR {
+			off = 1
+		}
+		c.I = NewInterval(
+			NewZ(big.NewInt(v+off)),
+			PInfinity,
+		)
+	case token.LSS, token.LEQ:
+		off := int64(0)
+		if cond.Op == token.LSS {
+			off = -1
+		}
+		c.I = NewInterval(
+			NInfinity,
+			NewZ(big.NewInt(v+off)),
+		)
+	default:
+		return nil
+	}
+	return c
+}
+
+func sigmaInteger(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
+	_, ok1 := (*ops[0]).(*ssa.Const)
+	_, ok2 := (*ops[1]).(*ssa.Const)
+	if !ok1 && !ok2 {
+		return sigmaIntegerFuture(g, ins, cond, ops)
+	}
+	return sigmaIntegerConst(g, ins, cond, ops)
+}
+
 func BuildGraph(f *ssa.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
@@ -187,108 +294,13 @@ func BuildGraph(f *ssa.Function) *Graph {
 				}
 				switch typ := ins.Type().Underlying().(type) {
 				case *types.Basic:
-					if (typ.Info() & types.IsInteger) == 0 {
-						continue
-					}
-
-					_, ok1 := (*ops[0]).(*ssa.Const)
-					_, ok2 := (*ops[1]).(*ssa.Const)
-					var logic func(op token.Token)
-					if !ok1 && !ok2 {
-						logic = func(op token.Token) {
-							c := &FutureIntersectionConstraint{
-								aConstraint: aConstraint{
-									y: ins,
-								},
-								ranges:      g.ranges,
-								lowerOffset: NewZ(&big.Int{}),
-								upperOffset: NewZ(&big.Int{}),
-							}
-							var other ssa.Value
-							if (*ops[0]) == ins.X {
-								c.X = *ops[0]
-								other = *ops[1]
-							} else {
-								c.X = *ops[1]
-								other = *ops[0]
-								op = invertToken(op)
-							}
-
-							switch op {
-							case token.EQL:
-								c.lower = other
-								c.upper = other
-							case token.GTR, token.GEQ:
-								off := int64(0)
-								if cond.Op == token.GTR {
-									off = 1
-								}
-								c.lower = other
-								c.lowerOffset = NewZ(big.NewInt(off))
-								c.upper = nil
-								c.upperOffset = PInfinity
-							case token.LSS, token.LEQ:
-								off := int64(0)
-								if cond.Op == token.LSS {
-									off = -1
-								}
-								c.lower = nil
-								c.lowerOffset = NInfinity
-								c.upper = other
-								c.upperOffset = NewZ(big.NewInt(off))
-							default:
-								return
-							}
-							cs = append(cs, c)
-						}
-					} else {
-						logic = func(op token.Token) {
-							k, ok := (*ops[1]).(*ssa.Const)
-							// XXX investigate in what cases this wouldn't be a Const
-							if !ok {
-								return
-							}
-							// XXX signs, bits
-							v, _ := constant.Int64Val(k.Value)
-							c := &IntersectionConstraint{
-								aConstraint: aConstraint{
-									y: ins,
-								},
-								X: *ops[0],
-							}
-							switch op {
-							case token.EQL:
-								c.I = NewInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
-							case token.GTR, token.GEQ:
-								off := int64(0)
-								if cond.Op == token.GTR {
-									off = 1
-								}
-								c.I = NewInterval(
-									NewZ(big.NewInt(v+off)),
-									PInfinity,
-								)
-							case token.LSS, token.LEQ:
-								off := int64(0)
-								if cond.Op == token.LSS {
-									off = -1
-								}
-								c.I = NewInterval(
-									NInfinity,
-									NewZ(big.NewInt(v+off)),
-								)
-							default:
-								return
-							}
+					switch typ.Kind() {
+					case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
+						types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+						if c := sigmaInteger(g, ins, cond, ops); c != nil {
 							cs = append(cs, c)
 						}
 					}
-
-					op := cond.Op
-					if !ins.Branch {
-						op = (invertToken(op))
-					}
-					logic(op)
 				default:
 					//log.Printf("unsupported sigma type %T", typ) // XXX
 				}
