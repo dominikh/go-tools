@@ -147,7 +147,7 @@ func NewStringConcatConstraint(a, b, y ssa.Value) Constraint {
 }
 
 func (c StringConcatConstraint) String() string {
-	return fmt.Sprintf("%s = %s + %s", c.Y().Name, c.A.Name(), c.B.Name())
+	return fmt.Sprintf("%s = %s + %s", c.Y().Name(), c.A.Name(), c.B.Name())
 }
 
 func (c StringConcatConstraint) Eval(g *Graph) Range {
@@ -162,4 +162,35 @@ func (c StringConcatConstraint) Eval(g *Graph) Range {
 
 func (c StringConcatConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.A, c.B}
+}
+
+type StringLengthConstraint struct {
+	aConstraint
+	X ssa.Value
+}
+
+func NewStringLengthConstraint(x ssa.Value, y ssa.Value) Constraint {
+	return &StringLengthConstraint{
+		aConstraint: aConstraint{
+			y: y,
+		},
+		X: x,
+	}
+}
+
+func (c *StringLengthConstraint) String() string {
+	return fmt.Sprintf("%s = len(%s)", c.Y().Name(), c.X.Name())
+}
+
+func (c *StringLengthConstraint) Eval(g *Graph) Range {
+	i := g.Range(c.X).(StringInterval).Length
+	log.Println(c.Y().Name(), i)
+	if !i.IsKnown() {
+		return NewIntInterval(NewZ(&big.Int{}), PInfinity)
+	}
+	return i
+}
+
+func (c *StringLengthConstraint) Operands() []ssa.Value {
+	return []ssa.Value{c.X}
 }

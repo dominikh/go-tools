@@ -262,6 +262,16 @@ func BuildGraph(f *ssa.Function) *Graph {
 					}
 					cs = append(cs, c)
 				}
+			case *ssa.Call:
+				builtin, ok := ins.Common().Value.(*ssa.Builtin)
+				ops := ins.Operands(nil)
+				if !ok || builtin.Name() != "len" {
+					continue
+				}
+				if basic, ok := (*ops[1]).Type().Underlying().(*types.Basic); !ok || basic.Kind() != types.String {
+					continue
+				}
+				cs = append(cs, NewStringLengthConstraint(*ops[1], ins))
 			case *ssa.BinOp:
 				ops := ins.Operands(nil)
 				basic, ok := (*ops[0]).Type().Underlying().(*types.Basic)
