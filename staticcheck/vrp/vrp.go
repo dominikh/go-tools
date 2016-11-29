@@ -257,7 +257,50 @@ func BuildGraph(f *ssa.Function) *Graph {
 		Vertices: map[interface{}]*Vertex{},
 		ranges:   map[ssa.Value]Range{},
 	}
+
 	var cs []Constraint
+
+	ops := make([]*ssa.Value, 16)
+	seen := map[ssa.Value]bool{}
+	for _, block := range f.Blocks {
+		for _, ins := range block.Instrs {
+			ops = ins.Operands(ops[:0])
+			for _, op := range ops {
+				if c, ok := (*op).(*ssa.Const); ok {
+					if seen[c] {
+						continue
+					}
+					seen[c] = true
+					if c.Value == nil {
+						continue
+					}
+					switch c.Value.Kind() {
+					case constant.Int:
+						s := c.Value.ExactString()
+						v := &big.Int{}
+						v.SetString(s, 10)
+						c := &IntIntervalConstraint{
+							aConstraint: aConstraint{
+								y: c,
+							},
+							I: NewIntInterval(NewZ(v), NewZ(v)),
+						}
+						cs = append(cs, c)
+					case constant.String:
+						s := constant.StringVal(c.Value)
+						n := NewZ(big.NewInt(int64(len(s))))
+						c := &StringIntervalConstraint{
+							aConstraint: aConstraint{
+								y: c,
+							},
+							I: NewIntInterval(n, n),
+						}
+						cs = append(cs, c)
+					}
+				}
+			}
+		}
+	}
 	for _, block := range f.Blocks {
 		for _, ins := range block.Instrs {
 			switch ins := ins.(type) {
@@ -331,33 +374,6 @@ func BuildGraph(f *ssa.Function) *Graph {
 				dops := make([]ssa.Value, len(ops))
 				for i, op := range ops {
 					dops[i] = *op
-
-					if op, ok := (*op).(*ssa.Const); ok {
-						switch typ := op.Type().Underlying().(type) {
-						case *types.Basic:
-							if (typ.Info() & types.IsInteger) != 0 {
-								// XXX signs/bits
-								val, _ := constant.Int64Val(op.Value)
-								c := &IntIntervalConstraint{
-									aConstraint: aConstraint{
-										y: op,
-									},
-									I: NewIntInterval(NewZ(big.NewInt(val)), NewZ(big.NewInt(val))),
-								}
-								cs = append(cs, c)
-							}
-							if typ.Kind() == types.String || typ.Kind() == types.UntypedString {
-								val := constant.StringVal(op.Value)
-								c := &StringIntervalConstraint{
-									aConstraint: aConstraint{
-										y: op,
-									},
-									I: NewIntInterval(NewZ(big.NewInt(int64(len(val)))), NewZ(big.NewInt(int64(len(val))))),
-								}
-								cs = append(cs, c)
-							}
-						}
-					}
 				}
 				c := &PhiConstraint{
 					aConstraint: aConstraint{
@@ -414,18 +430,6 @@ func BuildGraph(f *ssa.Function) *Graph {
 }
 
 func (g *Graph) Solve() {
-	for _, n := range g.Vertices {
-		if v, ok := n.Value.(*ssa.Const); ok {
-			switch typ := v.Type().Underlying().(type) {
-			case *types.Basic:
-				if (typ.Info() & types.IsInteger) != 0 {
-					c, _ := constant.Int64Val(v.Value)
-					g.SetRange(v, NewIntInterval(NewZ(big.NewInt(c)), NewZ(big.NewInt(c))))
-				}
-			}
-		}
-	}
-
 	var consts []Z
 	for _, n := range g.Vertices {
 		if c, ok := n.Value.(*ssa.Const); ok {
@@ -627,24 +631,6 @@ func (g *Graph) SetRange(x ssa.Value, r Range) {
 func (g *Graph) Range(x ssa.Value) Range {
 	if x == nil {
 		panic("Range called with nil")
-	}
-	// XXX we shouldn't have to do this. all constants should exist in
-	// the graph already.
-	if x, ok := x.(*ssa.Const); ok {
-		switch typ := x.Type().Underlying().(type) {
-		case *types.Basic:
-			switch typ.Kind() {
-			case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
-				types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.UntypedInt:
-				v, _ := constant.Int64Val(x.Value)
-				return NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
-			case types.String, types.UntypedString:
-				n := NewZ(big.NewInt(int64(len(constant.StringVal(x.Value)))))
-				return StringInterval{
-					Length: NewIntInterval(n, n),
-				}
-			}
-		}
 	}
 	i, ok := g.ranges[x]
 	if !ok {
