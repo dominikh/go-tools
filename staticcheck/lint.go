@@ -162,11 +162,15 @@ func detectInfiniteLoops(fn *ssa.Function) {
 			if !ok || call.Common().IsInvoke() {
 				continue
 			}
-			fn, ok := call.Common().Value.(*ssa.Function).Object().(*types.Func)
+			fn, ok := call.Common().Value.(*ssa.Function)
 			if !ok {
 				continue
 			}
-			if fn.FullName() != "time.Tick" {
+			tfn, ok := fn.Object().(*types.Func)
+			if !ok {
+				continue
+			}
+			if tfn.FullName() != "time.Tick" {
 				continue
 			}
 			// XXX check if we're extracting ok from our unop
