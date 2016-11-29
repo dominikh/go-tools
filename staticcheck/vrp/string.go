@@ -204,7 +204,7 @@ func (s *StringIntervalConstraint) Operands() []ssa.Value {
 }
 
 func (c *StringIntervalConstraint) Eval(*Graph) Range {
-	return c.I
+	return StringInterval{c.I}
 }
 
 func (c *StringIntervalConstraint) String() string {
