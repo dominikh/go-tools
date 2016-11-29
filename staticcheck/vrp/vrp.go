@@ -449,7 +449,7 @@ func (g *Graph) Solve() Ranges {
 				continue
 			}
 			if (basic.Info() & types.IsInteger) != 0 {
-				v, _ := constant.Int64Val(c.Value)
+				v, _ := constant.Int64Val(constant.ToInt(c.Value))
 				consts = append(consts, NewZ(big.NewInt(v)))
 			}
 		}
