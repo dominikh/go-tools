@@ -500,7 +500,6 @@ func (g *Graph) Solve() {
 			}
 
 			actives := g.actives(scc)
-			uses = g.uses(scc) // XXX do we need to find uses twice?
 			for len(actives) > 0 {
 				v := actives[len(actives)-1]
 				actives = actives[:len(actives)-1]
