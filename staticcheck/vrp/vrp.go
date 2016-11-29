@@ -598,6 +598,8 @@ type Vertex struct {
 	index   int
 	lowlink int
 	stack   bool
+
+	Succs []Edge
 }
 
 type Graph struct {
@@ -832,7 +834,9 @@ func (g *Graph) AddEdge(from, to interface{}, ctrl bool) {
 		vt = &Vertex{Value: to}
 		g.Vertices[to] = vt
 	}
-	g.Edges = append(g.Edges, Edge{From: vf, To: vt, control: ctrl})
+	e := Edge{From: vf, To: vt, control: ctrl}
+	g.Edges = append(g.Edges, e)
+	vf.Succs = append(vf.Succs, e)
 }
 
 type Edge struct {
@@ -860,10 +864,7 @@ func (g *Graph) FindSCCs() {
 		s = append(s, v)
 		v.stack = true
 
-		for _, e := range g.Edges {
-			if e.From != v {
-				continue
-			}
+		for _, e := range v.Succs {
 			w := e.To
 			if w.index == 0 {
 				// successor w has not yet been visited; recurse on it
