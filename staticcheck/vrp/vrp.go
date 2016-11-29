@@ -130,6 +130,13 @@ func sigmaIntegerFuture(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Va
 	return c
 }
 
+func ConstantToZ(c constant.Value) Z {
+	s := constant.ToInt(c).ExactString()
+	n := &big.Int{}
+	n.SetString(s, 10)
+	return NewZ(n)
+}
+
 func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
 	op := cond.Op
 	if !ins.Branch {
@@ -141,8 +148,8 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 	if !ok {
 		return nil
 	}
-	// XXX signs, bits
-	v, _ := constant.Int64Val(k.Value)
+
+	v := ConstantToZ(k.Value)
 	c := &IntIntersectionConstraint{
 		aConstraint: aConstraint{
 			y: ins,
@@ -151,14 +158,16 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 	}
 	switch op {
 	case token.EQL:
-		c.I = NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+		c.I = NewIntInterval(v, v)
 	case token.GTR, token.GEQ:
 		off := int64(0)
 		if cond.Op == token.GTR {
 			off = 1
 		}
+		vo := &big.Int{}
+		vo.Add(v.integer, big.NewInt(off))
 		c.I = NewIntInterval(
-			NewZ(big.NewInt(v+off)),
+			NewZ(vo),
 			PInfinity,
 		)
 	case token.LSS, token.LEQ:
@@ -166,9 +175,11 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 		if cond.Op == token.LSS {
 			off = -1
 		}
+		vo := &big.Int{}
+		vo.Add(v.integer, big.NewInt(off))
 		c.I = NewIntInterval(
 			NInfinity,
-			NewZ(big.NewInt(v+off)),
+			NewZ(vo),
 		)
 	default:
 		return nil
@@ -217,8 +228,8 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	}
 	// TODO(dh) support == string comparison
 	callops := call.Operands(nil)
-	// XXX signs, bits
-	v, _ := constant.Int64Val(k.Value)
+
+	v := ConstantToZ(k.Value)
 	c := &StringIntersectionConstraint{
 		aConstraint: aConstraint{
 			y: ins,
@@ -227,14 +238,14 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	}
 	switch op {
 	case token.EQL:
-		c.I = NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+		c.I = NewIntInterval(v, v)
 	case token.GTR, token.GEQ:
 		off := int64(0)
 		if cond.Op == token.GTR {
 			off = 1
 		}
 		c.I = NewIntInterval(
-			NewZ(big.NewInt(v+off)),
+			v.Add(NewZ(big.NewInt(off))),
 			PInfinity,
 		)
 	case token.LSS, token.LEQ:
@@ -244,7 +255,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 		}
 		c.I = NewIntInterval(
 			NInfinity,
-			NewZ(big.NewInt(v+off)),
+			v.Add(NewZ(big.NewInt(off))),
 		)
 	default:
 		return nil
@@ -276,14 +287,12 @@ func BuildGraph(f *ssa.Function) *Graph {
 					}
 					switch c.Value.Kind() {
 					case constant.Int:
-						s := c.Value.ExactString()
-						v := &big.Int{}
-						v.SetString(s, 10)
+						v := ConstantToZ(c.Value)
 						c := &IntIntervalConstraint{
 							aConstraint: aConstraint{
 								y: c,
 							},
-							I: NewIntInterval(NewZ(v), NewZ(v)),
+							I: NewIntInterval(v, v),
 						}
 						cs = append(cs, c)
 					case constant.String:
@@ -449,8 +458,7 @@ func (g *Graph) Solve() Ranges {
 				continue
 			}
 			if (basic.Info() & types.IsInteger) != 0 {
-				v, _ := constant.Int64Val(constant.ToInt(c.Value))
-				consts = append(consts, NewZ(big.NewInt(v)))
+				consts = append(consts, ConstantToZ(c.Value))
 			}
 		}
 
