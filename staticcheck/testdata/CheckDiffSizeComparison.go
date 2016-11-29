@@ -25,3 +25,15 @@ func fn1() {
 	_ = "abc"[:] == "abc"[:] // MATCH /identical expressions on the left and right side/
 	_ = "ab"[:] == "abc"[:2]
 }
+
+func fn2() {
+	s1 := "123"
+	if true {
+		s1 = "1234"
+	}
+
+	_ = s1 == "12345"[:] // MATCH /comparing strings of different sizes/
+	_ = s1 == "1234"[:]
+	_ = s1 == "123"[:]
+	_ = s1 == "12"[:] // MATCH /comparing strings of different sizes/
+}

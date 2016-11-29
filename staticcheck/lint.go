@@ -1019,40 +1019,6 @@ func constantInt(f *lint.File, expr ast.Expr) (int, bool) {
 	return int(v), true
 }
 
-func sliceSize(f *lint.File, expr ast.Expr) (int, bool) {
-	if slice, ok := expr.(*ast.SliceExpr); ok {
-		low := 0
-		high := 0
-		if slice.Low != nil {
-			v, ok := constantInt(f, slice.Low)
-			if !ok {
-				return 0, false
-			}
-			low = v
-		}
-		if slice.High == nil {
-			v, ok := sliceSize(f, slice.X)
-			if !ok {
-				return 0, false
-			}
-			high = v
-		} else {
-			v, ok := constantInt(f, slice.High)
-			if !ok {
-				return 0, false
-			}
-			high = v
-		}
-		return high - low, true
-	}
-
-	s, ok := constantString(f, expr)
-	if !ok {
-		return 0, false
-	}
-	return len(s), true
-}
-
 func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
@@ -1071,15 +1037,20 @@ func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
 			// positives because of debug toggles and the like.
 			return true
 		}
-		left, ok1 := sliceSize(f, expr.X)
-		right, ok2 := sliceSize(f, expr.Y)
+		ssafn := f.EnclosingSSAFunction(expr)
+		ssaexpr, _ := ssafn.ValueForExpr(expr)
+		binop, ok := ssaexpr.(*ssa.BinOp)
+		if !ok {
+			return true
+		}
+		r1, ok1 := c.ranges[ssafn].Get(binop.X).(vrp.StringInterval)
+		r2, ok2 := c.ranges[ssafn].Get(binop.Y).(vrp.StringInterval)
 		if !ok1 || !ok2 {
 			return true
 		}
-		if left == right {
-			return true
+		if r1.Length.Intersection(r2.Length).Empty() {
+			f.Errorf(expr, "comparing strings of different sizes for equality will always return false")
 		}
-		f.Errorf(expr, "comparing strings of different sizes for equality will always return false")
 		return true
 	}
 	f.Walk(fn)
