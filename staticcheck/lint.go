@@ -26,7 +26,7 @@ import (
 
 type Checker struct {
 	terminatesCache map[*ssa.Function]bool
-	ranges          map[*ssa.Function]*vrp.Graph
+	ranges          map[*ssa.Function]vrp.Ranges
 }
 
 func NewChecker() *Checker {
@@ -86,12 +86,14 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 		"SA9000": c.CheckDubiousSyncPoolPointers,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
+
+		//"SA0000": c.DumpGraph,
 	}
 }
 
 func (c *Checker) Init(prog *lint.Program) {
 	c.terminatesCache = map[*ssa.Function]bool{}
-	c.ranges = map[*ssa.Function]*vrp.Graph{}
+	c.ranges = map[*ssa.Function]vrp.Ranges{}
 
 	var fns []*ssa.Function
 	for _, pkg := range prog.Packages {
@@ -125,9 +127,7 @@ func (c *Checker) Init(prog *lint.Program) {
 		ssa.OptimizeBlocks(fn)
 
 		g := vrp.BuildGraph(fn)
-		g.Solve()
-		//fmt.Println(g.Graphviz())
-		c.ranges[fn] = g
+		c.ranges[fn] = g.Solve()
 	}
 }
 

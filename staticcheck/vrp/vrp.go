@@ -255,7 +255,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 func BuildGraph(f *ssa.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
-		ranges:   map[ssa.Value]Range{},
+		ranges:   Ranges{},
 	}
 
 	var cs []Constraint
@@ -440,7 +440,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 	return g
 }
 
-func (g *Graph) Solve() {
+func (g *Graph) Solve() Ranges {
 	var consts []Z
 	for _, n := range g.Vertices {
 		if c, ok := n.Value.(*ssa.Const); ok {
@@ -576,6 +576,8 @@ func (g *Graph) Solve() {
 
 		g.ranges[v] = i
 	}
+
+	return g.ranges
 }
 
 func VerticeString(v *Vertex) string {
@@ -601,11 +603,32 @@ type Vertex struct {
 	Succs []Edge
 }
 
+type Ranges map[ssa.Value]Range
+
+func (r Ranges) Get(x ssa.Value) Range {
+	if x == nil {
+		panic("Range called with nil")
+	}
+	i, ok := r[x]
+	if !ok {
+		switch x := x.Type().Underlying().(type) {
+		case *types.Basic:
+			switch x.Kind() {
+			case types.String, types.UntypedString:
+				return StringInterval{}
+			default:
+				return IntInterval{}
+			}
+		}
+	}
+	return i
+}
+
 type Graph struct {
 	Vertices map[interface{}]*Vertex
 	Edges    []Edge
 	SCCs     [][]*Vertex
-	ranges   map[ssa.Value]Range
+	ranges   Ranges
 
 	// map SCCs to futures
 	futures [][]*FutureIntIntersectionConstraint
@@ -644,26 +667,7 @@ func (g *Graph) SetRange(x ssa.Value, r Range) {
 }
 
 func (g *Graph) Range(x ssa.Value) Range {
-	if x == nil {
-		panic("Range called with nil")
-	}
-	i, ok := g.ranges[x]
-	if !ok {
-		switch x := x.Type().Underlying().(type) {
-		case *types.Basic:
-			switch x.Kind() {
-			case types.String, types.UntypedString:
-				return StringInterval{}
-			default:
-				return IntInterval{}
-			}
-		}
-	}
-	return i
-}
-
-func (g *Graph) Ranges() map[ssa.Value]Range {
-	return g.ranges
+	return g.ranges.Get(x)
 }
 
 func (g *Graph) widen(c Constraint, consts []Z) bool {
