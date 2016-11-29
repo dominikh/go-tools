@@ -474,8 +474,8 @@ func (g *Graph) Solve() {
 			uses := g.uses(scc)
 			entries := g.entries(scc)
 			for len(entries) > 0 {
-				v := entries[0]
-				entries = entries[1:] // XXX this leaks memory
+				v := entries[len(entries)-1]
+				entries = entries[:len(entries)-1]
 				for _, use := range uses[v] {
 					if g.widen(use, consts) {
 						entries = append(entries, use.Y())
@@ -502,8 +502,8 @@ func (g *Graph) Solve() {
 			actives := g.actives(scc)
 			uses = g.uses(scc) // XXX do we need to find uses twice?
 			for len(actives) > 0 {
-				v := actives[0]
-				actives = actives[1:] // XXX this leaks memory
+				v := actives[len(actives)-1]
+				actives = actives[:len(actives)-1]
 				for _, use := range uses[v] {
 					if g.narrow(use, consts) {
 						actives = append(actives, use.Y())
