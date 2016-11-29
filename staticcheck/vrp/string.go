@@ -2,18 +2,10 @@ package vrp
 
 import (
 	"fmt"
-	"log"
 	"math/big"
 
 	"honnef.co/go/ssa"
 )
-
-// s1 + s2
-// s[:]
-// len(s)
-// "" -> len("")
-// s1 == s2
-// len(s1) <cmp> x
 
 type StringInterval struct {
 	Length IntInterval
@@ -183,7 +175,6 @@ func (c *StringLengthConstraint) String() string {
 
 func (c *StringLengthConstraint) Eval(g *Graph) Range {
 	i := g.Range(c.X).(StringInterval).Length
-	log.Println(c.Y().Name(), i)
 	if !i.IsKnown() {
 		return NewIntInterval(NewZ(&big.Int{}), PInfinity)
 	}
