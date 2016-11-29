@@ -130,6 +130,20 @@ func BuildGraph(f *ssa.Function) *Graph {
 						cs = append(cs, c)
 					}
 				}
+			case *ssa.Slice:
+				_, ok := ins.X.Type().Underlying().(*types.Basic)
+				if !ok {
+					continue
+				}
+				c := &StringSliceConstraint{
+					aConstraint: aConstraint{
+						y: ins,
+					},
+					X:     ins.X,
+					Lower: ins.Low,
+					Upper: ins.High,
+				}
+				cs = append(cs, c)
 			case *ssa.Phi:
 				if !isSupportedType(ins.Type()) {
 					continue
@@ -337,10 +351,17 @@ func (g *Graph) Solve() {
 			g.resolveFutures(scc)
 			v := vertices[0]
 			if v, ok := v.Value.(ssa.Value); ok {
-				switch v.Type().Underlying().(type) {
+				switch typ := v.Type().Underlying().(type) {
 				case *types.Basic:
-					if !g.Range(v).(Interval).IsKnown() {
-						g.SetRange(v, InfinityFor(v))
+					switch typ.Kind() {
+					case types.String:
+						if !g.Range(v).(StringRange).IsKnown() {
+							g.SetRange(v, StringRange{NewInterval(NewZ(&big.Int{}), PInfinity)})
+						}
+					default:
+						if !g.Range(v).(Interval).IsKnown() {
+							g.SetRange(v, InfinityFor(v))
+						}
 					}
 				}
 			}
@@ -453,8 +474,10 @@ func VerticeString(v *Vertex) string {
 		return v.String()
 	case ssa.Value:
 		return v.Name()
+	case nil:
+		return "BUG: nil vertex value"
 	default:
-		panic("unexpected type")
+		panic(fmt.Sprintf("unexpected type %T", v))
 	}
 }
 
@@ -517,9 +540,14 @@ func (g *Graph) Range(x ssa.Value) Range {
 	}
 	i, ok := g.ranges[x]
 	if !ok {
-		switch x.Type().Underlying().(type) {
+		switch x := x.Type().Underlying().(type) {
 		case *types.Basic:
-			return Interval{}
+			switch x.Kind() {
+			case types.String:
+				return StringRange{}
+			default:
+				return Interval{}
+			}
 		}
 	}
 	return i
