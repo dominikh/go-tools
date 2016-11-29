@@ -256,6 +256,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
 		ranges:   map[ssa.Value]Range{},
+		futures:  map[int][]*FutureIntIntersectionConstraint{},
 	}
 
 	var cs []Constraint
@@ -426,6 +427,14 @@ func BuildGraph(f *ssa.Function) *Graph {
 	}
 
 	g.FindSCCs()
+	for _, e := range g.Edges {
+		if !e.control {
+			continue
+		}
+		if c, ok := e.To.Value.(*FutureIntIntersectionConstraint); ok {
+			g.futures[e.From.SCC] = append(g.futures[e.From.SCC], c)
+		}
+	}
 	return g
 }
 
@@ -485,8 +494,9 @@ func (g *Graph) Solve() {
 
 			g.resolveFutures(scc)
 
-			// XXX quoting the original code here: "ensure that this
-			// code is really needed"
+			// XXX this seems to be necessary, but shouldn't be.
+			// removing it leads to nil pointer derefs; investigate
+			// where we're not setting values correctly.
 			for _, n := range vertices {
 				if v, ok := n.Value.(ssa.Value); ok {
 					i, ok := g.Range(v).(IntInterval)
@@ -595,6 +605,9 @@ type Graph struct {
 	Edges    []Edge
 	SCCs     [][]*Vertex
 	ranges   map[ssa.Value]Range
+
+	// map SCCs to futures
+	futures map[int][]*FutureIntIntersectionConstraint
 }
 
 func (g Graph) Graphviz() string {
@@ -734,17 +747,8 @@ func (g *Graph) narrow(c Constraint, consts []Z) bool {
 }
 
 func (g *Graph) resolveFutures(scc int) {
-	// XXX use a map instead of O(n)
-	for _, e := range g.Edges {
-		if !e.control {
-			continue
-		}
-		if e.From.SCC != scc {
-			continue
-		}
-		if c, ok := e.To.Value.(*FutureIntIntersectionConstraint); ok {
-			c.Resolve()
-		}
+	for _, c := range g.futures[scc] {
+		c.Resolve()
 	}
 }
 
