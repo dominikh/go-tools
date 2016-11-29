@@ -278,9 +278,9 @@ func CheckUntrappableSignal(f *lint.File) {
 
 			switch {
 			case lint.IsPkgDot(arg, "os", "Kill"), lint.IsPkgDot(arg, "syscall", "SIGKILL"):
-				f.Errorf(arg, "SIGKILL signal cannot be trapped (did you mean syscall.SIGTERM?)")
+				f.Errorf(arg, "%s cannot be trapped (did you mean syscall.SIGTERM?)", f.Render(arg))
 			case lint.IsPkgDot(arg, "syscall", "SIGSTOP"):
-				f.Errorf(arg, "SIGSTOP signal cannot be trapped")
+				f.Errorf(arg, "%s signal cannot be trapped", f.Render(arg))
 			}
 		}
 		return true
