@@ -116,7 +116,6 @@ func (c *StringIntersectionConstraint) Operands() []ssa.Value {
 }
 
 func (c *StringIntersectionConstraint) Eval(g *Graph) Range {
-	log.Println(c.X)
 	xi := g.Range(c.X).(StringInterval)
 	if !xi.IsKnown() {
 		return c.I
@@ -193,4 +192,21 @@ func (c *StringLengthConstraint) Eval(g *Graph) Range {
 
 func (c *StringLengthConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.X}
+}
+
+type StringIntervalConstraint struct {
+	aConstraint
+	I IntInterval
+}
+
+func (s *StringIntervalConstraint) Operands() []ssa.Value {
+	return nil
+}
+
+func (c *StringIntervalConstraint) Eval(*Graph) Range {
+	return c.I
+}
+
+func (c *StringIntervalConstraint) String() string {
+	return fmt.Sprintf("%s = %s", c.Y().Name(), c.I)
 }

@@ -335,7 +335,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 							}
 							if typ.Kind() == types.String {
 								val := constant.StringVal(op.Value)
-								c := &StringIntersectionConstraint{
+								c := &StringIntervalConstraint{
 									aConstraint: aConstraint{
 										y: op,
 									},
@@ -612,6 +612,9 @@ func (g *Graph) SetRange(x ssa.Value, r Range) {
 }
 
 func (g *Graph) Range(x ssa.Value) Range {
+	if x == nil {
+		panic("Range called with nil")
+	}
 	// XXX we shouldn't have to do this. all constants should exist in
 	// the graph already.
 	if x, ok := x.(*ssa.Const); ok {
