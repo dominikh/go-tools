@@ -65,7 +65,7 @@ func isSupportedType(typ types.Type) bool {
 	switch typ := typ.Underlying().(type) {
 	case *types.Basic:
 		switch typ.Kind() {
-		case types.String:
+		case types.String, types.UntypedString:
 			return true
 		default:
 			if (typ.Info() & types.IsInteger) == 0 {
@@ -281,7 +281,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 				if !ok || builtin.Name() != "len" {
 					continue
 				}
-				if basic, ok := (*ops[1]).Type().Underlying().(*types.Basic); !ok || basic.Kind() != types.String {
+				if basic, ok := (*ops[1]).Type().Underlying().(*types.Basic); !ok || (basic.Kind() != types.String && basic.Kind() != types.UntypedString) {
 					continue
 				}
 				cs = append(cs, NewStringLengthConstraint(*ops[1], ins))
@@ -293,7 +293,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 				}
 				switch basic.Kind() {
 				case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
-					types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+					types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.UntypedInt:
 					fns := map[token.Token]func(ssa.Value, ssa.Value, ssa.Value) Constraint{
 						token.ADD: NewIntAddConstraint,
 						token.SUB: NewIntSubConstraint,
@@ -304,7 +304,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 					if ok {
 						cs = append(cs, fn(*ops[0], *ops[1], ins))
 					}
-				case types.String:
+				case types.String, types.UntypedString:
 					if ins.Op == token.ADD {
 						cs = append(cs, NewStringConcatConstraint(*ops[0], *ops[1], ins))
 					}
@@ -346,7 +346,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 								}
 								cs = append(cs, c)
 							}
-							if typ.Kind() == types.String {
+							if typ.Kind() == types.String || typ.Kind() == types.UntypedString {
 								val := constant.StringVal(op.Value)
 								c := &StringIntervalConstraint{
 									aConstraint: aConstraint{
@@ -379,9 +379,9 @@ func BuildGraph(f *ssa.Function) *Graph {
 					var c Constraint
 					switch typ.Kind() {
 					case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
-						types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+						types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.UntypedInt:
 						c = sigmaInteger(g, ins, cond, ops)
-					case types.String:
+					case types.String, types.UntypedString:
 						c = sigmaString(g, ins, cond, ops)
 					}
 					if c != nil {
@@ -452,7 +452,7 @@ func (g *Graph) Solve() {
 				switch typ := v.Type().Underlying().(type) {
 				case *types.Basic:
 					switch typ.Kind() {
-					case types.String:
+					case types.String, types.UntypedString:
 						if !g.Range(v).(StringInterval).IsKnown() {
 							g.SetRange(v, StringInterval{NewIntInterval(NewZ(&big.Int{}), PInfinity)})
 						}
@@ -635,10 +635,10 @@ func (g *Graph) Range(x ssa.Value) Range {
 		case *types.Basic:
 			switch typ.Kind() {
 			case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
-				types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+				types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.UntypedInt:
 				v, _ := constant.Int64Val(x.Value)
 				return NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
-			case types.String:
+			case types.String, types.UntypedString:
 				n := NewZ(big.NewInt(int64(len(constant.StringVal(x.Value)))))
 				return StringInterval{
 					Length: NewIntInterval(n, n),
@@ -651,7 +651,7 @@ func (g *Graph) Range(x ssa.Value) Range {
 		switch x := x.Type().Underlying().(type) {
 		case *types.Basic:
 			switch x.Kind() {
-			case types.String:
+			case types.String, types.UntypedString:
 				return StringInterval{}
 			default:
 				return IntInterval{}
