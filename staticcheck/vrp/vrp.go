@@ -525,6 +525,10 @@ func (g *Graph) Range(x ssa.Value) Range {
 	return i
 }
 
+func (g *Graph) Ranges() map[ssa.Value]Range {
+	return g.ranges
+}
+
 func (g *Graph) widen(c Constraint, consts []Z) bool {
 	switch oi := g.Range(c.Y()).(type) {
 	case Interval:
