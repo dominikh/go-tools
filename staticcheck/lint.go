@@ -246,19 +246,6 @@ func (c *Checker) terminates(fn *ssa.Function) (ret bool) {
 	return false
 }
 
-func isTypeName(f *lint.File, node ast.Node, pkgName, name string) bool {
-	call, ok := node.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	tn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.TypeName)
-	return ok && tn.Pkg().Name() == pkgName && tn.Name() == name
-}
-
 func CheckUntrappableSignal(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -270,16 +257,15 @@ func CheckUntrappableSignal(f *lint.File) {
 			!lint.IsPkgDot(call.Fun, "signal", "Reset") {
 			return true
 		}
-		for _, callArg := range call.Args {
-			arg := callArg
-			if isTypeName(f, arg, "os", "Signal") && len(arg.(*ast.CallExpr).Args) == 1 {
-				arg = arg.(*ast.CallExpr).Args[0]
+		for _, arg := range call.Args {
+			if conv, ok := arg.(*ast.CallExpr); ok && lint.IsPkgDot(conv.Fun, "os", "Signal") {
+				arg = conv.Args[0]
 			}
 
-			switch {
-			case lint.IsPkgDot(arg, "os", "Kill"), lint.IsPkgDot(arg, "syscall", "SIGKILL"):
+			if lint.IsPkgDot(arg, "os", "Kill") || lint.IsPkgDot(arg, "syscall", "SIGKILL") {
 				f.Errorf(arg, "%s cannot be trapped (did you mean syscall.SIGTERM?)", f.Render(arg))
-			case lint.IsPkgDot(arg, "syscall", "SIGSTOP"):
+			}
+			if lint.IsPkgDot(arg, "syscall", "SIGSTOP") {
 				f.Errorf(arg, "%s signal cannot be trapped", f.Render(arg))
 			}
 		}
