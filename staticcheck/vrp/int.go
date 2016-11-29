@@ -75,6 +75,9 @@ func (z1 Z) Sub(z2 Z) Z {
 	if z1.Infinite() && !z2.Infinite() {
 		return Z{infinity: z1.infinity}
 	}
+	if z1 == PInfinity && z2 == PInfinity {
+		return PInfinity
+	}
 	panic(fmt.Sprintf("%s - %s is not defined", z1, z2))
 }
 
