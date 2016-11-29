@@ -203,7 +203,20 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	if !ok {
 		return nil
 	}
-	callops := (*ops[0]).(*ssa.Call).Operands(nil)
+
+	call, ok := (*ops[0]).(*ssa.Call)
+	if !ok {
+		return nil
+	}
+	builtin, ok := call.Common().Value.(*ssa.Builtin)
+	if !ok {
+		return nil
+	}
+	if builtin.Name() != "len" {
+		return nil
+	}
+	// TODO(dh) support == string comparison
+	callops := call.Operands(nil)
 	// XXX signs, bits
 	v, _ := constant.Int64Val(k.Value)
 	c := &StringIntersectionConstraint{
