@@ -268,7 +268,9 @@ func BuildGraph(f *ssa.Function) *Graph {
 				if !ok {
 					continue
 				}
-				if (basic.Info() & types.IsInteger) != 0 {
+				switch basic.Kind() {
+				case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
+					types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
 					fns := map[token.Token]func(ssa.Value, ssa.Value, ssa.Value) Constraint{
 						token.ADD: NewIntAddConstraint,
 						token.SUB: NewIntSubConstraint,
@@ -279,21 +281,9 @@ func BuildGraph(f *ssa.Function) *Graph {
 					if ok {
 						cs = append(cs, fn(*ops[0], *ops[1], ins))
 					}
-					switch ins.Op {
-					case token.REM:
-						// XXX
-						continue
-						// XXX deal with sign/bits
-						v, _ := constant.Int64Val((*ops[1]).(*ssa.Const).Value)
-						v--
-						i := NewIntInterval(NewZ(&big.Int{}), NewZ(big.NewInt(v)))
-						c := &IntIntervalConstraint{
-							aConstraint: aConstraint{
-								y: ins,
-							},
-							I: i,
-						}
-						cs = append(cs, c)
+				case types.String:
+					if ins.Op == token.ADD {
+						cs = append(cs, NewStringConcatConstraint(*ops[0], *ops[1], ins))
 					}
 				}
 			case *ssa.Slice:
@@ -617,9 +607,16 @@ func (g *Graph) Range(x ssa.Value) Range {
 	if x, ok := x.(*ssa.Const); ok {
 		switch typ := x.Type().Underlying().(type) {
 		case *types.Basic:
-			if (typ.Info() & types.IsInteger) != 0 {
+			switch typ.Kind() {
+			case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
+				types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
 				v, _ := constant.Int64Val(x.Value)
 				return NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+			case types.String:
+				n := NewZ(big.NewInt(int64(len(constant.StringVal(x.Value)))))
+				return StringInterval{
+					Length: NewIntInterval(n, n),
+				}
 			}
 		}
 	}

@@ -129,3 +129,37 @@ func (c *StringIntersectionConstraint) Eval(g *Graph) Range {
 func (c *StringIntersectionConstraint) String() string {
 	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
 }
+
+type StringConcatConstraint struct {
+	aConstraint
+	A ssa.Value
+	B ssa.Value
+}
+
+func NewStringConcatConstraint(a, b, y ssa.Value) Constraint {
+	return &StringConcatConstraint{
+		aConstraint: aConstraint{
+			y: y,
+		},
+		A: a,
+		B: b,
+	}
+}
+
+func (c StringConcatConstraint) String() string {
+	return fmt.Sprintf("%s = %s + %s", c.Y().Name, c.A.Name(), c.B.Name())
+}
+
+func (c StringConcatConstraint) Eval(g *Graph) Range {
+	i1, i2 := g.Range(c.A).(StringInterval), g.Range(c.B).(StringInterval)
+	if !i1.Length.IsKnown() || !i2.Length.IsKnown() {
+		return StringInterval{}
+	}
+	return StringInterval{
+		Length: i1.Length.Add(i2.Length),
+	}
+}
+
+func (c StringConcatConstraint) Operands() []ssa.Value {
+	return []ssa.Value{c.A, c.B}
+}
