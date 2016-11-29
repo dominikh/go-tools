@@ -64,8 +64,13 @@ func (c *PhiConstraint) String() string {
 func isSupportedType(typ types.Type) bool {
 	switch typ := typ.Underlying().(type) {
 	case *types.Basic:
-		if (typ.Info() & types.IsInteger) == 0 {
-			return false
+		switch typ.Kind() {
+		case types.String:
+			return true
+		default:
+			if (typ.Info() & types.IsInteger) == 0 {
+				return false
+			}
 		}
 	default:
 		return false
@@ -180,6 +185,60 @@ func sigmaInteger(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) C
 	return sigmaIntegerConst(g, ins, cond, ops)
 }
 
+func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
+	// XXX support futures
+	//
+	// TODO integer and string sigma are very similar. try condensing
+	// them into one type/code path.
+
+	op := cond.Op
+	if !ins.Branch {
+		op = (invertToken(op))
+	}
+
+	k, ok := (*ops[1]).(*ssa.Const)
+	// XXX investigate in what cases this wouldn't be a Const
+	//
+	// XXX what if left and right are swapped?
+	if !ok {
+		return nil
+	}
+	callops := (*ops[0]).(*ssa.Call).Operands(nil)
+	// XXX signs, bits
+	v, _ := constant.Int64Val(k.Value)
+	c := &StringIntersectionConstraint{
+		aConstraint: aConstraint{
+			y: ins,
+		},
+		X: *callops[1],
+	}
+	switch op {
+	case token.EQL:
+		c.I = NewInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+	case token.GTR, token.GEQ:
+		off := int64(0)
+		if cond.Op == token.GTR {
+			off = 1
+		}
+		c.I = NewInterval(
+			NewZ(big.NewInt(v+off)),
+			PInfinity,
+		)
+	case token.LSS, token.LEQ:
+		off := int64(0)
+		if cond.Op == token.LSS {
+			off = -1
+		}
+		c.I = NewInterval(
+			NInfinity,
+			NewZ(big.NewInt(v+off)),
+		)
+	default:
+		return nil
+	}
+	return c
+}
+
 func BuildGraph(f *ssa.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
@@ -274,6 +333,16 @@ func BuildGraph(f *ssa.Function) *Graph {
 								}
 								cs = append(cs, c)
 							}
+							if typ.Kind() == types.String {
+								val := constant.StringVal(op.Value)
+								c := &StringIntersectionConstraint{
+									aConstraint: aConstraint{
+										y: op,
+									},
+									I: NewInterval(NewZ(big.NewInt(int64(len(val)))), NewZ(big.NewInt(int64(len(val))))),
+								}
+								cs = append(cs, c)
+							}
 						}
 					}
 				}
@@ -294,12 +363,16 @@ func BuildGraph(f *ssa.Function) *Graph {
 				}
 				switch typ := ins.Type().Underlying().(type) {
 				case *types.Basic:
+					var c Constraint
 					switch typ.Kind() {
 					case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
 						types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
-						if c := sigmaInteger(g, ins, cond, ops); c != nil {
-							cs = append(cs, c)
-						}
+						c = sigmaInteger(g, ins, cond, ops)
+					case types.String:
+						c = sigmaString(g, ins, cond, ops)
+					}
+					if c != nil {
+						cs = append(cs, c)
 					}
 				default:
 					//log.Printf("unsupported sigma type %T", typ) // XXX
