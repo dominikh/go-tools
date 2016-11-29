@@ -256,8 +256,6 @@ func BuildGraph(f *ssa.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
 		ranges:   map[ssa.Value]Range{},
-		futures:  map[int][]*FutureIntIntersectionConstraint{},
-		sccEdges: map[int][]Edge{},
 	}
 
 	var cs []Constraint
@@ -428,6 +426,8 @@ func BuildGraph(f *ssa.Function) *Graph {
 	}
 
 	g.FindSCCs()
+	g.sccEdges = make([][]Edge, len(g.SCCs))
+	g.futures = make([][]*FutureIntIntersectionConstraint, len(g.SCCs))
 	for _, e := range g.Edges {
 		g.sccEdges[e.From.SCC] = append(g.sccEdges[e.From.SCC], e)
 		if !e.control {
@@ -608,9 +608,9 @@ type Graph struct {
 	ranges   map[ssa.Value]Range
 
 	// map SCCs to futures
-	futures map[int][]*FutureIntIntersectionConstraint
+	futures [][]*FutureIntIntersectionConstraint
 	// map SCCs to edges
-	sccEdges map[int][]Edge
+	sccEdges [][]Edge
 }
 
 func (g Graph) Graphviz() string {
