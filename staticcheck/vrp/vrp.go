@@ -607,7 +607,7 @@ type Ranges map[ssa.Value]Range
 
 func (r Ranges) Get(x ssa.Value) Range {
 	if x == nil {
-		panic("Range called with nil")
+		return nil
 	}
 	i, ok := r[x]
 	if !ok {
