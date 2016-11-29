@@ -257,6 +257,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 		Vertices: map[interface{}]*Vertex{},
 		ranges:   map[ssa.Value]Range{},
 		futures:  map[int][]*FutureIntIntersectionConstraint{},
+		sccEdges: map[int][]Edge{},
 	}
 
 	var cs []Constraint
@@ -428,6 +429,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 
 	g.FindSCCs()
 	for _, e := range g.Edges {
+		g.sccEdges[e.From.SCC] = append(g.sccEdges[e.From.SCC], e)
 		if !e.control {
 			continue
 		}
@@ -521,11 +523,8 @@ func (g *Graph) Solve() {
 			}
 		}
 		// propagate scc
-		for _, edge := range g.Edges {
+		for _, edge := range g.sccEdges[scc] {
 			if edge.control {
-				continue
-			}
-			if edge.From.SCC != scc {
 				continue
 			}
 			if c, ok := edge.To.Value.(Constraint); ok {
@@ -610,6 +609,8 @@ type Graph struct {
 
 	// map SCCs to futures
 	futures map[int][]*FutureIntIntersectionConstraint
+	// map SCCs to edges
+	sccEdges map[int][]Edge
 }
 
 func (g Graph) Graphviz() string {
@@ -790,11 +791,8 @@ func (g *Graph) entries(scc int) []ssa.Value {
 
 func (g *Graph) uses(scc int) map[ssa.Value][]Constraint {
 	m := map[ssa.Value][]Constraint{}
-	for _, e := range g.Edges {
+	for _, e := range g.sccEdges[scc] {
 		if e.control {
-			continue
-		}
-		if e.From.SCC != scc {
 			continue
 		}
 		if v, ok := e.From.Value.(ssa.Value); ok {
