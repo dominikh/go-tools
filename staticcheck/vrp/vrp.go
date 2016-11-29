@@ -84,7 +84,7 @@ func sigmaIntegerFuture(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Va
 		op = (invertToken(op))
 	}
 
-	c := &FutureIntersectionConstraint{
+	c := &FutureIntIntersectionConstraint{
 		aConstraint: aConstraint{
 			y: ins,
 		},
@@ -143,7 +143,7 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 	}
 	// XXX signs, bits
 	v, _ := constant.Int64Val(k.Value)
-	c := &IntersectionConstraint{
+	c := &IntIntersectionConstraint{
 		aConstraint: aConstraint{
 			y: ins,
 		},
@@ -151,13 +151,13 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 	}
 	switch op {
 	case token.EQL:
-		c.I = NewInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+		c.I = NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
 	case token.GTR, token.GEQ:
 		off := int64(0)
 		if cond.Op == token.GTR {
 			off = 1
 		}
-		c.I = NewInterval(
+		c.I = NewIntInterval(
 			NewZ(big.NewInt(v+off)),
 			PInfinity,
 		)
@@ -166,7 +166,7 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 		if cond.Op == token.LSS {
 			off = -1
 		}
-		c.I = NewInterval(
+		c.I = NewIntInterval(
 			NInfinity,
 			NewZ(big.NewInt(v+off)),
 		)
@@ -214,13 +214,13 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	}
 	switch op {
 	case token.EQL:
-		c.I = NewInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+		c.I = NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
 	case token.GTR, token.GEQ:
 		off := int64(0)
 		if cond.Op == token.GTR {
 			off = 1
 		}
-		c.I = NewInterval(
+		c.I = NewIntInterval(
 			NewZ(big.NewInt(v+off)),
 			PInfinity,
 		)
@@ -229,7 +229,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 		if cond.Op == token.LSS {
 			off = -1
 		}
-		c.I = NewInterval(
+		c.I = NewIntInterval(
 			NInfinity,
 			NewZ(big.NewInt(v+off)),
 		)
@@ -270,9 +270,9 @@ func BuildGraph(f *ssa.Function) *Graph {
 				}
 				if (basic.Info() & types.IsInteger) != 0 {
 					fns := map[token.Token]func(ssa.Value, ssa.Value, ssa.Value) Constraint{
-						token.ADD: NewAddConstraint,
-						token.SUB: NewSubConstraint,
-						token.MUL: NewMulConstraint,
+						token.ADD: NewIntAddConstraint,
+						token.SUB: NewIntSubConstraint,
+						token.MUL: NewIntMulConstraint,
 						// XXX support QUO, REM, SHL, SHR
 					}
 					fn, ok := fns[ins.Op]
@@ -286,8 +286,8 @@ func BuildGraph(f *ssa.Function) *Graph {
 						// XXX deal with sign/bits
 						v, _ := constant.Int64Val((*ops[1]).(*ssa.Const).Value)
 						v--
-						i := NewInterval(NewZ(&big.Int{}), NewZ(big.NewInt(v)))
-						c := &IntervalConstraint{
+						i := NewIntInterval(NewZ(&big.Int{}), NewZ(big.NewInt(v)))
+						c := &IntIntervalConstraint{
 							aConstraint: aConstraint{
 								y: ins,
 							},
@@ -325,11 +325,11 @@ func BuildGraph(f *ssa.Function) *Graph {
 							if (typ.Info() & types.IsInteger) != 0 {
 								// XXX signs/bits
 								val, _ := constant.Int64Val(op.Value)
-								c := &IntervalConstraint{
+								c := &IntIntervalConstraint{
 									aConstraint: aConstraint{
 										y: op,
 									},
-									I: NewInterval(NewZ(big.NewInt(val)), NewZ(big.NewInt(val))),
+									I: NewIntInterval(NewZ(big.NewInt(val)), NewZ(big.NewInt(val))),
 								}
 								cs = append(cs, c)
 							}
@@ -339,7 +339,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 									aConstraint: aConstraint{
 										y: op,
 									},
-									I: NewInterval(NewZ(big.NewInt(int64(len(val)))), NewZ(big.NewInt(int64(len(val))))),
+									I: NewIntInterval(NewZ(big.NewInt(int64(len(val)))), NewZ(big.NewInt(int64(len(val))))),
 								}
 								cs = append(cs, c)
 							}
@@ -407,7 +407,7 @@ func (g *Graph) Solve() {
 			case *types.Basic:
 				if (typ.Info() & types.IsInteger) != 0 {
 					c, _ := constant.Int64Val(v.Value)
-					g.SetRange(v, NewInterval(NewZ(big.NewInt(c)), NewZ(big.NewInt(c))))
+					g.SetRange(v, NewIntInterval(NewZ(big.NewInt(c)), NewZ(big.NewInt(c))))
 				}
 			}
 		}
@@ -440,11 +440,11 @@ func (g *Graph) Solve() {
 				case *types.Basic:
 					switch typ.Kind() {
 					case types.String:
-						if !g.Range(v).(StringRange).IsKnown() {
-							g.SetRange(v, StringRange{NewInterval(NewZ(&big.Int{}), PInfinity)})
+						if !g.Range(v).(StringInterval).IsKnown() {
+							g.SetRange(v, StringInterval{NewIntInterval(NewZ(&big.Int{}), PInfinity)})
 						}
 					default:
-						if !g.Range(v).(Interval).IsKnown() {
+						if !g.Range(v).(IntInterval).IsKnown() {
 							g.SetRange(v, InfinityFor(v))
 						}
 					}
@@ -472,7 +472,7 @@ func (g *Graph) Solve() {
 			// code is really needed"
 			for _, n := range vertices {
 				if v, ok := n.Value.(ssa.Value); ok {
-					i, ok := g.Range(v).(Interval)
+					i, ok := g.Range(v).(IntInterval)
 					if !ok {
 						continue
 					}
@@ -505,7 +505,7 @@ func (g *Graph) Solve() {
 			if c, ok := edge.To.Value.(Constraint); ok {
 				g.SetRange(c.Y(), c.Eval(g))
 			}
-			if c, ok := edge.To.Value.(*FutureIntersectionConstraint); ok {
+			if c, ok := edge.To.Value.(*FutureIntIntersectionConstraint); ok {
 				if !c.I.IsKnown() {
 					c.resolved = false
 				}
@@ -514,18 +514,18 @@ func (g *Graph) Solve() {
 	}
 
 	for v, r := range g.ranges {
-		i, ok := r.(Interval)
+		i, ok := r.(IntInterval)
 		if !ok {
 			continue
 		}
 		if (v.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
 			if i.lower.Sign() == -1 {
-				i = NewInterval(NewZ(&big.Int{}), PInfinity)
+				i = NewIntInterval(NewZ(&big.Int{}), PInfinity)
 			}
 		}
 		if (v.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
 			if i.upper == PInfinity {
-				i = NewInterval(NInfinity, PInfinity)
+				i = NewIntInterval(NInfinity, PInfinity)
 			}
 			if i.upper != PInfinity {
 				s := &types.StdSizes{
@@ -542,9 +542,9 @@ func (g *Graph) Solve() {
 				lower.Neg(n)
 
 				if i.upper.Cmp(NewZ(upper)) == 1 {
-					i = NewInterval(NInfinity, PInfinity)
+					i = NewIntInterval(NInfinity, PInfinity)
 				} else if i.lower.Cmp(NewZ(lower)) == -1 {
-					i = NewInterval(NInfinity, PInfinity)
+					i = NewIntInterval(NInfinity, PInfinity)
 				}
 			}
 		}
@@ -619,7 +619,7 @@ func (g *Graph) Range(x ssa.Value) Range {
 		case *types.Basic:
 			if (typ.Info() & types.IsInteger) != 0 {
 				v, _ := constant.Int64Val(x.Value)
-				return NewInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
+				return NewIntInterval(NewZ(big.NewInt(v)), NewZ(big.NewInt(v)))
 			}
 		}
 	}
@@ -629,9 +629,9 @@ func (g *Graph) Range(x ssa.Value) Range {
 		case *types.Basic:
 			switch x.Kind() {
 			case types.String:
-				return StringRange{}
+				return StringInterval{}
 			default:
-				return Interval{}
+				return IntInterval{}
 			}
 		}
 	}
@@ -644,12 +644,12 @@ func (g *Graph) Ranges() map[ssa.Value]Range {
 
 func (g *Graph) widen(c Constraint, consts []Z) bool {
 	switch oi := g.Range(c.Y()).(type) {
-	case Interval:
-		ni := c.Eval(g).(Interval)
+	case IntInterval:
+		ni := c.Eval(g).(IntInterval)
 		if !ni.IsKnown() {
 			return false
 		}
-		setRange := func(i Interval) {
+		setRange := func(i IntInterval) {
 			g.SetRange(c.Y(), i)
 		}
 		nlc := NInfinity
@@ -672,15 +672,15 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 			return true
 		}
 		if ni.lower.Cmp(oi.lower) == -1 && ni.upper.Cmp(oi.upper) == 1 {
-			setRange(NewInterval(nlc, nuc))
+			setRange(NewIntInterval(nlc, nuc))
 			return true
 		}
 		if ni.lower.Cmp(oi.lower) == -1 {
-			setRange(NewInterval(nlc, oi.upper))
+			setRange(NewIntInterval(nlc, oi.upper))
 			return true
 		}
 		if ni.upper.Cmp(oi.upper) == 1 {
-			setRange(NewInterval(oi.lower, nuc))
+			setRange(NewIntInterval(oi.lower, nuc))
 			return true
 		}
 		return false
@@ -690,35 +690,35 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 }
 
 func (g *Graph) narrow(c Constraint, consts []Z) bool {
-	if _, ok := g.Range(c.Y()).(Interval); !ok {
+	if _, ok := g.Range(c.Y()).(IntInterval); !ok {
 		return false
 	}
-	oLower := g.Range(c.Y()).(Interval).lower
-	oUpper := g.Range(c.Y()).(Interval).upper
-	newInterval := c.Eval(g).(Interval)
+	oLower := g.Range(c.Y()).(IntInterval).lower
+	oUpper := g.Range(c.Y()).(IntInterval).upper
+	newInterval := c.Eval(g).(IntInterval)
 
 	nLower := newInterval.lower
 	nUpper := newInterval.upper
 
 	hasChanged := false
 	if oLower == NInfinity && nLower != NInfinity {
-		g.SetRange(c.Y(), NewInterval(nLower, oUpper))
+		g.SetRange(c.Y(), NewIntInterval(nLower, oUpper))
 		hasChanged = true
 	} else {
-		smin := Min(oLower, nLower)
+		smin := MinZ(oLower, nLower)
 		if oLower != smin {
-			g.SetRange(c.Y(), NewInterval(smin, oUpper))
+			g.SetRange(c.Y(), NewIntInterval(smin, oUpper))
 			hasChanged = true
 		}
 	}
 
 	if oUpper == PInfinity && nUpper != PInfinity {
-		g.SetRange(c.Y(), NewInterval(g.ranges[c.Y()].(Interval).lower, nUpper))
+		g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).lower, nUpper))
 		hasChanged = true
 	} else {
-		smax := Max(oUpper, nUpper)
+		smax := MaxZ(oUpper, nUpper)
 		if oUpper != smax {
-			g.SetRange(c.Y(), NewInterval(g.ranges[c.Y()].(Interval).lower, smax))
+			g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).lower, smax))
 			hasChanged = true
 		}
 	}
@@ -734,7 +734,7 @@ func (g *Graph) resolveFutures(scc int) {
 		if e.From.SCC != scc {
 			continue
 		}
-		if c, ok := e.To.Value.(*FutureIntersectionConstraint); ok {
+		if c, ok := e.To.Value.(*FutureIntIntersectionConstraint); ok {
 			c.Resolve()
 		}
 	}
@@ -756,7 +756,7 @@ func (g *Graph) entries(scc int) []ssa.Value {
 			// can't really verify that this code is working
 			// correctly, or indeed doing anything useful.
 			for _, on := range g.Vertices {
-				if c, ok := on.Value.(*FutureIntersectionConstraint); ok {
+				if c, ok := on.Value.(*FutureIntIntersectionConstraint); ok {
 					if c.Y() == v {
 						if !c.resolved {
 							g.SetRange(c.Y(), c.Eval(g))

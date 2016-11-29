@@ -15,14 +15,14 @@ import (
 // s1 == s2
 // len(s1) <cmp> x
 
-type StringRange struct {
-	Length Interval
+type StringInterval struct {
+	Length IntInterval
 }
 
-func (s StringRange) Union(other Range) Range {
-	i, ok := other.(StringRange)
+func (s StringInterval) Union(other Range) Range {
+	i, ok := other.(StringInterval)
 	if !ok {
-		i = StringRange{EmptyI}
+		i = StringInterval{EmptyIntInterval}
 	}
 	if s.Length.Empty() || !s.Length.IsKnown() {
 		return i
@@ -30,16 +30,16 @@ func (s StringRange) Union(other Range) Range {
 	if i.Length.Empty() || !i.Length.IsKnown() {
 		return s
 	}
-	return StringRange{
-		Length: s.Length.Union(i.Length).(Interval),
+	return StringInterval{
+		Length: s.Length.Union(i.Length).(IntInterval),
 	}
 }
 
-func (s StringRange) String() string {
+func (s StringInterval) String() string {
 	return s.Length.String()
 }
 
-func (s StringRange) IsKnown() bool {
+func (s StringInterval) IsKnown() bool {
 	return s.Length.IsKnown()
 }
 
@@ -62,16 +62,16 @@ func (c *StringSliceConstraint) String() string {
 }
 
 func (c *StringSliceConstraint) Eval(g *Graph) Range {
-	lr := NewInterval(NewZ(&big.Int{}), NewZ(&big.Int{}))
+	lr := NewIntInterval(NewZ(&big.Int{}), NewZ(&big.Int{}))
 	if c.Lower != nil {
-		lr = g.Range(c.Lower).(Interval)
+		lr = g.Range(c.Lower).(IntInterval)
 	}
-	ur := g.Range(c.X).(StringRange).Length
+	ur := g.Range(c.X).(StringInterval).Length
 	if c.Upper != nil {
-		ur = g.Range(c.Upper).(Interval)
+		ur = g.Range(c.Upper).(IntInterval)
 	}
 	if !lr.IsKnown() || !ur.IsKnown() {
-		return StringRange{}
+		return StringInterval{}
 	}
 
 	ls := []Z{
@@ -89,8 +89,8 @@ func (c *StringSliceConstraint) Eval(g *Graph) Range {
 		}
 	}
 
-	return StringRange{
-		Length: NewInterval(Min(ls...), Max(ls...)),
+	return StringInterval{
+		Length: NewIntInterval(MinZ(ls...), MaxZ(ls...)),
 	}
 }
 
@@ -108,7 +108,7 @@ func (c *StringSliceConstraint) Operands() []ssa.Value {
 type StringIntersectionConstraint struct {
 	aConstraint
 	X ssa.Value
-	I Interval
+	I IntInterval
 }
 
 func (c *StringIntersectionConstraint) Operands() []ssa.Value {
@@ -117,11 +117,11 @@ func (c *StringIntersectionConstraint) Operands() []ssa.Value {
 
 func (c *StringIntersectionConstraint) Eval(g *Graph) Range {
 	log.Println(c.X)
-	xi := g.Range(c.X).(StringRange)
+	xi := g.Range(c.X).(StringInterval)
 	if !xi.IsKnown() {
 		return c.I
 	}
-	return StringRange{
+	return StringInterval{
 		Length: xi.Length.Intersection(c.I),
 	}
 }

@@ -141,7 +141,7 @@ func (z1 Z) Cmp(z2 Z) int {
 	return z1.integer.Cmp(z2.integer)
 }
 
-func Max(zs ...Z) Z {
+func MaxZ(zs ...Z) Z {
 	if len(zs) == 0 {
 		panic("Max called with no arguments")
 	}
@@ -157,7 +157,7 @@ func Max(zs ...Z) Z {
 	return ret
 }
 
-func Min(zs ...Z) Z {
+func MinZ(zs ...Z) Z {
 	if len(zs) == 0 {
 		panic("Min called with no arguments")
 	}
@@ -175,43 +175,43 @@ func Min(zs ...Z) Z {
 
 var NInfinity = Z{infinity: -1}
 var PInfinity = Z{infinity: 1}
-var EmptyI = Interval{true, PInfinity, NInfinity}
+var EmptyIntInterval = IntInterval{true, PInfinity, NInfinity}
 
-func InfinityFor(v ssa.Value) Interval {
+func InfinityFor(v ssa.Value) IntInterval {
 	if b, ok := v.Type().Underlying().(*types.Basic); ok {
 		if (b.Info() & types.IsUnsigned) != 0 {
-			return NewInterval(NewZ(&big.Int{}), PInfinity)
+			return NewIntInterval(NewZ(&big.Int{}), PInfinity)
 		}
 	}
-	return NewInterval(NInfinity, PInfinity)
+	return NewIntInterval(NInfinity, PInfinity)
 }
 
-type Interval struct {
+type IntInterval struct {
 	known bool
 	lower Z
 	upper Z
 }
 
-func NewInterval(l, u Z) Interval {
+func NewIntInterval(l, u Z) IntInterval {
 	if u.Cmp(l) == -1 {
-		return EmptyI
+		return EmptyIntInterval
 	}
-	return Interval{known: true, lower: l, upper: u}
+	return IntInterval{known: true, lower: l, upper: u}
 }
 
-func (i Interval) IsKnown() bool {
+func (i IntInterval) IsKnown() bool {
 	return i.known
 }
 
-func (i Interval) Empty() bool {
+func (i IntInterval) Empty() bool {
 	return i.lower == PInfinity && i.upper == NInfinity
 }
 
-func (i Interval) IsMaxRange() bool {
+func (i IntInterval) IsMaxRange() bool {
 	return i.lower == NInfinity && i.upper == PInfinity
 }
 
-func (i1 Interval) Intersection(i2 Interval) Interval {
+func (i1 IntInterval) Intersection(i2 IntInterval) IntInterval {
 	if !i1.IsKnown() {
 		return i2
 	}
@@ -219,19 +219,19 @@ func (i1 Interval) Intersection(i2 Interval) Interval {
 		return i1
 	}
 	if i1.Empty() || i2.Empty() {
-		return EmptyI
+		return EmptyIntInterval
 	}
-	i3 := NewInterval(Max(i1.lower, i2.lower), Min(i1.upper, i2.upper))
+	i3 := NewIntInterval(MaxZ(i1.lower, i2.lower), MinZ(i1.upper, i2.upper))
 	if i3.lower.Cmp(i3.upper) == 1 {
-		return EmptyI
+		return EmptyIntInterval
 	}
 	return i3
 }
 
-func (i1 Interval) Union(other Range) Range {
-	i2, ok := other.(Interval)
+func (i1 IntInterval) Union(other Range) Range {
+	i2, ok := other.(IntInterval)
 	if !ok {
-		i2 = EmptyI
+		i2 = EmptyIntInterval
 	}
 	if i1.Empty() || !i1.IsKnown() {
 		return i2
@@ -239,38 +239,38 @@ func (i1 Interval) Union(other Range) Range {
 	if i2.Empty() || !i2.IsKnown() {
 		return i1
 	}
-	return NewInterval(Min(i1.lower, i2.lower), Max(i1.upper, i2.upper))
+	return NewIntInterval(MinZ(i1.lower, i2.lower), MaxZ(i1.upper, i2.upper))
 }
 
-func (i1 Interval) Add(i2 Interval) Interval {
+func (i1 IntInterval) Add(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
-		return EmptyI
+		return EmptyIntInterval
 	}
 	l1, u1, l2, u2 := i1.lower, i1.upper, i2.lower, i2.upper
-	return NewInterval(l1.Add(l2), u1.Add(u2))
+	return NewIntInterval(l1.Add(l2), u1.Add(u2))
 }
 
-func (i1 Interval) Sub(i2 Interval) Interval {
+func (i1 IntInterval) Sub(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
-		return EmptyI
+		return EmptyIntInterval
 	}
 	l1, u1, l2, u2 := i1.lower, i1.upper, i2.lower, i2.upper
-	return NewInterval(l1.Sub(u2), u1.Sub(l2))
+	return NewIntInterval(l1.Sub(u2), u1.Sub(l2))
 }
 
-func (i1 Interval) Mul(i2 Interval) Interval {
+func (i1 IntInterval) Mul(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
-		return EmptyI
+		return EmptyIntInterval
 	}
 	x1, x2 := i1.lower, i1.upper
 	y1, y2 := i2.lower, i2.upper
-	return NewInterval(
-		Min(x1.Mul(y1), x1.Mul(y2), x2.Mul(y1), x2.Mul(y2)),
-		Max(x1.Mul(y1), x1.Mul(y2), x2.Mul(y1), x2.Mul(y2)),
+	return NewIntInterval(
+		MinZ(x1.Mul(y1), x1.Mul(y2), x2.Mul(y1), x2.Mul(y2)),
+		MaxZ(x1.Mul(y1), x1.Mul(y2), x2.Mul(y1), x2.Mul(y2)),
 	)
 }
 
-func (i1 Interval) String() string {
+func (i1 IntInterval) String() string {
 	if !i1.IsKnown() {
 		return "[⊥, ⊥]"
 	}
@@ -280,16 +280,16 @@ func (i1 Interval) String() string {
 	return fmt.Sprintf("[%s, %s]", i1.lower, i1.upper)
 }
 
-type ArithmeticConstraint struct {
+type IntArithmeticConstraint struct {
 	aConstraint
 	A  ssa.Value
 	B  ssa.Value
 	Op token.Token
-	Fn func(Interval, Interval) Interval
+	Fn func(IntInterval, IntInterval) IntInterval
 }
 
-func NewArithmeticConstraint(a, b, y ssa.Value, op token.Token, fn func(Interval, Interval) Interval) *ArithmeticConstraint {
-	return &ArithmeticConstraint{
+func NewIntArithmeticConstraint(a, b, y ssa.Value, op token.Token, fn func(IntInterval, IntInterval) IntInterval) *IntArithmeticConstraint {
+	return &IntArithmeticConstraint{
 		aConstraint: aConstraint{
 			y: y,
 		},
@@ -300,34 +300,34 @@ func NewArithmeticConstraint(a, b, y ssa.Value, op token.Token, fn func(Interval
 	}
 }
 
-func (c *ArithmeticConstraint) Eval(g *Graph) (ret Range) {
-	i1, i2 := g.Range(c.A).(Interval), g.Range(c.B).(Interval)
+func (c *IntArithmeticConstraint) Eval(g *Graph) (ret Range) {
+	i1, i2 := g.Range(c.A).(IntInterval), g.Range(c.B).(IntInterval)
 	if !i1.IsKnown() || !i2.IsKnown() {
-		return Interval{}
+		return IntInterval{}
 	}
 	return c.Fn(i1, i2)
 }
 
-func (c *ArithmeticConstraint) String() string {
+func (c *IntArithmeticConstraint) String() string {
 	return fmt.Sprintf("%s = %s %s %s", c.Y().Name(), c.A.Name(), c.Op, c.B.Name())
 }
 
-func (c *ArithmeticConstraint) Operands() []ssa.Value {
+func (c *IntArithmeticConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.A, c.B}
 }
 
-type AddConstraint struct{ *ArithmeticConstraint }
-type SubConstraint struct{ *ArithmeticConstraint }
-type MulConstraint struct{ *ArithmeticConstraint }
+type IntAddConstraint struct{ *IntArithmeticConstraint }
+type IntSubConstraint struct{ *IntArithmeticConstraint }
+type IntMulConstraint struct{ *IntArithmeticConstraint }
 
-func NewAddConstraint(a, b, y ssa.Value) Constraint {
-	return &AddConstraint{NewArithmeticConstraint(a, b, y, token.ADD, Interval.Add)}
+func NewIntAddConstraint(a, b, y ssa.Value) Constraint {
+	return &IntAddConstraint{NewIntArithmeticConstraint(a, b, y, token.ADD, IntInterval.Add)}
 }
-func NewSubConstraint(a, b, y ssa.Value) Constraint {
-	return &SubConstraint{NewArithmeticConstraint(a, b, y, token.SUB, Interval.Sub)}
+func NewIntSubConstraint(a, b, y ssa.Value) Constraint {
+	return &IntSubConstraint{NewIntArithmeticConstraint(a, b, y, token.SUB, IntInterval.Sub)}
 }
-func NewMulConstraint(a, b, y ssa.Value) Constraint {
-	return &MulConstraint{NewArithmeticConstraint(a, b, y, token.MUL, Interval.Mul)}
+func NewIntMulConstraint(a, b, y ssa.Value) Constraint {
+	return &IntMulConstraint{NewIntArithmeticConstraint(a, b, y, token.MUL, IntInterval.Mul)}
 }
 
 type IntConversionConstraint struct {
@@ -346,8 +346,8 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		WordSize: 8,
 		MaxAlign: 1,
 	}
-	fromI := g.Range(c.X).(Interval)
-	toI := g.Range(c.Y()).(Interval)
+	fromI := g.Range(c.X).(IntInterval)
+	toI := g.Range(c.Y()).(IntInterval)
 	fromT := c.X.Type().Underlying().(*types.Basic)
 	toT := c.Y().Type().Underlying().(*types.Basic)
 	fromB := s.Sizeof(c.X.Type())
@@ -367,9 +367,9 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n := big.NewInt(1)
 		n.Lsh(n, uint(fromB*8))
 		n.Sub(n, big.NewInt(1))
-		return NewInterval(
-			Max(NewZ(&big.Int{}), fromI.lower),
-			Min(NewZ(n), toI.upper),
+		return NewIntInterval(
+			MaxZ(NewZ(&big.Int{}), fromI.lower),
+			MinZ(NewZ(n), toI.upper),
 		)
 	}
 
@@ -381,9 +381,9 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n := big.NewInt(1)
 		n.Lsh(n, uint(fromB*8))
 		n.Sub(n, big.NewInt(1))
-		return NewInterval(
-			Max(NInfinity, fromI.lower),
-			Min(NewZ(n), toI.upper),
+		return NewIntInterval(
+			MaxZ(NInfinity, fromI.lower),
+			MinZ(NewZ(n), toI.upper),
 		)
 	}
 
@@ -394,7 +394,7 @@ func (c *IntConversionConstraint) String() string {
 	return fmt.Sprintf("%s = %s(%s)", c.Y().Name(), c.Y().Type(), c.X.Name())
 }
 
-type FutureIntersectionConstraint struct {
+type FutureIntIntersectionConstraint struct {
 	aConstraint
 	ranges      map[ssa.Value]Range
 	X           ssa.Value
@@ -402,11 +402,11 @@ type FutureIntersectionConstraint struct {
 	lowerOffset Z
 	upper       ssa.Value
 	upperOffset Z
-	I           Interval
+	I           IntInterval
 	resolved    bool
 }
 
-func (c *FutureIntersectionConstraint) Futures() []ssa.Value {
+func (c *FutureIntIntersectionConstraint) Futures() []ssa.Value {
 	var s []ssa.Value
 	if c.lower != nil {
 		s = append(s, c.lower)
@@ -417,16 +417,16 @@ func (c *FutureIntersectionConstraint) Futures() []ssa.Value {
 	return s
 }
 
-func (c *FutureIntersectionConstraint) Operands() []ssa.Value {
+func (c *FutureIntIntersectionConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.X}
 }
 
-func (c *FutureIntersectionConstraint) Eval(g *Graph) Range {
-	xi := g.Range(c.X).(Interval)
+func (c *FutureIntIntersectionConstraint) Eval(g *Graph) Range {
+	xi := g.Range(c.X).(IntInterval)
 	return xi.Intersection(c.I)
 }
 
-func (c *FutureIntersectionConstraint) Resolve() {
+func (c *FutureIntIntersectionConstraint) Resolve() {
 	l := NInfinity
 	u := PInfinity
 	if c.lower != nil {
@@ -434,7 +434,7 @@ func (c *FutureIntersectionConstraint) Resolve() {
 		if !ok {
 			li = InfinityFor(c.lower)
 		}
-		l = li.(Interval).lower
+		l = li.(IntInterval).lower
 		l = l.Add(c.lowerOffset)
 	}
 	if c.upper != nil {
@@ -442,13 +442,13 @@ func (c *FutureIntersectionConstraint) Resolve() {
 		if !ok {
 			ui = InfinityFor(c.upper)
 		}
-		u = ui.(Interval).upper
+		u = ui.(IntInterval).upper
 		u = u.Add(c.upperOffset)
 	}
-	c.I = NewInterval(l, u)
+	c.I = NewIntInterval(l, u)
 }
 
-func (c *FutureIntersectionConstraint) String() string {
+func (c *FutureIntIntersectionConstraint) String() string {
 	var lname, uname string
 	if c.lower != nil {
 		lname = c.lower.Name()
@@ -460,42 +460,42 @@ func (c *FutureIntersectionConstraint) String() string {
 		c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, lname, c.lowerOffset, uname, c.upperOffset, c.I)
 }
 
-type IntersectionConstraint struct {
+type IntIntersectionConstraint struct {
 	aConstraint
 	X ssa.Value
-	I Interval
+	I IntInterval
 }
 
-func (c *IntersectionConstraint) Operands() []ssa.Value {
+func (c *IntIntersectionConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.X}
 }
 
-func (c *IntersectionConstraint) Eval(g *Graph) Range {
-	xi := g.Range(c.X).(Interval)
+func (c *IntIntersectionConstraint) Eval(g *Graph) Range {
+	xi := g.Range(c.X).(IntInterval)
 	if !xi.IsKnown() {
 		return c.I
 	}
 	return xi.Intersection(c.I)
 }
 
-func (c *IntersectionConstraint) String() string {
+func (c *IntIntersectionConstraint) String() string {
 	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
 }
 
-type IntervalConstraint struct {
+type IntIntervalConstraint struct {
 	aConstraint
-	I Interval
+	I IntInterval
 }
 
-func (s *IntervalConstraint) Operands() []ssa.Value {
+func (s *IntIntervalConstraint) Operands() []ssa.Value {
 	return nil
 }
 
-func (c *IntervalConstraint) Eval(*Graph) Range {
+func (c *IntIntervalConstraint) Eval(*Graph) Range {
 	return c.I
 }
 
-func (c *IntervalConstraint) String() string {
+func (c *IntIntervalConstraint) String() string {
 	return fmt.Sprintf("%s = %s", c.Y().Name(), c.I)
 
 }
