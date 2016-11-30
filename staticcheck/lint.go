@@ -75,6 +75,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4010": c.CheckIneffectiveAppend,
 		"SA4011": c.CheckScopedBreak,
 		"SA4012": c.CheckNaNComparison,
+		"SA4013": c.CheckDoubleNegation,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -2339,6 +2340,25 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 			return true
 		}
 		f.Errorf(node, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckDoubleNegation(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		unary1, ok := node.(*ast.UnaryExpr)
+		if !ok {
+			return true
+		}
+		unary2, ok := unary1.X.(*ast.UnaryExpr)
+		if !ok {
+			return true
+		}
+		if unary1.Op != token.NOT || unary2.Op != token.NOT {
+			return true
+		}
+		f.Errorf(unary1, "negating a boolean twice has no effect; is this a typo?")
 		return true
 	}
 	f.Walk(fn)

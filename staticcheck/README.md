@@ -82,6 +82,7 @@ The following things are currently checked by staticcheck:
 | SA4010     | The result of `append` will never be observed anywhere                                                                                        |
 | SA4011     | Break statement with no effect. Did you mean to break out of an outer loop?                                                                   |
 | SA4012     | Comparing a value against NaN even though no value is equal to NaN                                                                            |
+| SA4013     | Negating a boolean twice (`!!b`) is the same as writing `b`. This is either redundant, or a typo.                                             |
 |            |                                                                                                                                               |
 | **SA5???** | **Correctness issues**                                                                                                                        |
 | SA5000     | Assignment to nil map                                                                                                                         |
