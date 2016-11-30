@@ -1,4 +1,4 @@
-// staticcheck statically checks arguments to certain functions
+// staticcheck statically checks your code for bugs.
 package main // import "honnef.co/go/staticcheck/cmd/staticcheck"
 
 import (
