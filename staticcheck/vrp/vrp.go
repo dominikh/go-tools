@@ -560,6 +560,9 @@ func (g *Graph) Solve() Ranges {
 			if edge.control {
 				continue
 			}
+			if edge.From.SCC == edge.To.SCC {
+				continue
+			}
 			if c, ok := edge.To.Value.(Constraint); ok {
 				g.SetRange(c.Y(), c.Eval(g))
 			}
