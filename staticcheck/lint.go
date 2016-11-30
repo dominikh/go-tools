@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	htmltemplate "html/template"
+	"math/big"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -52,6 +53,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1014": c.CheckUnmarshalPointer,
 		"SA1015": c.CheckLeakyTimeTick,
 		"SA1016": c.CheckUntrappableSignal,
+		"SA1017": c.CheckUnbufferedSignalChan,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -2421,6 +2423,33 @@ func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
 			if counts[s] == 2 {
 				f.Errorf(cond, "this condition occurs multiple times in this if/else if chain")
 			}
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "signal", "Notify") {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(call)
+		arg, _ := ssafn.ValueForExpr(call.Args[0])
+		if arg == nil {
+			return true
+		}
+		r, ok := c.ranges[ssafn][arg].(vrp.ChannelInterval)
+		if !ok || !r.IsKnown() {
+			return true
+		}
+		if r.Size.Lower.Cmp(vrp.NewZ(&big.Int{})) == 0 &&
+			r.Size.Upper.Cmp(vrp.NewZ(&big.Int{})) == 0 {
+			f.Errorf(call, "the channel used with signal.Notify should be buffered")
 		}
 		return true
 	}

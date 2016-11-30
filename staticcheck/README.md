@@ -58,6 +58,7 @@ The following things are currently checked by staticcheck:
 | SA1014     | Non-pointer value passed to Unmarshal or Decode                                                                                                       |
 | SA1015     | Using `time.Tick` in a way that will leak. Consider using `time.NewTicker`, and only use `time.Tick` in tests, commands and endless functions         |
 | SA1016     | Trapping a signal that cannot be trapped                                                                                                              |
+| SA1017     | Channels used with signal.Notify should be buffered                                                                                                   |
 |            |                                                                                                                                                       |
 | **SA2???** | **Concurrency issues**                                                                                                                                |
 | SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                                                                         |
