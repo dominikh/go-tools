@@ -72,6 +72,8 @@ func isSupportedType(typ types.Type) bool {
 				return false
 			}
 		}
+	case *types.Chan:
+		return true
 	default:
 		return false
 	}
@@ -415,6 +417,25 @@ func BuildGraph(f *ssa.Function) *Graph {
 				default:
 					//log.Printf("unsupported sigma type %T", typ) // XXX
 				}
+			case *ssa.MakeChan:
+				c := &MakeChannelConstraint{
+					aConstraint: aConstraint{
+						y: ins,
+					},
+					Buffer: ins.Size,
+				}
+				cs = append(cs, c)
+			case *ssa.ChangeType:
+				switch ins.X.Type().Underlying().(type) {
+				case *types.Chan:
+					c := &ChannelChangeTypeConstraint{
+						aConstraint: aConstraint{
+							y: ins,
+						},
+						X: ins.X,
+					}
+					cs = append(cs, c)
+				}
 			}
 		}
 	}
@@ -484,6 +505,10 @@ func (g *Graph) Solve() Ranges {
 							g.SetRange(v, InfinityFor(v))
 						}
 					}
+				case *types.Chan:
+					if !g.Range(v).(ChannelInterval).IsKnown() {
+						g.SetRange(v, ChannelInterval{NewIntInterval(NewZ(&big.Int{}), PInfinity)})
+					}
 				}
 			}
 			if c, ok := v.Value.(Constraint); ok {
@@ -552,15 +577,15 @@ func (g *Graph) Solve() Ranges {
 			continue
 		}
 		if (v.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
-			if i.lower.Sign() == -1 {
+			if i.Lower.Sign() == -1 {
 				i = NewIntInterval(NewZ(&big.Int{}), PInfinity)
 			}
 		}
 		if (v.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
-			if i.upper == PInfinity {
+			if i.Upper == PInfinity {
 				i = NewIntInterval(NInfinity, PInfinity)
 			}
-			if i.upper != PInfinity {
+			if i.Upper != PInfinity {
 				s := &types.StdSizes{
 					// XXX is it okay to assume the largest word size, or do we
 					// need to be platform specific?
@@ -574,9 +599,9 @@ func (g *Graph) Solve() Ranges {
 				upper.Sub(n, big.NewInt(1))
 				lower.Neg(n)
 
-				if i.upper.Cmp(NewZ(upper)) == 1 {
+				if i.Upper.Cmp(NewZ(upper)) == 1 {
 					i = NewIntInterval(NInfinity, PInfinity)
-				} else if i.lower.Cmp(NewZ(lower)) == -1 {
+				} else if i.Lower.Cmp(NewZ(lower)) == -1 {
 					i = NewIntInterval(NInfinity, PInfinity)
 				}
 			}
@@ -627,6 +652,8 @@ func (r Ranges) Get(x ssa.Value) Range {
 			default:
 				return IntInterval{}
 			}
+		case *types.Chan:
+			return ChannelInterval{}
 		}
 	}
 	return i
@@ -691,13 +718,13 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 		nlc := NInfinity
 		nuc := PInfinity
 		for _, co := range consts {
-			if co.Cmp(ni.lower) == -1 {
+			if co.Cmp(ni.Lower) == -1 {
 				nlc = co
 				break
 			}
 		}
 		for _, co := range consts {
-			if co.Cmp(ni.upper) == 1 {
+			if co.Cmp(ni.Upper) == 1 {
 				nuc = co
 				break
 			}
@@ -707,16 +734,16 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 			setRange(ni)
 			return true
 		}
-		if ni.lower.Cmp(oi.lower) == -1 && ni.upper.Cmp(oi.upper) == 1 {
+		if ni.Lower.Cmp(oi.Lower) == -1 && ni.Upper.Cmp(oi.Upper) == 1 {
 			setRange(NewIntInterval(nlc, nuc))
 			return true
 		}
-		if ni.lower.Cmp(oi.lower) == -1 {
-			setRange(NewIntInterval(nlc, oi.upper))
+		if ni.Lower.Cmp(oi.Lower) == -1 {
+			setRange(NewIntInterval(nlc, oi.Upper))
 			return true
 		}
-		if ni.upper.Cmp(oi.upper) == 1 {
-			setRange(NewIntInterval(oi.lower, nuc))
+		if ni.Upper.Cmp(oi.Upper) == 1 {
+			setRange(NewIntInterval(oi.Lower, nuc))
 			return true
 		}
 		return false
@@ -729,12 +756,12 @@ func (g *Graph) narrow(c Constraint, consts []Z) bool {
 	if _, ok := g.Range(c.Y()).(IntInterval); !ok {
 		return false
 	}
-	oLower := g.Range(c.Y()).(IntInterval).lower
-	oUpper := g.Range(c.Y()).(IntInterval).upper
+	oLower := g.Range(c.Y()).(IntInterval).Lower
+	oUpper := g.Range(c.Y()).(IntInterval).Upper
 	newInterval := c.Eval(g).(IntInterval)
 
-	nLower := newInterval.lower
-	nUpper := newInterval.upper
+	nLower := newInterval.Lower
+	nUpper := newInterval.Upper
 
 	hasChanged := false
 	if oLower == NInfinity && nLower != NInfinity {
@@ -749,12 +776,12 @@ func (g *Graph) narrow(c Constraint, consts []Z) bool {
 	}
 
 	if oUpper == PInfinity && nUpper != PInfinity {
-		g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).lower, nUpper))
+		g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).Lower, nUpper))
 		hasChanged = true
 	} else {
 		smax := MaxZ(oUpper, nUpper)
 		if oUpper != smax {
-			g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).lower, smax))
+			g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).Lower, smax))
 			hasChanged = true
 		}
 	}

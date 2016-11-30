@@ -191,15 +191,15 @@ func InfinityFor(v ssa.Value) IntInterval {
 
 type IntInterval struct {
 	known bool
-	lower Z
-	upper Z
+	Lower Z
+	Upper Z
 }
 
 func NewIntInterval(l, u Z) IntInterval {
 	if u.Cmp(l) == -1 {
 		return EmptyIntInterval
 	}
-	return IntInterval{known: true, lower: l, upper: u}
+	return IntInterval{known: true, Lower: l, Upper: u}
 }
 
 func (i IntInterval) IsKnown() bool {
@@ -207,11 +207,11 @@ func (i IntInterval) IsKnown() bool {
 }
 
 func (i IntInterval) Empty() bool {
-	return i.lower == PInfinity && i.upper == NInfinity
+	return i.Lower == PInfinity && i.Upper == NInfinity
 }
 
 func (i IntInterval) IsMaxRange() bool {
-	return i.lower == NInfinity && i.upper == PInfinity
+	return i.Lower == NInfinity && i.Upper == PInfinity
 }
 
 func (i1 IntInterval) Intersection(i2 IntInterval) IntInterval {
@@ -224,8 +224,8 @@ func (i1 IntInterval) Intersection(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
 		return EmptyIntInterval
 	}
-	i3 := NewIntInterval(MaxZ(i1.lower, i2.lower), MinZ(i1.upper, i2.upper))
-	if i3.lower.Cmp(i3.upper) == 1 {
+	i3 := NewIntInterval(MaxZ(i1.Lower, i2.Lower), MinZ(i1.Upper, i2.Upper))
+	if i3.Lower.Cmp(i3.Upper) == 1 {
 		return EmptyIntInterval
 	}
 	return i3
@@ -242,14 +242,14 @@ func (i1 IntInterval) Union(other Range) Range {
 	if i2.Empty() || !i2.IsKnown() {
 		return i1
 	}
-	return NewIntInterval(MinZ(i1.lower, i2.lower), MaxZ(i1.upper, i2.upper))
+	return NewIntInterval(MinZ(i1.Lower, i2.Lower), MaxZ(i1.Upper, i2.Upper))
 }
 
 func (i1 IntInterval) Add(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
 		return EmptyIntInterval
 	}
-	l1, u1, l2, u2 := i1.lower, i1.upper, i2.lower, i2.upper
+	l1, u1, l2, u2 := i1.Lower, i1.Upper, i2.Lower, i2.Upper
 	return NewIntInterval(l1.Add(l2), u1.Add(u2))
 }
 
@@ -257,7 +257,7 @@ func (i1 IntInterval) Sub(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
 		return EmptyIntInterval
 	}
-	l1, u1, l2, u2 := i1.lower, i1.upper, i2.lower, i2.upper
+	l1, u1, l2, u2 := i1.Lower, i1.Upper, i2.Lower, i2.Upper
 	return NewIntInterval(l1.Sub(u2), u1.Sub(l2))
 }
 
@@ -265,8 +265,8 @@ func (i1 IntInterval) Mul(i2 IntInterval) IntInterval {
 	if i1.Empty() || i2.Empty() {
 		return EmptyIntInterval
 	}
-	x1, x2 := i1.lower, i1.upper
-	y1, y2 := i2.lower, i2.upper
+	x1, x2 := i1.Lower, i1.Upper
+	y1, y2 := i2.Lower, i2.Upper
 	return NewIntInterval(
 		MinZ(x1.Mul(y1), x1.Mul(y2), x2.Mul(y1), x2.Mul(y2)),
 		MaxZ(x1.Mul(y1), x1.Mul(y2), x2.Mul(y1), x2.Mul(y2)),
@@ -280,7 +280,7 @@ func (i1 IntInterval) String() string {
 	if i1.Empty() {
 		return "{}"
 	}
-	return fmt.Sprintf("[%s, %s]", i1.lower, i1.upper)
+	return fmt.Sprintf("[%s, %s]", i1.Lower, i1.Upper)
 }
 
 type IntArithmeticConstraint struct {
@@ -371,8 +371,8 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n.Lsh(n, uint(fromB*8))
 		n.Sub(n, big.NewInt(1))
 		return NewIntInterval(
-			MaxZ(NewZ(&big.Int{}), fromI.lower),
-			MinZ(NewZ(n), toI.upper),
+			MaxZ(NewZ(&big.Int{}), fromI.Lower),
+			MinZ(NewZ(n), toI.Upper),
 		)
 	}
 
@@ -385,8 +385,8 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n.Lsh(n, uint(fromB*8))
 		n.Sub(n, big.NewInt(1))
 		return NewIntInterval(
-			MaxZ(NInfinity, fromI.lower),
-			MinZ(NewZ(n), toI.upper),
+			MaxZ(NInfinity, fromI.Lower),
+			MinZ(NewZ(n), toI.Upper),
 		)
 	}
 
@@ -437,7 +437,7 @@ func (c *FutureIntIntersectionConstraint) Resolve() {
 		if !ok {
 			li = InfinityFor(c.lower)
 		}
-		l = li.(IntInterval).lower
+		l = li.(IntInterval).Lower
 		l = l.Add(c.lowerOffset)
 	}
 	if c.upper != nil {
@@ -445,7 +445,7 @@ func (c *FutureIntIntersectionConstraint) Resolve() {
 		if !ok {
 			ui = InfinityFor(c.upper)
 		}
-		u = ui.(IntInterval).upper
+		u = ui.(IntInterval).Upper
 		u = u.Add(c.upperOffset)
 	}
 	c.I = NewIntInterval(l, u)

@@ -67,10 +67,10 @@ func (c *StringSliceConstraint) Eval(g *Graph) Range {
 	}
 
 	ls := []Z{
-		ur.lower.Sub(lr.lower),
-		ur.upper.Sub(lr.lower),
-		ur.lower.Sub(lr.upper),
-		ur.upper.Sub(lr.upper),
+		ur.Lower.Sub(lr.Lower),
+		ur.Upper.Sub(lr.Lower),
+		ur.Lower.Sub(lr.Upper),
+		ur.Upper.Sub(lr.Upper),
 	}
 	// TODO(dh): if we don't truncate lengths to 0 we might be able to
 	// easily detect slices with high < low. we'd need to treat -∞
