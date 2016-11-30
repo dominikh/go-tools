@@ -76,6 +76,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4011": c.CheckScopedBreak,
 		"SA4012": c.CheckNaNComparison,
 		"SA4013": c.CheckDoubleNegation,
+		"SA4014": c.CheckRepeatedIfElse,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -2359,6 +2360,68 @@ func (c *Checker) CheckDoubleNegation(f *lint.File) {
 			return true
 		}
 		f.Errorf(unary1, "negating a boolean twice has no effect; is this a typo?")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
+	seen := map[ast.Node]bool{}
+
+	var collectConds func(ifstmt *ast.IfStmt, inits []ast.Stmt, conds []ast.Expr) ([]ast.Stmt, []ast.Expr)
+	collectConds = func(ifstmt *ast.IfStmt, inits []ast.Stmt, conds []ast.Expr) ([]ast.Stmt, []ast.Expr) {
+		seen[ifstmt] = true
+		if ifstmt.Init != nil {
+			inits = append(inits, ifstmt.Init)
+		}
+		conds = append(conds, ifstmt.Cond)
+		if elsestmt, ok := ifstmt.Else.(*ast.IfStmt); ok {
+			return collectConds(elsestmt, inits, conds)
+		}
+		return inits, conds
+	}
+	isDynamic := func(node ast.Node) bool {
+		dynamic := false
+		ast.Inspect(node, func(node ast.Node) bool {
+			switch node := node.(type) {
+			case *ast.CallExpr:
+				dynamic = true
+				return false
+			case *ast.UnaryExpr:
+				if node.Op == token.ARROW {
+					dynamic = true
+					return false
+				}
+			}
+			return true
+		})
+		return dynamic
+	}
+	fn := func(node ast.Node) bool {
+		ifstmt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		if seen[ifstmt] {
+			return true
+		}
+		inits, conds := collectConds(ifstmt, nil, nil)
+		if len(inits) > 0 {
+			return true
+		}
+		for _, cond := range conds {
+			if isDynamic(cond) {
+				return true
+			}
+		}
+		counts := map[string]int{}
+		for _, cond := range conds {
+			s := f.Render(cond)
+			counts[s]++
+			if counts[s] == 2 {
+				f.Errorf(cond, "this condition occurs multiple times in this if/else if chain")
+			}
+		}
 		return true
 	}
 	f.Walk(fn)
