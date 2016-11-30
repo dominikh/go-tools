@@ -472,6 +472,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 
 func (g *Graph) Solve() Ranges {
 	var consts []Z
+	off := NewZ(big.NewInt(1))
 	for _, n := range g.Vertices {
 		if c, ok := n.Value.(*ssa.Const); ok {
 			basic, ok := c.Type().Underlying().(*types.Basic)
@@ -479,7 +480,10 @@ func (g *Graph) Solve() Ranges {
 				continue
 			}
 			if (basic.Info() & types.IsInteger) != 0 {
-				consts = append(consts, ConstantToZ(c.Value))
+				z := ConstantToZ(c.Value)
+				consts = append(consts, z)
+				consts = append(consts, z.Add(off))
+				consts = append(consts, z.Sub(off))
 			}
 		}
 
@@ -719,13 +723,13 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 		nlc := NInfinity
 		nuc := PInfinity
 		for _, co := range consts {
-			if co.Cmp(ni.Lower) == -1 {
+			if co.Cmp(ni.Lower) <= 0 {
 				nlc = co
 				break
 			}
 		}
 		for _, co := range consts {
-			if co.Cmp(ni.Upper) == 1 {
+			if co.Cmp(ni.Upper) >= 0 {
 				nuc = co
 				break
 			}
@@ -777,17 +781,14 @@ func (g *Graph) narrow(c Constraint, consts []Z) bool {
 		if oLower == NInfinity && nLower != NInfinity {
 			return NewIntInterval(nLower, oUpper), true
 		}
-		smin := MinZ(oLower, nLower)
-		if oLower != smin {
-			return NewIntInterval(smin, oUpper), true
-		}
-
 		if oUpper == PInfinity && nUpper != PInfinity {
 			return NewIntInterval(oLower, nUpper), true
 		}
-		smax := MaxZ(oUpper, nUpper)
-		if oUpper != smax {
-			return NewIntInterval(oLower, smax), true
+		if oLower.Cmp(nLower) == 1 {
+			return NewIntInterval(nLower, oUpper), true
+		}
+		if oUpper.Cmp(nUpper) == -1 {
+			return NewIntInterval(oLower, nUpper), true
 		}
 		return oi, false
 	}
