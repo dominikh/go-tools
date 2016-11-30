@@ -51,7 +51,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1013": c.CheckSeeker,
 		"SA1014": c.CheckUnmarshalPointer,
 		"SA1015": c.CheckLeakyTimeTick,
-		"SA1016": CheckUntrappableSignal,
+		"SA1016": c.CheckUntrappableSignal,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -248,7 +248,7 @@ func (c *Checker) terminates(fn *ssa.Function) (ret bool) {
 	return false
 }
 
-func CheckUntrappableSignal(f *lint.File) {
+func (c *Checker) CheckUntrappableSignal(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
