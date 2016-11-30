@@ -706,14 +706,12 @@ func (g *Graph) Range(x ssa.Value) Range {
 }
 
 func (g *Graph) widen(c Constraint, consts []Z) bool {
-	switch oi := g.Range(c.Y()).(type) {
-	case IntInterval:
-		ni := c.Eval(g).(IntInterval)
+	setRange := func(i Range) {
+		g.SetRange(c.Y(), i)
+	}
+	widenIntInterval := func(oi, ni IntInterval) (IntInterval, bool) {
 		if !ni.IsKnown() {
-			return false
-		}
-		setRange := func(i IntInterval) {
-			g.SetRange(c.Y(), i)
+			return oi, false
 		}
 		nlc := NInfinity
 		nuc := PInfinity
@@ -731,19 +729,33 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 		}
 
 		if !oi.IsKnown() {
-			setRange(ni)
-			return true
+			return ni, true
 		}
 		if ni.Lower.Cmp(oi.Lower) == -1 && ni.Upper.Cmp(oi.Upper) == 1 {
-			setRange(NewIntInterval(nlc, nuc))
-			return true
+			return NewIntInterval(nlc, nuc), true
 		}
 		if ni.Lower.Cmp(oi.Lower) == -1 {
-			setRange(NewIntInterval(nlc, oi.Upper))
-			return true
+			return NewIntInterval(nlc, oi.Upper), true
 		}
 		if ni.Upper.Cmp(oi.Upper) == 1 {
-			setRange(NewIntInterval(oi.Lower, nuc))
+			return NewIntInterval(oi.Lower, nuc), true
+		}
+		return oi, false
+	}
+	switch oi := g.Range(c.Y()).(type) {
+	case IntInterval:
+		ni := c.Eval(g).(IntInterval)
+		si, changed := widenIntInterval(oi, ni)
+		if changed {
+			setRange(si)
+			return true
+		}
+		return false
+	case StringInterval:
+		ni := c.Eval(g).(StringInterval)
+		si, changed := widenIntInterval(oi.Length, ni.Length)
+		if changed {
+			setRange(StringInterval{si})
 			return true
 		}
 		return false
@@ -753,39 +765,49 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 }
 
 func (g *Graph) narrow(c Constraint, consts []Z) bool {
-	if _, ok := g.Range(c.Y()).(IntInterval); !ok {
-		return false
-	}
-	oLower := g.Range(c.Y()).(IntInterval).Lower
-	oUpper := g.Range(c.Y()).(IntInterval).Upper
-	newInterval := c.Eval(g).(IntInterval)
+	narrowIntInterval := func(oi, ni IntInterval) (IntInterval, bool) {
+		oLower := oi.Lower
+		oUpper := oi.Upper
+		nLower := ni.Lower
+		nUpper := ni.Upper
 
-	nLower := newInterval.Lower
-	nUpper := newInterval.Upper
-
-	hasChanged := false
-	if oLower == NInfinity && nLower != NInfinity {
-		g.SetRange(c.Y(), NewIntInterval(nLower, oUpper))
-		hasChanged = true
-	} else {
+		if oLower == NInfinity && nLower != NInfinity {
+			return NewIntInterval(nLower, oUpper), true
+		}
 		smin := MinZ(oLower, nLower)
 		if oLower != smin {
-			g.SetRange(c.Y(), NewIntInterval(smin, oUpper))
-			hasChanged = true
+			return NewIntInterval(smin, oUpper), true
 		}
-	}
 
-	if oUpper == PInfinity && nUpper != PInfinity {
-		g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).Lower, nUpper))
-		hasChanged = true
-	} else {
+		if oUpper == PInfinity && nUpper != PInfinity {
+			return NewIntInterval(oLower, nUpper), true
+		}
 		smax := MaxZ(oUpper, nUpper)
 		if oUpper != smax {
-			g.SetRange(c.Y(), NewIntInterval(g.ranges[c.Y()].(IntInterval).Lower, smax))
-			hasChanged = true
+			return NewIntInterval(oLower, smax), true
 		}
+		return oi, false
 	}
-	return hasChanged
+	switch oi := g.Range(c.Y()).(type) {
+	case IntInterval:
+		ni := c.Eval(g).(IntInterval)
+		si, changed := narrowIntInterval(oi, ni)
+		if changed {
+			g.SetRange(c.Y(), si)
+			return true
+		}
+		return false
+	case StringInterval:
+		ni := c.Eval(g).(StringInterval)
+		si, changed := narrowIntInterval(oi.Length, ni.Length)
+		if changed {
+			g.SetRange(c.Y(), StringInterval{si})
+			return true
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 func (g *Graph) resolveFutures(scc int) {
