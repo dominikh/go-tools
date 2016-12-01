@@ -583,15 +583,7 @@ func (g *Graph) Solve() Ranges {
 		if !ok {
 			continue
 		}
-		if (v.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
-			if i.Lower.Sign() == -1 {
-				i = NewIntInterval(NewZ(&big.Int{}), PInfinity)
-			}
-		}
 		if (v.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
-			if i.Upper == PInfinity {
-				i = NewIntInterval(NInfinity, PInfinity)
-			}
 			if i.Upper != PInfinity {
 				s := &types.StdSizes{
 					// XXX is it okay to assume the largest word size, or do we

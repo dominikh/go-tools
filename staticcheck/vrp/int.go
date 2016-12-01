@@ -303,12 +303,23 @@ func NewIntArithmeticConstraint(a, b, y ssa.Value, op token.Token, fn func(IntIn
 	}
 }
 
-func (c *IntArithmeticConstraint) Eval(g *Graph) (ret Range) {
+func (c *IntArithmeticConstraint) Eval(g *Graph) Range {
 	i1, i2 := g.Range(c.A).(IntInterval), g.Range(c.B).(IntInterval)
 	if !i1.IsKnown() || !i2.IsKnown() {
 		return IntInterval{}
 	}
-	return c.Fn(i1, i2)
+	ret := c.Fn(i1, i2)
+	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+		if ret.Lower.Sign() == -1 {
+			ret = NewIntInterval(NewZ(&big.Int{}), PInfinity)
+		}
+	}
+	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
+		if ret.Upper == PInfinity {
+			ret = NewIntInterval(NInfinity, PInfinity)
+		}
+	}
+	return ret
 }
 
 func (c *IntArithmeticConstraint) String() string {
