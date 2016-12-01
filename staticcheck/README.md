@@ -85,6 +85,7 @@ The following things are currently checked by staticcheck:
 | SA4012     | Comparing a value against NaN even though no value is equal to NaN                                                                                    |
 | SA4013     | Negating a boolean twice (`!!b`) is the same as writing `b`. This is either redundant, or a typo.                                                     |
 | SA4014     | An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either |
+| SA4015     | Calling functions like math.Ceil on floats converted from integers doesn't do anything useful                                                         |
 |            |                                                                                                                                                       |
 | **SA5???** | **Correctness issues**                                                                                                                                |
 | SA5000     | Assignment to nil map                                                                                                                                 |

@@ -79,6 +79,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4012": c.CheckNaNComparison,
 		"SA4013": c.CheckDoubleNegation,
 		"SA4014": c.CheckRepeatedIfElse,
+		"SA4015": c.CheckMathInt,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -2453,6 +2454,56 @@ func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
 		if r.Size.Lower.Cmp(vrp.NewZ(&big.Int{})) == 0 &&
 			r.Size.Upper.Cmp(vrp.NewZ(&big.Int{})) == 0 {
 			f.Errorf(call, "the channel used with signal.Notify should be buffered")
+		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckMathInt(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(fn)
+		if ssafn == nil {
+			return true
+		}
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				call, ok := ins.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				callee := call.Common().StaticCallee()
+				if callee == nil {
+					continue
+				}
+				obj, ok := callee.Object().(*types.Func)
+				if !ok {
+					continue
+				}
+				name := obj.FullName()
+				switch name {
+				case "math.Ceil", "math.Floor", "math.IsNaN", "math.Trunc", "math.IsInf":
+				default:
+					continue
+				}
+				arg := call.Common().Args[0]
+				conv, ok := arg.(*ssa.Convert)
+				if !ok {
+					continue
+				}
+				b, ok := conv.X.Type().Underlying().(*types.Basic)
+				if !ok {
+					continue
+				}
+				if (b.Info() & types.IsInteger) == 0 {
+					continue
+				}
+				f.Errorf(call, "calling %s on a converted integer is pointless", name)
+			}
 		}
 		return true
 	}
