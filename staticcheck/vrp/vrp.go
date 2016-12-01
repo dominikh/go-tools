@@ -594,7 +594,7 @@ func (g *Graph) Solve() Ranges {
 	return g.ranges
 }
 
-func VerticeString(v *Vertex) string {
+func VertexString(v *Vertex) string {
 	switch v := v.Value.(type) {
 	case Constraint:
 		return v.String()
@@ -664,7 +664,7 @@ func (g Graph) Graphviz() string {
 			shape = "oval"
 		}
 		lines = append(lines, fmt.Sprintf(`n%d [shape="%s", label="%s", colorscheme=spectral11, style="filled", fillcolor="%d"]`,
-			i, shape, VerticeString(v), (v.SCC%11)+1))
+			i, shape, VertexString(v), (v.SCC%11)+1))
 		i++
 	}
 	for _, e := range g.Edges {
@@ -882,7 +882,7 @@ type Edge struct {
 }
 
 func (e Edge) String() string {
-	return fmt.Sprintf("%s -> %s", VerticeString(e.From), VerticeString(e.To))
+	return fmt.Sprintf("%s -> %s", VertexString(e.From), VertexString(e.To))
 }
 
 func (g *Graph) FindSCCs() {
