@@ -319,10 +319,10 @@ func BuildGraph(f *ssa.Function) *Graph {
 							// limit by the upper bound of the passed
 							// string
 							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(-1), PInfinity), ins))
-						case "strings.Title", "strings.ToLower", "strings.ToLowerSpecial",
-							"strings.ToTitle", "strings.ToTitleSpecial", "strings.ToUpper",
-							"strings.ToUpperSpecial":
+						case "strings.Title", "strings.ToLower", "strings.ToTitle", "strings.ToUpper":
 							cs = append(cs, NewCopyConstraint(ins.Common().Args[0], ins))
+						case "strings.ToLowerSpecial", "strings.ToTitleSpecial", "strings.ToUpperSpecial":
+							cs = append(cs, NewCopyConstraint(ins.Common().Args[1], ins))
 						case "strings.Compare":
 							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(-1), NewZ(1)), ins))
 						case "strings.Count":
