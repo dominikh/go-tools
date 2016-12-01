@@ -42,6 +42,15 @@ type StringSliceConstraint struct {
 	Upper ssa.Value
 }
 
+func NewStringSliceConstraint(x, lower, upper, y ssa.Value) Constraint {
+	return &StringSliceConstraint{
+		aConstraint: NewConstraint(y),
+		X:           x,
+		Lower:       lower,
+		Upper:       upper,
+	}
+}
+
 func (c *StringSliceConstraint) String() string {
 	var lname, uname string
 	if c.Lower != nil {
@@ -101,6 +110,14 @@ type StringIntersectionConstraint struct {
 	aConstraint
 	X ssa.Value
 	I IntInterval
+}
+
+func NewStringIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
+	return &StringIntersectionConstraint{
+		aConstraint: NewConstraint(y),
+		X:           x,
+		I:           i,
+	}
 }
 
 func (c *StringIntersectionConstraint) Operands() []ssa.Value {
@@ -188,6 +205,13 @@ func (c *StringLengthConstraint) Operands() []ssa.Value {
 type StringIntervalConstraint struct {
 	aConstraint
 	I IntInterval
+}
+
+func NewStringIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
+	return &StringIntervalConstraint{
+		aConstraint: NewConstraint(y),
+		I:           i,
+	}
 }
 
 func (s *StringIntervalConstraint) Operands() []ssa.Value {

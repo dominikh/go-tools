@@ -40,6 +40,13 @@ type MakeChannelConstraint struct {
 	Buffer ssa.Value
 }
 
+func NewMakeChannelConstraint(buffer, y ssa.Value) Constraint {
+	return &MakeChannelConstraint{
+		aConstraint: NewConstraint(y),
+		Buffer:      buffer,
+	}
+}
+
 func (c *MakeChannelConstraint) String() string {
 	return fmt.Sprintf("%s = make(chan, %s)", c.Y().Name, c.Buffer.Name())
 }
@@ -62,6 +69,13 @@ func (c *MakeChannelConstraint) Operands() []ssa.Value {
 type ChannelChangeTypeConstraint struct {
 	aConstraint
 	X ssa.Value
+}
+
+func NewChannelChangeTypeConstraint(x, y ssa.Value) Constraint {
+	return &ChannelChangeTypeConstraint{
+		aConstraint: NewConstraint(y),
+		X:           x,
+	}
 }
 
 func (c *ChannelChangeTypeConstraint) String() string {

@@ -33,12 +33,23 @@ type aConstraint struct {
 	y ssa.Value
 }
 
+func NewConstraint(y ssa.Value) aConstraint {
+	return aConstraint{y}
+}
+
 func (aConstraint) isConstraint()  {}
 func (c aConstraint) Y() ssa.Value { return c.y }
 
 type PhiConstraint struct {
 	aConstraint
 	Vars []ssa.Value
+}
+
+func NewPhiConstraint(vars []ssa.Value, y ssa.Value) Constraint {
+	return &PhiConstraint{
+		aConstraint: NewConstraint(y),
+		Vars:        vars,
+	}
 }
 
 func (c *PhiConstraint) Operands() []ssa.Value {
@@ -152,12 +163,7 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 	}
 
 	v := ConstantToZ(k.Value)
-	c := &IntIntersectionConstraint{
-		aConstraint: aConstraint{
-			y: ins,
-		},
-		X: *ops[0],
-	}
+	c := NewIntIntersectionConstraint(*ops[0], IntInterval{}, ins).(*IntIntersectionConstraint)
 	switch op {
 	case token.EQL:
 		c.I = NewIntInterval(v, v)
@@ -232,12 +238,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	callops := call.Operands(nil)
 
 	v := ConstantToZ(k.Value)
-	c := &StringIntersectionConstraint{
-		aConstraint: aConstraint{
-			y: ins,
-		},
-		X: *callops[1],
-	}
+	c := NewStringIntersectionConstraint(*callops[1], IntInterval{}, ins).(*StringIntersectionConstraint)
 	switch op {
 	case token.EQL:
 		c.I = NewIntInterval(v, v)
@@ -290,23 +291,11 @@ func BuildGraph(f *ssa.Function) *Graph {
 					switch c.Value.Kind() {
 					case constant.Int:
 						v := ConstantToZ(c.Value)
-						c := &IntIntervalConstraint{
-							aConstraint: aConstraint{
-								y: c,
-							},
-							I: NewIntInterval(v, v),
-						}
-						cs = append(cs, c)
+						cs = append(cs, NewIntIntervalConstraint(NewIntInterval(v, v), c))
 					case constant.String:
 						s := constant.StringVal(c.Value)
 						n := NewZ(big.NewInt(int64(len(s))))
-						c := &StringIntervalConstraint{
-							aConstraint: aConstraint{
-								y: c,
-							},
-							I: NewIntInterval(n, n),
-						}
-						cs = append(cs, c)
+						cs = append(cs, NewStringIntervalConstraint(NewIntInterval(n, n), c))
 					}
 				}
 			}
@@ -321,13 +310,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 					if (v.Info() & types.IsInteger) == 0 {
 						continue
 					}
-					c := &IntConversionConstraint{
-						aConstraint: aConstraint{
-							y: ins,
-						},
-						X: ins.X,
-					}
-					cs = append(cs, c)
+					cs = append(cs, NewIntConversionConstraint(ins.X, ins))
 				}
 			case *ssa.Call:
 				if static := ins.Common().StaticCallee(); static != nil {
@@ -336,39 +319,21 @@ func BuildGraph(f *ssa.Function) *Graph {
 						case "strings.Index", "strings.IndexAny", "strings.IndexByte",
 							"strings.IndexFunc", "strings.IndexRune", "strings.LastIndex",
 							"strings.LastIndexAny", "strings.LastIndexByte", "strings.LastIndexFunc":
-							c := &IntIntervalConstraint{
-								aConstraint: aConstraint{
-									y: ins,
-								},
-								// TODO(dh): instead of limiting by
-								// +∞, limit by the upper bound of the
-								// passed string
-								I: NewIntInterval(NewZ(big.NewInt(-1)), PInfinity),
-							}
-							cs = append(cs, c)
+							// TODO(dh): instead of limiting by +∞,
+							// limit by the upper bound of the passed
+							// string
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(big.NewInt(-1)), PInfinity), ins))
 						case "strings.Title", "strings.ToLower", "strings.ToLowerSpecial",
 							"strings.ToTitle", "strings.ToTitleSpecial", "strings.ToUpper",
 							"strings.ToUpperSpecial":
 							cs = append(cs, NewCopyConstraint(ins.Common().Args[0], ins))
 						case "strings.Compare":
-							c := &IntIntervalConstraint{
-								aConstraint: aConstraint{
-									y: ins,
-								},
-								I: NewIntInterval(NewZ(big.NewInt(-1)), NewZ(big.NewInt(1))),
-							}
-							cs = append(cs, c)
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(big.NewInt(-1)), NewZ(big.NewInt(1))), ins))
 						case "strings.Count":
-							c := &IntIntervalConstraint{
-								aConstraint: aConstraint{
-									y: ins,
-								},
-								// TODO(dh): instead of limiting by
-								// +∞, limit by the upper bound of the
-								// passed string.
-								I: NewIntInterval(NewZ(big.NewInt(0)), PInfinity),
-							}
-							cs = append(cs, c)
+							// TODO(dh): instead of limiting by +∞,
+							// limit by the upper bound of the passed
+							// string.
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(big.NewInt(0)), PInfinity), ins))
 						case "strings.Map", "strings.TrimFunc", "strings.TrimLeft", "strings.TrimLeftFunc",
 							"strings.TrimRight", "strings.TrimRightFunc", "strings.TrimSpace":
 							// TODO(dh): lower = 0, upper = upper of passed string
@@ -415,15 +380,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 				if !ok {
 					continue
 				}
-				c := &StringSliceConstraint{
-					aConstraint: aConstraint{
-						y: ins,
-					},
-					X:     ins.X,
-					Lower: ins.Low,
-					Upper: ins.High,
-				}
-				cs = append(cs, c)
+				cs = append(cs, NewStringSliceConstraint(ins.X, ins.Low, ins.High, ins))
 			case *ssa.Phi:
 				if !isSupportedType(ins.Type()) {
 					continue
@@ -433,13 +390,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 				for i, op := range ops {
 					dops[i] = *op
 				}
-				c := &PhiConstraint{
-					aConstraint: aConstraint{
-						y: ins,
-					},
-					Vars: dops,
-				}
-				cs = append(cs, c)
+				cs = append(cs, NewPhiConstraint(dops, ins))
 			case *ssa.Sigma:
 				pred := ins.Block().Preds[0]
 				instrs := pred.Instrs
@@ -465,23 +416,11 @@ func BuildGraph(f *ssa.Function) *Graph {
 					//log.Printf("unsupported sigma type %T", typ) // XXX
 				}
 			case *ssa.MakeChan:
-				c := &MakeChannelConstraint{
-					aConstraint: aConstraint{
-						y: ins,
-					},
-					Buffer: ins.Size,
-				}
-				cs = append(cs, c)
+				cs = append(cs, NewMakeChannelConstraint(ins.Size, ins))
 			case *ssa.ChangeType:
 				switch ins.X.Type().Underlying().(type) {
 				case *types.Chan:
-					c := &ChannelChangeTypeConstraint{
-						aConstraint: aConstraint{
-							y: ins,
-						},
-						X: ins.X,
-					}
-					cs = append(cs, c)
+					cs = append(cs, NewChannelChangeTypeConstraint(ins.X, ins))
 				}
 			}
 		}

@@ -349,6 +349,13 @@ type IntConversionConstraint struct {
 	X ssa.Value
 }
 
+func NewIntConversionConstraint(x, y ssa.Value) Constraint {
+	return &IntConversionConstraint{
+		aConstraint: NewConstraint(y),
+		X:           x,
+	}
+}
+
 func (c *IntConversionConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.X}
 }
@@ -480,6 +487,14 @@ type IntIntersectionConstraint struct {
 	I IntInterval
 }
 
+func NewIntIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
+	return &IntIntersectionConstraint{
+		aConstraint: NewConstraint(y),
+		X:           x,
+		I:           i,
+	}
+}
+
 func (c *IntIntersectionConstraint) Operands() []ssa.Value {
 	return []ssa.Value{c.X}
 }
@@ -499,6 +514,13 @@ func (c *IntIntersectionConstraint) String() string {
 type IntIntervalConstraint struct {
 	aConstraint
 	I IntInterval
+}
+
+func NewIntIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
+	return &IntIntervalConstraint{
+		aConstraint: NewConstraint(y),
+		I:           i,
+	}
 }
 
 func (s *IntIntervalConstraint) Operands() []ssa.Value {
