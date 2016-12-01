@@ -1075,6 +1075,9 @@ func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
 			return true
 		}
 		ssafn := f.EnclosingSSAFunction(expr)
+		if ssafn == nil {
+			return true
+		}
 		ssaexpr, _ := ssafn.ValueForExpr(expr)
 		binop, ok := ssaexpr.(*ssa.BinOp)
 		if !ok {
