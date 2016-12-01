@@ -330,6 +330,53 @@ func BuildGraph(f *ssa.Function) *Graph {
 					cs = append(cs, c)
 				}
 			case *ssa.Call:
+				if static := ins.Common().StaticCallee(); static != nil {
+					if fn, ok := static.Object().(*types.Func); ok {
+						switch fn.FullName() {
+						case "strings.Index", "strings.IndexAny", "strings.IndexByte",
+							"strings.IndexFunc", "strings.IndexRune", "strings.LastIndex",
+							"strings.LastIndexAny", "strings.LastIndexByte", "strings.LastIndexFunc":
+							c := &IntIntervalConstraint{
+								aConstraint: aConstraint{
+									y: ins,
+								},
+								// TODO(dh): instead of limiting by
+								// +∞, limit by the upper bound of the
+								// passed string
+								I: NewIntInterval(NewZ(big.NewInt(-1)), PInfinity),
+							}
+							cs = append(cs, c)
+						case "strings.Title", "strings.ToLower", "strings.ToLowerSpecial",
+							"strings.ToTitle", "strings.ToTitleSpecial", "strings.ToUpper",
+							"strings.ToUpperSpecial":
+							cs = append(cs, NewCopyConstraint(ins.Common().Args[0], ins))
+						case "strings.Compare":
+							c := &IntIntervalConstraint{
+								aConstraint: aConstraint{
+									y: ins,
+								},
+								I: NewIntInterval(NewZ(big.NewInt(-1)), NewZ(big.NewInt(1))),
+							}
+							cs = append(cs, c)
+						case "strings.Count":
+							c := &IntIntervalConstraint{
+								aConstraint: aConstraint{
+									y: ins,
+								},
+								// TODO(dh): instead of limiting by
+								// +∞, limit by the upper bound of the
+								// passed string.
+								I: NewIntInterval(NewZ(big.NewInt(0)), PInfinity),
+							}
+							cs = append(cs, c)
+						case "strings.Map", "strings.TrimFunc", "strings.TrimLeft", "strings.TrimLeftFunc",
+							"strings.TrimRight", "strings.TrimRightFunc", "strings.TrimSpace":
+							// TODO(dh): lower = 0, upper = upper of passed string
+						case "strings.TrimPrefix", "strings.TrimSuffix":
+							// TODO(dh) range between "unmodified" and len(cutset) removed
+						}
+					}
+				}
 				builtin, ok := ins.Common().Value.(*ssa.Builtin)
 				ops := ins.Operands(nil)
 				if !ok || builtin.Name() != "len" {
@@ -977,5 +1024,31 @@ func invertToken(tok token.Token) token.Token {
 		return token.GTR
 	default:
 		panic(fmt.Sprintf("unsupported token %s", tok))
+	}
+}
+
+type CopyConstraint struct {
+	aConstraint
+	X ssa.Value
+}
+
+func (c *CopyConstraint) String() string {
+	return fmt.Sprintf("%s = copy(%s)", c.Y().Name(), c.X.Name())
+}
+
+func (c *CopyConstraint) Eval(g *Graph) Range {
+	return g.Range(c.X)
+}
+
+func (c *CopyConstraint) Operands() []ssa.Value {
+	return []ssa.Value{c.X}
+}
+
+func NewCopyConstraint(x, y ssa.Value) Constraint {
+	return &CopyConstraint{
+		aConstraint: aConstraint{
+			y: y,
+		},
+		X: x,
 	}
 }
