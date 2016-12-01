@@ -54,10 +54,10 @@ func (c *MakeChannelConstraint) String() string {
 func (c *MakeChannelConstraint) Eval(g *Graph) Range {
 	i, ok := g.Range(c.Buffer).(IntInterval)
 	if !ok {
-		return ChannelInterval{NewIntInterval(NewZ(&big.Int{}), PInfinity)}
+		return ChannelInterval{NewIntInterval(NewBigZ(&big.Int{}), PInfinity)}
 	}
 	if i.Lower.Sign() == -1 {
-		i.Lower = NewZ(&big.Int{})
+		i.Lower = NewBigZ(&big.Int{})
 	}
 	return ChannelInterval{i}
 }

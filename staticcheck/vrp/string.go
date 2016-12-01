@@ -63,7 +63,7 @@ func (c *StringSliceConstraint) String() string {
 }
 
 func (c *StringSliceConstraint) Eval(g *Graph) Range {
-	lr := NewIntInterval(NewZ(&big.Int{}), NewZ(&big.Int{}))
+	lr := NewIntInterval(NewBigZ(&big.Int{}), NewBigZ(&big.Int{}))
 	if c.Lower != nil {
 		lr = g.Range(c.Lower).(IntInterval)
 	}
@@ -86,7 +86,7 @@ func (c *StringSliceConstraint) Eval(g *Graph) Range {
 	// specially, though.
 	for i, l := range ls {
 		if l.Sign() == -1 {
-			ls[i] = NewZ(&big.Int{})
+			ls[i] = NewBigZ(&big.Int{})
 		}
 	}
 
@@ -193,7 +193,7 @@ func (c *StringLengthConstraint) String() string {
 func (c *StringLengthConstraint) Eval(g *Graph) Range {
 	i := g.Range(c.X).(StringInterval).Length
 	if !i.IsKnown() {
-		return NewIntInterval(NewZ(&big.Int{}), PInfinity)
+		return NewIntInterval(NewBigZ(&big.Int{}), PInfinity)
 	}
 	return i
 }

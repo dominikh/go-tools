@@ -28,7 +28,7 @@ type Z struct {
 	integer  *big.Int
 }
 
-func NewZ(n *big.Int) Z {
+func NewBigZ(n *big.Int) Z {
 	return Z{integer: n}
 }
 
@@ -53,7 +53,7 @@ func (z1 Z) Add(z2 Z) Z {
 	if !z1.Infinite() && !z2.Infinite() {
 		n := &big.Int{}
 		n.Add(z1.integer, z2.integer)
-		return NewZ(n)
+		return NewBigZ(n)
 	}
 
 	panic(fmt.Sprintf("%s + %s is not defined", z1, z2))
@@ -66,7 +66,7 @@ func (z1 Z) Sub(z2 Z) Z {
 	if !z1.Infinite() && !z2.Infinite() {
 		n := &big.Int{}
 		n.Sub(z1.integer, z2.integer)
-		return NewZ(n)
+		return NewBigZ(n)
 	}
 
 	if z1 != PInfinity && z2 == PInfinity {
@@ -84,7 +84,7 @@ func (z1 Z) Sub(z2 Z) Z {
 func (z1 Z) Mul(z2 Z) Z {
 	if (z1.integer != nil && z1.integer.Sign() == 0) ||
 		(z2.integer != nil && z2.integer.Sign() == 0) {
-		return NewZ(&big.Int{})
+		return NewBigZ(&big.Int{})
 	}
 
 	if z1.infinity != 0 || z2.infinity != 0 {
@@ -93,7 +93,7 @@ func (z1 Z) Mul(z2 Z) Z {
 
 	n := &big.Int{}
 	n.Mul(z1.integer, z2.integer)
-	return NewZ(n)
+	return NewBigZ(n)
 }
 
 func (z1 Z) Negate() Z {
@@ -105,7 +105,7 @@ func (z1 Z) Negate() Z {
 	}
 	n := &big.Int{}
 	n.Neg(z1.integer)
-	return NewZ(n)
+	return NewBigZ(n)
 }
 
 func (z1 Z) Sign() int {
@@ -183,7 +183,7 @@ var EmptyIntInterval = IntInterval{true, PInfinity, NInfinity}
 func InfinityFor(v ssa.Value) IntInterval {
 	if b, ok := v.Type().Underlying().(*types.Basic); ok {
 		if (b.Info() & types.IsUnsigned) != 0 {
-			return NewIntInterval(NewZ(&big.Int{}), PInfinity)
+			return NewIntInterval(NewBigZ(&big.Int{}), PInfinity)
 		}
 	}
 	return NewIntInterval(NInfinity, PInfinity)
@@ -311,7 +311,7 @@ func (c *IntArithmeticConstraint) Eval(g *Graph) Range {
 	ret := c.Fn(i1, i2)
 	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
 		if ret.Lower.Sign() == -1 {
-			ret = NewIntInterval(NewZ(&big.Int{}), PInfinity)
+			ret = NewIntInterval(NewBigZ(&big.Int{}), PInfinity)
 		}
 	}
 	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
@@ -389,8 +389,8 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n.Lsh(n, uint(fromB*8))
 		n.Sub(n, big.NewInt(1))
 		return NewIntInterval(
-			MaxZ(NewZ(&big.Int{}), fromI.Lower),
-			MinZ(NewZ(n), toI.Upper),
+			MaxZ(NewBigZ(&big.Int{}), fromI.Lower),
+			MinZ(NewBigZ(n), toI.Upper),
 		)
 	}
 
@@ -404,7 +404,7 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n.Sub(n, big.NewInt(1))
 		return NewIntInterval(
 			MaxZ(NInfinity, fromI.Lower),
-			MinZ(NewZ(n), toI.Upper),
+			MinZ(NewBigZ(n), toI.Upper),
 		)
 	}
 

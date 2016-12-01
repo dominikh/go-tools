@@ -2451,8 +2451,8 @@ func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
 		if !ok || !r.IsKnown() {
 			return true
 		}
-		if r.Size.Lower.Cmp(vrp.NewZ(&big.Int{})) == 0 &&
-			r.Size.Upper.Cmp(vrp.NewZ(&big.Int{})) == 0 {
+		if r.Size.Lower.Cmp(vrp.NewBigZ(&big.Int{})) == 0 &&
+			r.Size.Upper.Cmp(vrp.NewBigZ(&big.Int{})) == 0 {
 			f.Errorf(call, "the channel used with signal.Notify should be buffered")
 		}
 		return true
