@@ -28,6 +28,10 @@ type Z struct {
 	integer  *big.Int
 }
 
+func NewZ(n int64) Z {
+	return NewBigZ(big.NewInt(n))
+}
+
 func NewBigZ(n *big.Int) Z {
 	return Z{integer: n}
 }
@@ -183,7 +187,7 @@ var EmptyIntInterval = IntInterval{true, PInfinity, NInfinity}
 func InfinityFor(v ssa.Value) IntInterval {
 	if b, ok := v.Type().Underlying().(*types.Basic); ok {
 		if (b.Info() & types.IsUnsigned) != 0 {
-			return NewIntInterval(NewBigZ(&big.Int{}), PInfinity)
+			return NewIntInterval(NewZ(0), PInfinity)
 		}
 	}
 	return NewIntInterval(NInfinity, PInfinity)
@@ -311,7 +315,7 @@ func (c *IntArithmeticConstraint) Eval(g *Graph) Range {
 	ret := c.Fn(i1, i2)
 	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
 		if ret.Lower.Sign() == -1 {
-			ret = NewIntInterval(NewBigZ(&big.Int{}), PInfinity)
+			ret = NewIntInterval(NewZ(0), PInfinity)
 		}
 	}
 	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
@@ -389,7 +393,7 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 		n.Lsh(n, uint(fromB*8))
 		n.Sub(n, big.NewInt(1))
 		return NewIntInterval(
-			MaxZ(NewBigZ(&big.Int{}), fromI.Lower),
+			MaxZ(NewZ(0), fromI.Lower),
 			MinZ(NewBigZ(n), toI.Upper),
 		)
 	}

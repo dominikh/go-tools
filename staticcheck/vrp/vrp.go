@@ -102,8 +102,8 @@ func sigmaIntegerFuture(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Va
 			y: ins,
 		},
 		ranges:      g.ranges,
-		lowerOffset: NewBigZ(&big.Int{}),
-		upperOffset: NewBigZ(&big.Int{}),
+		lowerOffset: NewZ(0),
+		upperOffset: NewZ(0),
 	}
 	var other ssa.Value
 	if (*ops[0]) == ins.X {
@@ -125,7 +125,7 @@ func sigmaIntegerFuture(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Va
 			off = 1
 		}
 		c.lower = other
-		c.lowerOffset = NewBigZ(big.NewInt(off))
+		c.lowerOffset = NewZ(off)
 		c.upper = nil
 		c.upperOffset = PInfinity
 	case token.LSS, token.LEQ:
@@ -136,7 +136,7 @@ func sigmaIntegerFuture(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Va
 		c.lower = nil
 		c.lowerOffset = NInfinity
 		c.upper = other
-		c.upperOffset = NewBigZ(big.NewInt(off))
+		c.upperOffset = NewZ(off)
 	default:
 		return nil
 	}
@@ -172,10 +172,8 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 		if cond.Op == token.GTR {
 			off = 1
 		}
-		vo := &big.Int{}
-		vo.Add(v.integer, big.NewInt(off))
 		c.I = NewIntInterval(
-			NewBigZ(vo),
+			v.Add(NewZ(off)),
 			PInfinity,
 		)
 	case token.LSS, token.LEQ:
@@ -183,11 +181,9 @@ func sigmaIntegerConst(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Val
 		if cond.Op == token.LSS {
 			off = -1
 		}
-		vo := &big.Int{}
-		vo.Add(v.integer, big.NewInt(off))
 		c.I = NewIntInterval(
 			NInfinity,
-			NewBigZ(vo),
+			v.Add(NewZ(off)),
 		)
 	default:
 		return nil
@@ -248,7 +244,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 			off = 1
 		}
 		c.I = NewIntInterval(
-			v.Add(NewBigZ(big.NewInt(off))),
+			v.Add(NewZ(off)),
 			PInfinity,
 		)
 	case token.LSS, token.LEQ:
@@ -258,7 +254,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 		}
 		c.I = NewIntInterval(
 			NInfinity,
-			v.Add(NewBigZ(big.NewInt(off))),
+			v.Add(NewZ(off)),
 		)
 	default:
 		return nil
@@ -294,7 +290,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 						cs = append(cs, NewIntIntervalConstraint(NewIntInterval(v, v), c))
 					case constant.String:
 						s := constant.StringVal(c.Value)
-						n := NewBigZ(big.NewInt(int64(len(s))))
+						n := NewZ(int64(len(s)))
 						cs = append(cs, NewStringIntervalConstraint(NewIntInterval(n, n), c))
 					}
 				}
@@ -322,18 +318,18 @@ func BuildGraph(f *ssa.Function) *Graph {
 							// TODO(dh): instead of limiting by +∞,
 							// limit by the upper bound of the passed
 							// string
-							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewBigZ(big.NewInt(-1)), PInfinity), ins))
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(-1), PInfinity), ins))
 						case "strings.Title", "strings.ToLower", "strings.ToLowerSpecial",
 							"strings.ToTitle", "strings.ToTitleSpecial", "strings.ToUpper",
 							"strings.ToUpperSpecial":
 							cs = append(cs, NewCopyConstraint(ins.Common().Args[0], ins))
 						case "strings.Compare":
-							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewBigZ(big.NewInt(-1)), NewBigZ(big.NewInt(1))), ins))
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(-1), NewZ(1)), ins))
 						case "strings.Count":
 							// TODO(dh): instead of limiting by +∞,
 							// limit by the upper bound of the passed
 							// string.
-							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewBigZ(big.NewInt(0)), PInfinity), ins))
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(0), PInfinity), ins))
 						case "strings.Map", "strings.TrimFunc", "strings.TrimLeft", "strings.TrimLeftFunc",
 							"strings.TrimRight", "strings.TrimRightFunc", "strings.TrimSpace":
 							// TODO(dh): lower = 0, upper = upper of passed string
@@ -458,7 +454,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 
 func (g *Graph) Solve() Ranges {
 	var consts []Z
-	off := NewBigZ(big.NewInt(1))
+	off := NewZ(1)
 	for _, n := range g.Vertices {
 		if c, ok := n.Value.(*ssa.Const); ok {
 			basic, ok := c.Type().Underlying().(*types.Basic)
@@ -488,7 +484,7 @@ func (g *Graph) Solve() Ranges {
 					switch typ.Kind() {
 					case types.String, types.UntypedString:
 						if !g.Range(v).(StringInterval).IsKnown() {
-							g.SetRange(v, StringInterval{NewIntInterval(NewBigZ(&big.Int{}), PInfinity)})
+							g.SetRange(v, StringInterval{NewIntInterval(NewZ(0), PInfinity)})
 						}
 					default:
 						if !g.Range(v).(IntInterval).IsKnown() {
@@ -497,7 +493,7 @@ func (g *Graph) Solve() Ranges {
 					}
 				case *types.Chan:
 					if !g.Range(v).(ChannelInterval).IsKnown() {
-						g.SetRange(v, ChannelInterval{NewIntInterval(NewBigZ(&big.Int{}), PInfinity)})
+						g.SetRange(v, ChannelInterval{NewIntInterval(NewZ(0), PInfinity)})
 					}
 				}
 			}

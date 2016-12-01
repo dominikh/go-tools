@@ -2,7 +2,6 @@ package vrp
 
 import (
 	"fmt"
-	"math/big"
 
 	"honnef.co/go/ssa"
 )
@@ -54,10 +53,10 @@ func (c *MakeChannelConstraint) String() string {
 func (c *MakeChannelConstraint) Eval(g *Graph) Range {
 	i, ok := g.Range(c.Buffer).(IntInterval)
 	if !ok {
-		return ChannelInterval{NewIntInterval(NewBigZ(&big.Int{}), PInfinity)}
+		return ChannelInterval{NewIntInterval(NewZ(0), PInfinity)}
 	}
 	if i.Lower.Sign() == -1 {
-		i.Lower = NewBigZ(&big.Int{})
+		i.Lower = NewZ(0)
 	}
 	return ChannelInterval{i}
 }
