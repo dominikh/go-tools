@@ -289,16 +289,16 @@ func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) {
 	switch cond := cond.(type) {
 	case *BinOp:
 		switch x := cond.X.(type) {
-		case *UnOp:
+		case *Const:
+		default:
 			emitSigma(f, tt, x, true)
 			emitSigma(f, ft, x, false)
-		case *Const:
 		}
 		switch y := cond.Y.(type) {
-		case *UnOp:
+		case *Const:
+		default:
 			emitSigma(f, tt, y, true)
 			emitSigma(f, ft, y, false)
-		case *Const:
 		}
 	}
 
@@ -310,20 +310,32 @@ func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) {
 
 func emitSigma(f *Function, b *BasicBlock, v Value, branch bool) {
 	f.currentBlock = b
-	unop, ok := v.(*UnOp)
-	if !ok {
-		return
+	switch v := v.(type) {
+	case *UnOp:
+		if alloc, ok := v.X.(*Alloc); !ok || alloc.Heap {
+			return
+		}
+		pi := &Sigma{
+			X:      v,
+			Branch: branch,
+		}
+		pi.setType(v.Type())
+		pv := f.emit(pi)
+		emitStore(f, v.X, pv, 0)
+	case *Call:
+		call, ok := v.Common().Value.(*Builtin)
+		if !ok {
+			return
+		}
+		ops := v.Operands(nil)
+		switch call.Name() {
+		case "len":
+			switch (*ops[1]).Type().Underlying().(type) {
+			case *types.Basic:
+				emitSigma(f, b, *ops[1], branch)
+			}
+		}
 	}
-	if alloc, ok := unop.X.(*Alloc); !ok || alloc.Heap {
-		return
-	}
-	pi := &Sigma{
-		X:      v,
-		Branch: branch,
-	}
-	pi.setType(v.Type())
-	pv := f.emit(pi)
-	emitStore(f, unop.X, pv, 0)
 }
 
 // emitExtract emits to f an instruction to extract the index'th
