@@ -79,6 +79,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4013": c.CheckDoubleNegation,
 		"SA4014": c.CheckRepeatedIfElse,
 		"SA4015": c.CheckMathInt,
+		"SA4016": c.CheckSillyBitwiseOps,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -91,8 +92,6 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 		"SA9000": c.CheckDubiousSyncPoolPointers,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
-
-		//"SA0000": c.DumpGraph,
 	}
 }
 
@@ -2506,5 +2505,32 @@ func (c *Checker) CheckMathInt(f *lint.File) {
 		}
 		return true
 	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckSillyBitwiseOps(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		expr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		// We check for a literal 0, not a constant expression
+		// evaluating to 0. The latter tend to be false positives due
+		// to system-dependent constants.
+		if !lint.IsZero(expr.Y) {
+			return true
+		}
+		switch expr.Op {
+		case token.AND:
+			f.Errorf(expr, "x & 0 always equals 0")
+		case token.OR, token.XOR:
+			f.Errorf(expr, "x %s 0 always equals x", expr.Op)
+		case token.SHL, token.SHR:
+			// we do not flag shifts because too often, x<<0 is part
+			// of a pattern, x<<0, x<<8, x<<16, ...
+		}
+		return true
+	}
+
 	f.Walk(fn)
 }
