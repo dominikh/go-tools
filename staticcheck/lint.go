@@ -2651,13 +2651,8 @@ func (c *Checker) CheckPureFunctions(f *lint.File) {
 				if callee == nil {
 					continue
 				}
-				obj, ok := callee.Object().(*types.Func)
-				if !ok {
-					continue
-				}
-				name := obj.FullName()
 				if c.funcDescs.Get(callee).Pure {
-					f.Errorf(ins, "%s is a pure function but its return value is ignored", name)
+					f.Errorf(ins, "%s is a pure function but its return value is ignored", callee.Name())
 					continue
 				}
 			}
