@@ -257,20 +257,19 @@ func (c *Checker) CheckUntrappableSignal(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "signal", "Ignore") &&
-			!lint.IsPkgDot(call.Fun, "signal", "Notify") &&
-			!lint.IsPkgDot(call.Fun, "signal", "Reset") {
+		if !isFunctionCallNameAny(f, call,
+			"os/signal.Ignore", "os/signal.Notify", "os/signal.Reset") {
 			return true
 		}
 		for _, arg := range call.Args {
-			if conv, ok := arg.(*ast.CallExpr); ok && lint.IsPkgDot(conv.Fun, "os", "Signal") {
+			if conv, ok := arg.(*ast.CallExpr); ok && isName(f, conv.Fun, "os.Signal") {
 				arg = conv.Args[0]
 			}
 
-			if lint.IsPkgDot(arg, "os", "Kill") || lint.IsPkgDot(arg, "syscall", "SIGKILL") {
+			if isName(f, arg, "os.Kill") || isName(f, arg, "syscall.SIGKILL") {
 				f.Errorf(arg, "%s cannot be trapped (did you mean syscall.SIGTERM?)", f.Render(arg))
 			}
-			if lint.IsPkgDot(arg, "syscall", "SIGSTOP") {
+			if isName(f, arg, "syscall.SIGSTOP") {
 				f.Errorf(arg, "%s signal cannot be trapped", f.Render(arg))
 			}
 		}
@@ -285,8 +284,7 @@ func (c *Checker) CheckRegexps(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "regexp", "MustCompile") &&
-			!lint.IsPkgDot(call.Fun, "regexp", "Compile") {
+		if !isFunctionCallNameAny(f, call, "regexp.MustCompile", "regexp.Compile") {
 			return true
 		}
 		s, ok := constantString(f, call.Args[0])
@@ -353,7 +351,7 @@ func (c *Checker) CheckTimeParse(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "time", "Parse") {
+		if !isFunctionCallName(f, call, "time.Parse") {
 			return true
 		}
 		s, ok := constantString(f, call.Args[0])
@@ -378,7 +376,7 @@ func (c *Checker) CheckEncodingBinary(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "binary", "Write") {
+		if !isFunctionCallName(f, call, "encoding/binary.Write") {
 			return true
 		}
 		typ := f.Pkg.TypesInfo.TypeOf(call.Args[2])
@@ -438,7 +436,7 @@ func (c *Checker) CheckTimeSleepConstant(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "time", "Sleep") {
+		if !isFunctionCallName(f, call, "time.Sleep") {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -620,11 +618,7 @@ func (c *Checker) CheckTestMainExit(f *lint.File) {
 
 		callsExit := false
 		fn3 := func(node ast.Node) bool {
-			expr, ok := node.(ast.Expr)
-			if !ok {
-				return true
-			}
-			if lint.IsPkgDot(expr, "os", "Exit") {
+			if isFunctionCallName(f, node, "os.Exit") {
 				callsExit = true
 				return false
 			}
@@ -664,7 +658,7 @@ func (c *Checker) CheckExec(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "exec", "Command") {
+		if !isFunctionCallName(f, call, "os/exec.Command") {
 			return true
 		}
 		val, ok := constantString(f, call.Args[0])
@@ -791,9 +785,7 @@ func (c *Checker) CheckUnsafePrintf(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "fmt", "Printf") &&
-			!lint.IsPkgDot(call.Fun, "fmt", "Sprintf") &&
-			!lint.IsPkgDot(call.Fun, "log", "Printf") {
+		if !isFunctionCallNameAny(f, call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
 			return true
 		}
 		if len(call.Args) != 1 {
@@ -816,7 +808,7 @@ func (c *Checker) CheckURLs(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "url", "Parse") {
+		if !isFunctionCallName(f, call, "net/url.Parse") {
 			return true
 		}
 		s, ok := constantString(f, call.Args[0])
@@ -1724,13 +1716,11 @@ func (c *Checker) CheckUTF8Cutset(f *lint.File) {
 		if !ok {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !lint.IsIdent(sel.X, "strings") {
-			return true
-		}
-		switch sel.Sel.Name {
-		case "IndexAny", "LastIndexAny", "ConstainsAny", "Trim", "TrimLeft", "TrimRight":
-		default:
+		if !isFunctionCallNameAny(
+			f, call,
+			"strings.IndexAny", "strings.LastIndexAny", "strings.ContainsAny",
+			"strings.Trim", "strings.TrimLeft", "strings.TrimRight",
+		) {
 			return true
 		}
 		s, ok := constantString(f, call.Args[1])
@@ -1976,7 +1966,7 @@ func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "runtime", "SetFinalizer") {
+		if !isFunctionCallName(f, call, "runtime.SetFinalizer") {
 			return true
 		}
 		ssafn := f.EnclosingSSAFunction(call)
@@ -2136,11 +2126,7 @@ func (c *Checker) CheckDeferLock(f *lint.File) {
 
 func (c *Checker) CheckNaNComparison(f *lint.File) {
 	isNaN := func(x ast.Expr) bool {
-		call, ok := x.(*ast.CallExpr)
-		if !ok {
-			return false
-		}
-		return lint.IsPkgDot(call.Fun, "math", "NaN")
+		return isFunctionCallName(f, x, "math.NaN")
 	}
 	fn := func(node ast.Node) bool {
 		op, ok := node.(*ast.BinaryExpr)
@@ -2206,6 +2192,33 @@ func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
 	f.Walk(fn)
 }
 
+func objectName(obj types.Object) string {
+	if obj == nil {
+		return "<nil>"
+	}
+	var name string
+	if obj.Pkg() != nil && obj.Pkg().Scope().Lookup(obj.Name()) == obj {
+		var s string
+		s = obj.Pkg().Path()
+		if s != "" {
+			name += s + "."
+		}
+	}
+	name += obj.Name()
+	return name
+}
+
+func isName(f *lint.File, expr ast.Expr, name string) bool {
+	var obj types.Object
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		obj = f.Pkg.TypesInfo.ObjectOf(expr)
+	case *ast.SelectorExpr:
+		obj = f.Pkg.TypesInfo.ObjectOf(expr.Sel)
+	}
+	return objectName(obj) == name
+}
+
 func isFunctionCallName(f *lint.File, node ast.Node, name string) bool {
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
@@ -2219,7 +2232,7 @@ func isFunctionCallName(f *lint.File, node ast.Node, name string) bool {
 	return ok && fn.FullName() == name
 }
 
-func isFunctionCallNameAny(f *lint.File, node ast.Node, names []string) bool {
+func isFunctionCallNameAny(f *lint.File, node ast.Node, names ...string) bool {
 	for _, name := range names {
 		if isFunctionCallName(f, node, name) {
 			return true
@@ -2244,7 +2257,7 @@ func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
 		if !ok {
 			return false
 		}
-		if !isFunctionCallNameAny(f, call, names) {
+		if !isFunctionCallNameAny(f, call, names...) {
 			return true
 		}
 		arg := call.Args[len(call.Args)-1]
@@ -2393,7 +2406,7 @@ func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "signal", "Notify") {
+		if !isFunctionCallName(f, call, "os/signal.Notify") {
 			return true
 		}
 		ssafn := f.EnclosingSSAFunction(call)
@@ -2538,7 +2551,7 @@ func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "strings", "Replace") {
+		if !isFunctionCallName(f, call, "strings.Replace") {
 			return true
 		}
 		lit, ok := call.Args[3].(*ast.BasicLit)
