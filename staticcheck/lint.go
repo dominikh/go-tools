@@ -92,6 +92,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 		"SA9000": c.CheckDubiousSyncPoolPointers,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
+		"SA9002": c.CheckNonOctalFileMode,
 	}
 }
 
@@ -2532,5 +2533,46 @@ func (c *Checker) CheckSillyBitwiseOps(f *lint.File) {
 		return true
 	}
 
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckNonOctalFileMode(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sig, ok := f.Pkg.TypesInfo.TypeOf(call.Fun).(*types.Signature)
+		if !ok {
+			return true
+		}
+		n := sig.Params().Len()
+		var args []int
+		for i := 0; i < n; i++ {
+			typ := sig.Params().At(i).Type()
+			if types.TypeString(typ, nil) == "os.FileMode" {
+				args = append(args, i)
+			}
+		}
+		for _, i := range args {
+			lit, ok := call.Args[i].(*ast.BasicLit)
+			if !ok {
+				continue
+			}
+			if len(lit.Value) == 3 &&
+				lit.Value[0] != '0' &&
+				lit.Value[0] >= '0' && lit.Value[0] <= '7' &&
+				lit.Value[1] >= '0' && lit.Value[1] <= '7' &&
+				lit.Value[2] >= '0' && lit.Value[2] <= '7' {
+
+				v, err := strconv.ParseInt(lit.Value, 10, 64)
+				if err != nil {
+					continue
+				}
+				f.Errorf(call.Args[i], "file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value)
+			}
+		}
+		return true
+	}
 	f.Walk(fn)
 }

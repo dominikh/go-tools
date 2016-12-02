@@ -101,6 +101,7 @@ The following things are currently checked by staticcheck:
 | **SA9???** | **Dubious code constructs that have a high probability of being wrong**                                                                               |
 | SA9000     | Storing non-pointer values in sync.Pool allocates memory                                                                                              |
 | SA9001     | `defer`s in `for range` loops may not run when you expect them to                                                                                     |
+| SA9002     | Using a non-octal `os.FileMode`  that looks like it was meant to be in octal.                                                                         |
 
 ## Ignoring checks
 
