@@ -53,6 +53,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1015": c.CheckLeakyTimeTick,
 		"SA1016": c.CheckUntrappableSignal,
 		"SA1017": c.CheckUnbufferedSignalChan,
+		"SA1018": c.CheckStringsReplaceZero,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -2572,6 +2573,25 @@ func (c *Checker) CheckNonOctalFileMode(f *lint.File) {
 				f.Errorf(call.Args[i], "file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value)
 			}
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsPkgDot(call.Fun, "strings", "Replace") {
+			return true
+		}
+		lit, ok := call.Args[3].(*ast.BasicLit)
+		if !ok || lit.Value != "0" {
+			return true
+		}
+		f.Errorf(lit, "calling strings.Replace with n == 0 will do nothing, did you mean -1?")
 		return true
 	}
 	f.Walk(fn)
