@@ -85,7 +85,7 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 }
 
 func ProcessArgs(name string, c lint.Checker, args []string) {
-	flags := &flag.FlagSet{}
+	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
 	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
 	tags := flags.String("tags", "", "List of `build tags`")
