@@ -1069,21 +1069,6 @@ func (c *Checker) CheckIneffectiveCopy(f *lint.File) {
 	f.Walk(fn)
 }
 
-func constantInt(f *lint.File, expr ast.Expr) (int, bool) {
-	tv := f.Pkg.TypesInfo.Types[expr]
-	if tv.Value == nil {
-		return 0, false
-	}
-	if tv.Value.Kind() != constant.Int {
-		return 0, false
-	}
-	v, ok := constant.Int64Val(tv.Value)
-	if !ok {
-		return 0, false
-	}
-	return int(v), true
-}
-
 func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
