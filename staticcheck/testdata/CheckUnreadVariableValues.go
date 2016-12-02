@@ -14,7 +14,10 @@ func fn1() {
 	println(y)
 }
 
-func gen() int { return 0 }
+func gen() int {
+	println() // make it unpure
+	return 0
+}
 
 func fn2() {
 	x, y := gen(), gen()
@@ -22,8 +25,8 @@ func fn2() {
 	println(x, y)
 }
 
-// MATCH:20 /this value of x is never used/
-// MATCH:20 /this value of y is never used/
+// MATCH:23 /this value of x is never used/
+// MATCH:23 /this value of y is never used/
 
 func fn3() {
 	x := uint32(0)

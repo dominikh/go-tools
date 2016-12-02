@@ -19,14 +19,75 @@ import (
 
 	"honnef.co/go/lint"
 	"honnef.co/go/ssa"
+	"honnef.co/go/staticcheck/pure"
 	"honnef.co/go/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
 )
 
+type Function struct {
+	// The function is known to be pure
+	Pure bool
+	// The function is known to never return (panics notwithstanding)
+	Infinite bool
+	// Variable ranges
+	Ranges vrp.Ranges
+}
+
+func (fn Function) Merge(other Function) Function {
+	r := fn.Ranges
+	if r == nil {
+		r = other.Ranges
+	}
+	return Function{
+		Pure:     fn.Pure || other.Pure,
+		Infinite: fn.Infinite || other.Infinite,
+		Ranges:   r,
+	}
+}
+
+var stdlibDescs = map[string]Function{
+	"strings.Map":            Function{Pure: true},
+	"strings.Repeat":         Function{Pure: true},
+	"strings.Replace":        Function{Pure: true},
+	"strings.Title":          Function{Pure: true},
+	"strings.ToLower":        Function{Pure: true},
+	"strings.ToLowerSpecial": Function{Pure: true},
+	"strings.ToTitle":        Function{Pure: true},
+	"strings.ToTitleSpecial": Function{Pure: true},
+	"strings.ToUpper":        Function{Pure: true},
+	"strings.ToUpperSpecial": Function{Pure: true},
+	"strings.Trim":           Function{Pure: true},
+	"strings.TrimFunc":       Function{Pure: true},
+	"strings.TrimLeft":       Function{Pure: true},
+	"strings.TrimLeftFunc":   Function{Pure: true},
+	"strings.TrimPrefix":     Function{Pure: true},
+	"strings.TrimRight":      Function{Pure: true},
+	"strings.TrimRightFunc":  Function{Pure: true},
+	"strings.TrimSpace":      Function{Pure: true},
+	"strings.TrimSuffix":     Function{Pure: true},
+}
+
+type FunctionDescriptions map[string]Function
+
+func (d FunctionDescriptions) Get(fn *ssa.Function) Function {
+	obj, ok := fn.Object().(*types.Func)
+	if !ok {
+		return Function{}
+	}
+	return d[obj.FullName()]
+}
+
+func (d FunctionDescriptions) Merge(fn *ssa.Function, desc Function) {
+	obj, ok := fn.Object().(*types.Func)
+	if !ok {
+		return
+	}
+	d[obj.FullName()] = d[obj.FullName()].Merge(desc)
+}
+
 type Checker struct {
-	terminatesCache map[*ssa.Function]bool
-	ranges          map[*ssa.Function]vrp.Ranges
+	funcDescs FunctionDescriptions
 }
 
 func NewChecker() *Checker {
@@ -81,6 +142,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4014": c.CheckRepeatedIfElse,
 		"SA4015": c.CheckMathInt,
 		"SA4016": c.CheckSillyBitwiseOps,
+		"SA4017": c.CheckPureFunctions,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -97,9 +159,33 @@ func (c *Checker) Funcs() map[string]lint.Func {
 	}
 }
 
+// terminates reports whether fn is supposed to return, that is if it
+// has at least one theoretic path that returns from the function.
+// Explicit panics do not count as terminating.
+func terminates(fn *ssa.Function) (ret bool) {
+	if fn.Blocks == nil {
+		// assuming that a function terminates is the conservative
+		// choice
+		return true
+	}
+
+	for _, block := range fn.Blocks {
+		if len(block.Instrs) == 0 {
+			continue
+		}
+		if _, ok := block.Instrs[len(block.Instrs)-1].(*ssa.Return); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Checker) Init(prog *lint.Program) {
-	c.terminatesCache = map[*ssa.Function]bool{}
-	c.ranges = map[*ssa.Function]vrp.Ranges{}
+	c.funcDescs = FunctionDescriptions{}
+
+	for fn, desc := range stdlibDescs {
+		c.funcDescs[fn] = desc
+	}
 
 	var fns []*ssa.Function
 	for _, pkg := range prog.Packages {
@@ -125,6 +211,7 @@ func (c *Checker) Init(prog *lint.Program) {
 		}
 	}
 
+	s := pure.State{}
 	for _, fn := range fns {
 		if fn.Blocks == nil {
 			continue
@@ -132,8 +219,11 @@ func (c *Checker) Init(prog *lint.Program) {
 		detectInfiniteLoops(fn)
 		ssa.OptimizeBlocks(fn)
 
-		g := vrp.BuildGraph(fn)
-		c.ranges[fn] = g.Solve()
+		c.funcDescs.Merge(fn, Function{
+			Pure:     s.IsPure(fn),
+			Ranges:   vrp.BuildGraph(fn).Solve(),
+			Infinite: !terminates(fn),
+		})
 	}
 }
 
@@ -221,34 +311,6 @@ func constantString(f *lint.File, expr ast.Expr) (string, bool) {
 
 func hasType(f *lint.File, expr ast.Expr, name string) bool {
 	return types.TypeString(f.Pkg.TypesInfo.TypeOf(expr), nil) == name
-}
-
-// terminates reports whether fn is supposed to return, that is if it
-// has at least one theoretic path that returns from the function.
-// Explicit panics do not count as terminating.
-func (c *Checker) terminates(fn *ssa.Function) (ret bool) {
-	if b, ok := c.terminatesCache[fn]; ok {
-		return b
-	}
-	defer func() {
-		c.terminatesCache[fn] = ret
-	}()
-	if fn.Blocks == nil {
-		// assuming that a function terminates is the conservative
-		// choice
-		return true
-	}
-
-	// Detect ranging over a time.Tick channel
-	for _, block := range fn.Blocks {
-		if len(block.Instrs) == 0 {
-			continue
-		}
-		if _, ok := block.Instrs[len(block.Instrs)-1].(*ssa.Return); ok {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *Checker) CheckUntrappableSignal(f *lint.File) {
@@ -1049,8 +1111,9 @@ func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
 		if !ok {
 			return true
 		}
-		r1, ok1 := c.ranges[ssafn].Get(binop.X).(vrp.StringInterval)
-		r2, ok2 := c.ranges[ssafn].Get(binop.Y).(vrp.StringInterval)
+		r := c.funcDescs.Get(ssafn).Ranges
+		r1, ok1 := r.Get(binop.X).(vrp.StringInterval)
+		r2, ok2 := r.Get(binop.Y).(vrp.StringInterval)
 		if !ok1 || !ok2 {
 			return true
 		}
@@ -2310,7 +2373,7 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 		if ssafn == nil {
 			return false
 		}
-		if !c.terminates(ssafn) {
+		if c.funcDescs.Get(ssafn).Infinite {
 			return true
 		}
 		f.Errorf(node, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
@@ -2414,7 +2477,7 @@ func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
 		if arg == nil {
 			return true
 		}
-		r, ok := c.ranges[ssafn][arg].(vrp.ChannelInterval)
+		r, ok := c.funcDescs.Get(ssafn).Ranges[arg].(vrp.ChannelInterval)
 		if !ok || !r.IsKnown() {
 			return true
 		}
@@ -2559,6 +2622,46 @@ func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
 			return true
 		}
 		f.Errorf(lit, "calling strings.Replace with n == 0 will do nothing, did you mean -1?")
+		return true
+	}
+	f.Walk(fn)
+}
+
+func (c *Checker) CheckPureFunctions(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		fn, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		ssafn := f.EnclosingSSAFunction(fn)
+		if ssafn == nil {
+			return true
+		}
+		for _, b := range ssafn.Blocks {
+			for _, ins := range b.Instrs {
+				ins, ok := ins.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				refs := ins.Referrers()
+				if refs == nil || len(filterDebug(*refs)) > 0 {
+					continue
+				}
+				callee := ins.Common().StaticCallee()
+				if callee == nil {
+					continue
+				}
+				obj, ok := callee.Object().(*types.Func)
+				if !ok {
+					continue
+				}
+				name := obj.FullName()
+				if c.funcDescs.Get(callee).Pure {
+					f.Errorf(ins, "%s is a pure function but its return value is ignored", name)
+					continue
+				}
+			}
+		}
 		return true
 	}
 	f.Walk(fn)

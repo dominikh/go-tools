@@ -88,6 +88,7 @@ The following things are currently checked by staticcheck:
 | SA4014     | An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either |
 | SA4015     | Calling functions like math.Ceil on floats converted from integers doesn't do anything useful                                                         |
 | SA4016     | Certain bitwise operations, such as `x ^ 0`, do not do anything useful                                                                                |
+| SA4017     | A pure function's return value is discarded, making the call pointless                                                                                |
 |            |                                                                                                                                                       |
 | **SA5???** | **Correctness issues**                                                                                                                                |
 | SA5000     | Assignment to nil map                                                                                                                                 |

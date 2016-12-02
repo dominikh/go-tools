@@ -49,5 +49,7 @@ func fn9() {
 	s[0] = 1
 }
 
-func fn(int)     {}
+func fn(int) {
+	println() // make it unpure
+}
 func ptr(*[]int) {}

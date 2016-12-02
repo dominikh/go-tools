@@ -20,7 +20,9 @@ func fn2(b1, b2 bool, ch chan string) {
 
 func fn3() {
 	if gen() {
+		println()
 	} else if gen() {
+		println()
 	}
 }
 
