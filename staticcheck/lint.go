@@ -289,9 +289,6 @@ func (c *Checker) CheckRegexps(f *lint.File) {
 			!lint.IsPkgDot(call.Fun, "regexp", "Compile") {
 			return true
 		}
-		if len(call.Args) != 1 {
-			return true
-		}
 		s, ok := constantString(f, call.Args[0])
 		if !ok {
 			return true
@@ -309,9 +306,6 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
-			return true
-		}
-		if len(call.Args) != 1 {
 			return true
 		}
 		var kind string
@@ -362,9 +356,6 @@ func (c *Checker) CheckTimeParse(f *lint.File) {
 		if !lint.IsPkgDot(call.Fun, "time", "Parse") {
 			return true
 		}
-		if len(call.Args) != 2 {
-			return true
-		}
 		s, ok := constantString(f, call.Args[0])
 		if !ok {
 			return true
@@ -390,13 +381,7 @@ func (c *Checker) CheckEncodingBinary(f *lint.File) {
 		if !lint.IsPkgDot(call.Fun, "binary", "Write") {
 			return true
 		}
-		if len(call.Args) != 3 {
-			return true
-		}
 		typ := f.Pkg.TypesInfo.TypeOf(call.Args[2])
-		if typ == nil {
-			return true
-		}
 		dataType := typ.Underlying()
 		if typ, ok := dataType.(*types.Pointer); ok {
 			dataType = typ.Elem().Underlying()
@@ -454,9 +439,6 @@ func (c *Checker) CheckTimeSleepConstant(f *lint.File) {
 			return true
 		}
 		if !lint.IsPkgDot(call.Fun, "time", "Sleep") {
-			return true
-		}
-		if len(call.Args) != 1 {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -581,9 +563,6 @@ func (c *Checker) CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 			return true
 		}
 		typ := f.Pkg.TypesInfo.TypeOf(loop.X)
-		if typ == nil {
-			return true
-		}
 		_, ok = typ.Underlying().(*types.Chan)
 		if !ok {
 			return true
@@ -686,9 +665,6 @@ func (c *Checker) CheckExec(f *lint.File) {
 			return true
 		}
 		if !lint.IsPkgDot(call.Fun, "exec", "Command") {
-			return true
-		}
-		if len(call.Args) != 1 {
 			return true
 		}
 		val, ok := constantString(f, call.Args[0])
@@ -843,9 +819,6 @@ func (c *Checker) CheckURLs(f *lint.File) {
 		if !lint.IsPkgDot(call.Fun, "url", "Parse") {
 			return true
 		}
-		if len(call.Args) != 1 {
-			return true
-		}
 		s, ok := constantString(f, call.Args[0])
 		if !ok {
 			return true
@@ -955,7 +928,7 @@ func (c *Checker) CheckDubiousSyncPoolPointers(f *lint.File) {
 			return true
 		}
 		typ := f.Pkg.TypesInfo.TypeOf(sel.X)
-		if typ == nil || (typ.String() != "sync.Pool" && typ.String() != "*sync.Pool") {
+		if typ.String() != "sync.Pool" && typ.String() != "*sync.Pool" {
 			return true
 		}
 
@@ -1409,10 +1382,6 @@ func (c *Checker) CheckUnsignedComparison(f *lint.File) {
 			return true
 		}
 		tx := f.Pkg.TypesInfo.TypeOf(expr.X)
-		ty := f.Pkg.TypesInfo.TypeOf(expr.Y)
-		if tx == nil || ty == nil {
-			return true
-		}
 		basic, ok := tx.Underlying().(*types.Basic)
 		if !ok {
 			return true
@@ -1655,9 +1624,6 @@ func (c *Checker) CheckIneffectiveLoop(f *lint.File) {
 				loop = node
 			case *ast.RangeStmt:
 				typ := f.Pkg.TypesInfo.TypeOf(node.X)
-				if typ == nil {
-					return true
-				}
 				if _, ok := typ.Underlying().(*types.Map); ok {
 					// looping once over a map is a valid pattern for
 					// getting an arbitrary element.
@@ -1742,9 +1708,6 @@ func (c *Checker) CheckRegexpFindAll(f *lint.File) {
 		if !strings.HasPrefix(sel.Sel.Name, "FindAll") {
 			return true
 		}
-		if len(call.Args) != 2 {
-			return true
-		}
 		lit, ok := call.Args[1].(*ast.BasicLit)
 		if !ok || lit.Value != "0" {
 			return true
@@ -1759,9 +1722,6 @@ func (c *Checker) CheckUTF8Cutset(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
-			return true
-		}
-		if len(call.Args) != 2 {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -2017,9 +1977,6 @@ func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 			return true
 		}
 		if !lint.IsPkgDot(call.Fun, "runtime", "SetFinalizer") {
-			return true
-		}
-		if len(call.Args) != 2 {
 			return true
 		}
 		ssafn := f.EnclosingSSAFunction(call)
@@ -2286,9 +2243,6 @@ func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return false
-		}
-		if len(call.Args) == 0 {
-			return true
 		}
 		if !isFunctionCallNameAny(f, call, names) {
 			return true
