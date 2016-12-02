@@ -46,9 +46,17 @@ type PhiConstraint struct {
 }
 
 func NewPhiConstraint(vars []ssa.Value, y ssa.Value) Constraint {
+	uniqm := map[ssa.Value]struct{}{}
+	for _, v := range vars {
+		uniqm[v] = struct{}{}
+	}
+	var uniq []ssa.Value
+	for v := range uniqm {
+		uniq = append(uniq, v)
+	}
 	return &PhiConstraint{
 		aConstraint: NewConstraint(y),
-		Vars:        vars,
+		Vars:        uniq,
 	}
 }
 
