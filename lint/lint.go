@@ -17,8 +17,10 @@ import (
 	"go/types"
 	"io/ioutil"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
@@ -152,32 +154,58 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 	sort.Strings(keys)
 
 	out := map[string][]Problem{}
-	for _, pkg := range pkgs {
-		pkginfo := pkg.PkgInfo
-		for _, file := range pkginfo.Files {
-			path := lprog.Fset.Position(file.Pos()).Filename
-			for _, k := range keys {
-				f := &File{
-					Pkg:      pkg,
-					File:     file,
-					Filename: path,
-					Fset:     lprog.Fset,
-					Program:  lprog,
-					check:    k,
-				}
+	type result struct {
+		path     string
+		problems []Problem
+	}
+	work := make(chan *Pkg, runtime.NumCPU())
+	res := make(chan result, runtime.NumCPU())
+	worker := func(wg *sync.WaitGroup, work chan *Pkg, res chan result) {
+		for pkg := range work {
+			for _, file := range pkg.PkgInfo.Files {
+				path := lprog.Fset.Position(file.Pos()).Filename
+				for _, k := range keys {
+					f := &File{
+						Pkg:      pkg,
+						File:     file,
+						Filename: path,
+						Fset:     lprog.Fset,
+						Program:  lprog,
+						check:    k,
+					}
 
-				fn := funcs[k]
-				if fn == nil {
-					continue
+					fn := funcs[k]
+					if fn == nil {
+						continue
+					}
+					if l.ignore(f, k) {
+						continue
+					}
+					fn(f)
 				}
-				if l.ignore(f, k) {
-					continue
-				}
-				fn(f)
 			}
+			sort.Sort(ByPosition(pkg.problems))
+			res <- result{pkg.PkgInfo.Pkg.Path(), pkg.problems}
 		}
-		sort.Sort(ByPosition(pkg.problems))
-		out[pkginfo.Pkg.Path()] = pkg.problems
+		wg.Done()
+	}
+	wg := &sync.WaitGroup{}
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go worker(wg, work, res)
+	}
+	go func() {
+		wg.Wait()
+		close(res)
+	}()
+	go func() {
+		for _, pkg := range pkgs {
+			work <- pkg
+		}
+		close(work)
+	}()
+	for r := range res {
+		out[r.path] = r.problems
 	}
 	return out
 }
