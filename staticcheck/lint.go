@@ -2102,7 +2102,7 @@ func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
 				}
 				sr, ok1 := c.funcDescs.Get(ssafn).Ranges[ia.X].(vrp.SliceInterval)
 				idxr, ok2 := c.funcDescs.Get(ssafn).Ranges[ia.Index].(vrp.IntInterval)
-				if !ok1 || !ok2 || !sr.IsKnown() || !idxr.IsKnown() {
+				if !ok1 || !ok2 || !sr.IsKnown() || !idxr.IsKnown() || sr.Length.Empty() || idxr.Empty() {
 					continue
 				}
 				if idxr.Lower.Cmp(sr.Length.Upper) >= 0 {
