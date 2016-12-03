@@ -390,29 +390,39 @@ func BuildGraph(f *ssa.Function) *Graph {
 				if static := ins.Common().StaticCallee(); static != nil {
 					if fn, ok := static.Object().(*types.Func); ok {
 						switch fn.FullName() {
-						case "strings.Index", "strings.IndexAny", "strings.IndexByte",
+						case "bytes.Index", "bytes.IndexAny", "bytes.IndexByte",
+							"bytes.IndexFunc", "bytes.IndexRune", "bytes.LastIndex",
+							"bytes.LastIndexAny", "bytes.LastIndexByte", "bytes.LastIndexFunc",
+							"strings.Index", "strings.IndexAny", "strings.IndexByte",
 							"strings.IndexFunc", "strings.IndexRune", "strings.LastIndex",
 							"strings.LastIndexAny", "strings.LastIndexByte", "strings.LastIndexFunc":
 							// TODO(dh): instead of limiting by +∞,
 							// limit by the upper bound of the passed
 							// string
 							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(-1), PInfinity), ins))
-						case "strings.Title", "strings.ToLower", "strings.ToTitle", "strings.ToUpper":
+						case "bytes.Title", "bytes.ToLower", "bytes.ToTitle", "bytes.ToUpper",
+							"strings.Title", "strings.ToLower", "strings.ToTitle", "strings.ToUpper":
 							cs = append(cs, NewCopyConstraint(ins.Common().Args[0], ins))
-						case "strings.ToLowerSpecial", "strings.ToTitleSpecial", "strings.ToUpperSpecial":
+						case "bytes.ToLowerSpecial", "bytes.ToTitleSpecial", "bytes.ToUpperSpecial",
+							"strings.ToLowerSpecial", "strings.ToTitleSpecial", "strings.ToUpperSpecial":
 							cs = append(cs, NewCopyConstraint(ins.Common().Args[1], ins))
-						case "strings.Compare":
+						case "bytes.Compare", "strings.Compare":
 							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(-1), NewZ(1)), ins))
-						case "strings.Count":
+						case "bytes.Count", "strings.Count":
 							// TODO(dh): instead of limiting by +∞,
 							// limit by the upper bound of the passed
 							// string.
 							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(0), PInfinity), ins))
-						case "strings.Map", "strings.TrimFunc", "strings.TrimLeft", "strings.TrimLeftFunc",
+						case "bytes.Map", "bytes.TrimFunc", "bytes.TrimLeft", "bytes.TrimLeftFunc",
+							"bytes.TrimRight", "bytes.TrimRightFunc", "bytes.TrimSpace",
+							"strings.Map", "strings.TrimFunc", "strings.TrimLeft", "strings.TrimLeftFunc",
 							"strings.TrimRight", "strings.TrimRightFunc", "strings.TrimSpace":
 							// TODO(dh): lower = 0, upper = upper of passed string
-						case "strings.TrimPrefix", "strings.TrimSuffix":
+						case "bytes.TrimPrefix", "bytes.TrimSuffix",
+							"strings.TrimPrefix", "strings.TrimSuffix":
 							// TODO(dh) range between "unmodified" and len(cutset) removed
+						case "(*bytes.Buffer).Cap", "(*bytes.Buffer).Len", "(*bytes.Reader).Len", "(*bytes.Reader).Size":
+							cs = append(cs, NewIntIntervalConstraint(NewIntInterval(NewZ(0), PInfinity), ins))
 						}
 					}
 				}
