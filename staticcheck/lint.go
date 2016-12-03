@@ -2097,38 +2097,16 @@ func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
 				if !ok {
 					continue
 				}
-				ic, ok := ia.Index.(*ssa.Const)
-				if !ok || ic.Value == nil {
+				if _, ok := ia.X.Type().Underlying().(*types.Slice); !ok {
 					continue
 				}
-				idx, _ := constant.Int64Val(ic.Value)
-				switch x := ia.X.(type) {
-				case *ssa.Const:
-					if x.Value == nil {
-						f.Errorf(ia, "index out of bounds")
-					}
-				case *ssa.Slice:
-					high := int64(-1)
-					if x.High == nil {
-						if alloc, ok := x.X.(*ssa.Alloc); ok {
-							if array, ok := alloc.Type().(*types.Pointer).Elem().(*types.Array); ok {
-								high = array.Len()
-							}
-						}
-					}
-					if high == -1 {
-						c, ok := x.High.(*ssa.Const)
-						if !ok {
-							break
-						}
-						if c.Value == nil {
-							break
-						}
-						high, _ = constant.Int64Val(c.Value)
-					}
-					if idx >= high {
-						f.Errorf(ia, "index out of bounds")
-					}
+				sr, ok1 := c.funcDescs.Get(ssafn).Ranges[ia.X].(vrp.SliceInterval)
+				idxr, ok2 := c.funcDescs.Get(ssafn).Ranges[ia.Index].(vrp.IntInterval)
+				if !ok1 || !ok2 || !sr.IsKnown() || !idxr.IsKnown() {
+					continue
+				}
+				if idxr.Lower.Cmp(sr.Length.Upper) >= 0 {
+					f.Errorf(ia, "index out of bounds")
 				}
 			}
 		}

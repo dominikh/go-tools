@@ -21,7 +21,10 @@ func fn3() {
 func fn4() {
 	s := make([]int, 2)
 	s = append(s, 1)
+	s[0] = 0
+	s[1] = 0
 	s[2] = 0
+	s[3] = 0 // MATCH /index out of bounds/
 }
 
 func fn5(s []int) {
