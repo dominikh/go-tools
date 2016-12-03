@@ -1,5 +1,8 @@
 package vrp
 
+// TODO(dh) widening and narrowing have a lot of code in common. Make
+// it reusable.
+
 import (
 	"fmt"
 	"go/constant"
@@ -92,6 +95,8 @@ func isSupportedType(typ types.Type) bool {
 			}
 		}
 	case *types.Chan:
+		return true
+	case *types.Slice:
 		return true
 	default:
 		return false
@@ -270,6 +275,67 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	return c
 }
 
+func sigmaSlice(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
+	// TODO(dh) sigmaSlice and sigmaString are a lot alike. Can they
+	// be merged?
+	//
+	// XXX support futures
+
+	op := cond.Op
+	if !ins.Branch {
+		op = (invertToken(op))
+	}
+
+	k, ok := (*ops[1]).(*ssa.Const)
+	// XXX investigate in what cases this wouldn't be a Const
+	//
+	// XXX what if left and right are swapped?
+	if !ok {
+		return nil
+	}
+
+	call, ok := (*ops[0]).(*ssa.Call)
+	if !ok {
+		return nil
+	}
+	builtin, ok := call.Common().Value.(*ssa.Builtin)
+	if !ok {
+		return nil
+	}
+	if builtin.Name() != "len" {
+		return nil
+	}
+	callops := call.Operands(nil)
+
+	v := ConstantToZ(k.Value)
+	c := NewSliceIntersectionConstraint(*callops[1], IntInterval{}, ins).(*SliceIntersectionConstraint)
+	switch op {
+	case token.EQL:
+		c.I = NewIntInterval(v, v)
+	case token.GTR, token.GEQ:
+		off := int64(0)
+		if cond.Op == token.GTR {
+			off = 1
+		}
+		c.I = NewIntInterval(
+			v.Add(NewZ(off)),
+			PInfinity,
+		)
+	case token.LSS, token.LEQ:
+		off := int64(0)
+		if cond.Op == token.LSS {
+			off = -1
+		}
+		c.I = NewIntInterval(
+			NInfinity,
+			v.Add(NewZ(off)),
+		)
+	default:
+		return nil
+	}
+	return c
+}
+
 func BuildGraph(f *ssa.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
@@ -290,6 +356,10 @@ func BuildGraph(f *ssa.Function) *Graph {
 					}
 					seen[c] = true
 					if c.Value == nil {
+						switch c.Type().Underlying().(type) {
+						case *types.Slice:
+							cs = append(cs, NewSliceIntervalConstraint(NewIntInterval(NewZ(0), NewZ(0)), c))
+						}
 						continue
 					}
 					switch c.Value.Kind() {
@@ -348,13 +418,23 @@ func BuildGraph(f *ssa.Function) *Graph {
 				}
 				builtin, ok := ins.Common().Value.(*ssa.Builtin)
 				ops := ins.Operands(nil)
-				if !ok || builtin.Name() != "len" {
+				if !ok {
 					continue
 				}
-				if basic, ok := (*ops[1]).Type().Underlying().(*types.Basic); !ok || (basic.Kind() != types.String && basic.Kind() != types.UntypedString) {
-					continue
+				switch builtin.Name() {
+				case "len":
+					switch op1 := (*ops[1]).Type().Underlying().(type) {
+					case *types.Basic:
+						if op1.Kind() == types.String || op1.Kind() == types.UntypedString {
+							cs = append(cs, NewStringLengthConstraint(*ops[1], ins))
+						}
+					case *types.Slice:
+						cs = append(cs, NewSliceLengthConstraint(*ops[1], ins))
+					}
+
+				case "append":
+					cs = append(cs, NewSliceAppendConstraint(ins.Common().Args[0], ins.Common().Args[1], ins))
 				}
-				cs = append(cs, NewStringLengthConstraint(*ops[1], ins))
 			case *ssa.BinOp:
 				ops := ins.Operands(nil)
 				basic, ok := (*ops[0]).Type().Underlying().(*types.Basic)
@@ -380,11 +460,20 @@ func BuildGraph(f *ssa.Function) *Graph {
 					}
 				}
 			case *ssa.Slice:
-				_, ok := ins.X.Type().Underlying().(*types.Basic)
-				if !ok {
-					continue
+				typ := ins.X.Type().Underlying()
+				switch typ := typ.(type) {
+				case *types.Basic:
+					cs = append(cs, NewStringSliceConstraint(ins.X, ins.Low, ins.High, ins))
+				case *types.Slice:
+					cs = append(cs, NewSliceSliceConstraint(ins.X, ins.Low, ins.High, ins))
+				case *types.Array:
+					cs = append(cs, NewArraySliceConstraint(ins.X, ins.Low, ins.High, ins))
+				case *types.Pointer:
+					if _, ok := typ.Elem().(*types.Array); !ok {
+						continue
+					}
+					cs = append(cs, NewArraySliceConstraint(ins.X, ins.Low, ins.High, ins))
 				}
-				cs = append(cs, NewStringSliceConstraint(ins.X, ins.Low, ins.High, ins))
 			case *ssa.Phi:
 				if !isSupportedType(ins.Type()) {
 					continue
@@ -416,11 +505,18 @@ func BuildGraph(f *ssa.Function) *Graph {
 					if c != nil {
 						cs = append(cs, c)
 					}
+				case *types.Slice:
+					c := sigmaSlice(g, ins, cond, ops)
+					if c != nil {
+						cs = append(cs, c)
+					}
 				default:
 					//log.Printf("unsupported sigma type %T", typ) // XXX
 				}
 			case *ssa.MakeChan:
 				cs = append(cs, NewMakeChannelConstraint(ins.Size, ins))
+			case *ssa.MakeSlice:
+				cs = append(cs, NewMakeSliceConstraint(ins.Len, ins))
 			case *ssa.ChangeType:
 				switch ins.X.Type().Underlying().(type) {
 				case *types.Chan:
@@ -431,6 +527,9 @@ func BuildGraph(f *ssa.Function) *Graph {
 	}
 
 	for _, c := range cs {
+		if c == nil {
+			panic("nil constraint")
+		}
 		// If V is used in constraint C, then we create an edge V->C
 		for _, op := range c.Operands() {
 			g.AddEdge(op, c, false)
@@ -502,6 +601,10 @@ func (g *Graph) Solve() Ranges {
 				case *types.Chan:
 					if !g.Range(v).(ChannelInterval).IsKnown() {
 						g.SetRange(v, ChannelInterval{NewIntInterval(NewZ(0), PInfinity)})
+					}
+				case *types.Slice:
+					if !g.Range(v).(SliceInterval).IsKnown() {
+						g.SetRange(v, SliceInterval{NewIntInterval(NewZ(0), PInfinity)})
 					}
 				}
 			}
@@ -643,6 +746,8 @@ func (r Ranges) Get(x ssa.Value) Range {
 			}
 		case *types.Chan:
 			return ChannelInterval{}
+		case *types.Slice:
+			return SliceInterval{}
 		}
 	}
 	return i
@@ -748,6 +853,14 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 			return true
 		}
 		return false
+	case SliceInterval:
+		ni := c.Eval(g).(SliceInterval)
+		si, changed := widenIntInterval(oi.Length, ni.Length)
+		if changed {
+			setRange(SliceInterval{si})
+			return true
+		}
+		return false
 	default:
 		return false
 	}
@@ -788,6 +901,14 @@ func (g *Graph) narrow(c Constraint, consts []Z) bool {
 		si, changed := narrowIntInterval(oi.Length, ni.Length)
 		if changed {
 			g.SetRange(c.Y(), StringInterval{si})
+			return true
+		}
+		return false
+	case SliceInterval:
+		ni := c.Eval(g).(SliceInterval)
+		si, changed := narrowIntInterval(oi.Length, ni.Length)
+		if changed {
+			g.SetRange(c.Y(), SliceInterval{si})
 			return true
 		}
 		return false
