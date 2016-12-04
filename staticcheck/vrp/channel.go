@@ -38,16 +38,26 @@ type MakeChannelConstraint struct {
 	aConstraint
 	Buffer ssa.Value
 }
+type ChannelChangeTypeConstraint struct {
+	aConstraint
+	X ssa.Value
+}
 
 func NewMakeChannelConstraint(buffer, y ssa.Value) Constraint {
-	return &MakeChannelConstraint{
-		aConstraint: NewConstraint(y),
-		Buffer:      buffer,
-	}
+	return &MakeChannelConstraint{NewConstraint(y), buffer}
 }
+func NewChannelChangeTypeConstraint(x, y ssa.Value) Constraint {
+	return &ChannelChangeTypeConstraint{NewConstraint(y), x}
+}
+
+func (c *MakeChannelConstraint) Operands() []ssa.Value       { return []ssa.Value{c.Buffer} }
+func (c *ChannelChangeTypeConstraint) Operands() []ssa.Value { return []ssa.Value{c.X} }
 
 func (c *MakeChannelConstraint) String() string {
 	return fmt.Sprintf("%s = make(chan, %s)", c.Y().Name, c.Buffer.Name())
+}
+func (c *ChannelChangeTypeConstraint) String() string {
+	return fmt.Sprintf("%s = changetype(%s)", c.Y().Name, c.X.Name())
 }
 
 func (c *MakeChannelConstraint) Eval(g *Graph) Range {
@@ -60,31 +70,4 @@ func (c *MakeChannelConstraint) Eval(g *Graph) Range {
 	}
 	return ChannelInterval{i}
 }
-
-func (c *MakeChannelConstraint) Operands() []ssa.Value {
-	return []ssa.Value{c.Buffer}
-}
-
-type ChannelChangeTypeConstraint struct {
-	aConstraint
-	X ssa.Value
-}
-
-func NewChannelChangeTypeConstraint(x, y ssa.Value) Constraint {
-	return &ChannelChangeTypeConstraint{
-		aConstraint: NewConstraint(y),
-		X:           x,
-	}
-}
-
-func (c *ChannelChangeTypeConstraint) String() string {
-	return fmt.Sprintf("%s = changetype(%s)", c.Y().Name, c.X.Name())
-}
-
-func (c *ChannelChangeTypeConstraint) Eval(g *Graph) Range {
-	return g.Range(c.X)
-}
-
-func (c *ChannelChangeTypeConstraint) Operands() []ssa.Value {
-	return []ssa.Value{c.X}
-}
+func (c *ChannelChangeTypeConstraint) Eval(g *Graph) Range { return g.Range(c.X) }

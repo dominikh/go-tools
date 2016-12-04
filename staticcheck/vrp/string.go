@@ -41,14 +41,58 @@ type StringSliceConstraint struct {
 	Upper ssa.Value
 }
 
-func NewStringSliceConstraint(x, lower, upper, y ssa.Value) Constraint {
-	return &StringSliceConstraint{
-		aConstraint: NewConstraint(y),
-		X:           x,
-		Lower:       lower,
-		Upper:       upper,
-	}
+type StringIntersectionConstraint struct {
+	aConstraint
+	X ssa.Value
+	I IntInterval
 }
+
+type StringConcatConstraint struct {
+	aConstraint
+	A ssa.Value
+	B ssa.Value
+}
+
+type StringLengthConstraint struct {
+	aConstraint
+	X ssa.Value
+}
+
+type StringIntervalConstraint struct {
+	aConstraint
+	I IntInterval
+}
+
+func NewStringSliceConstraint(x, lower, upper, y ssa.Value) Constraint {
+	return &StringSliceConstraint{NewConstraint(y), x, lower, upper}
+}
+func NewStringIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
+	return &StringIntersectionConstraint{NewConstraint(y), x, i}
+}
+func NewStringConcatConstraint(a, b, y ssa.Value) Constraint {
+	return &StringConcatConstraint{NewConstraint(y), a, b}
+}
+func NewStringLengthConstraint(x ssa.Value, y ssa.Value) Constraint {
+	return &StringLengthConstraint{NewConstraint(y), x}
+}
+func NewStringIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
+	return &StringIntervalConstraint{NewConstraint(y), i}
+}
+
+func (c *StringSliceConstraint) Operands() []ssa.Value {
+	vs := []ssa.Value{c.X}
+	if c.Lower != nil {
+		vs = append(vs, c.Lower)
+	}
+	if c.Upper != nil {
+		vs = append(vs, c.Upper)
+	}
+	return vs
+}
+func (c *StringIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.X} }
+func (c StringConcatConstraint) Operands() []ssa.Value        { return []ssa.Value{c.A, c.B} }
+func (c *StringLengthConstraint) Operands() []ssa.Value       { return []ssa.Value{c.X} }
+func (s *StringIntervalConstraint) Operands() []ssa.Value     { return nil }
 
 func (c *StringSliceConstraint) String() string {
 	var lname, uname string
@@ -60,6 +104,16 @@ func (c *StringSliceConstraint) String() string {
 	}
 	return fmt.Sprintf("%s[%s:%s]", c.X.Name(), lname, uname)
 }
+func (c *StringIntersectionConstraint) String() string {
+	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
+}
+func (c StringConcatConstraint) String() string {
+	return fmt.Sprintf("%s = %s + %s", c.Y().Name(), c.A.Name(), c.B.Name())
+}
+func (c *StringLengthConstraint) String() string {
+	return fmt.Sprintf("%s = len(%s)", c.Y().Name(), c.X.Name())
+}
+func (c *StringIntervalConstraint) String() string { return fmt.Sprintf("%s = %s", c.Y().Name(), c.I) }
 
 func (c *StringSliceConstraint) Eval(g *Graph) Range {
 	lr := NewIntInterval(NewZ(0), NewZ(0))
@@ -93,36 +147,6 @@ func (c *StringSliceConstraint) Eval(g *Graph) Range {
 		Length: NewIntInterval(MinZ(ls...), MaxZ(ls...)),
 	}
 }
-
-func (c *StringSliceConstraint) Operands() []ssa.Value {
-	vs := []ssa.Value{c.X}
-	if c.Lower != nil {
-		vs = append(vs, c.Lower)
-	}
-	if c.Upper != nil {
-		vs = append(vs, c.Upper)
-	}
-	return vs
-}
-
-type StringIntersectionConstraint struct {
-	aConstraint
-	X ssa.Value
-	I IntInterval
-}
-
-func NewStringIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
-	return &StringIntersectionConstraint{
-		aConstraint: NewConstraint(y),
-		X:           x,
-		I:           i,
-	}
-}
-
-func (c *StringIntersectionConstraint) Operands() []ssa.Value {
-	return []ssa.Value{c.X}
-}
-
 func (c *StringIntersectionConstraint) Eval(g *Graph) Range {
 	xi := g.Range(c.X).(StringInterval)
 	if !xi.IsKnown() {
@@ -132,31 +156,6 @@ func (c *StringIntersectionConstraint) Eval(g *Graph) Range {
 		Length: xi.Length.Intersection(c.I),
 	}
 }
-
-func (c *StringIntersectionConstraint) String() string {
-	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
-}
-
-type StringConcatConstraint struct {
-	aConstraint
-	A ssa.Value
-	B ssa.Value
-}
-
-func NewStringConcatConstraint(a, b, y ssa.Value) Constraint {
-	return &StringConcatConstraint{
-		aConstraint: aConstraint{
-			y: y,
-		},
-		A: a,
-		B: b,
-	}
-}
-
-func (c StringConcatConstraint) String() string {
-	return fmt.Sprintf("%s = %s + %s", c.Y().Name(), c.A.Name(), c.B.Name())
-}
-
 func (c StringConcatConstraint) Eval(g *Graph) Range {
 	i1, i2 := g.Range(c.A).(StringInterval), g.Range(c.B).(StringInterval)
 	if !i1.Length.IsKnown() || !i2.Length.IsKnown() {
@@ -166,29 +165,6 @@ func (c StringConcatConstraint) Eval(g *Graph) Range {
 		Length: i1.Length.Add(i2.Length),
 	}
 }
-
-func (c StringConcatConstraint) Operands() []ssa.Value {
-	return []ssa.Value{c.A, c.B}
-}
-
-type StringLengthConstraint struct {
-	aConstraint
-	X ssa.Value
-}
-
-func NewStringLengthConstraint(x ssa.Value, y ssa.Value) Constraint {
-	return &StringLengthConstraint{
-		aConstraint: aConstraint{
-			y: y,
-		},
-		X: x,
-	}
-}
-
-func (c *StringLengthConstraint) String() string {
-	return fmt.Sprintf("%s = len(%s)", c.Y().Name(), c.X.Name())
-}
-
 func (c *StringLengthConstraint) Eval(g *Graph) Range {
 	i := g.Range(c.X).(StringInterval).Length
 	if !i.IsKnown() {
@@ -196,31 +172,4 @@ func (c *StringLengthConstraint) Eval(g *Graph) Range {
 	}
 	return i
 }
-
-func (c *StringLengthConstraint) Operands() []ssa.Value {
-	return []ssa.Value{c.X}
-}
-
-type StringIntervalConstraint struct {
-	aConstraint
-	I IntInterval
-}
-
-func NewStringIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
-	return &StringIntervalConstraint{
-		aConstraint: NewConstraint(y),
-		I:           i,
-	}
-}
-
-func (s *StringIntervalConstraint) Operands() []ssa.Value {
-	return nil
-}
-
-func (c *StringIntervalConstraint) Eval(*Graph) Range {
-	return StringInterval{c.I}
-}
-
-func (c *StringIntervalConstraint) String() string {
-	return fmt.Sprintf("%s = %s", c.Y().Name(), c.I)
-}
+func (c *StringIntervalConstraint) Eval(*Graph) Range { return StringInterval{c.I} }
