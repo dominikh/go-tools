@@ -306,20 +306,12 @@ type IntConversionConstraint struct {
 
 type FutureIntIntersectionConstraint struct {
 	aConstraint
-	ranges      map[ssa.Value]Range
-	X           ssa.Value
-	lower       ssa.Value
-	lowerOffset Z
-	upper       ssa.Value
-	upperOffset Z
-	I           IntInterval
-	resolved    bool
-}
-
-type IntIntersectionConstraint struct {
-	aConstraint
-	X ssa.Value
-	I IntInterval
+	ranges   Ranges
+	A        ssa.Value
+	B        ssa.Value
+	Op       token.Token
+	I        IntInterval
+	resolved bool
 }
 
 type IntIntervalConstraint struct {
@@ -342,8 +334,14 @@ func NewIntMulConstraint(a, b, y ssa.Value) Constraint {
 func NewIntConversionConstraint(x, y ssa.Value) Constraint {
 	return &IntConversionConstraint{NewConstraint(y), x}
 }
-func NewIntIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
-	return &IntIntersectionConstraint{NewConstraint(y), x, i}
+func NewFutureIntIntersectionConstraint(a, b ssa.Value, op token.Token, ranges Ranges, y ssa.Value) Constraint {
+	return &FutureIntIntersectionConstraint{
+		aConstraint: NewConstraint(y),
+		ranges:      ranges,
+		A:           a,
+		B:           b,
+		Op:          op,
+	}
 }
 func NewIntIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
 	return &IntIntervalConstraint{NewConstraint(y), i}
@@ -351,8 +349,7 @@ func NewIntIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
 
 func (c *IntArithmeticConstraint) Operands() []ssa.Value         { return []ssa.Value{c.A, c.B} }
 func (c *IntConversionConstraint) Operands() []ssa.Value         { return []ssa.Value{c.X} }
-func (c *FutureIntIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.X} }
-func (c *IntIntersectionConstraint) Operands() []ssa.Value       { return []ssa.Value{c.X} }
+func (c *FutureIntIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.A} }
 func (s *IntIntervalConstraint) Operands() []ssa.Value           { return nil }
 
 func (c *IntArithmeticConstraint) String() string {
@@ -362,18 +359,7 @@ func (c *IntConversionConstraint) String() string {
 	return fmt.Sprintf("%s = %s(%s)", c.Y().Name(), c.Y().Type(), c.X.Name())
 }
 func (c *FutureIntIntersectionConstraint) String() string {
-	var lname, uname string
-	if c.lower != nil {
-		lname = c.lower.Name()
-	}
-	if c.upper != nil {
-		uname = c.upper.Name()
-	}
-	return fmt.Sprintf("%s = %s.%t ⊓ [%s+%s, %s+%s] %s",
-		c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, lname, c.lowerOffset, uname, c.upperOffset, c.I)
-}
-func (c *IntIntersectionConstraint) String() string {
-	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
+	return fmt.Sprintf("%s = %s %s %s (%t branch)", c.Y().Name(), c.A.Name(), c.Op, c.B.Name(), c.Y().(*ssa.Sigma).Branch)
 }
 func (c *IntIntervalConstraint) String() string { return fmt.Sprintf("%s = %s", c.Y().Name(), c.I) }
 
@@ -435,11 +421,7 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 	return fromI
 }
 func (c *FutureIntIntersectionConstraint) Eval(g *Graph) Range {
-	xi := g.Range(c.X).(IntInterval)
-	return xi.Intersection(c.I)
-}
-func (c *IntIntersectionConstraint) Eval(g *Graph) Range {
-	xi := g.Range(c.X).(IntInterval)
+	xi := g.Range(c.A).(IntInterval)
 	if !xi.IsKnown() {
 		return c.I
 	}
@@ -448,34 +430,31 @@ func (c *IntIntersectionConstraint) Eval(g *Graph) Range {
 func (c *IntIntervalConstraint) Eval(*Graph) Range { return c.I }
 
 func (c *FutureIntIntersectionConstraint) Futures() []ssa.Value {
-	var s []ssa.Value
-	if c.lower != nil {
-		s = append(s, c.lower)
-	}
-	if c.upper != nil {
-		s = append(s, c.upper)
-	}
-	return s
+	return []ssa.Value{c.B}
 }
 
 func (c *FutureIntIntersectionConstraint) Resolve() {
-	l := NInfinity
-	u := PInfinity
-	if c.lower != nil {
-		li, ok := c.ranges[c.lower]
-		if !ok {
-			li = InfinityFor(c.lower)
-		}
-		l = li.(IntInterval).Lower
-		l = l.Add(c.lowerOffset)
+	r, ok := c.ranges[c.B].(IntInterval)
+	if !ok {
+		c.I = InfinityFor(c.Y())
+		return
 	}
-	if c.upper != nil {
-		ui, ok := c.ranges[c.upper]
-		if !ok {
-			ui = InfinityFor(c.upper)
-		}
-		u = ui.(IntInterval).Upper
-		u = u.Add(c.upperOffset)
+
+	switch c.Op {
+	case token.EQL:
+		c.I = r
+	case token.GTR:
+		c.I = NewIntInterval(r.Lower.Add(NewZ(1)), PInfinity)
+	case token.GEQ:
+		c.I = NewIntInterval(r.Lower, PInfinity)
+	case token.LSS:
+		// TODO(dh): do we need 0 instead of NInfinity for uints?
+		c.I = NewIntInterval(NInfinity, r.Upper.Sub(NewZ(1)))
+	case token.LEQ:
+		c.I = NewIntInterval(NInfinity, r.Upper)
+	case token.NEQ:
+		c.I = InfinityFor(c.Y())
+	default:
+		panic("unsupported op " + c.Op.String())
 	}
-	c.I = NewIntInterval(l, u)
 }
