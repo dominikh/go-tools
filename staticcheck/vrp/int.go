@@ -382,18 +382,7 @@ func (c *IntArithmeticConstraint) Eval(g *Graph) Range {
 	if !i1.IsKnown() || !i2.IsKnown() {
 		return IntInterval{}
 	}
-	ret := c.Fn(i1, i2)
-	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
-		if ret.Lower.Sign() == -1 {
-			ret = NewIntInterval(NewZ(0), PInfinity)
-		}
-	}
-	if (c.Y().Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0 {
-		if ret.Upper == PInfinity {
-			ret = NewIntInterval(NInfinity, PInfinity)
-		}
-	}
-	return ret
+	return c.Fn(i1, i2)
 }
 func (c *IntConversionConstraint) Eval(g *Graph) Range {
 	s := &types.StdSizes{
