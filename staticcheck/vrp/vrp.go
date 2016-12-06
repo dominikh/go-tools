@@ -16,7 +16,13 @@ import (
 )
 
 type Future interface {
+	Constraint
 	Futures() []ssa.Value
+	Resolve()
+	IsKnown() bool
+	MarkUnresolved()
+	MarkResolved()
+	IsResolved() bool
 }
 
 type Range interface {
@@ -477,13 +483,13 @@ func BuildGraph(f *ssa.Function) *Graph {
 
 	g.FindSCCs()
 	g.sccEdges = make([][]Edge, len(g.SCCs))
-	g.futures = make([][]*FutureIntIntersectionConstraint, len(g.SCCs))
+	g.futures = make([][]Future, len(g.SCCs))
 	for _, e := range g.Edges {
 		g.sccEdges[e.From.SCC] = append(g.sccEdges[e.From.SCC], e)
 		if !e.control {
 			continue
 		}
-		if c, ok := e.To.Value.(*FutureIntIntersectionConstraint); ok {
+		if c, ok := e.To.Value.(Future); ok {
 			g.futures[e.From.SCC] = append(g.futures[e.From.SCC], c)
 		}
 	}
@@ -594,10 +600,9 @@ func (g *Graph) Solve() Ranges {
 			if c, ok := edge.To.Value.(Constraint); ok {
 				g.SetRange(c.Y(), c.Eval(g))
 			}
-			// XXX make generic
-			if c, ok := edge.To.Value.(*FutureIntIntersectionConstraint); ok {
-				if !c.I.IsKnown() {
-					c.resolved = false
+			if c, ok := edge.To.Value.(Future); ok {
+				if !c.IsKnown() {
+					c.MarkUnresolved()
 				}
 			}
 		}
@@ -692,7 +697,7 @@ type Graph struct {
 	ranges   Ranges
 
 	// map SCCs to futures
-	futures [][]*FutureIntIntersectionConstraint
+	futures [][]Future
 	// map SCCs to edges
 	sccEdges [][]Edge
 }
@@ -871,11 +876,11 @@ func (g *Graph) entries(scc int) []ssa.Value {
 			// can't really verify that this code is working
 			// correctly, or indeed doing anything useful.
 			for _, on := range g.Vertices {
-				if c, ok := on.Value.(*FutureIntIntersectionConstraint); ok {
+				if c, ok := on.Value.(Future); ok {
 					if c.Y() == v {
-						if !c.resolved {
+						if !c.IsResolved() {
 							g.SetRange(c.Y(), c.Eval(g))
-							c.resolved = true
+							c.MarkResolved()
 						}
 						break
 					}

@@ -458,3 +458,19 @@ func (c *FutureIntIntersectionConstraint) Resolve() {
 		panic("unsupported op " + c.Op.String())
 	}
 }
+
+func (c *FutureIntIntersectionConstraint) IsKnown() bool {
+	return c.I.IsKnown()
+}
+
+func (c *FutureIntIntersectionConstraint) MarkUnresolved() {
+	c.resolved = false
+}
+
+func (c *FutureIntIntersectionConstraint) MarkResolved() {
+	c.resolved = true
+}
+
+func (c *FutureIntIntersectionConstraint) IsResolved() bool {
+	return c.resolved
+}
