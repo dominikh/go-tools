@@ -2,6 +2,8 @@ package vrp
 
 import (
 	"fmt"
+	"go/token"
+	"go/types"
 
 	"honnef.co/go/ssa"
 )
@@ -43,8 +45,12 @@ type StringSliceConstraint struct {
 
 type StringIntersectionConstraint struct {
 	aConstraint
-	X ssa.Value
-	I IntInterval
+	ranges   Ranges
+	A        ssa.Value
+	B        ssa.Value
+	Op       token.Token
+	I        IntInterval
+	resolved bool
 }
 
 type StringConcatConstraint struct {
@@ -66,8 +72,14 @@ type StringIntervalConstraint struct {
 func NewStringSliceConstraint(x, lower, upper, y ssa.Value) Constraint {
 	return &StringSliceConstraint{NewConstraint(y), x, lower, upper}
 }
-func NewStringIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
-	return &StringIntersectionConstraint{NewConstraint(y), x, i}
+func NewStringIntersectionConstraint(a, b ssa.Value, op token.Token, ranges Ranges, y ssa.Value) Constraint {
+	return &StringIntersectionConstraint{
+		aConstraint: NewConstraint(y),
+		ranges:      ranges,
+		A:           a,
+		B:           b,
+		Op:          op,
+	}
 }
 func NewStringConcatConstraint(a, b, y ssa.Value) Constraint {
 	return &StringConcatConstraint{NewConstraint(y), a, b}
@@ -89,7 +101,7 @@ func (c *StringSliceConstraint) Operands() []ssa.Value {
 	}
 	return vs
 }
-func (c *StringIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.X} }
+func (c *StringIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.A} }
 func (c StringConcatConstraint) Operands() []ssa.Value        { return []ssa.Value{c.A, c.B} }
 func (c *StringLengthConstraint) Operands() []ssa.Value       { return []ssa.Value{c.X} }
 func (s *StringIntervalConstraint) Operands() []ssa.Value     { return nil }
@@ -105,7 +117,7 @@ func (c *StringSliceConstraint) String() string {
 	return fmt.Sprintf("%s[%s:%s]", c.X.Name(), lname, uname)
 }
 func (c *StringIntersectionConstraint) String() string {
-	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
+	return fmt.Sprintf("%s = %s %s %s (%t branch)", c.Y().Name(), c.A.Name(), c.Op, c.B.Name(), c.Y().(*ssa.Sigma).Branch)
 }
 func (c StringConcatConstraint) String() string {
 	return fmt.Sprintf("%s = %s + %s", c.Y().Name(), c.A.Name(), c.B.Name())
@@ -148,12 +160,19 @@ func (c *StringSliceConstraint) Eval(g *Graph) Range {
 	}
 }
 func (c *StringIntersectionConstraint) Eval(g *Graph) Range {
-	xi := g.Range(c.X).(StringInterval)
-	if !xi.IsKnown() {
-		return c.I
+	var l IntInterval
+	switch r := g.Range(c.A).(type) {
+	case StringInterval:
+		l = r.Length
+	case IntInterval:
+		l = r
+	}
+
+	if !l.IsKnown() {
+		return StringInterval{c.I}
 	}
 	return StringInterval{
-		Length: xi.Length.Intersection(c.I),
+		Length: l.Intersection(c.I),
 	}
 }
 func (c StringConcatConstraint) Eval(g *Graph) Range {
@@ -173,3 +192,67 @@ func (c *StringLengthConstraint) Eval(g *Graph) Range {
 	return i
 }
 func (c *StringIntervalConstraint) Eval(*Graph) Range { return StringInterval{c.I} }
+
+func (c *StringIntersectionConstraint) Futures() []ssa.Value {
+	return []ssa.Value{c.B}
+}
+
+func (c *StringIntersectionConstraint) Resolve() {
+	if (c.A.Type().Underlying().(*types.Basic).Info() & types.IsString) != 0 {
+		// comparing two strings
+		r, ok := c.ranges[c.B].(StringInterval)
+		if !ok {
+			c.I = NewIntInterval(NewZ(0), PInfinity)
+			return
+		}
+		switch c.Op {
+		case token.EQL:
+			c.I = r.Length
+		case token.GTR, token.GEQ:
+			c.I = NewIntInterval(r.Length.Lower, PInfinity)
+		case token.LSS, token.LEQ:
+			c.I = NewIntInterval(NewZ(0), r.Length.Upper)
+		case token.NEQ:
+		default:
+			panic("unsupported op " + c.Op.String())
+		}
+	} else {
+		r, ok := c.ranges[c.B].(IntInterval)
+		if !ok {
+			c.I = NewIntInterval(NewZ(0), PInfinity)
+			return
+		}
+		// comparing two lengths
+		switch c.Op {
+		case token.EQL:
+			c.I = r
+		case token.GTR:
+			c.I = NewIntInterval(r.Lower.Add(NewZ(1)), PInfinity)
+		case token.GEQ:
+			c.I = NewIntInterval(r.Lower, PInfinity)
+		case token.LSS:
+			c.I = NewIntInterval(NInfinity, r.Upper.Sub(NewZ(1)))
+		case token.LEQ:
+			c.I = NewIntInterval(NInfinity, r.Upper)
+		case token.NEQ:
+		default:
+			panic("unsupported op " + c.Op.String())
+		}
+	}
+}
+
+func (c *StringIntersectionConstraint) IsKnown() bool {
+	return c.I.IsKnown()
+}
+
+func (c *StringIntersectionConstraint) MarkUnresolved() {
+	c.resolved = false
+}
+
+func (c *StringIntersectionConstraint) MarkResolved() {
+	c.resolved = true
+}
+
+func (c *StringIntersectionConstraint) IsResolved() bool {
+	return c.resolved
+}

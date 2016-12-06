@@ -141,65 +141,40 @@ func sigmaInteger(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) C
 }
 
 func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
-	// XXX support futures
-	//
-	// TODO integer and string sigma are very similar. try condensing
-	// them into one type/code path.
-
 	op := cond.Op
 	if !ins.Branch {
 		op = (invertToken(op))
 	}
 
-	k, ok := (*ops[1]).(*ssa.Const)
-	// XXX investigate in what cases this wouldn't be a Const
-	//
-	// XXX what if left and right are swapped?
-	if !ok {
-		return nil
-	}
-
-	call, ok := (*ops[0]).(*ssa.Call)
-	if !ok {
-		return nil
-	}
-	builtin, ok := call.Common().Value.(*ssa.Builtin)
-	if !ok {
-		return nil
-	}
-	if builtin.Name() != "len" {
-		return nil
-	}
-	// TODO(dh) support == string comparison
-	callops := call.Operands(nil)
-
-	v := ConstantToZ(k.Value)
-	c := NewStringIntersectionConstraint(*callops[1], IntInterval{}, ins).(*StringIntersectionConstraint)
 	switch op {
-	case token.EQL:
-		c.I = NewIntInterval(v, v)
-	case token.GTR, token.GEQ:
-		off := int64(0)
-		if cond.Op == token.GTR {
-			off = 1
-		}
-		c.I = NewIntInterval(
-			v.Add(NewZ(off)),
-			PInfinity,
-		)
-	case token.LSS, token.LEQ:
-		off := int64(0)
-		if cond.Op == token.LSS {
-			off = -1
-		}
-		c.I = NewIntInterval(
-			NInfinity,
-			v.Add(NewZ(off)),
-		)
+	case token.EQL, token.GTR, token.GEQ, token.LSS, token.LEQ:
 	default:
 		return nil
 	}
-	return c
+
+	if ((*ops[0]).Type().Underlying().(*types.Basic).Info() & types.IsString) == 0 {
+		var a, b ssa.Value
+		call, ok := (*ops[0]).(*ssa.Call)
+		if ok && call.Common().Args[0] == ins.X {
+			a = *ops[0]
+			b = *ops[1]
+		} else {
+			a = *ops[1]
+			b = *ops[0]
+			op = invertToken(op)
+		}
+		return NewStringIntersectionConstraint(a, b, op, g.ranges, ins)
+	}
+	var a, b ssa.Value
+	if (*ops[0]) == ins.X {
+		a = *ops[0]
+		b = *ops[1]
+	} else {
+		a = *ops[1]
+		b = *ops[0]
+		op = invertToken(op)
+	}
+	return NewStringIntersectionConstraint(a, b, op, g.ranges, ins)
 }
 
 func sigmaSlice(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {
@@ -713,7 +688,7 @@ func (g Graph) Graphviz() string {
 		if _, ok := v.Value.(ssa.Value); ok {
 			shape = "oval"
 		}
-		lines = append(lines, fmt.Sprintf(`n%d [shape="%s", label="%s", colorscheme=spectral11, style="filled", fillcolor="%d"]`,
+		lines = append(lines, fmt.Sprintf(`n%d [shape="%s", label=%q, colorscheme=spectral11, style="filled", fillcolor="%d"]`,
 			i, shape, VertexString(v), (v.SCC%11)+1))
 		i++
 	}
