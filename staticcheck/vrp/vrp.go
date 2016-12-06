@@ -137,7 +137,7 @@ func sigmaInteger(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) C
 		b = *ops[0]
 		op = invertToken(op)
 	}
-	return NewFutureIntIntersectionConstraint(a, b, op, g.ranges, ins)
+	return NewIntIntersectionConstraint(a, b, op, g.ranges, ins)
 }
 
 func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Constraint {

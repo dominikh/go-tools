@@ -304,7 +304,7 @@ type IntConversionConstraint struct {
 	X ssa.Value
 }
 
-type FutureIntIntersectionConstraint struct {
+type IntIntersectionConstraint struct {
 	aConstraint
 	ranges   Ranges
 	A        ssa.Value
@@ -334,8 +334,8 @@ func NewIntMulConstraint(a, b, y ssa.Value) Constraint {
 func NewIntConversionConstraint(x, y ssa.Value) Constraint {
 	return &IntConversionConstraint{NewConstraint(y), x}
 }
-func NewFutureIntIntersectionConstraint(a, b ssa.Value, op token.Token, ranges Ranges, y ssa.Value) Constraint {
-	return &FutureIntIntersectionConstraint{
+func NewIntIntersectionConstraint(a, b ssa.Value, op token.Token, ranges Ranges, y ssa.Value) Constraint {
+	return &IntIntersectionConstraint{
 		aConstraint: NewConstraint(y),
 		ranges:      ranges,
 		A:           a,
@@ -347,10 +347,10 @@ func NewIntIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
 	return &IntIntervalConstraint{NewConstraint(y), i}
 }
 
-func (c *IntArithmeticConstraint) Operands() []ssa.Value         { return []ssa.Value{c.A, c.B} }
-func (c *IntConversionConstraint) Operands() []ssa.Value         { return []ssa.Value{c.X} }
-func (c *FutureIntIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.A} }
-func (s *IntIntervalConstraint) Operands() []ssa.Value           { return nil }
+func (c *IntArithmeticConstraint) Operands() []ssa.Value   { return []ssa.Value{c.A, c.B} }
+func (c *IntConversionConstraint) Operands() []ssa.Value   { return []ssa.Value{c.X} }
+func (c *IntIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.A} }
+func (s *IntIntervalConstraint) Operands() []ssa.Value     { return nil }
 
 func (c *IntArithmeticConstraint) String() string {
 	return fmt.Sprintf("%s = %s %s %s", c.Y().Name(), c.A.Name(), c.Op, c.B.Name())
@@ -358,7 +358,7 @@ func (c *IntArithmeticConstraint) String() string {
 func (c *IntConversionConstraint) String() string {
 	return fmt.Sprintf("%s = %s(%s)", c.Y().Name(), c.Y().Type(), c.X.Name())
 }
-func (c *FutureIntIntersectionConstraint) String() string {
+func (c *IntIntersectionConstraint) String() string {
 	return fmt.Sprintf("%s = %s %s %s (%t branch)", c.Y().Name(), c.A.Name(), c.Op, c.B.Name(), c.Y().(*ssa.Sigma).Branch)
 }
 func (c *IntIntervalConstraint) String() string { return fmt.Sprintf("%s = %s", c.Y().Name(), c.I) }
@@ -420,7 +420,7 @@ func (c *IntConversionConstraint) Eval(g *Graph) Range {
 
 	return fromI
 }
-func (c *FutureIntIntersectionConstraint) Eval(g *Graph) Range {
+func (c *IntIntersectionConstraint) Eval(g *Graph) Range {
 	xi := g.Range(c.A).(IntInterval)
 	if !xi.IsKnown() {
 		return c.I
@@ -429,11 +429,11 @@ func (c *FutureIntIntersectionConstraint) Eval(g *Graph) Range {
 }
 func (c *IntIntervalConstraint) Eval(*Graph) Range { return c.I }
 
-func (c *FutureIntIntersectionConstraint) Futures() []ssa.Value {
+func (c *IntIntersectionConstraint) Futures() []ssa.Value {
 	return []ssa.Value{c.B}
 }
 
-func (c *FutureIntIntersectionConstraint) Resolve() {
+func (c *IntIntersectionConstraint) Resolve() {
 	r, ok := c.ranges[c.B].(IntInterval)
 	if !ok {
 		c.I = InfinityFor(c.Y())
@@ -459,18 +459,18 @@ func (c *FutureIntIntersectionConstraint) Resolve() {
 	}
 }
 
-func (c *FutureIntIntersectionConstraint) IsKnown() bool {
+func (c *IntIntersectionConstraint) IsKnown() bool {
 	return c.I.IsKnown()
 }
 
-func (c *FutureIntIntersectionConstraint) MarkUnresolved() {
+func (c *IntIntersectionConstraint) MarkUnresolved() {
 	c.resolved = false
 }
 
-func (c *FutureIntIntersectionConstraint) MarkResolved() {
+func (c *IntIntersectionConstraint) MarkResolved() {
 	c.resolved = true
 }
 
-func (c *FutureIntIntersectionConstraint) IsResolved() bool {
+func (c *IntIntersectionConstraint) IsResolved() bool {
 	return c.resolved
 }
