@@ -135,7 +135,7 @@ func sigmaInteger(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) C
 	} else {
 		a = *ops[1]
 		b = *ops[0]
-		op = invertToken(op)
+		op = flipToken(op)
 	}
 	return NewIntIntersectionConstraint(a, b, op, g.ranges, ins)
 }
@@ -161,7 +161,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 		} else {
 			a = *ops[1]
 			b = *ops[0]
-			op = invertToken(op)
+			op = flipToken(op)
 		}
 		return NewStringIntersectionConstraint(a, b, op, g.ranges, ins)
 	}
@@ -172,7 +172,7 @@ func sigmaString(g *Graph, ins *ssa.Sigma, cond *ssa.BinOp, ops []*ssa.Value) Co
 	} else {
 		a = *ops[1]
 		b = *ops[0]
-		op = invertToken(op)
+		op = flipToken(op)
 	}
 	return NewStringIntersectionConstraint(a, b, op, g.ranges, ins)
 }
@@ -998,6 +998,25 @@ func invertToken(tok token.Token) token.Token {
 		return token.LSS
 	case token.LEQ:
 		return token.GTR
+	default:
+		panic(fmt.Sprintf("unsupported token %s", tok))
+	}
+}
+
+func flipToken(tok token.Token) token.Token {
+	switch tok {
+	case token.LSS:
+		return token.GTR
+	case token.GTR:
+		return token.LSS
+	case token.EQL:
+		return token.EQL
+	case token.NEQ:
+		return token.NEQ
+	case token.GEQ:
+		return token.LEQ
+	case token.LEQ:
+		return token.GEQ
 	default:
 		panic(fmt.Sprintf("unsupported token %s", tok))
 	}
