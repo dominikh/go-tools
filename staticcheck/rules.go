@@ -41,13 +41,8 @@ func extractConsts(v ssa.Value) []*ssa.Const {
 	switch v := v.(type) {
 	case *ssa.Const:
 		return []*ssa.Const{v}
-	case *ssa.Phi:
-		ops := v.Operands(nil)
-		var out []*ssa.Const
-		for _, op := range ops {
-			out = append(out, extractConsts(*op)...)
-		}
-		return out
+	case *ssa.MakeInterface:
+		return extractConsts(v.X)
 	default:
 		return nil
 	}
