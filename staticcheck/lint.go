@@ -875,7 +875,7 @@ func (c *Checker) CheckDubiousSyncPoolPointers(f *lint.File) {
 			Arguments: []ArgumentRule{
 				Pointer{
 					argumentRule: argumentRule{
-						idx:     1,
+						idx:     0,
 						Message: "non-pointer type put into sync.Pool",
 					},
 				},
@@ -1623,7 +1623,7 @@ func (c *Checker) CheckRegexpFindAll(f *lint.File) {
 		Arguments: []ArgumentRule{
 			NotIntValue{
 				argumentRule: argumentRule{
-					idx:     2,
+					idx:     1,
 					Message: "calling a FindAll method with n == 0 will return no results, did you mean -1?",
 				},
 				Not: vrp.NewZ(0),
@@ -2156,7 +2156,7 @@ func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
 			Arguments: []ArgumentRule{
 				Pointer{
 					argumentRule: argumentRule{
-						idx:     1,
+						idx:     0,
 						Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
 					},
 				},
@@ -2176,7 +2176,7 @@ func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
 			Arguments: []ArgumentRule{
 				Pointer{
 					argumentRule: argumentRule{
-						idx:     1,
+						idx:     0,
 						Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
 					},
 				},
@@ -2623,16 +2623,17 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 
 		r := rules[obj.FullName()]
 		for _, ar := range r.Arguments {
-			arg := ssacall.Common().Args[ar.Index()]
+			idx := ar.Index()
+			if ssacall.Common().Signature().Recv() != nil {
+				idx++
+			}
+			arg := ssacall.Common().Args[idx]
 			if iarg, ok := arg.(*ssa.MakeInterface); ok {
 				arg = iarg.X
 			}
 			err := ar.Validate(arg, ssafn, c)
 			if err != nil {
-				// FIXME point to arg, not call. but just
-				// using arg doesn't work, it doesn't have
-				// position information
-				f.Errorf(call, "%s", err)
+				f.Errorf(call.Args[ar.Index()], "%s", err)
 			}
 		}
 
