@@ -7,7 +7,7 @@ import (
 	"syscall"
 )
 
-func fn(err error) {
+func fn1(err error) {
 	var r *http.Request
 	_ = r.Cancel                        // MATCH /Use the Context and WithContext methods/
 	_ = syscall.StringByteSlice("")     // MATCH /Use ByteSliceFromString instead/
@@ -15,4 +15,9 @@ func fn(err error) {
 	if err == http.ErrWriteAfterFlush { // MATCH /ErrWriteAfterFlush is no longer used/
 	}
 	var _ flate.ReadError // MATCH /No longer returned/
+}
+
+// Deprecated: Don't use this.
+func fn2() {
+	_ = syscall.StringByteSlice("")
 }

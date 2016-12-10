@@ -2518,6 +2518,78 @@ func (c *Checker) CheckPureFunctions(f *lint.File) {
 	f.Walk(fn)
 }
 
+func enclosingFunction(f *lint.File, node ast.Node) *ast.FuncDecl {
+	_, path, _ := f.Program.PathEnclosingInterval(node.Pos(), node.Pos())
+	for _, e := range path {
+		fn, ok := e.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if fn.Name == nil {
+			continue
+		}
+		return fn
+	}
+	return nil
+}
+
+func (c *Checker) isDeprecated(f *lint.File, ident *ast.Ident) (bool, string) {
+	obj := f.Pkg.TypesInfo.ObjectOf(ident)
+	if obj.Pkg() == nil {
+		return false, ""
+	}
+	if alt, ok := c.deprecatedObjs[obj]; ok {
+		return alt != "", alt
+	}
+
+	_, path, _ := f.Program.PathEnclosingInterval(obj.Pos(), obj.Pos())
+	if len(path) <= 2 {
+		c.deprecatedObjs[obj] = ""
+		return false, ""
+	}
+	var docs []*ast.CommentGroup
+	switch n := path[1].(type) {
+	case *ast.FuncDecl:
+		docs = append(docs, n.Doc)
+	case *ast.Field:
+		docs = append(docs, n.Doc)
+	case *ast.ValueSpec:
+		docs = append(docs, n.Doc)
+		if len(path) >= 3 {
+			if n, ok := path[2].(*ast.GenDecl); ok {
+				docs = append(docs, n.Doc)
+			}
+		}
+	case *ast.TypeSpec:
+		docs = append(docs, n.Doc)
+		if len(path) >= 3 {
+			if n, ok := path[2].(*ast.GenDecl); ok {
+				docs = append(docs, n.Doc)
+			}
+		}
+	default:
+		c.deprecatedObjs[obj] = ""
+		return false, ""
+	}
+
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		parts := strings.Split(doc.Text(), "\n\n")
+		last := parts[len(parts)-1]
+		if !strings.HasPrefix(last, "Deprecated: ") {
+			continue
+		}
+		alt := last[len("Deprecated: "):]
+		alt = strings.Replace(alt, "\n", " ", -1)
+		c.deprecatedObjs[obj] = alt
+		return true, alt
+	}
+	c.deprecatedObjs[obj] = ""
+	return false, ""
+}
+
 func (c *Checker) CheckDeprecated(f *lint.File) {
 	c.depmu.Lock()
 	defer c.depmu.Unlock()
@@ -2527,6 +2599,14 @@ func (c *Checker) CheckDeprecated(f *lint.File) {
 		if !ok {
 			return true
 		}
+		if fn := enclosingFunction(f, sel); fn != nil {
+			if ok, _ := c.isDeprecated(f, fn.Name); ok {
+				// functions that are deprecated may use deprecated
+				// symbols
+				return true
+			}
+		}
+
 		obj := f.Pkg.TypesInfo.ObjectOf(sel.Sel)
 		if obj.Pkg() == nil {
 			return true
@@ -2535,59 +2615,10 @@ func (c *Checker) CheckDeprecated(f *lint.File) {
 			// Don't flag stuff in our own package
 			return true
 		}
-		if alt, ok := c.deprecatedObjs[obj]; ok {
-			if alt == "" {
-				return true
-			}
+		if ok, alt := c.isDeprecated(f, sel.Sel); ok {
 			f.Errorf(sel, "%s is deprecated: %s", f.Render(sel), alt)
 			return true
 		}
-		_, path, _ := f.Program.PathEnclosingInterval(obj.Pos(), obj.Pos())
-		if len(path) <= 2 {
-			c.deprecatedObjs[obj] = ""
-			return true
-		}
-		var docs []*ast.CommentGroup
-		switch n := path[1].(type) {
-		case *ast.FuncDecl:
-			docs = append(docs, n.Doc)
-		case *ast.Field:
-			docs = append(docs, n.Doc)
-		case *ast.ValueSpec:
-			docs = append(docs, n.Doc)
-			if len(path) >= 3 {
-				if n, ok := path[2].(*ast.GenDecl); ok {
-					docs = append(docs, n.Doc)
-				}
-			}
-		case *ast.TypeSpec:
-			docs = append(docs, n.Doc)
-			if len(path) >= 3 {
-				if n, ok := path[2].(*ast.GenDecl); ok {
-					docs = append(docs, n.Doc)
-				}
-			}
-		default:
-			c.deprecatedObjs[obj] = ""
-			return true
-		}
-
-		for _, doc := range docs {
-			if doc == nil {
-				continue
-			}
-			parts := strings.Split(doc.Text(), "\n\n")
-			last := parts[len(parts)-1]
-			if !strings.HasPrefix(last, "Deprecated: ") {
-				continue
-			}
-			alt := last[len("Deprecated: "):]
-			alt = strings.Replace(alt, "\n", " ", -1)
-			f.Errorf(sel, "%s is deprecated: %s", f.Render(sel), alt)
-			c.deprecatedObjs[obj] = alt
-			return true
-		}
-		c.deprecatedObjs[obj] = ""
 		return true
 	}
 	f.Walk(fn)
