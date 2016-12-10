@@ -343,12 +343,13 @@ func (c *Checker) CheckUntrappableSignal(f *lint.File) {
 	f.Walk(fn)
 }
 
+var checkRegexpRules = map[string]CallRule{
+	"regexp.MustCompile": CallRule{Arguments: []ArgumentRule{ValidRegexp{argumentRule{idx: 0}}}},
+	"regexp.Compile":     CallRule{Arguments: []ArgumentRule{ValidRegexp{argumentRule{idx: 0}}}},
+}
+
 func (c *Checker) CheckRegexps(f *lint.File) {
-	rules := map[string]CallRule{
-		"regexp.MustCompile": CallRule{Arguments: []ArgumentRule{ValidRegexp{argumentRule{idx: 0}}}},
-		"regexp.Compile":     CallRule{Arguments: []ArgumentRule{ValidRegexp{argumentRule{idx: 0}}}},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkRegexpRules)
 }
 
 func (c *Checker) CheckTemplate(f *lint.File) {
@@ -396,18 +397,20 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 	f.Walk(fn)
 }
 
+var checkTimeParseRules = map[string]CallRule{
+	"time.Parse": CallRule{Arguments: []ArgumentRule{ValidTimeLayout{argumentRule: argumentRule{idx: 0}}}},
+}
+
 func (c *Checker) CheckTimeParse(f *lint.File) {
-	rules := map[string]CallRule{
-		"time.Parse": CallRule{Arguments: []ArgumentRule{ValidTimeLayout{argumentRule: argumentRule{idx: 0}}}},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkTimeParseRules)
+}
+
+var checkEncodingBinaryRules = map[string]CallRule{
+	"encoding/binary.Write": CallRule{Arguments: []ArgumentRule{CanBinaryMarshal{argumentRule: argumentRule{idx: 2}}}},
 }
 
 func (c *Checker) CheckEncodingBinary(f *lint.File) {
-	rules := map[string]CallRule{
-		"encoding/binary.Write": CallRule{Arguments: []ArgumentRule{CanBinaryMarshal{argumentRule: argumentRule{idx: 2}}}},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkEncodingBinaryRules)
 }
 
 func (c *Checker) CheckTimeSleepConstant(f *lint.File) {
@@ -782,11 +785,12 @@ func (c *Checker) CheckUnsafePrintf(f *lint.File) {
 	f.Walk(fn)
 }
 
+var checkURLsRules = map[string]CallRule{
+	"net/url.Parse": CallRule{Arguments: []ArgumentRule{ValidURL{argumentRule: argumentRule{idx: 0}}}},
+}
+
 func (c *Checker) CheckURLs(f *lint.File) {
-	rules := map[string]CallRule{
-		"net/url.Parse": CallRule{Arguments: []ArgumentRule{ValidURL{argumentRule: argumentRule{idx: 0}}}},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkURLsRules)
 }
 
 func (c *Checker) CheckEarlyDefer(f *lint.File) {
@@ -870,20 +874,21 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 	}
 }
 
-func (c *Checker) CheckDubiousSyncPoolPointers(f *lint.File) {
-	rules := map[string]CallRule{
-		"(*sync.Pool).Put": CallRule{
-			Arguments: []ArgumentRule{
-				Pointer{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "non-pointer type put into sync.Pool",
-					},
+var checkDubiousSyncPoolPointersRules = map[string]CallRule{
+	"(*sync.Pool).Put": CallRule{
+		Arguments: []ArgumentRule{
+			Pointer{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "non-pointer type put into sync.Pool",
 				},
 			},
 		},
-	}
-	c.checkCalls(f, rules)
+	},
+}
+
+func (c *Checker) CheckDubiousSyncPoolPointers(f *lint.File) {
+	c.checkCalls(f, checkDubiousSyncPoolPointersRules)
 }
 
 func (c *Checker) CheckEmptyCriticalSection(f *lint.File) {
@@ -1619,42 +1624,44 @@ func (c *Checker) CheckIneffectiveLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-func (c *Checker) CheckRegexpFindAll(f *lint.File) {
-	callRule := CallRule{
-		Arguments: []ArgumentRule{
-			NotIntValue{
-				argumentRule: argumentRule{
-					idx:     1,
-					Message: "calling a FindAll method with n == 0 will return no results, did you mean -1?",
-				},
-				Not: vrp.NewZ(0),
+var checkRegexpFindAllCallRule = CallRule{
+	Arguments: []ArgumentRule{
+		NotIntValue{
+			argumentRule: argumentRule{
+				idx:     1,
+				Message: "calling a FindAll method with n == 0 will return no results, did you mean -1?",
 			},
+			Not: vrp.NewZ(0),
 		},
-	}
-	rules := map[string]CallRule{
-		"(*regexp.Regexp).FindAll":                    callRule,
-		"(*regexp.Regexp).FindAllIndex":               callRule,
-		"(*regexp.Regexp).FindAllString":              callRule,
-		"(*regexp.Regexp).FindAllStringIndex":         callRule,
-		"(*regexp.Regexp).FindAllStringSubmatch":      callRule,
-		"(*regexp.Regexp).FindAllStringSubmatchIndex": callRule,
-		"(*regexp.Regexp).FindAllSubmatch":            callRule,
-		"(*regexp.Regexp).FindAllSubmatchIndex":       callRule,
-	}
-	c.checkCalls(f, rules)
+	},
+}
+var checkRegexpFindAllRules = map[string]CallRule{
+	"(*regexp.Regexp).FindAll":                    checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllIndex":               checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllString":              checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllStringIndex":         checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllStringSubmatch":      checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllStringSubmatchIndex": checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllSubmatch":            checkRegexpFindAllCallRule,
+	"(*regexp.Regexp).FindAllSubmatchIndex":       checkRegexpFindAllCallRule,
+}
+
+func (c *Checker) CheckRegexpFindAll(f *lint.File) {
+	c.checkCalls(f, checkRegexpFindAllRules)
+}
+
+var checkUTF8CutsetCallRule = CallRule{Arguments: []ArgumentRule{ValidUTF8{argumentRule: argumentRule{idx: 1}}}}
+var checkUTF8CutsetRules = map[string]CallRule{
+	"strings.IndexAny":     checkUTF8CutsetCallRule,
+	"strings.LastIndexAny": checkUTF8CutsetCallRule,
+	"strings.ContainsAny":  checkUTF8CutsetCallRule,
+	"strings.Trim":         checkUTF8CutsetCallRule,
+	"strings.TrimLeft":     checkUTF8CutsetCallRule,
+	"strings.TrimRight":    checkUTF8CutsetCallRule,
 }
 
 func (c *Checker) CheckUTF8Cutset(f *lint.File) {
-	callRule := CallRule{Arguments: []ArgumentRule{ValidUTF8{argumentRule: argumentRule{idx: 1}}}}
-	rules := map[string]CallRule{
-		"strings.IndexAny":     callRule,
-		"strings.LastIndexAny": callRule,
-		"strings.ContainsAny":  callRule,
-		"strings.Trim":         callRule,
-		"strings.TrimLeft":     callRule,
-		"strings.TrimRight":    callRule,
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkUTF8CutsetRules)
 }
 
 func (c *Checker) CheckNilContext(f *lint.File) {
@@ -2141,50 +2148,51 @@ func isFunctionCallNameAny(f *lint.File, node ast.Node, names ...string) bool {
 	return false
 }
 
+var checkUnmarshalPointerRules = map[string]CallRule{
+	"encoding/xml.Unmarshal": CallRule{
+		Arguments: []ArgumentRule{
+			Pointer{
+				argumentRule: argumentRule{
+					idx:     1,
+					Message: "xml.Unmarshal expects to unmarshal into a pointer, but the provided value is not a pointer",
+				},
+			},
+		},
+	},
+	"(*encoding/xml.Decoder).Decode": CallRule{
+		Arguments: []ArgumentRule{
+			Pointer{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
+				},
+			},
+		},
+	},
+	"encoding/json.Unmarshal": CallRule{
+		Arguments: []ArgumentRule{
+			Pointer{
+				argumentRule: argumentRule{
+					idx:     1,
+					Message: "json.Unmarshal expects to unmarshal into a pointer, but the provided value is not a pointer",
+				},
+			},
+		},
+	},
+	"(*encoding/json.Decoder).Decode": CallRule{
+		Arguments: []ArgumentRule{
+			Pointer{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
+				},
+			},
+		},
+	},
+}
+
 func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
-	rules := map[string]CallRule{
-		"encoding/xml.Unmarshal": CallRule{
-			Arguments: []ArgumentRule{
-				Pointer{
-					argumentRule: argumentRule{
-						idx:     1,
-						Message: "xml.Unmarshal expects to unmarshal into a pointer, but the provided value is not a pointer",
-					},
-				},
-			},
-		},
-		"(*encoding/xml.Decoder).Decode": CallRule{
-			Arguments: []ArgumentRule{
-				Pointer{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
-					},
-				},
-			},
-		},
-		"encoding/json.Unmarshal": CallRule{
-			Arguments: []ArgumentRule{
-				Pointer{
-					argumentRule: argumentRule{
-						idx:     1,
-						Message: "json.Unmarshal expects to unmarshal into a pointer, but the provided value is not a pointer",
-					},
-				},
-			},
-		},
-		"(*encoding/json.Decoder).Decode": CallRule{
-			Arguments: []ArgumentRule{
-				Pointer{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
-					},
-				},
-			},
-		},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkUnmarshalPointerRules)
 }
 
 func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
@@ -2316,76 +2324,78 @@ func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
 	f.Walk(fn)
 }
 
-func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
-	rules := map[string]CallRule{
-		"os/signal.Notify": CallRule{
-			Arguments: []ArgumentRule{
-				BufferedChannel{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "the channel used with signal.Notify should be buffered",
-					},
+var checkUnbufferedSignalChanRules = map[string]CallRule{
+	"os/signal.Notify": CallRule{
+		Arguments: []ArgumentRule{
+			BufferedChannel{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "the channel used with signal.Notify should be buffered",
 				},
 			},
 		},
-	}
-	c.checkCalls(f, rules)
+	},
+}
+
+func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
+	c.checkCalls(f, checkUnbufferedSignalChanRules)
+}
+
+var checkMathIntRules = map[string]CallRule{
+	"math.Ceil": CallRule{
+		Arguments: []ArgumentRule{
+			NotConvertedInt{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "calling math.Ceil on a converted integer is pointless",
+				},
+			},
+		},
+	},
+	"math.Floor": CallRule{
+		Arguments: []ArgumentRule{
+			NotConvertedInt{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "calling math.Floor on a converted integer is pointless",
+				},
+			},
+		},
+	},
+	"math.IsNaN": CallRule{
+		Arguments: []ArgumentRule{
+			NotConvertedInt{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "calling math.IsNaN on a converted integer is pointless",
+				},
+			},
+		},
+	},
+	"math.Trunc": CallRule{
+		Arguments: []ArgumentRule{
+			NotConvertedInt{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "calling math.Trunc on a converted integer is pointless",
+				},
+			},
+		},
+	},
+	"math.IsInf": CallRule{
+		Arguments: []ArgumentRule{
+			NotConvertedInt{
+				argumentRule: argumentRule{
+					idx:     0,
+					Message: "calling math.IsInf on a converted integer is pointless",
+				},
+			},
+		},
+	},
 }
 
 func (c *Checker) CheckMathInt(f *lint.File) {
-	rules := map[string]CallRule{
-		"math.Ceil": CallRule{
-			Arguments: []ArgumentRule{
-				NotConvertedInt{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "calling math.Ceil on a converted integer is pointless",
-					},
-				},
-			},
-		},
-		"math.Floor": CallRule{
-			Arguments: []ArgumentRule{
-				NotConvertedInt{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "calling math.Floor on a converted integer is pointless",
-					},
-				},
-			},
-		},
-		"math.IsNaN": CallRule{
-			Arguments: []ArgumentRule{
-				NotConvertedInt{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "calling math.IsNaN on a converted integer is pointless",
-					},
-				},
-			},
-		},
-		"math.Trunc": CallRule{
-			Arguments: []ArgumentRule{
-				NotConvertedInt{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "calling math.Trunc on a converted integer is pointless",
-					},
-				},
-			},
-		},
-		"math.IsInf": CallRule{
-			Arguments: []ArgumentRule{
-				NotConvertedInt{
-					argumentRule: argumentRule{
-						idx:     0,
-						Message: "calling math.IsInf on a converted integer is pointless",
-					},
-				},
-			},
-		},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkMathIntRules)
 }
 
 func (c *Checker) CheckSillyBitwiseOps(f *lint.File) {
@@ -2456,32 +2466,33 @@ func (c *Checker) CheckNonOctalFileMode(f *lint.File) {
 	f.Walk(fn)
 }
 
+var checkStringsReplaceZeroRules = map[string]CallRule{
+	"strings.Replace": CallRule{
+		Arguments: []ArgumentRule{
+			NotIntValue{
+				argumentRule: argumentRule{
+					idx:     3,
+					Message: "calling strings.Replace with n == 0 will do nothing, did you mean -1?",
+				},
+				Not: vrp.NewZ(0),
+			},
+		},
+	},
+	"bytes.Replace": CallRule{
+		Arguments: []ArgumentRule{
+			NotIntValue{
+				argumentRule: argumentRule{
+					idx:     3,
+					Message: "calling bytes.Replace with n == 0 will do nothing, did you mean -1?",
+				},
+				Not: vrp.NewZ(0),
+			},
+		},
+	},
+}
+
 func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
-	rules := map[string]CallRule{
-		"strings.Replace": CallRule{
-			Arguments: []ArgumentRule{
-				NotIntValue{
-					argumentRule: argumentRule{
-						idx:     3,
-						Message: "calling strings.Replace with n == 0 will do nothing, did you mean -1?",
-					},
-					Not: vrp.NewZ(0),
-				},
-			},
-		},
-		"bytes.Replace": CallRule{
-			Arguments: []ArgumentRule{
-				NotIntValue{
-					argumentRule: argumentRule{
-						idx:     3,
-						Message: "calling bytes.Replace with n == 0 will do nothing, did you mean -1?",
-					},
-					Not: vrp.NewZ(0),
-				},
-			},
-		},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkStringsReplaceZeroRules)
 }
 
 func (c *Checker) CheckPureFunctions(f *lint.File) {
@@ -2674,10 +2685,11 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 	f.Walk(fn)
 }
 
+var checkListenAddressRules = map[string]CallRule{
+	"net/http.ListenAndServe":    CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+	"net/http.ListenAndServeTLS": CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+}
+
 func (c *Checker) CheckListenAddress(f *lint.File) {
-	rules := map[string]CallRule{
-		"net/http.ListenAndServe":    CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
-		"net/http.ListenAndServeTLS": CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
-	}
-	c.checkCalls(f, rules)
+	c.checkCalls(f, checkListenAddressRules)
 }
