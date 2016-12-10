@@ -116,6 +116,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1017": c.CheckUnbufferedSignalChan,
 		"SA1018": c.CheckStringsReplaceZero,
 		"SA1019": c.CheckDeprecated,
+		"SA1020": c.CheckListenAddress,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -2671,4 +2672,12 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 		return true
 	}
 	f.Walk(fn)
+}
+
+func (c *Checker) CheckListenAddress(f *lint.File) {
+	rules := map[string]CallRule{
+		"net/http.ListenAndServe":    CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+		"net/http.ListenAndServeTLS": CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+	}
+	c.checkCalls(f, rules)
 }

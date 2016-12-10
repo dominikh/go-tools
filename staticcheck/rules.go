@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"go/constant"
 	"go/types"
+	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -264,4 +266,67 @@ func (bm CanBinaryMarshal) Validate(v ssa.Value, fn *ssa.Function, c *Checker) e
 		return errors.New(bm.Message)
 	}
 	return fmt.Errorf("value of type %s cannot be used with binary.Write", v.Type())
+}
+
+func validateServiceName(s string) bool {
+	if len(s) < 1 || len(s) > 15 {
+		return false
+	}
+	if s[0] == '-' || s[len(s)-1] == '-' {
+		return false
+	}
+	if strings.Contains(s, "--") {
+		return false
+	}
+	hasLetter := false
+	for _, r := range s {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+			hasLetter = true
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return hasLetter
+}
+
+func validatePort(s string) bool {
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return validateServiceName(s)
+	}
+	return n >= 0 && n <= 65535
+}
+
+type ValidHostPort struct {
+	argumentRule
+}
+
+func (hp ValidHostPort) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+	for _, k := range extractConsts(v) {
+		if k.Value == nil {
+			continue
+		}
+		if k.Value.Kind() != constant.String {
+			continue
+		}
+		s := constant.StringVal(k.Value)
+		_, port, err := net.SplitHostPort(s)
+		if err != nil {
+			if hp.Message != "" {
+				return errors.New(hp.Message)
+			}
+			return err
+		}
+		// TODO(dh): check hostname
+		if !validatePort(port) {
+			if hp.Message != "" {
+				return errors.New(hp.Message)
+			}
+			return errors.New("invalid port or service name in host:port pair")
+		}
+	}
+	return nil
 }
