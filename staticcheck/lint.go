@@ -88,6 +88,7 @@ type Checker struct {
 
 	depmu          sync.Mutex
 	deprecatedObjs map[types.Object]string
+	nodeFns        map[ast.Node]*ssa.Function
 }
 
 func NewChecker() *Checker {
@@ -185,6 +186,7 @@ func terminates(fn *ssa.Function) (ret bool) {
 func (c *Checker) Init(prog *lint.Program) {
 	c.funcDescs = FunctionDescriptions{}
 	c.deprecatedObjs = map[types.Object]string{}
+	c.nodeFns = map[ast.Node]*ssa.Function{}
 
 	for fn, desc := range stdlibDescs {
 		c.funcDescs[fn] = desc
@@ -227,6 +229,22 @@ func (c *Checker) Init(prog *lint.Program) {
 			Ranges:   vrp.BuildGraph(fn).Solve(),
 			Infinite: !terminates(fn),
 		})
+	}
+
+	for _, pkg := range prog.Packages {
+		for _, f := range pkg.PkgInfo.Files {
+			ast.Inspect(f, func(node ast.Node) bool {
+				switch node.(type) {
+				case *ast.CallExpr, *ast.FuncDecl:
+				default:
+					return true
+				}
+				path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
+				ssafn := ssa.EnclosingFunction(pkg.SSAPkg, path)
+				c.nodeFns[node] = ssafn
+				return true
+			})
+		}
 	}
 }
 
@@ -2642,7 +2660,7 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 		if !ok {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(call)
+		ssafn := c.nodeFns[call]
 		if ssafn == nil {
 			return true
 		}
