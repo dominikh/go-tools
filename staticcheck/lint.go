@@ -2549,7 +2549,7 @@ func (c *Checker) CheckPureFunctions(f *lint.File) {
 }
 
 func enclosingFunction(f *lint.File, node ast.Node) *ast.FuncDecl {
-	_, path, _ := f.Program.PathEnclosingInterval(node.Pos(), node.Pos())
+	path, _ := astutil.PathEnclosingInterval(f.File, node.Pos(), node.Pos())
 	for _, e := range path {
 		fn, ok := e.(*ast.FuncDecl)
 		if !ok {
