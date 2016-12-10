@@ -7,6 +7,8 @@ import (
 	"syscall"
 )
 
+var _ = syscall.StringByteSlice("") // MATCH /Use ByteSliceFromString instead/
+
 func fn1(err error) {
 	var r *http.Request
 	_ = r.Cancel                        // MATCH /Use the Context and WithContext methods/
@@ -20,4 +22,10 @@ func fn1(err error) {
 // Deprecated: Don't use this.
 func fn2() {
 	_ = syscall.StringByteSlice("")
+
+	anon := func(x int) {
+		println(x)
+		_ = syscall.StringByteSlice("")
+	}
+	anon(1)
 }

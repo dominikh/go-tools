@@ -233,18 +233,61 @@ func (c *Checker) Init(prog *lint.Program) {
 
 	for _, pkg := range prog.Packages {
 		for _, f := range pkg.PkgInfo.Files {
-			ast.Inspect(f, func(node ast.Node) bool {
-				switch node.(type) {
-				case *ast.CallExpr, *ast.FuncDecl:
-				default:
-					return true
-				}
-				path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
-				ssafn := ssa.EnclosingFunction(pkg.SSAPkg, path)
-				c.nodeFns[node] = ssafn
-				return true
-			})
+			ast.Walk(globalVisitor{c.nodeFns, pkg, f}, f)
 		}
+	}
+}
+
+type globalVisitor struct {
+	m   map[ast.Node]*ssa.Function
+	pkg *lint.Pkg
+	f   *ast.File
+}
+
+func (v globalVisitor) Visit(node ast.Node) ast.Visitor {
+	switch node := node.(type) {
+	case *ast.CallExpr:
+		v.m[node] = v.pkg.SSAPkg.Func("init")
+		return v
+	case *ast.FuncDecl:
+		nv := fnVisitor{v.m, v.f, v.pkg, nil}
+		return nv.Visit(node)
+	default:
+		return v
+	}
+}
+
+type fnVisitor struct {
+	m     map[ast.Node]*ssa.Function
+	f     *ast.File
+	pkg   *lint.Pkg
+	ssafn *ssa.Function
+}
+
+func (v fnVisitor) Visit(node ast.Node) ast.Visitor {
+	switch node := node.(type) {
+	case *ast.FuncDecl:
+		var ssafn *ssa.Function
+		if node.Name != nil {
+			ssafn = v.pkg.SSAPkg.Prog.FuncValue(v.pkg.TypesInfo.ObjectOf(node.Name).(*types.Func))
+		} else {
+			path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
+			ssafn = ssa.EnclosingFunction(v.pkg.SSAPkg, path)
+		}
+		v.m[node] = ssafn
+		if ssafn == nil {
+			return nil
+		}
+		v.m[node] = ssafn
+		if ssafn == nil {
+			return nil
+		}
+		return fnVisitor{v.m, v.f, v.pkg, ssafn}
+	case nil:
+		return nil
+	default:
+		v.m[node] = v.ssafn
+		return v
 	}
 }
 
