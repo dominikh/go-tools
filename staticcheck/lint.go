@@ -1092,7 +1092,7 @@ func (c *Checker) CheckIneffecitiveFieldAssignments(f *lint.File) {
 		if fn.Recv == nil {
 			return true
 		}
-		ssafn := f.Pkg.SSAPkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -1204,7 +1204,7 @@ func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 		if !ok {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(fn)
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -1299,7 +1299,7 @@ func (c *Checker) CheckNilMaps(f *lint.File) {
 		if !ok {
 			return true
 		}
-		ssafn := f.Pkg.SSAPkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -1482,7 +1482,7 @@ func (c *Checker) CheckArgOverwritten(f *lint.File) {
 		if fn.Body == nil {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(fn)
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -1845,7 +1845,7 @@ func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 		if !ok {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(fn)
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -1916,7 +1916,7 @@ func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 		if !isFunctionCallName(f, call, "runtime.SetFinalizer") {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(call)
+		ssafn := c.nodeFns[call]
 		if ssafn == nil {
 			return true
 		}
@@ -1980,7 +1980,7 @@ func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
 		if !ok {
 			return true
 		}
-		ssafn := f.Pkg.SSAPkg.Prog.FuncValue(f.Pkg.TypesInfo.ObjectOf(fn.Name).(*types.Func))
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -2072,7 +2072,7 @@ func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
 		if !ok {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(fn)
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
@@ -2248,7 +2248,7 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 		if !isFunctionCallName(f, node, "time.Tick") {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(node)
+		ssafn := c.nodeFns[node]
 		if ssafn == nil {
 			return false
 		}
@@ -2519,7 +2519,7 @@ func (c *Checker) CheckPureFunctions(f *lint.File) {
 		if !ok {
 			return true
 		}
-		ssafn := f.EnclosingSSAFunction(fn)
+		ssafn := c.nodeFns[fn]
 		if ssafn == nil {
 			return true
 		}
