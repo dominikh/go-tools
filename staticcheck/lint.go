@@ -233,7 +233,7 @@ func (c *Checker) Init(prog *lint.Program) {
 
 	for _, pkg := range prog.Packages {
 		for _, f := range pkg.PkgInfo.Files {
-			ast.Walk(globalVisitor{c.nodeFns, pkg, f}, f)
+			ast.Walk(&globalVisitor{c.nodeFns, pkg, f}, f)
 		}
 	}
 }
@@ -244,13 +244,13 @@ type globalVisitor struct {
 	f   *ast.File
 }
 
-func (v globalVisitor) Visit(node ast.Node) ast.Visitor {
+func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.CallExpr:
 		v.m[node] = v.pkg.SSAPkg.Func("init")
 		return v
 	case *ast.FuncDecl:
-		nv := fnVisitor{v.m, v.f, v.pkg, nil}
+		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
 		return nv.Visit(node)
 	default:
 		return v
@@ -264,7 +264,7 @@ type fnVisitor struct {
 	ssafn *ssa.Function
 }
 
-func (v fnVisitor) Visit(node ast.Node) ast.Visitor {
+func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.FuncDecl:
 		var ssafn *ssa.Function
@@ -282,7 +282,7 @@ func (v fnVisitor) Visit(node ast.Node) ast.Visitor {
 		if ssafn == nil {
 			return nil
 		}
-		return fnVisitor{v.m, v.f, v.pkg, ssafn}
+		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
 	case nil:
 		return nil
 	default:
@@ -599,7 +599,6 @@ func (c *Checker) CheckDeferInInfiniteLoop(f *lint.File) {
 
 func (c *Checker) CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 	fn := func(node ast.Node) bool {
-		var defers []ast.Stmt
 		loop, ok := node.(*ast.RangeStmt)
 		if !ok {
 			return true
@@ -612,7 +611,7 @@ func (c *Checker) CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 		fn2 := func(node ast.Node) bool {
 			switch stmt := node.(type) {
 			case *ast.DeferStmt:
-				defers = append(defers, stmt)
+				f.Errorf(stmt, "defers in this range loop won't run unless the channel gets closed")
 			case *ast.FuncLit:
 				// Don't look into function bodies
 				return false
@@ -620,9 +619,6 @@ func (c *Checker) CheckDubiousDeferInChannelRangeLoop(f *lint.File) {
 			return true
 		}
 		ast.Inspect(loop.Body, fn2)
-		for _, stmt := range defers {
-			f.Errorf(stmt, "defers in this range loop won't run unless the channel gets closed")
-		}
 		return true
 	}
 	f.Walk(fn)
