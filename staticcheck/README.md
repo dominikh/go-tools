@@ -1,6 +1,11 @@
 Staticcheck is `go vet` on steroids, applying a ton of static analysis
 checks you might be used to from tools like ReSharper for C#.
 
+**This project is supported by
+[patrons on Patreon](https://www.patreon.com/dominikh). If you, too,
+would like to support the project's development, consider
+[becoming a patron](https://www.patreon.com/dominikh).**
+
 
 ## Installation
 
