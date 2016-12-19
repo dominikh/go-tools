@@ -217,18 +217,24 @@ func (c *Checker) Init(prog *lint.Program) {
 	}
 
 	s := pure.State{}
-	for _, fn := range fns {
-		if fn.Blocks == nil {
-			continue
-		}
-		detectInfiniteLoops(fn)
-		ssa.OptimizeBlocks(fn)
+	var processFn func(*ssa.Function)
+	processFn = func(fn *ssa.Function) {
+		if fn.Blocks != nil {
+			detectInfiniteLoops(fn)
+			ssa.OptimizeBlocks(fn)
 
-		c.funcDescs.Merge(fn, Function{
-			Pure:     s.IsPure(fn),
-			Ranges:   vrp.BuildGraph(fn).Solve(),
-			Infinite: !terminates(fn),
-		})
+			c.funcDescs.Merge(fn, Function{
+				Pure:     s.IsPure(fn),
+				Ranges:   vrp.BuildGraph(fn).Solve(),
+				Infinite: !terminates(fn),
+			})
+		}
+		for _, anon := range fn.AnonFuncs {
+			processFn(anon)
+		}
+	}
+	for _, fn := range fns {
+		processFn(fn)
 	}
 
 	for _, pkg := range prog.Packages {
