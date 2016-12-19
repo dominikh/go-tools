@@ -274,12 +274,20 @@ func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.FuncDecl:
 		var ssafn *ssa.Function
-		if node.Name != nil {
-			ssafn = v.pkg.SSAPkg.Prog.FuncValue(v.pkg.TypesInfo.ObjectOf(node.Name).(*types.Func))
-		} else {
-			path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
-			ssafn = ssa.EnclosingFunction(v.pkg.SSAPkg, path)
+		ssafn = v.pkg.SSAPkg.Prog.FuncValue(v.pkg.TypesInfo.ObjectOf(node.Name).(*types.Func))
+		v.m[node] = ssafn
+		if ssafn == nil {
+			return nil
 		}
+		v.m[node] = ssafn
+		if ssafn == nil {
+			return nil
+		}
+		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
+	case *ast.FuncLit:
+		var ssafn *ssa.Function
+		path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
+		ssafn = ssa.EnclosingFunction(v.pkg.SSAPkg, path)
 		v.m[node] = ssafn
 		if ssafn == nil {
 			return nil
