@@ -239,22 +239,47 @@ func (c *Checker) Init(prog *lint.Program) {
 		names := scope.Names()
 		for _, name := range names {
 			obj := scope.Lookup(name)
-			c.buildDeprecatedMap(prog.Prog, obj)
+			c.buildDeprecatedMap(pkginfo, prog.Prog, obj)
 			if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
 				n := typ.NumFields()
 				for i := 0; i < n; i++ {
 					// FIXME(dh): This code will not find deprecated
 					// fields in anonymous structs.
 					field := typ.Field(i)
-					c.buildDeprecatedMap(prog.Prog, field)
+					c.buildDeprecatedMap(pkginfo, prog.Prog, field)
 				}
 			}
 		}
 	}
 }
 
-func (c *Checker) buildDeprecatedMap(prog *loader.Program, obj types.Object) {
-	_, path, _ := prog.PathEnclosingInterval(obj.Pos(), obj.Pos())
+// TODO(adonovan): make this a method: func (*token.File) Contains(token.Pos)
+func tokenFileContainsPos(f *token.File, pos token.Pos) bool {
+	p := int(pos)
+	base := f.Base()
+	return base <= p && p < base+f.Size()
+}
+
+func pathEnclosingInterval(info *loader.PackageInfo, prog *loader.Program, start, end token.Pos) (path []ast.Node, exact bool) {
+	for _, f := range info.Files {
+		if f.Pos() == token.NoPos {
+			// This can happen if the parser saw
+			// too many errors and bailed out.
+			// (Use parser.AllErrors to prevent that.)
+			continue
+		}
+		if !tokenFileContainsPos(prog.Fset.File(f.Pos()), start) {
+			continue
+		}
+		if path, exact := astutil.PathEnclosingInterval(f, start, end); path != nil {
+			return path, exact
+		}
+	}
+	return nil, false
+}
+
+func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Program, obj types.Object) {
+	path, _ := pathEnclosingInterval(info, prog, obj.Pos(), obj.Pos())
 	if len(path) <= 2 {
 		c.deprecatedObjs[obj] = ""
 		return
