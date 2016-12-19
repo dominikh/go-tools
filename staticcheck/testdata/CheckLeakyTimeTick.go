@@ -26,6 +26,14 @@ func fn3() {
 	}
 }
 
+func fn4() {
+	go func() {
+		for range time.Tick(0) {
+			println("")
+		}
+	}()
+}
+
 type T struct{}
 
 func (t *T) foo() {
