@@ -80,7 +80,8 @@ type Checker struct {
 
 	depmu          sync.Mutex
 	deprecatedObjs map[types.Object]string
-	nodeFns        map[ast.Node]*ssa.Function
+
+	nodeFns map[ast.Node]*ssa.Function
 }
 
 func NewChecker() *Checker {
