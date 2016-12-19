@@ -2694,15 +2694,16 @@ func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
 }
 
 func (c *Checker) CheckPureFunctions(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
+	ssapkg := f.Pkg.SSAPkg
+	for _, m := range ssapkg.Members {
+		ssafn, ok := m.(*ssa.Function)
 		if !ok {
-			return true
+			continue
 		}
-		ssafn := c.nodeFns[fn]
-		if ssafn == nil {
-			return true
+		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
+			continue
 		}
+
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
 				ins, ok := ins.(*ssa.Call)
@@ -2723,9 +2724,7 @@ func (c *Checker) CheckPureFunctions(f *lint.File) {
 				}
 			}
 		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func enclosingFunction(f *lint.File, node ast.Node) *ast.FuncDecl {
