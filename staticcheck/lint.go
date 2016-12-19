@@ -2033,15 +2033,7 @@ func (c *Checker) CheckIneffectiveAppend(f *lint.File) {
 }
 
 func (c *Checker) CheckConcurrentTesting(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
-			return true
-		}
-		ssafn := c.nodeFns[fn]
-		if ssafn == nil {
-			return true
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, block := range ssafn.Blocks {
 			for _, ins := range block.Instrs {
 				gostmt, ok := ins.(*ssa.Go)
@@ -2095,9 +2087,7 @@ func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 				}
 			}
 		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
@@ -2152,15 +2142,7 @@ func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 }
 
 func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
-			return true
-		}
-		ssafn := c.nodeFns[fn]
-		if ssafn == nil {
-			return true
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, block := range ssafn.Blocks {
 			for _, ins := range block.Instrs {
 				ia, ok := ins.(*ssa.IndexAddr)
@@ -2180,9 +2162,7 @@ func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
 				}
 			}
 		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckDeferLock(f *lint.File) {
