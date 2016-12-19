@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	texttemplate "text/template"
 
 	"honnef.co/go/lint"
@@ -79,6 +80,8 @@ type Checker struct {
 	funcDescs      FunctionDescriptions
 	deprecatedObjs map[types.Object]string
 	nodeFns        map[ast.Node]*ssa.Function
+
+	tmpDeprecatedObjs map[*types.Package]map[types.Object]string
 }
 
 func NewChecker() *Checker {
@@ -178,6 +181,7 @@ func (c *Checker) Init(prog *lint.Program) {
 	c.funcDescs = FunctionDescriptions{}
 	c.deprecatedObjs = map[types.Object]string{}
 	c.nodeFns = map[ast.Node]*ssa.Function{}
+	c.tmpDeprecatedObjs = map[*types.Package]map[types.Object]string{}
 
 	for fn, desc := range stdlibDescs {
 		c.funcDescs[fn] = desc
@@ -235,22 +239,38 @@ func (c *Checker) Init(prog *lint.Program) {
 	}
 
 	for _, pkginfo := range prog.Prog.AllPackages {
-		scope := pkginfo.Pkg.Scope()
-		names := scope.Names()
-		for _, name := range names {
-			obj := scope.Lookup(name)
-			c.buildDeprecatedMap(pkginfo, prog.Prog, obj)
-			if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
-				n := typ.NumFields()
-				for i := 0; i < n; i++ {
-					// FIXME(dh): This code will not find deprecated
-					// fields in anonymous structs.
-					field := typ.Field(i)
-					c.buildDeprecatedMap(pkginfo, prog.Prog, field)
+		c.tmpDeprecatedObjs[pkginfo.Pkg] = map[types.Object]string{}
+	}
+	var wg sync.WaitGroup
+	for _, pkginfo := range prog.Prog.AllPackages {
+		pkginfo := pkginfo
+		wg.Add(1)
+		go func() {
+			scope := pkginfo.Pkg.Scope()
+			names := scope.Names()
+			for _, name := range names {
+				obj := scope.Lookup(name)
+				c.buildDeprecatedMap(pkginfo, prog.Prog, obj)
+				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
+					n := typ.NumFields()
+					for i := 0; i < n; i++ {
+						// FIXME(dh): This code will not find deprecated
+						// fields in anonymous structs.
+						field := typ.Field(i)
+						c.buildDeprecatedMap(pkginfo, prog.Prog, field)
+					}
 				}
 			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	for _, m := range c.tmpDeprecatedObjs {
+		for k, v := range m {
+			c.deprecatedObjs[k] = v
 		}
 	}
+	c.tmpDeprecatedObjs = nil
 }
 
 // TODO(adonovan): make this a method: func (*token.File) Contains(token.Pos)
@@ -281,7 +301,7 @@ func pathEnclosingInterval(info *loader.PackageInfo, prog *loader.Program, start
 func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Program, obj types.Object) {
 	path, _ := pathEnclosingInterval(info, prog, obj.Pos(), obj.Pos())
 	if len(path) <= 2 {
-		c.deprecatedObjs[obj] = ""
+		c.tmpDeprecatedObjs[info.Pkg][obj] = ""
 		return
 	}
 	var docs []*ast.CommentGroup
@@ -305,7 +325,7 @@ func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Prog
 			}
 		}
 	default:
-		c.deprecatedObjs[obj] = ""
+		c.tmpDeprecatedObjs[info.Pkg][obj] = ""
 		return
 	}
 
@@ -320,10 +340,10 @@ func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Prog
 		}
 		alt := last[len("Deprecated: "):]
 		alt = strings.Replace(alt, "\n", " ", -1)
-		c.deprecatedObjs[obj] = alt
+		c.tmpDeprecatedObjs[info.Pkg][obj] = alt
 		return
 	}
-	c.deprecatedObjs[obj] = ""
+	c.tmpDeprecatedObjs[info.Pkg][obj] = ""
 }
 
 func enclosingFunctionInit(f *ast.File, node ast.Node) *ast.FuncDecl {
