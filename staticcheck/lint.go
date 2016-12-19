@@ -1447,54 +1447,47 @@ func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 }
 
 func (c *Checker) CheckPredeterminedBooleanExprs(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		binop, ok := node.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
-		switch binop.Op {
-		case token.GTR, token.LSS, token.EQL, token.NEQ, token.LEQ, token.GEQ:
-		default:
-			return true
-		}
-		fn := f.EnclosingSSAFunction(binop)
-		if fn == nil {
-			return true
-		}
-		val, _ := fn.ValueForExpr(binop)
-		ssabinop, ok := val.(*ssa.BinOp)
-		if !ok {
-			return true
-		}
-		xs, ok1 := consts(ssabinop.X, nil, nil)
-		ys, ok2 := consts(ssabinop.Y, nil, nil)
-		if !ok1 || !ok2 || len(xs) == 0 || len(ys) == 0 {
-			return true
-		}
-
-		trues := 0
-		for _, x := range xs {
-			for _, y := range ys {
-				if x.Value == nil {
-					if y.Value == nil {
-						trues++
-					}
+	for _, ssafn := range c.funcsForFile(f) {
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				ssabinop, ok := ins.(*ssa.BinOp)
+				if !ok {
 					continue
 				}
-				if constant.Compare(x.Value, ssabinop.Op, y.Value) {
-					trues++
+				switch ssabinop.Op {
+				case token.GTR, token.LSS, token.EQL, token.NEQ, token.LEQ, token.GEQ:
+				default:
+					continue
+				}
+
+				xs, ok1 := consts(ssabinop.X, nil, nil)
+				ys, ok2 := consts(ssabinop.Y, nil, nil)
+				if !ok1 || !ok2 || len(xs) == 0 || len(ys) == 0 {
+					continue
+				}
+
+				trues := 0
+				for _, x := range xs {
+					for _, y := range ys {
+						if x.Value == nil {
+							if y.Value == nil {
+								trues++
+							}
+							continue
+						}
+						if constant.Compare(x.Value, ssabinop.Op, y.Value) {
+							trues++
+						}
+					}
+				}
+				b := trues != 0
+				if trues == 0 || trues == len(xs)*len(ys) {
+					f.Errorf(ssabinop, "binary expression is always %t for all possible values (%s %s %s)",
+						b, xs, ssabinop.Op, ys)
 				}
 			}
 		}
-		b := trues != 0
-		if trues == 0 || trues == len(xs)*len(ys) {
-			f.Errorf(binop, "%s is always %t for all possible values (%s %s %s)",
-				f.Render(binop), b, xs, binop.Op, ys)
-		}
-
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckNilMaps(f *lint.File) {
