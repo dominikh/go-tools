@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	texttemplate "text/template"
 
 	"honnef.co/go/lint"
@@ -20,6 +19,7 @@ import (
 	"honnef.co/go/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/loader"
 )
 
 type Function struct {
@@ -76,12 +76,9 @@ func (d FunctionDescriptions) Merge(fn *ssa.Function, desc Function) {
 }
 
 type Checker struct {
-	funcDescs FunctionDescriptions
-
-	depmu          sync.Mutex
+	funcDescs      FunctionDescriptions
 	deprecatedObjs map[types.Object]string
-
-	nodeFns map[ast.Node]*ssa.Function
+	nodeFns        map[ast.Node]*ssa.Function
 }
 
 func NewChecker() *Checker {
@@ -234,8 +231,92 @@ func (c *Checker) Init(prog *lint.Program) {
 	for _, pkg := range prog.Packages {
 		for _, f := range pkg.PkgInfo.Files {
 			ast.Walk(&globalVisitor{c.nodeFns, pkg, f}, f)
+
+			ast.Inspect(f, func(node ast.Node) bool {
+				sel, ok := node.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				c.buildDeprecatedMap(pkg, prog.Prog, sel.Sel)
+				if fn := enclosingFunctionInit(f, sel); fn != nil {
+					c.buildDeprecatedMap(pkg, prog.Prog, fn.Name)
+				}
+				return true
+			})
 		}
 	}
+}
+
+func (c *Checker) buildDeprecatedMap(pkg *lint.Pkg, prog *loader.Program, ident *ast.Ident) {
+	obj := pkg.TypesInfo.ObjectOf(ident)
+	if obj.Pkg() == nil {
+		return
+	}
+	if _, ok := c.deprecatedObjs[obj]; ok {
+		return
+	}
+
+	_, path, _ := prog.PathEnclosingInterval(obj.Pos(), obj.Pos())
+	if len(path) <= 2 {
+		c.deprecatedObjs[obj] = ""
+		return
+	}
+	var docs []*ast.CommentGroup
+	switch n := path[1].(type) {
+	case *ast.FuncDecl:
+		docs = append(docs, n.Doc)
+	case *ast.Field:
+		docs = append(docs, n.Doc)
+	case *ast.ValueSpec:
+		docs = append(docs, n.Doc)
+		if len(path) >= 3 {
+			if n, ok := path[2].(*ast.GenDecl); ok {
+				docs = append(docs, n.Doc)
+			}
+		}
+	case *ast.TypeSpec:
+		docs = append(docs, n.Doc)
+		if len(path) >= 3 {
+			if n, ok := path[2].(*ast.GenDecl); ok {
+				docs = append(docs, n.Doc)
+			}
+		}
+	default:
+		c.deprecatedObjs[obj] = ""
+		return
+	}
+
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		parts := strings.Split(doc.Text(), "\n\n")
+		last := parts[len(parts)-1]
+		if !strings.HasPrefix(last, "Deprecated: ") {
+			continue
+		}
+		alt := last[len("Deprecated: "):]
+		alt = strings.Replace(alt, "\n", " ", -1)
+		c.deprecatedObjs[obj] = alt
+		return
+	}
+	c.deprecatedObjs[obj] = ""
+	return
+}
+
+func enclosingFunctionInit(f *ast.File, node ast.Node) *ast.FuncDecl {
+	path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
+	for _, e := range path {
+		fn, ok := e.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if fn.Name == nil {
+			continue
+		}
+		return fn
+	}
+	return nil
 }
 
 type globalVisitor struct {
@@ -2607,62 +2688,11 @@ func (c *Checker) isDeprecated(f *lint.File, ident *ast.Ident) (bool, string) {
 	if obj.Pkg() == nil {
 		return false, ""
 	}
-	if alt, ok := c.deprecatedObjs[obj]; ok {
-		return alt != "", alt
-	}
-
-	_, path, _ := f.Program.PathEnclosingInterval(obj.Pos(), obj.Pos())
-	if len(path) <= 2 {
-		c.deprecatedObjs[obj] = ""
-		return false, ""
-	}
-	var docs []*ast.CommentGroup
-	switch n := path[1].(type) {
-	case *ast.FuncDecl:
-		docs = append(docs, n.Doc)
-	case *ast.Field:
-		docs = append(docs, n.Doc)
-	case *ast.ValueSpec:
-		docs = append(docs, n.Doc)
-		if len(path) >= 3 {
-			if n, ok := path[2].(*ast.GenDecl); ok {
-				docs = append(docs, n.Doc)
-			}
-		}
-	case *ast.TypeSpec:
-		docs = append(docs, n.Doc)
-		if len(path) >= 3 {
-			if n, ok := path[2].(*ast.GenDecl); ok {
-				docs = append(docs, n.Doc)
-			}
-		}
-	default:
-		c.deprecatedObjs[obj] = ""
-		return false, ""
-	}
-
-	for _, doc := range docs {
-		if doc == nil {
-			continue
-		}
-		parts := strings.Split(doc.Text(), "\n\n")
-		last := parts[len(parts)-1]
-		if !strings.HasPrefix(last, "Deprecated: ") {
-			continue
-		}
-		alt := last[len("Deprecated: "):]
-		alt = strings.Replace(alt, "\n", " ", -1)
-		c.deprecatedObjs[obj] = alt
-		return true, alt
-	}
-	c.deprecatedObjs[obj] = ""
-	return false, ""
+	alt := c.deprecatedObjs[obj]
+	return alt != "", alt
 }
 
 func (c *Checker) CheckDeprecated(f *lint.File) {
-	c.depmu.Lock()
-	defer c.depmu.Unlock()
-
 	fn := func(node ast.Node) bool {
 		sel, ok := node.(*ast.SelectorExpr)
 		if !ok {
