@@ -2795,88 +2795,93 @@ func (c *Checker) CheckDeprecated(f *lint.File) {
 }
 
 func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
+	ssapkg := f.Pkg.SSAPkg
+	for _, m := range ssapkg.Members {
+		ssafn, ok := m.(*ssa.Function)
 		if !ok {
-			return true
+			continue
 		}
-		ssafn := c.nodeFns[call]
-		if ssafn == nil {
-			return true
+		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
+			continue
 		}
-		v, _ := ssafn.ValueForExpr(call)
-		if v == nil {
-			return true
-		}
-		ssacall, ok := v.(*ssa.Call)
-		if !ok {
-			return true
-		}
-
-		callee := ssacall.Common().StaticCallee()
-		if callee == nil {
-			return true
-		}
-		obj, ok := callee.Object().(*types.Func)
-		if !ok {
-			return true
-		}
-
-		r := rules[obj.FullName()]
-		if len(r.Arguments) == 0 {
-			return true
-		}
-		type argError struct {
-			arg ast.Expr
-			err error
-		}
-		errs := make([]*argError, len(r.Arguments))
-		for i, ar := range r.Arguments {
-			idx := ar.Index()
-			if ssacall.Common().Signature().Recv() != nil {
-				idx++
-			}
-			arg := ssacall.Common().Args[idx]
-			if iarg, ok := arg.(*ssa.MakeInterface); ok {
-				arg = iarg.X
-			}
-			err := ar.Validate(arg, ssafn, c)
-			if err != nil {
-				errs[i] = &argError{call.Args[ar.Index()], err}
-			}
-		}
-
-		switch r.Mode {
-		case InvalidIndependent:
-			for _, err := range errs {
-				if err != nil {
-					f.Errorf(err.arg, "%s", err.err)
-				}
-			}
-		case InvalidIfAny:
-			for _, err := range errs {
-				if err == nil {
+		for _, b := range ssafn.Blocks {
+		insLoop:
+			for _, ins := range b.Instrs {
+				ssacall, ok := ins.(*ssa.Call)
+				if !ok {
 					continue
 				}
-				f.Errorf(call, "%s", err.err)
-				return true
-			}
-		case InvalidIfAll:
-			var first error
-			for _, err := range errs {
-				if err == nil {
-					return true
+				callee := ssacall.Common().StaticCallee()
+				if callee == nil {
+					continue
 				}
-				if first == nil {
-					first = err.err
+				obj, ok := callee.Object().(*types.Func)
+				if !ok {
+					continue
 				}
-			}
-			f.Errorf(call, "%s", first)
-		}
 
-		return true
+				r := rules[obj.FullName()]
+				if len(r.Arguments) == 0 {
+					continue
+				}
+				type argError struct {
+					arg lint.Positioner
+					err error
+				}
+				errs := make([]*argError, len(r.Arguments))
+				for i, ar := range r.Arguments {
+					idx := ar.Index()
+					if ssacall.Common().Signature().Recv() != nil {
+						idx++
+					}
+					arg := ssacall.Common().Args[idx]
+					if iarg, ok := arg.(*ssa.MakeInterface); ok {
+						arg = iarg.X
+					}
+					err := ar.Validate(arg, ssafn, c)
+					if err != nil {
+						path, _ := astutil.PathEnclosingInterval(f.File, ssacall.Pos(), ssacall.Pos())
+						if len(path) < 2 {
+							continue insLoop
+						}
+						call, ok := path[0].(*ast.CallExpr)
+						if !ok {
+							continue insLoop
+						}
+						errs[i] = &argError{call.Args[ar.Index()], err}
+					}
+				}
+
+				switch r.Mode {
+				case InvalidIndependent:
+					for _, err := range errs {
+						if err != nil {
+							f.Errorf(err.arg, "%s", err.err)
+						}
+					}
+				case InvalidIfAny:
+					for _, err := range errs {
+						if err == nil {
+							continue insLoop
+						}
+						f.Errorf(ssacall, "%s", err.err)
+						continue
+					}
+				case InvalidIfAll:
+					var first error
+					for _, err := range errs {
+						if err == nil {
+							continue insLoop
+						}
+						if first == nil {
+							first = err.err
+						}
+					}
+					f.Errorf(ssacall, "%s", first)
+				}
+			}
+		}
 	}
-	f.Walk(fn)
 }
 
 var checkListenAddressRules = map[string]CallRule{
