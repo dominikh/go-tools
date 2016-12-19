@@ -110,6 +110,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1018": c.CheckStringsReplaceZero,
 		"SA1019": c.CheckDeprecated,
 		"SA1020": c.CheckListenAddress,
+		"SA1021": c.CheckBytesEqualIP,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -2747,4 +2748,22 @@ var checkListenAddressRules = map[string]CallRule{
 
 func (c *Checker) CheckListenAddress(f *lint.File) {
 	c.checkCalls(f, checkListenAddressRules)
+}
+
+var checkBytesEqualIPRules = map[string]CallRule{
+	"bytes.Equal": CallRule{
+		[]ArgumentRule{
+			NotChangedTypeFrom{
+				argumentRule{
+					idx:     0,
+					Message: "use net.IP.Equal to compare net.IPs, not bytes.Equal",
+				},
+				"net.IP",
+			},
+		},
+	},
+}
+
+func (c *Checker) CheckBytesEqualIP(f *lint.File) {
+	c.checkCalls(f, checkBytesEqualIPRules)
 }

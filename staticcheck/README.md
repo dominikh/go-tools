@@ -67,6 +67,7 @@ The following things are currently checked by staticcheck:
 | SA1018     | `strings.Replace` called with n == 0, which does nothing                                                                                              |
 | SA1019     | Using a deprecated function, variable, constant or field                                                                                              |
 | SA1020     | Using an invalid `host:port` pair with a `net.Listen`-related function                                                                                |
+| SA1021     | Using bytes.Equal to compare two net.IP                                                                                                               |
 |            |                                                                                                                                                       |
 | **SA2???** | **Concurrency issues**                                                                                                                                |
 | SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                                                                         |
