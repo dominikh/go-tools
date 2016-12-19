@@ -2224,18 +2224,7 @@ func (c *Checker) CheckNaNComparison(f *lint.File) {
 }
 
 func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
-			return true
-		}
-		ssafn := c.nodeFns[fn]
-		if ssafn == nil {
-			return true
-		}
-		if len(ssafn.Blocks) == 0 {
-			return true
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, block := range ssafn.Blocks {
 			for _, ins := range block.Instrs {
 				call, ok := ins.(*ssa.Call)
@@ -2269,9 +2258,7 @@ func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
 				f.Errorf(call, "infinite recursive call")
 			}
 		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func objectName(obj types.Object) string {
