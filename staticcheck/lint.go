@@ -2099,70 +2099,62 @@ func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 }
 
 func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
+	ssapkg := f.Pkg.SSAPkg
+	for _, m := range ssapkg.Members {
+		ssafn, ok := m.(*ssa.Function)
 		if !ok {
-			return true
+			continue
 		}
-		if !isFunctionCallName(f, call, "runtime.SetFinalizer") {
-			return true
+		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
+			continue
 		}
-		ssafn := c.nodeFns[call]
-		if ssafn == nil {
-			return true
-		}
-		ident, ok := call.Args[0].(*ast.Ident)
-		if !ok {
-			return true
-		}
-		obj := f.Pkg.TypesInfo.ObjectOf(ident)
-		checkFn := func(fn *ssa.Function) {
-			if len(fn.FreeVars) == 0 {
-				return
-			}
-			for _, v := range fn.FreeVars {
-				path, _ := astutil.PathEnclosingInterval(f.File, v.Pos(), v.Pos())
-				if len(path) == 0 {
-					continue
-				}
-				ident, ok := path[0].(*ast.Ident)
+		for _, b := range ssafn.Blocks {
+			for _, ins := range b.Instrs {
+				call, ok := ins.(*ssa.Call)
 				if !ok {
 					continue
 				}
-				if f.Pkg.TypesInfo.ObjectOf(ident) == obj {
-					pos := f.Fset.Position(fn.Pos())
-					f.Errorf(call, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
-					break
+				callee := call.Common().StaticCallee()
+				if callee == nil {
+					continue
 				}
-			}
-		}
-		var checkValue func(val ssa.Value)
-		seen := map[ssa.Value]bool{}
-		checkValue = func(val ssa.Value) {
-			if seen[val] {
-				return
-			}
-			seen[val] = true
-			switch val := val.(type) {
-			case *ssa.Phi:
-				for _, val := range val.Operands(nil) {
-					checkValue(*val)
+				obj, ok := callee.Object().(*types.Func)
+				if !ok {
+					continue
 				}
-			case *ssa.MakeClosure:
-				checkFn(val.Fn.(*ssa.Function))
-			default:
-				return
-			}
-		}
+				if obj.FullName() != "runtime.SetFinalizer" {
+					continue
+				}
 
-		switch arg := call.Args[1].(type) {
-		case *ast.Ident, *ast.FuncLit:
-			r, _ := ssafn.ValueForExpr(arg)
-			checkValue(r)
+				arg0 := call.Common().Args[0]
+				if iface, ok := arg0.(*ssa.MakeInterface); ok {
+					arg0 = iface.X
+				}
+				unop, ok := arg0.(*ssa.UnOp)
+				if !ok {
+					continue
+				}
+				v, ok := unop.X.(*ssa.Alloc)
+				if !ok {
+					continue
+				}
+				arg1 := call.Common().Args[1]
+				if iface, ok := arg1.(*ssa.MakeInterface); ok {
+					arg1 = iface.X
+				}
+				mc, ok := arg1.(*ssa.MakeClosure)
+				if !ok {
+					continue
+				}
+				for _, b := range mc.Bindings {
+					if b == v {
+						pos := f.Fset.Position(mc.Fn.Pos())
+						f.Errorf(call, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
+					}
+				}
+			}
 		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
