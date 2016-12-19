@@ -1272,22 +1272,22 @@ func (c *Checker) CheckBenchmarkN(f *lint.File) {
 }
 
 func (c *Checker) CheckIneffecitiveFieldAssignments(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
+	ssapkg := f.Pkg.SSAPkg
+	for _, m := range ssapkg.Members {
+		ssafn, ok := m.(*ssa.Function)
 		if !ok {
-			return true
+			continue
 		}
-		if fn.Recv == nil {
-			return true
+		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
+			continue
 		}
-		ssafn := c.nodeFns[fn]
-		if ssafn == nil {
-			return true
+		if ssafn.Signature.Recv() == nil {
+			continue
 		}
 
 		if len(ssafn.Blocks) == 0 {
 			// External function
-			return true
+			continue
 		}
 
 		reads := map[*ssa.BasicBlock]map[ssa.Value]bool{}
@@ -1295,13 +1295,13 @@ func (c *Checker) CheckIneffecitiveFieldAssignments(f *lint.File) {
 
 		recv := ssafn.Params[0]
 		if _, ok := recv.Type().Underlying().(*types.Struct); !ok {
-			return true
+			continue
 		}
 		recvPtrs := map[ssa.Value]bool{
 			recv: true,
 		}
 		if len(ssafn.Locals) == 0 || ssafn.Locals[0].Heap {
-			return true
+			continue
 		}
 		blocks := ssafn.DomPreorder()
 		for _, block := range blocks {
@@ -1380,10 +1380,7 @@ func (c *Checker) CheckIneffecitiveFieldAssignments(f *lint.File) {
 				}
 			}
 		}
-
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
