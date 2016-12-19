@@ -231,31 +231,29 @@ func (c *Checker) Init(prog *lint.Program) {
 	for _, pkg := range prog.Packages {
 		for _, f := range pkg.PkgInfo.Files {
 			ast.Walk(&globalVisitor{c.nodeFns, pkg, f}, f)
+		}
+	}
 
-			ast.Inspect(f, func(node ast.Node) bool {
-				sel, ok := node.(*ast.SelectorExpr)
-				if !ok {
-					return true
+	for _, pkginfo := range prog.Prog.AllPackages {
+		scope := pkginfo.Pkg.Scope()
+		names := scope.Names()
+		for _, name := range names {
+			obj := scope.Lookup(name)
+			c.buildDeprecatedMap(prog.Prog, obj)
+			if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
+				n := typ.NumFields()
+				for i := 0; i < n; i++ {
+					// FIXME(dh): This code will not find deprecated
+					// fields in anonymous structs.
+					field := typ.Field(i)
+					c.buildDeprecatedMap(prog.Prog, field)
 				}
-				c.buildDeprecatedMap(pkg, prog.Prog, sel.Sel)
-				if fn := enclosingFunctionInit(f, sel); fn != nil {
-					c.buildDeprecatedMap(pkg, prog.Prog, fn.Name)
-				}
-				return true
-			})
+			}
 		}
 	}
 }
 
-func (c *Checker) buildDeprecatedMap(pkg *lint.Pkg, prog *loader.Program, ident *ast.Ident) {
-	obj := pkg.TypesInfo.ObjectOf(ident)
-	if obj.Pkg() == nil {
-		return
-	}
-	if _, ok := c.deprecatedObjs[obj]; ok {
-		return
-	}
-
+func (c *Checker) buildDeprecatedMap(prog *loader.Program, obj types.Object) {
 	_, path, _ := prog.PathEnclosingInterval(obj.Pos(), obj.Pos())
 	if len(path) <= 2 {
 		c.deprecatedObjs[obj] = ""
@@ -301,7 +299,6 @@ func (c *Checker) buildDeprecatedMap(pkg *lint.Pkg, prog *loader.Program, ident 
 		return
 	}
 	c.deprecatedObjs[obj] = ""
-	return
 }
 
 func enclosingFunctionInit(f *ast.File, node ast.Node) *ast.FuncDecl {
