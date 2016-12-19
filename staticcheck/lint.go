@@ -80,6 +80,7 @@ type Checker struct {
 	funcDescs      FunctionDescriptions
 	deprecatedObjs map[types.Object]string
 	nodeFns        map[ast.Node]*ssa.Function
+	funcs          map[*token.File][]*ssa.Function
 
 	tmpDeprecatedObjs map[*types.Package]map[types.Object]string
 }
@@ -156,6 +157,10 @@ func (c *Checker) Funcs() map[string]lint.Func {
 	}
 }
 
+func (c *Checker) funcsForFile(f *lint.File) []*ssa.Function {
+	return c.funcs[f.Program.Fset.File(f.File.Pos())]
+}
+
 // terminates reports whether fn is supposed to return, that is if it
 // has at least one theoretic path that returns from the function.
 // Explicit panics do not count as terminating.
@@ -178,6 +183,7 @@ func terminates(fn *ssa.Function) (ret bool) {
 }
 
 func (c *Checker) Init(prog *lint.Program) {
+	c.funcs = map[*token.File][]*ssa.Function{}
 	c.funcDescs = FunctionDescriptions{}
 	c.deprecatedObjs = map[types.Object]string{}
 	c.nodeFns = map[ast.Node]*ssa.Function{}
@@ -229,6 +235,7 @@ func (c *Checker) Init(prog *lint.Program) {
 		desc Function
 	}
 	descs := make(chan desc)
+	funcs := make(chan *ssa.Function)
 	var pwg sync.WaitGroup
 	var processFn func(*ssa.Function)
 	processFn = func(fn *ssa.Function) {
@@ -236,6 +243,7 @@ func (c *Checker) Init(prog *lint.Program) {
 			detectInfiniteLoops(fn)
 			ssa.OptimizeBlocks(fn)
 
+			funcs <- fn
 			descs <- desc{fn, Function{
 				Pure:     s.IsPure(fn),
 				Ranges:   vrp.BuildGraph(fn).Solve(),
@@ -256,10 +264,34 @@ func (c *Checker) Init(prog *lint.Program) {
 	go func() {
 		pwg.Wait()
 		close(descs)
+		close(funcs)
 	}()
-	for desc := range descs {
-		c.funcDescs.Merge(desc.fn, desc.desc)
-	}
+
+	var rwg sync.WaitGroup
+	rwg.Add(2)
+	go func() {
+		for fn := range funcs {
+			pos := fn.Pos()
+			if pos == 0 {
+				for _, pkg := range prog.Packages {
+					if pkg.SSAPkg == fn.Pkg {
+						pos = pkg.PkgInfo.Files[0].Pos()
+						break
+					}
+				}
+			}
+			f := prog.Prog.Fset.File(pos)
+			c.funcs[f] = append(c.funcs[f], fn)
+		}
+		rwg.Done()
+	}()
+	go func() {
+		for desc := range descs {
+			c.funcDescs.Merge(desc.fn, desc.desc)
+		}
+		rwg.Done()
+	}()
+	rwg.Wait()
 
 	for _, pkg := range prog.Packages {
 		for _, f := range pkg.PkgInfo.Files {
@@ -1171,15 +1203,7 @@ func (c *Checker) CheckIneffectiveCopy(f *lint.File) {
 }
 
 func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	for _, m := range ssapkg.Members {
-		ssafn, ok := m.(*ssa.Function)
-		if !ok {
-			continue
-		}
-		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
-			continue
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
 				binop, ok := ins.(*ssa.BinOp)
@@ -1272,12 +1296,7 @@ func (c *Checker) CheckBenchmarkN(f *lint.File) {
 }
 
 func (c *Checker) CheckIneffecitiveFieldAssignments(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	for _, m := range ssapkg.Members {
-		ssafn, ok := m.(*ssa.Function)
-		if !ok {
-			continue
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
 			continue
 		}
@@ -2093,15 +2112,7 @@ func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 }
 
 func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	for _, m := range ssapkg.Members {
-		ssafn, ok := m.(*ssa.Function)
-		if !ok {
-			continue
-		}
-		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
-			continue
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
 				call, ok := ins.(*ssa.Call)
@@ -2691,16 +2702,7 @@ func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
 }
 
 func (c *Checker) CheckPureFunctions(f *lint.File) {
-	ssapkg := f.Pkg.SSAPkg
-	for _, m := range ssapkg.Members {
-		ssafn, ok := m.(*ssa.Function)
-		if !ok {
-			continue
-		}
-		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
-			continue
-		}
-
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
 				ins, ok := ins.(*ssa.Call)
@@ -2780,15 +2782,7 @@ func (c *Checker) CheckDeprecated(f *lint.File) {
 }
 
 func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
-	ssapkg := f.Pkg.SSAPkg
-	for _, m := range ssapkg.Members {
-		ssafn, ok := m.(*ssa.Function)
-		if !ok {
-			continue
-		}
-		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
-			continue
-		}
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
 		insLoop:
 			for _, ins := range b.Instrs {
