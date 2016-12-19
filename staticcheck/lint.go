@@ -2721,7 +2721,15 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 		}
 
 		r := rules[obj.FullName()]
-		for _, ar := range r.Arguments {
+		if len(r.Arguments) == 0 {
+			return true
+		}
+		type argError struct {
+			arg ast.Expr
+			err error
+		}
+		errs := make([]*argError, len(r.Arguments))
+		for i, ar := range r.Arguments {
 			idx := ar.Index()
 			if ssacall.Common().Signature().Recv() != nil {
 				idx++
@@ -2732,8 +2740,36 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 			}
 			err := ar.Validate(arg, ssafn, c)
 			if err != nil {
-				f.Errorf(call.Args[ar.Index()], "%s", err)
+				errs[i] = &argError{call.Args[ar.Index()], err}
 			}
+		}
+
+		switch r.Mode {
+		case InvalidIndependent:
+			for _, err := range errs {
+				if err != nil {
+					f.Errorf(err.arg, "%s", err.err)
+				}
+			}
+		case InvalidIfAny:
+			for _, err := range errs {
+				if err == nil {
+					continue
+				}
+				f.Errorf(call, "%s", err.err)
+				return true
+			}
+		case InvalidIfAll:
+			var first error
+			for _, err := range errs {
+				if err == nil {
+					return true
+				}
+				if first == nil {
+					first = err.err
+				}
+			}
+			f.Errorf(call, "%s", first)
 		}
 
 		return true
@@ -2742,8 +2778,8 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 }
 
 var checkListenAddressRules = map[string]CallRule{
-	"net/http.ListenAndServe":    CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
-	"net/http.ListenAndServeTLS": CallRule{[]ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+	"net/http.ListenAndServe":    CallRule{Arguments: []ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+	"net/http.ListenAndServeTLS": CallRule{Arguments: []ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
 }
 
 func (c *Checker) CheckListenAddress(f *lint.File) {
@@ -2752,7 +2788,7 @@ func (c *Checker) CheckListenAddress(f *lint.File) {
 
 var checkBytesEqualIPRules = map[string]CallRule{
 	"bytes.Equal": CallRule{
-		[]ArgumentRule{
+		Arguments: []ArgumentRule{
 			NotChangedTypeFrom{
 				argumentRule{
 					idx:     0,
@@ -2760,7 +2796,15 @@ var checkBytesEqualIPRules = map[string]CallRule{
 				},
 				"net.IP",
 			},
+			NotChangedTypeFrom{
+				argumentRule{
+					idx:     1,
+					Message: "use net.IP.Equal to compare net.IPs, not bytes.Equal",
+				},
+				"net.IP",
+			},
 		},
+		Mode: InvalidIfAll,
 	},
 }
 

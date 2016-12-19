@@ -22,8 +22,17 @@ type ArgumentRule interface {
 	Validate(ssa.Value, *ssa.Function, *Checker) error
 }
 
+type InvalidMode int
+
+const (
+	InvalidIndependent InvalidMode = iota
+	InvalidIfAny
+	InvalidIfAll
+)
+
 type CallRule struct {
 	Arguments []ArgumentRule
+	Mode      InvalidMode
 }
 
 type argumentRule struct {

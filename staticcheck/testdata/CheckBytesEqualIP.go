@@ -15,5 +15,6 @@ func fn() {
 	bytes.Equal(b1, b2)
 	bytes.Equal(t1, t2)
 
-	// bytes.Equal(i1, b1)
+	bytes.Equal(i1, b1)
+	bytes.Equal(b1, i1)
 }
