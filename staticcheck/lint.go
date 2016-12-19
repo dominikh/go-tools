@@ -68,19 +68,11 @@ var stdlibDescs = map[string]Function{
 type FunctionDescriptions map[string]Function
 
 func (d FunctionDescriptions) Get(fn *ssa.Function) Function {
-	obj, ok := fn.Object().(*types.Func)
-	if !ok {
-		return Function{}
-	}
-	return d[obj.FullName()]
+	return d[fn.RelString(nil)]
 }
 
 func (d FunctionDescriptions) Merge(fn *ssa.Function, desc Function) {
-	obj, ok := fn.Object().(*types.Func)
-	if !ok {
-		return
-	}
-	d[obj.FullName()] = d[obj.FullName()].Merge(desc)
+	d[fn.RelString(nil)] = d[fn.RelString(nil)].Merge(desc)
 }
 
 type Checker struct {
