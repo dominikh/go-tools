@@ -1498,16 +1498,7 @@ func (c *Checker) CheckPredeterminedBooleanExprs(f *lint.File) {
 }
 
 func (c *Checker) CheckNilMaps(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
-			return true
-		}
-		ssafn := c.nodeFns[fn]
-		if ssafn == nil {
-			return true
-		}
-
+	for _, ssafn := range c.funcsForFile(f) {
 		for _, block := range ssafn.Blocks {
 			for _, ins := range block.Instrs {
 				mu, ok := ins.(*ssa.MapUpdate)
@@ -1524,9 +1515,7 @@ func (c *Checker) CheckNilMaps(f *lint.File) {
 				f.Errorf(mu, "assignment to nil map")
 			}
 		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckUnsignedComparison(f *lint.File) {
