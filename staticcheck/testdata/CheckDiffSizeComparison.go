@@ -1,7 +1,7 @@
 package pkg
 
 func fn1() {
-	const s1 = "foobar"
+	var s1 = "foobar"
 	_ = "a"[:] == s1           // MATCH /comparing strings of different sizes/
 	_ = s1 == "a"[:]           // MATCH /comparing strings of different sizes/
 	_ = "a"[:] == s1[:2]       // MATCH /comparing strings of different sizes/

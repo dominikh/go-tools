@@ -1171,44 +1171,41 @@ func (c *Checker) CheckIneffectiveCopy(f *lint.File) {
 }
 
 func (c *Checker) CheckDiffSizeComparison(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		expr, ok := node.(*ast.BinaryExpr)
+	ssapkg := f.Pkg.SSAPkg
+	for _, m := range ssapkg.Members {
+		ssafn, ok := m.(*ssa.Function)
 		if !ok {
-			return true
+			continue
 		}
-		if expr.Op != token.EQL && expr.Op != token.NEQ {
-			return true
+		if f.Fset.File(f.File.Pos()) != f.Fset.File(ssafn.Pos()) {
+			continue
 		}
-
-		_, isSlice1 := expr.X.(*ast.SliceExpr)
-		_, isSlice2 := expr.Y.(*ast.SliceExpr)
-		if !isSlice1 && !isSlice2 {
-			// Only do the check if at least one side has a slicing
-			// expression. Otherwise we'll just run into false
-			// positives because of debug toggles and the like.
-			return true
+		for _, b := range ssafn.Blocks {
+			for _, ins := range b.Instrs {
+				binop, ok := ins.(*ssa.BinOp)
+				if !ok {
+					continue
+				}
+				if binop.Op != token.EQL && binop.Op != token.NEQ {
+					continue
+				}
+				_, ok1 := binop.X.(*ssa.Slice)
+				_, ok2 := binop.Y.(*ssa.Slice)
+				if !ok1 && !ok2 {
+					continue
+				}
+				r := c.funcDescs.Get(ssafn).Ranges
+				r1, ok1 := r.Get(binop.X).(vrp.StringInterval)
+				r2, ok2 := r.Get(binop.Y).(vrp.StringInterval)
+				if !ok1 || !ok2 {
+					continue
+				}
+				if r1.Length.Intersection(r2.Length).Empty() {
+					f.Errorf(binop, "comparing strings of different sizes for equality will always return false")
+				}
+			}
 		}
-		ssafn := f.EnclosingSSAFunction(expr)
-		if ssafn == nil {
-			return true
-		}
-		ssaexpr, _ := ssafn.ValueForExpr(expr)
-		binop, ok := ssaexpr.(*ssa.BinOp)
-		if !ok {
-			return true
-		}
-		r := c.funcDescs.Get(ssafn).Ranges
-		r1, ok1 := r.Get(binop.X).(vrp.StringInterval)
-		r2, ok2 := r.Get(binop.Y).(vrp.StringInterval)
-		if !ok1 || !ok2 {
-			return true
-		}
-		if r1.Length.Intersection(r2.Length).Empty() {
-			f.Errorf(expr, "comparing strings of different sizes for equality will always return false")
-		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckCanonicalHeaderKey(f *lint.File) {
