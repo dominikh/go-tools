@@ -211,25 +211,54 @@ func (c *Checker) Init(prog *lint.Program) {
 		}
 	}
 
-	s := pure.State{}
+	s := &pure.State{}
+	var processPure func(*ssa.Function)
+	processPure = func(fn *ssa.Function) {
+		// TODO(dh): parallelize this
+		s.IsPure(fn)
+		for _, anon := range fn.AnonFuncs {
+			processPure(anon)
+		}
+	}
+	for _, fn := range fns {
+		processPure(fn)
+	}
+
+	type desc struct {
+		fn   *ssa.Function
+		desc Function
+	}
+	descs := make(chan desc)
+	var pwg sync.WaitGroup
 	var processFn func(*ssa.Function)
 	processFn = func(fn *ssa.Function) {
 		if fn.Blocks != nil {
 			detectInfiniteLoops(fn)
 			ssa.OptimizeBlocks(fn)
 
-			c.funcDescs.Merge(fn, Function{
+			descs <- desc{fn, Function{
 				Pure:     s.IsPure(fn),
 				Ranges:   vrp.BuildGraph(fn).Solve(),
 				Infinite: !terminates(fn),
-			})
+			}}
+
 		}
 		for _, anon := range fn.AnonFuncs {
+			pwg.Add(1)
 			processFn(anon)
 		}
+		pwg.Done()
 	}
 	for _, fn := range fns {
-		processFn(fn)
+		pwg.Add(1)
+		go processFn(fn)
+	}
+	go func() {
+		pwg.Wait()
+		close(descs)
+	}()
+	for desc := range descs {
+		c.funcDescs.Merge(desc.fn, desc.desc)
 	}
 
 	for _, pkg := range prog.Packages {
