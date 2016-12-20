@@ -271,6 +271,11 @@ func (c *Checker) Init(prog *lint.Program) {
 	rwg.Add(2)
 	go func() {
 		for fn := range funcs {
+			if fn.Synthetic != "" && (fn.Package() == nil || fn != fn.Package().Members["init"]) {
+				// Don't track synthetic functions, unless they're the
+				// init function
+				continue
+			}
 			pos := fn.Pos()
 			if pos == 0 {
 				for _, pkg := range prog.Packages {
