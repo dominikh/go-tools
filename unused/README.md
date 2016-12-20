@@ -3,6 +3,12 @@
 _unused_ checks Go code for unused constants, variables, functions and
 types.
 
+**This project is supported by
+[patrons on Patreon](https://www.patreon.com/dominikh). If you, too,
+would like to support the project's development, consider
+[becoming a patron](https://www.patreon.com/dominikh).**
+
+
 ## Install
 
 	go get honnef.co/go/unused/cmd/unused
