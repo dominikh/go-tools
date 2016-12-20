@@ -8,6 +8,7 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"honnef.co/go/lint"
 
@@ -25,6 +26,7 @@ func NewLintChecker(c *Checker) *LintChecker {
 }
 
 type LintChecker struct {
+	mu    sync.Mutex
 	c     *Checker
 	seen  map[*loader.Program]struct{}
 	found map[string][]Unused
@@ -57,6 +59,8 @@ func typString(obj types.Object) string {
 }
 
 func (l *LintChecker) Lint(f *lint.File) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if _, ok := l.seen[f.Program]; !ok {
 		l.seen[f.Program] = struct{}{}
 		unused := l.c.Check(f.Program)
