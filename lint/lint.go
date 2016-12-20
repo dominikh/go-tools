@@ -250,6 +250,9 @@ type Positioner interface {
 
 func (f *File) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	pos := f.Fset.Position(n.Pos())
+	if !pos.IsValid() {
+		pos = f.Fset.Position(f.File.Pos())
+	}
 	return f.Pkg.errorfAt(pos, f.check, format, args...)
 }
 
