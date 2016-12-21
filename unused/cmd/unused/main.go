@@ -19,6 +19,7 @@ var (
 	fDebug        string
 	fWholeProgram bool
 	fReflection   bool
+	fTags         string
 )
 
 func init() {
@@ -30,6 +31,7 @@ func init() {
 	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
 	flag.BoolVar(&fWholeProgram, "exported", false, "Treat arguments as a program and report unused exported identifiers")
 	flag.BoolVar(&fReflection, "reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
+	flag.StringVar(&fTags, "tags", "", "Build tags")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -75,5 +77,9 @@ func main() {
 
 	checker := newChecker(mode)
 	l := unused.NewLintChecker(checker)
-	lintutil.ProcessArgs("unused", l, flag.Args())
+	args := flag.Args()
+	if len(fTags) > 0 {
+		args = append([]string{"-tags", fTags}, args...)
+	}
+	lintutil.ProcessArgs("unused", l, args)
 }
