@@ -52,6 +52,13 @@ func fn9() {
 	s[0] = 1
 }
 
+func fn10() {
+	var x []byte
+	for _, y := range x {
+		println(y)
+	}
+}
+
 func fn(int) {
 	println() // make it unpure
 }
