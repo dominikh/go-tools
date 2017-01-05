@@ -64,6 +64,8 @@ var stdlibDescs = map[string]Function{
 	"strings.TrimRightFunc":  Function{Pure: true},
 	"strings.TrimSpace":      Function{Pure: true},
 	"strings.TrimSuffix":     Function{Pure: true},
+
+	"(*net/http.Request).WithContext": Function{Pure: true},
 }
 
 type FunctionDescriptions map[string]Function

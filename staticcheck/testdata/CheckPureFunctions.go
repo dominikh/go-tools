@@ -1,11 +1,20 @@
 package pkg
 
-import "strings"
+import (
+	"context"
+	"net/http"
+	"strings"
+)
 
-func fn() {
+func fn1() {
 	strings.Replace("", "", "", 1) // MATCH /is a pure function but its return value is ignored/
 	foo(1, 2)                      // MATCH /is a pure function but its return value is ignored/
 	bar(1, 2)
+}
+
+func fn2() {
+	r, _ := http.NewRequest("GET", "/", nil)
+	r.WithContext(context.Background()) // MATCH /is a pure function but its return value is ignored/
 }
 
 func foo(a, b int) int { return a + b }
