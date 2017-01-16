@@ -949,7 +949,14 @@ func getField(typ types.Type, idx int) *types.Var {
 	case *types.Pointer:
 		return getField(obj.Elem(), idx)
 	case *types.Named:
-		return obj.Underlying().(*types.Struct).Field(idx)
+		switch v := obj.Underlying().(type) {
+		case *types.Struct:
+			return v.Field(idx)
+		case *types.Pointer:
+			return getField(v.Elem(), idx)
+		default:
+			panic(fmt.Sprintf("unexpected type %s", typ))
+		}
 	case *types.Struct:
 		return obj.Field(idx)
 	}
