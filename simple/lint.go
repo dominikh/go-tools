@@ -166,23 +166,24 @@ func LintIfBoolCmp(f *lint.File) {
 		}
 		x := f.IsBoolConst(expr.X)
 		y := f.IsBoolConst(expr.Y)
-		if x || y {
-			var other ast.Expr
-			var val bool
-			if x {
-				val = f.BoolConst(expr.X)
-				other = expr.Y
-			} else {
-				val = f.BoolConst(expr.Y)
-				other = expr.X
-			}
-			op := ""
-			if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
-				op = "!"
-			}
-			f.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s%s",
-				op, f.Render(other))
+		if !x && !y {
+			return true
 		}
+		var other ast.Expr
+		var val bool
+		if x {
+			val = f.BoolConst(expr.X)
+			other = expr.Y
+		} else {
+			val = f.BoolConst(expr.Y)
+			other = expr.X
+		}
+		op := ""
+		if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
+			op = "!"
+		}
+		f.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s%s",
+			op, f.Render(other))
 		return true
 	}
 	f.Walk(fn)
