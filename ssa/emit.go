@@ -280,8 +280,8 @@ func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) {
 	b := f.currentBlock
 	b.emit(&If{Cond: cond})
 
-	tt := f.newBasicBlock("if.pi")
-	ft := f.newBasicBlock("if.pi")
+	tt := f.newBasicBlock("if.sigma")
+	ft := f.newBasicBlock("if.sigma")
 
 	addEdge(b, tt)
 	addEdge(b, ft)
@@ -315,12 +315,12 @@ func emitSigma(f *Function, b *BasicBlock, v Value, branch bool) {
 		if alloc, ok := v.X.(*Alloc); !ok || alloc.Heap {
 			return
 		}
-		pi := &Sigma{
+		sigma := &Sigma{
 			X:      v,
 			Branch: branch,
 		}
-		pi.setType(v.Type())
-		pv := f.emit(pi)
+		sigma.setType(v.Type())
+		pv := f.emit(sigma)
 		emitStore(f, v.X, pv, 0)
 	case *Call:
 		call, ok := v.Common().Value.(*Builtin)

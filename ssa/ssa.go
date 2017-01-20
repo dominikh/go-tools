@@ -516,11 +516,11 @@ type Sigma struct {
 func (p *Sigma) Value() Value {
 	v := p.X
 	for {
-		pi, ok := v.(*Sigma)
+		sigma, ok := v.(*Sigma)
 		if !ok {
 			break
 		}
-		v = pi
+		v = sigma
 	}
 	return v
 }
