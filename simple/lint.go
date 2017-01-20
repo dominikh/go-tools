@@ -186,8 +186,13 @@ func LintIfBoolCmp(f *lint.File) {
 		if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
 			op = "!"
 		}
-		f.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s%s",
-			op, f.Render(other))
+		r := op + f.Render(other)
+		l1 := len(r)
+		r = strings.TrimLeft(r, "!")
+		if (l1-len(r))%2 == 1 {
+			r = "!" + r
+		}
+		f.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s", r)
 		return true
 	}
 	f.Walk(fn)

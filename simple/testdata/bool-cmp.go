@@ -26,6 +26,28 @@ func fn() {
 	var y bool
 	for y != true { // MATCH /simplified to !y/
 	}
+	if !y == true { // MATCH /simplified to !y/
+	}
+	if !y == false { // MATCH /simplified to y/
+	}
+	if !y != true { // MATCH /simplified to y/
+	}
+	if !y != false { // MATCH /simplified to !y/
+	}
+	if !!y == false { // MATCH /simplified to !y/
+	}
+	if !!!y == false { // MATCH /simplified to y/
+	}
+	if !!y == true { // MATCH /simplified to y/
+	}
+	if !!!y == true { // MATCH /simplified to !y/
+	}
+	if !!y != true { // MATCH /simplified to !y/
+	}
+	if !!!y != true { // MATCH /simplified to y/
+	}
+	if !y == !false { // not matched because we expect true/false on one side, not !false
+	}
 
 	var z interface{}
 	if z == true {
