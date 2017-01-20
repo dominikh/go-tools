@@ -178,6 +178,10 @@ func LintIfBoolCmp(f *lint.File) {
 			val = f.BoolConst(expr.Y)
 			other = expr.X
 		}
+		basic, ok := f.Pkg.TypesInfo.TypeOf(other).Underlying().(*types.Basic)
+		if !ok || basic.Kind() != types.Bool {
+			return true
+		}
 		op := ""
 		if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
 			op = "!"

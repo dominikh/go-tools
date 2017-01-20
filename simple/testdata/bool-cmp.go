@@ -26,4 +26,8 @@ func fn() {
 	var y bool
 	for y != true { // MATCH /simplified to !y/
 	}
+
+	var z interface{}
+	if z == true {
+	}
 }
