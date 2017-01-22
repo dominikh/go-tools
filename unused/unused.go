@@ -72,7 +72,19 @@ func (l *LintChecker) Lint(f *lint.File) {
 
 	unused := l.found[f.Filename]
 	for _, u := range unused {
-		f.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), u.Obj.Name())
+		name := u.Obj.Name()
+		if sig, ok := u.Obj.Type().(*types.Signature); ok && sig.Recv() != nil {
+			switch sig.Recv().Type().(type) {
+			case *types.Named, *types.Pointer:
+				typ := types.TypeString(sig.Recv().Type(), func(*types.Package) string { return "" })
+				if len(typ) > 0 && typ[0] == '*' {
+					name = fmt.Sprintf("(%s).%s", typ, u.Obj.Name())
+				} else if len(typ) > 0 {
+					name = fmt.Sprintf("%s.%s", typ, u.Obj.Name())
+				}
+			}
+		}
+		f.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), name)
 	}
 }
 
