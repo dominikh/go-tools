@@ -90,6 +90,7 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
 	tags := flags.String("tags", "", "List of `build tags`")
 	ignore := flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
+	tests := flags.Bool("tests", true, "Include tests")
 	flags.Parse(args)
 
 	ignores, err := parseIgnore(*ignore)
@@ -113,6 +114,7 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 	conf := &loader.Config{
 		Build:      &ctx,
 		ParserMode: parser.ParseComments,
+		ImportPkgs: map[string]bool{},
 	}
 	if goFiles {
 		conf.CreateFromFilenames("adhoc", paths...)
@@ -137,7 +139,7 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 			return false
 		}
 		for _, path := range paths {
-			conf.ImportWithTests(path)
+			conf.ImportPkgs[path] = *tests
 		}
 		lprog, err := conf.Load()
 		if err != nil {
