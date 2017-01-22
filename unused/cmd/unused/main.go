@@ -21,6 +21,7 @@ var (
 	fReflection   bool
 	fTags         string
 	fIgnore       string
+	fTests        bool
 )
 
 func init() {
@@ -34,6 +35,7 @@ func init() {
 	flag.BoolVar(&fReflection, "reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
 	flag.StringVar(&fTags, "tags", "", "List of `build tags`")
 	flag.StringVar(&fIgnore, "ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
+	flag.BoolVar(&fTests, "tests", true, "Include tests")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
@@ -79,10 +81,16 @@ func main() {
 
 	checker := newChecker(mode)
 	l := unused.NewLintChecker(checker)
+	t := "false"
+	if fTests {
+		t = "true"
+	}
 	args := []string{
 		"-tags", fTags,
 		"-ignore", fIgnore,
+		"-tests=" + t,
 	}
+
 	args = append(args, flag.Args()...)
 	lintutil.ProcessArgs("unused", l, args)
 }
