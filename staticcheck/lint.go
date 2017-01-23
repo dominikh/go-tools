@@ -1424,7 +1424,35 @@ func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 			if !ok {
 				return true
 			}
-			if len(assign.Lhs) != len(assign.Rhs) {
+			if len(assign.Lhs) > 1 && len(assign.Rhs) == 1 {
+				// Either a function call with multiple return values,
+				// or a comma-ok assignment
+
+				val, _ := ssafn.ValueForExpr(assign.Rhs[0])
+				if val == nil {
+					return true
+				}
+				refs := val.Referrers()
+				if refs == nil {
+					return true
+				}
+				for _, ref := range *refs {
+					ex, ok := ref.(*ssa.Extract)
+					if !ok {
+						continue
+					}
+					exrefs := ex.Referrers()
+					if exrefs == nil {
+						continue
+					}
+					if len(filterDebug(*exrefs)) == 0 {
+						lhs := assign.Lhs[ex.Index]
+						if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
+							continue
+						}
+						f.Errorf(lhs, "this value of %s is never used", lhs)
+					}
+				}
 				return true
 			}
 			for i, lhs := range assign.Lhs {
@@ -1442,8 +1470,8 @@ func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 					// TODO investigate why refs can be nil
 					return true
 				}
-				if len(filterDebug(*val.Referrers())) == 0 {
-					f.Errorf(node, "this value of %s is never used", lhs)
+				if len(filterDebug(*refs)) == 0 {
+					f.Errorf(lhs, "this value of %s is never used", lhs)
 				}
 			}
 			return true
