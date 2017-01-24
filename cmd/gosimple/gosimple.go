@@ -1,5 +1,5 @@
 // gosimple lints the Go source files named on its command line.
-package main // import "honnef.co/go/tools/simple/cmd/gosimple"
+package main // import "honnef.co/go/tools/cmd/gosimple"
 import (
 	"os"
 

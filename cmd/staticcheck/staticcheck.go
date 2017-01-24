@@ -1,5 +1,5 @@
 // staticcheck statically checks your code for bugs.
-package main // import "honnef.co/go/tools/staticcheck/cmd/staticcheck"
+package main // import "honnef.co/go/tools/cmd/staticcheck"
 
 import (
 	"os"

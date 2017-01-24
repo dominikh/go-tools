@@ -11,7 +11,7 @@ would like to support the project's development, consider
 
 ## Install
 
-	go get honnef.co/go/tools/unused/cmd/unused
+	go get honnef.co/go/tools/cmd/unused
 
 ## Usage
 

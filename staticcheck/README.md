@@ -11,7 +11,7 @@ would like to support the project's development, consider
 
 Staticcheck requires Go 1.6 or later.
 
-    go get honnef.co/go/tools/staticcheck/cmd/staticcheck
+    go get honnef.co/go/tools/cmd/staticcheck
 
 ## Usage
 

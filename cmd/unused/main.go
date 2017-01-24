@@ -1,4 +1,4 @@
-package main // import "honnef.co/go/tools/unused/cmd/unused"
+package main // import "honnef.co/go/tools/cmd/unused"
 
 import (
 	"flag"
