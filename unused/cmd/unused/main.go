@@ -1,4 +1,4 @@
-package main // import "honnef.co/go/unused/cmd/unused"
+package main // import "honnef.co/go/tools/unused/cmd/unused"
 
 import (
 	"flag"
@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"honnef.co/go/lint/lintutil"
-	"honnef.co/go/unused"
+	"honnef.co/go/tools/lint/lintutil"
+	"honnef.co/go/tools/unused"
 )
 
 var (

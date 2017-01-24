@@ -20,7 +20,7 @@ import (
 	"time"
 	"unsafe"
 
-	"honnef.co/go/ssa"
+	"honnef.co/go/tools/ssa"
 )
 
 type externalFn func(fr *frame, args []value) value

@@ -16,7 +16,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"honnef.co/go/ssa"
+	"honnef.co/go/tools/ssa"
 )
 
 // If the target program panics, the interpreter panics with this type.

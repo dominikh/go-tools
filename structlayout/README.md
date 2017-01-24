@@ -27,7 +27,7 @@ go get github.com/ajstarks/svgo/structlayout-svg
 ## Installation
 
 ```
-go get honnef.co/go/structlayout/cmd/...
+go get honnef.co/go/tools/structlayout/cmd/...
 ```
 
 ## Examples

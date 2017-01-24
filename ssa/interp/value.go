@@ -45,7 +45,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"honnef.co/go/ssa"
+	"honnef.co/go/tools/ssa"
 	"golang.org/x/tools/go/types/typeutil"
 )
 

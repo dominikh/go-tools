@@ -23,8 +23,8 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
-	"honnef.co/go/ssa"
-	"honnef.co/go/ssa/ssautil"
+	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ssa/ssautil"
 )
 
 func TestObjValueLookup(t *testing.T) {

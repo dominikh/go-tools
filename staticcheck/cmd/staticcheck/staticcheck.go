@@ -1,11 +1,11 @@
 // staticcheck statically checks your code for bugs.
-package main // import "honnef.co/go/staticcheck/cmd/staticcheck"
+package main // import "honnef.co/go/tools/staticcheck/cmd/staticcheck"
 
 import (
 	"os"
 
-	"honnef.co/go/lint/lintutil"
-	"honnef.co/go/staticcheck"
+	"honnef.co/go/tools/lint/lintutil"
+	"honnef.co/go/tools/staticcheck"
 )
 
 func main() {

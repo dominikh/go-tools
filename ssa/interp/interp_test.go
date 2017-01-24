@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"golang.org/x/tools/go/loader"
-	"honnef.co/go/ssa"
-	"honnef.co/go/ssa/interp"
-	"honnef.co/go/ssa/ssautil"
+	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ssa/interp"
+	"honnef.co/go/tools/ssa/ssautil"
 )
 
 // Each line contains a space-separated list of $GOROOT/test/

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	st "honnef.co/go/structlayout"
+	st "honnef.co/go/tools/structlayout"
 )
 
 var (

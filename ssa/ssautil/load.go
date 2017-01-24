@@ -14,7 +14,7 @@ import (
 	"go/types"
 
 	"golang.org/x/tools/go/loader"
-	"honnef.co/go/ssa"
+	"honnef.co/go/tools/ssa"
 )
 
 // CreateProgram returns a new program in SSA form, given a program

@@ -13,8 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"honnef.co/go/ssa"
-	"honnef.co/go/staticcheck/vrp"
+	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/staticcheck/vrp"
 )
 
 type ArgumentRule interface {

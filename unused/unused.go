@@ -1,4 +1,4 @@
-package unused // import "honnef.co/go/unused"
+package unused // import "honnef.co/go/tools/unused"
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"honnef.co/go/lint"
+	"honnef.co/go/tools/lint"
 
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/types/typeutil"

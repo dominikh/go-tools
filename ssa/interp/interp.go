@@ -44,7 +44,7 @@
 //
 // * os.Exit is implemented using panic, causing deferred functions to
 // run.
-package interp // import "honnef.co/go/ssa/interp"
+package interp // import "honnef.co/go/tools/ssa/interp"
 
 import (
 	"fmt"
@@ -55,7 +55,7 @@ import (
 	"runtime"
 	"sync/atomic"
 
-	"honnef.co/go/ssa"
+	"honnef.co/go/tools/ssa"
 )
 
 type continuation int

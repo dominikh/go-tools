@@ -1,5 +1,5 @@
 // Package simple contains a linter for Go source code.
-package simple // import "honnef.co/go/simple"
+package simple // import "honnef.co/go/tools/simple"
 
 import (
 	"go/ast"
@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"honnef.co/go/lint"
+	"honnef.co/go/tools/lint"
 )
 
 var Funcs = map[string]lint.Func{

@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // Package lint provides the foundation for tools like gosimple.
-package lint // import "honnef.co/go/lint"
+package lint // import "honnef.co/go/tools/lint"
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
-	"honnef.co/go/ssa"
+	"honnef.co/go/tools/ssa"
 )
 
 type Ignore struct {

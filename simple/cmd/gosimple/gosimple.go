@@ -1,10 +1,10 @@
 // gosimple lints the Go source files named on its command line.
-package main // import "honnef.co/go/simple/cmd/gosimple"
+package main // import "honnef.co/go/tools/simple/cmd/gosimple"
 import (
 	"os"
 
-	"honnef.co/go/lint/lintutil"
-	"honnef.co/go/simple"
+	"honnef.co/go/tools/lint/lintutil"
+	"honnef.co/go/tools/simple"
 )
 
 func main() {
