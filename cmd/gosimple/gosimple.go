@@ -1,4 +1,4 @@
-// gosimple lints the Go source files named on its command line.
+// gosimple detects code that could be rewritten in a simpler way.
 package main // import "honnef.co/go/tools/cmd/gosimple"
 import (
 	"os"

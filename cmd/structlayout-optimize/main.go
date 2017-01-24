@@ -1,3 +1,5 @@
+// structlayout-optimize reorders struct fields to minimize the amount
+// of padding.
 package main
 
 import (

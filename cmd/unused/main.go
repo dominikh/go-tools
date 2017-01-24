@@ -1,3 +1,5 @@
+// unused reports unused identifiers (types, functions, ...) in your
+// code.
 package main // import "honnef.co/go/tools/cmd/unused"
 
 import (

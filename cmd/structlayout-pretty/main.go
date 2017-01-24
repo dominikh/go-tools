@@ -1,3 +1,5 @@
+// structlayout-pretty formats the output of structlayout with ASCII
+// art.
 package main
 
 import (

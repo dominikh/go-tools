@@ -1,4 +1,5 @@
-// staticcheck statically checks your code for bugs.
+// staticcheck detects a myriad of bugs and inefficiencies in your
+// code.
 package main // import "honnef.co/go/tools/cmd/staticcheck"
 
 import (

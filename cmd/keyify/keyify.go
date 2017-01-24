@@ -1,3 +1,4 @@
+// keyify transforms unkeyed struct literals into a keyed ones.
 package main
 
 import (

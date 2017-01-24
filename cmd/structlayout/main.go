@@ -1,3 +1,4 @@
+// structlayout displays the layout (field sizes and padding) of structs.
 package main
 
 import (
