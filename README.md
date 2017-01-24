@@ -20,6 +20,7 @@ tool is accompanied by its own README, describing it in more detail.
 |----------------------------------------------------|------------------------------------------------------------------|
 | [gosimple](cmd/gosimple/)                          | Detects code that could be rewritten in a simpler way.           |
 | [keyify](cmd/keyify/)                              | Transforms an unkeyed struct literal into a keyed one.           |
+| [rdeps](cmd/rdeps/)                                | Find all reverse dependencies of a set of packages               |
 | [staticcheck](cmd/staticcheck/)                    | Detects a myriad of bugs and inefficiencies in your code.        |
 | [structlayout](cmd/structlayout/)                  | Displays the layout (field sizes and padding) of structs.        |
 | [structlayout-optimize](cmd/structlayout-optimize) | Reorders struct fields to minimize the amount of padding.        |
