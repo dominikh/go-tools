@@ -3,9 +3,6 @@
 `honnef.co/go/tools/...` is a collection of tools and libraries for
 working with Go code, including linters and static analysis.
 
-`tools` is a collection of tools and libraries for working with Go
-code. Among these tools are linters and static analysis.
-
 **These tools are supported by
 [patrons on Patreon](https://www.patreon.com/dominikh). If you, too,
 would like to support the project's development, consider
