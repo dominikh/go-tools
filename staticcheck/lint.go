@@ -1122,10 +1122,10 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 	}
 }
 
-var checkDubiousSyncPoolPointersRules = map[string]CallRule{
+var checkDubiousSyncPoolPointersRules = map[string]CallRule{ // TODO(bradleyfalzon): Rename, as it no longer checks for pointers
 	"(*sync.Pool).Put": CallRule{
 		Arguments: []ArgumentRule{
-			Pointer{
+			OneWord{
 				argumentRule: argumentRule{
 					idx:     0,
 					Message: "non-pointer type put into sync.Pool",
