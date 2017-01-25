@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/constant"
 	"go/types"
+	"log"
 	"net"
 	"net/url"
 	"regexp"
@@ -184,6 +185,24 @@ func (bc BufferedChannel) Validate(v ssa.Value, fn *ssa.Function, c *Checker) er
 		return errors.New("the channel should be buffered")
 	}
 	return nil
+}
+
+type OneWord struct {
+	argumentRule
+}
+
+func (w OneWord) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+	sizes := &types.StdSizes{WordSize: 8, MaxAlign: 8}
+
+	log.Printf("size of: %v", sizes.Sizeof(v.Type()))
+
+	if sizes.Sizeof(v.Type()) <= sizes.WordSize {
+		return nil
+	}
+	if w.Message != "" {
+		return errors.New(w.Message)
+	}
+	return errors.New("argument is expected to be one word or less")
 }
 
 type Pointer struct {
