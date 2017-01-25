@@ -62,3 +62,9 @@ func fn5(m map[string]string) {
 
 // MATCH:58 /this value of v is never used/
 // MATCH:58 /this value of ok is never used/
+
+func fn6() {
+	x := gen()
+	// Do not report variables if they've been assigned to the blank identifier
+	_ = x
+}

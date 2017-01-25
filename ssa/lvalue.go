@@ -107,7 +107,10 @@ func (bl blank) load(fn *Function) Value {
 }
 
 func (bl blank) store(fn *Function, v Value) {
-	// no-op
+	s := &BlankStore{
+		Val: v,
+	}
+	fn.emit(s)
 }
 
 func (bl blank) address(fn *Function) Value {

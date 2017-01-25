@@ -1212,6 +1212,21 @@ type Store struct {
 	pos  token.Pos
 }
 
+// The BlankStore instruction is emitted for assignments to the blank
+// identifier.
+//
+// BlankStore is a pseudo-instruction: it has no dynamic effect.
+//
+// Pos() returns NoPos.
+//
+// Example printed form:
+//	_ = t0
+//
+type BlankStore struct {
+	anInstruction
+	Val Value
+}
+
 // The MapUpdate instruction updates the association of Map[Key] to
 // Value.
 //
@@ -1542,18 +1557,19 @@ func (p *Package) Type(name string) (t *Type) {
 	return
 }
 
-func (v *Call) Pos() token.Pos      { return v.Call.pos }
-func (s *Defer) Pos() token.Pos     { return s.pos }
-func (s *Go) Pos() token.Pos        { return s.pos }
-func (s *MapUpdate) Pos() token.Pos { return s.pos }
-func (s *Panic) Pos() token.Pos     { return s.pos }
-func (s *Return) Pos() token.Pos    { return s.pos }
-func (s *Send) Pos() token.Pos      { return s.pos }
-func (s *Store) Pos() token.Pos     { return s.pos }
-func (s *If) Pos() token.Pos        { return token.NoPos }
-func (s *Jump) Pos() token.Pos      { return token.NoPos }
-func (s *RunDefers) Pos() token.Pos { return token.NoPos }
-func (s *DebugRef) Pos() token.Pos  { return s.Expr.Pos() }
+func (v *Call) Pos() token.Pos       { return v.Call.pos }
+func (s *Defer) Pos() token.Pos      { return s.pos }
+func (s *Go) Pos() token.Pos         { return s.pos }
+func (s *MapUpdate) Pos() token.Pos  { return s.pos }
+func (s *Panic) Pos() token.Pos      { return s.pos }
+func (s *Return) Pos() token.Pos     { return s.pos }
+func (s *Send) Pos() token.Pos       { return s.pos }
+func (s *Store) Pos() token.Pos      { return s.pos }
+func (s *BlankStore) Pos() token.Pos { return token.NoPos }
+func (s *If) Pos() token.Pos         { return token.NoPos }
+func (s *Jump) Pos() token.Pos       { return token.NoPos }
+func (s *RunDefers) Pos() token.Pos  { return token.NoPos }
+func (s *DebugRef) Pos() token.Pos   { return s.Expr.Pos() }
 
 // Operands.
 
@@ -1712,6 +1728,10 @@ func (v *Slice) Operands(rands []*Value) []*Value {
 
 func (s *Store) Operands(rands []*Value) []*Value {
 	return append(rands, &s.Addr, &s.Val)
+}
+
+func (s *BlankStore) Operands(rands []*Value) []*Value {
+	return append(rands, &s.Val)
 }
 
 func (v *TypeAssert) Operands(rands []*Value) []*Value {

@@ -348,6 +348,10 @@ func (s *Store) String() string {
 	return fmt.Sprintf("*%s = %s", relName(s.Addr, s), relName(s.Val, s))
 }
 
+func (s *BlankStore) String() string {
+	return fmt.Sprintf("_ = %s", relName(s.Val, s))
+}
+
 func (s *MapUpdate) String() string {
 	return fmt.Sprintf("%s[%s] = %s", relName(s.Map, s), relName(s.Key, s), relName(s.Value, s))
 }
