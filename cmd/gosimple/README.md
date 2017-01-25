@@ -1,4 +1,6 @@
-Gosimple is a linter for Go source code that specialises on
+# gosimple
+
+_gosimple_ is a linter for Go source code that specialises on
 simplifying code.
 
 ## Installation
