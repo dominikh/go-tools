@@ -1,4 +1,6 @@
-Staticcheck is `go vet` on steroids, applying a ton of static analysis
+# staticcheck
+
+_staticcheck_ is `go vet` on steroids, applying a ton of static analysis
 checks you might be used to from tools like ReSharper for C#.
 
 ## Installation
