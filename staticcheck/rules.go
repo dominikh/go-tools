@@ -234,7 +234,8 @@ func validEncodingBinaryType(typ types.Type) bool {
 		switch typ.Kind() {
 		case types.Uint8, types.Uint16, types.Uint32, types.Uint64,
 			types.Int8, types.Int16, types.Int32, types.Int64,
-			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
+			types.Float32, types.Float64, types.Complex64, types.Complex128,
+			types.Bool, types.Invalid:
 			return true
 		}
 		return false
