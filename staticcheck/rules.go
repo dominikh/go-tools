@@ -36,12 +36,17 @@ func (c *Call) Invalid(msg string) {
 }
 
 type Argument struct {
-	Value    ssa.Value
+	Value    Value
 	invalids []string
 }
 
 func (arg *Argument) Invalid(msg string) {
 	arg.invalids = append(arg.invalids, msg)
+}
+
+type Value struct {
+	Value ssa.Value
+	Range vrp.Range
 }
 
 type CallCheck func(call *Call)
@@ -57,8 +62,8 @@ func extractConsts(v ssa.Value) []*ssa.Const {
 	}
 }
 
-func ValidateRegexp(v ssa.Value) error {
-	for _, c := range extractConsts(v) {
+func ValidateRegexp(v Value) error {
+	for _, c := range extractConsts(v.Value) {
 		if c.Value == nil {
 			continue
 		}
@@ -73,8 +78,8 @@ func ValidateRegexp(v ssa.Value) error {
 	return nil
 }
 
-func ValidateTimeLayout(v ssa.Value) error {
-	for _, c := range extractConsts(v) {
+func ValidateTimeLayout(v Value) error {
+	for _, c := range extractConsts(v.Value) {
 		if c.Value == nil {
 			continue
 		}
@@ -92,8 +97,8 @@ func ValidateTimeLayout(v ssa.Value) error {
 	return nil
 }
 
-func ValidateURL(v ssa.Value) error {
-	for _, c := range extractConsts(v) {
+func ValidateURL(v Value) error {
+	for _, c := range extractConsts(v.Value) {
 		if c.Value == nil {
 			continue
 		}
@@ -109,8 +114,8 @@ func ValidateURL(v ssa.Value) error {
 	return nil
 }
 
-func IntValue(v ssa.Value, vr vrp.Range, z vrp.Z) bool {
-	r, ok := vr.(vrp.IntInterval)
+func IntValue(v Value, z vrp.Z) bool {
+	r, ok := v.Range.(vrp.IntInterval)
 	if !ok || !r.IsKnown() {
 		return false
 	}
@@ -123,8 +128,8 @@ func IntValue(v ssa.Value, vr vrp.Range, z vrp.Z) bool {
 	return false
 }
 
-func InvalidUTF8(v ssa.Value) bool {
-	for _, c := range extractConsts(v) {
+func InvalidUTF8(v Value) bool {
+	for _, c := range extractConsts(v.Value) {
 		if c.Value == nil {
 			continue
 		}
@@ -139,8 +144,8 @@ func InvalidUTF8(v ssa.Value) bool {
 	return false
 }
 
-func UnbufferedChannel(v ssa.Value, vr vrp.Range) bool {
-	r, ok := vr.(vrp.ChannelInterval)
+func UnbufferedChannel(v Value) bool {
+	r, ok := v.Range.(vrp.ChannelInterval)
 	if !ok || !r.IsKnown() {
 		return false
 	}
@@ -151,16 +156,16 @@ func UnbufferedChannel(v ssa.Value, vr vrp.Range) bool {
 	return false
 }
 
-func Pointer(v ssa.Value) bool {
-	switch v.Type().Underlying().(type) {
+func Pointer(v Value) bool {
+	switch v.Value.Type().Underlying().(type) {
 	case *types.Pointer, *types.Interface:
 		return true
 	}
 	return false
 }
 
-func ConvertedFromInt(v ssa.Value) bool {
-	conv, ok := v.(*ssa.Convert)
+func ConvertedFromInt(v Value) bool {
+	conv, ok := v.Value.(*ssa.Convert)
 	if !ok {
 		return false
 	}
@@ -202,8 +207,8 @@ func validEncodingBinaryType(typ types.Type) bool {
 	return false
 }
 
-func CanBinaryMarshal(v ssa.Value) bool {
-	typ := v.Type().Underlying()
+func CanBinaryMarshal(v Value) bool {
+	typ := v.Value.Type().Underlying()
 	if ttyp, ok := typ.(*types.Pointer); ok {
 		typ = ttyp.Elem().Underlying()
 	}
@@ -220,11 +225,8 @@ func CanBinaryMarshal(v ssa.Value) bool {
 
 func RepeatZeroTimes(name string, arg int) CallCheck {
 	return func(call *Call) {
-		// TODO we should probably define IntValue etc on *Checker, which
-		// can then grab vrp data on its own
 		arg := call.Args[arg]
-		vr := call.Checker.funcDescs.Get(call.Parent).Ranges.Get(arg.Value)
-		if IntValue(arg.Value, vr, vrp.NewZ(0)) {
+		if IntValue(arg.Value, vrp.NewZ(0)) {
 			arg.Invalid(fmt.Sprintf("calling %s with n == 0 will return no results, did you mean -1?", name))
 		}
 	}
@@ -262,8 +264,8 @@ func validatePort(s string) bool {
 	return n >= 0 && n <= 65535
 }
 
-func ValidHostPort(v ssa.Value) bool {
-	for _, k := range extractConsts(v) {
+func ValidHostPort(v Value) bool {
+	for _, k := range extractConsts(v.Value) {
 		if k.Value == nil {
 			continue
 		}
@@ -284,7 +286,7 @@ func ValidHostPort(v ssa.Value) bool {
 }
 
 // ConvertedFrom reports whether value v was converted from type typ.
-func ConvertedFrom(v ssa.Value, typ string) bool {
-	change, ok := v.(*ssa.ChangeType)
+func ConvertedFrom(v Value, typ string) bool {
+	change, ok := v.Value.(*ssa.ChangeType)
 	return ok && types.TypeString(change.X.Type(), nil) == typ
 }

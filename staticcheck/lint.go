@@ -661,9 +661,10 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 
 var checkTimeParseRules = map[string]CallCheck{
 	"time.Parse": func(call *Call) {
-		err := ValidateTimeLayout(call.Args[0].Value)
+		arg := call.Args[0]
+		err := ValidateTimeLayout(arg.Value)
 		if err != nil {
-			call.Args[0].Invalid(err.Error())
+			arg.Invalid(err.Error())
 		}
 	},
 }
@@ -676,7 +677,7 @@ var checkEncodingBinaryRules = map[string]CallCheck{
 	"encoding/binary.Write": func(call *Call) {
 		arg := call.Args[2]
 		if !CanBinaryMarshal(arg.Value) {
-			arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Type()))
+			arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 		}
 	},
 }
@@ -1150,8 +1151,9 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 
 var checkDubiousSyncPoolPointersRules = map[string]CallCheck{
 	"(*sync.Pool).Put": func(call *Call) {
-		if !Pointer(call.Args[0].Value) {
-			call.Args[0].Invalid("non-pointer type put into sync.Pool")
+		arg := call.Args[0]
+		if !Pointer(arg.Value) {
+			arg.Invalid("non-pointer type put into sync.Pool")
 		}
 	},
 }
@@ -2504,12 +2506,9 @@ func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
 
 var checkUnbufferedSignalChanRules = map[string]CallCheck{
 	"os/signal.Notify": func(call *Call) {
-		// TODO we should probably define UnbufferedChannel etc on
-		// *Checker, which can then grab vrp data on its own
-		v := call.Args[0].Value
-		vr := call.Checker.funcDescs.Get(call.Parent).Ranges[v]
-		if UnbufferedChannel(v, vr) {
-			call.Args[0].Invalid("the channel used with signal.Notify should be buffered")
+		arg := call.Args[0]
+		if UnbufferedChannel(arg.Value) {
+			arg.Invalid("the channel used with signal.Notify should be buffered")
 		}
 	},
 }
@@ -2725,7 +2724,8 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 					if iarg, ok := arg.(*ssa.MakeInterface); ok {
 						arg = iarg.X
 					}
-					args = append(args, &Argument{Value: arg})
+					vr := c.funcDescs.Get(ssacall.Parent()).Ranges[arg]
+					args = append(args, &Argument{Value: Value{arg, vr}})
 				}
 				call := &Call{
 					Common:  ssacall.Common(),
