@@ -482,6 +482,17 @@ func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	}
 }
 
+func isInLoop(b *ssa.BasicBlock) bool {
+	for _, pred := range b.Preds {
+		// This will only detect natural loops, which is fine
+		// for detecting `for range`.
+		if b.Dominates(pred) {
+			return true
+		}
+	}
+	return false
+}
+
 func detectInfiniteLoops(fn *ssa.Function) {
 	if len(fn.Blocks) == 0 {
 		return
@@ -533,16 +544,7 @@ func detectInfiniteLoops(fn *ssa.Function) {
 				continue
 			}
 
-			loop := false
-			for _, pred := range block.Preds {
-				// This will only detect natural loops, which is fine
-				// for detecting `for range`.
-				if block.Dominates(pred) {
-					loop = true
-					break
-				}
-			}
-			if !loop {
+			if !isInLoop(block) {
 				continue
 			}
 			*instrs[i+2] = ssa.NewJump(block)
@@ -595,9 +597,17 @@ func (c *Checker) CheckUntrappableSignal(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkRegexpRules = map[string]CallRule{
-	"regexp.MustCompile": CallRule{Arguments: []ArgumentRule{ValidRegexp{argumentRule{idx: 0}}}},
-	"regexp.Compile":     CallRule{Arguments: []ArgumentRule{ValidRegexp{argumentRule{idx: 0}}}},
+func validRegexp(call *Call) {
+	arg := call.Args[0]
+	err := ValidateRegexp(arg.Value)
+	if err != nil {
+		arg.Invalid(err.Error())
+	}
+}
+
+var checkRegexpRules = map[string]CallCheck{
+	"regexp.MustCompile": validRegexp,
+	"regexp.Compile":     validRegexp,
 }
 
 func (c *Checker) CheckRegexps(f *lint.File) {
@@ -649,16 +659,26 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkTimeParseRules = map[string]CallRule{
-	"time.Parse": CallRule{Arguments: []ArgumentRule{ValidTimeLayout{argumentRule: argumentRule{idx: 0}}}},
+var checkTimeParseRules = map[string]CallCheck{
+	"time.Parse": func(call *Call) {
+		err := ValidateTimeLayout(call.Args[0].Value)
+		if err != nil {
+			call.Args[0].Invalid(err.Error())
+		}
+	},
 }
 
 func (c *Checker) CheckTimeParse(f *lint.File) {
 	c.checkCalls(f, checkTimeParseRules)
 }
 
-var checkEncodingBinaryRules = map[string]CallRule{
-	"encoding/binary.Write": CallRule{Arguments: []ArgumentRule{CanBinaryMarshal{argumentRule: argumentRule{idx: 2}}}},
+var checkEncodingBinaryRules = map[string]CallCheck{
+	"encoding/binary.Write": func(call *Call) {
+		arg := call.Args[2]
+		if !CanBinaryMarshal(arg.Value) {
+			arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Type()))
+		}
+	},
 }
 
 func (c *Checker) CheckEncodingBinary(f *lint.File) {
@@ -1033,8 +1053,14 @@ func (c *Checker) CheckUnsafePrintf(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkURLsRules = map[string]CallRule{
-	"net/url.Parse": CallRule{Arguments: []ArgumentRule{ValidURL{argumentRule: argumentRule{idx: 0}}}},
+var checkURLsRules = map[string]CallCheck{
+	"net/url.Parse": func(call *Call) {
+		arg := call.Args[0]
+		err := ValidateURL(arg.Value)
+		if err != nil {
+			arg.Invalid(err.Error())
+		}
+	},
 }
 
 func (c *Checker) CheckURLs(f *lint.File) {
@@ -1122,16 +1148,11 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 	}
 }
 
-var checkDubiousSyncPoolPointersRules = map[string]CallRule{
-	"(*sync.Pool).Put": CallRule{
-		Arguments: []ArgumentRule{
-			Pointer{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "non-pointer type put into sync.Pool",
-				},
-			},
-		},
+var checkDubiousSyncPoolPointersRules = map[string]CallCheck{
+	"(*sync.Pool).Put": func(call *Call) {
+		if !Pointer(call.Args[0].Value) {
+			call.Args[0].Invalid("non-pointer type put into sync.Pool")
+		}
 	},
 }
 
@@ -1863,40 +1884,35 @@ func (c *Checker) CheckIneffectiveLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkRegexpFindAllCallRule = CallRule{
-	Arguments: []ArgumentRule{
-		NotIntValue{
-			argumentRule: argumentRule{
-				idx:     1,
-				Message: "calling a FindAll method with n == 0 will return no results, did you mean -1?",
-			},
-			Not: vrp.NewZ(0),
-		},
-	},
-}
-var checkRegexpFindAllRules = map[string]CallRule{
-	"(*regexp.Regexp).FindAll":                    checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllIndex":               checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllString":              checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllStringIndex":         checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllStringSubmatch":      checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllStringSubmatchIndex": checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllSubmatch":            checkRegexpFindAllCallRule,
-	"(*regexp.Regexp).FindAllSubmatchIndex":       checkRegexpFindAllCallRule,
+var checkRegexpFindAllRules = map[string]CallCheck{
+	"(*regexp.Regexp).FindAll":                    RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllIndex":               RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllString":              RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllStringIndex":         RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllStringSubmatch":      RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllStringSubmatchIndex": RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllSubmatch":            RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllSubmatchIndex":       RepeatZeroTimes("a FindAll method", 1),
 }
 
 func (c *Checker) CheckRegexpFindAll(f *lint.File) {
 	c.checkCalls(f, checkRegexpFindAllRules)
 }
 
-var checkUTF8CutsetCallRule = CallRule{Arguments: []ArgumentRule{ValidUTF8{argumentRule: argumentRule{idx: 1}}}}
-var checkUTF8CutsetRules = map[string]CallRule{
-	"strings.IndexAny":     checkUTF8CutsetCallRule,
-	"strings.LastIndexAny": checkUTF8CutsetCallRule,
-	"strings.ContainsAny":  checkUTF8CutsetCallRule,
-	"strings.Trim":         checkUTF8CutsetCallRule,
-	"strings.TrimLeft":     checkUTF8CutsetCallRule,
-	"strings.TrimRight":    checkUTF8CutsetCallRule,
+var checkUTF8CutsetRules = map[string]CallCheck{
+	"strings.IndexAny":     utf8Cutset,
+	"strings.LastIndexAny": utf8Cutset,
+	"strings.ContainsAny":  utf8Cutset,
+	"strings.Trim":         utf8Cutset,
+	"strings.TrimLeft":     utf8Cutset,
+	"strings.TrimRight":    utf8Cutset,
+}
+
+func utf8Cutset(call *Call) {
+	arg := call.Args[1]
+	if InvalidUTF8(arg.Value) {
+		arg.Invalid(MsgInvalidUTF8)
+	}
 }
 
 func (c *Checker) CheckUTF8Cutset(f *lint.File) {
@@ -2338,47 +2354,19 @@ func isFunctionCallNameAny(f *lint.File, node ast.Node, names ...string) bool {
 	return false
 }
 
-var checkUnmarshalPointerRules = map[string]CallRule{
-	"encoding/xml.Unmarshal": CallRule{
-		Arguments: []ArgumentRule{
-			Pointer{
-				argumentRule: argumentRule{
-					idx:     1,
-					Message: "xml.Unmarshal expects to unmarshal into a pointer, but the provided value is not a pointer",
-				},
-			},
-		},
-	},
-	"(*encoding/xml.Decoder).Decode": CallRule{
-		Arguments: []ArgumentRule{
-			Pointer{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
-				},
-			},
-		},
-	},
-	"encoding/json.Unmarshal": CallRule{
-		Arguments: []ArgumentRule{
-			Pointer{
-				argumentRule: argumentRule{
-					idx:     1,
-					Message: "json.Unmarshal expects to unmarshal into a pointer, but the provided value is not a pointer",
-				},
-			},
-		},
-	},
-	"(*encoding/json.Decoder).Decode": CallRule{
-		Arguments: []ArgumentRule{
-			Pointer{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "Decode expects to unmarshal into a pointer, but the provided value is not a pointer",
-				},
-			},
-		},
-	},
+var checkUnmarshalPointerRules = map[string]CallCheck{
+	"encoding/xml.Unmarshal":          unmarshalPointer("xml.Unmarshal", 1),
+	"(*encoding/xml.Decoder).Decode":  unmarshalPointer("Decode", 0),
+	"encoding/json.Unmarshal":         unmarshalPointer("json.Unmarshal", 1),
+	"(*encoding/json.Decoder).Decode": unmarshalPointer("Decode", 0),
+}
+
+func unmarshalPointer(name string, arg int) CallCheck {
+	return func(call *Call) {
+		if !Pointer(call.Args[arg].Value) {
+			call.Args[arg].Invalid(fmt.Sprintf("%s expects to unmarshal into a pointer, but the provided value is not a pointer", name))
+		}
+	}
 }
 
 func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
@@ -2514,16 +2502,15 @@ func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkUnbufferedSignalChanRules = map[string]CallRule{
-	"os/signal.Notify": CallRule{
-		Arguments: []ArgumentRule{
-			BufferedChannel{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "the channel used with signal.Notify should be buffered",
-				},
-			},
-		},
+var checkUnbufferedSignalChanRules = map[string]CallCheck{
+	"os/signal.Notify": func(call *Call) {
+		// TODO we should probably define UnbufferedChannel etc on
+		// *Checker, which can then grab vrp data on its own
+		v := call.Args[0].Value
+		vr := call.Checker.funcDescs.Get(call.Parent).Ranges[v]
+		if UnbufferedChannel(v, vr) {
+			call.Args[0].Invalid("the channel used with signal.Notify should be buffered")
+		}
 	},
 }
 
@@ -2531,57 +2518,20 @@ func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
 	c.checkCalls(f, checkUnbufferedSignalChanRules)
 }
 
-var checkMathIntRules = map[string]CallRule{
-	"math.Ceil": CallRule{
-		Arguments: []ArgumentRule{
-			NotConvertedInt{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "calling math.Ceil on a converted integer is pointless",
-				},
-			},
-		},
-	},
-	"math.Floor": CallRule{
-		Arguments: []ArgumentRule{
-			NotConvertedInt{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "calling math.Floor on a converted integer is pointless",
-				},
-			},
-		},
-	},
-	"math.IsNaN": CallRule{
-		Arguments: []ArgumentRule{
-			NotConvertedInt{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "calling math.IsNaN on a converted integer is pointless",
-				},
-			},
-		},
-	},
-	"math.Trunc": CallRule{
-		Arguments: []ArgumentRule{
-			NotConvertedInt{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "calling math.Trunc on a converted integer is pointless",
-				},
-			},
-		},
-	},
-	"math.IsInf": CallRule{
-		Arguments: []ArgumentRule{
-			NotConvertedInt{
-				argumentRule: argumentRule{
-					idx:     0,
-					Message: "calling math.IsInf on a converted integer is pointless",
-				},
-			},
-		},
-	},
+var checkMathIntRules = map[string]CallCheck{
+	"math.Ceil":  pointlessIntMath,
+	"math.Floor": pointlessIntMath,
+	"math.IsNaN": pointlessIntMath,
+	"math.Trunc": pointlessIntMath,
+	"math.IsInf": pointlessIntMath,
+}
+
+func pointlessIntMath(call *Call) {
+	if ConvertedFromInt(call.Args[0].Value) {
+		// TODO factor out the following line into a function
+		name := call.Common.StaticCallee().Object().(*types.Func).FullName()
+		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", name))
+	}
 }
 
 func (c *Checker) CheckMathInt(f *lint.File) {
@@ -2656,29 +2606,9 @@ func (c *Checker) CheckNonOctalFileMode(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkStringsReplaceZeroRules = map[string]CallRule{
-	"strings.Replace": CallRule{
-		Arguments: []ArgumentRule{
-			NotIntValue{
-				argumentRule: argumentRule{
-					idx:     3,
-					Message: "calling strings.Replace with n == 0 will do nothing, did you mean -1?",
-				},
-				Not: vrp.NewZ(0),
-			},
-		},
-	},
-	"bytes.Replace": CallRule{
-		Arguments: []ArgumentRule{
-			NotIntValue{
-				argumentRule: argumentRule{
-					idx:     3,
-					Message: "calling bytes.Replace with n == 0 will do nothing, did you mean -1?",
-				},
-				Not: vrp.NewZ(0),
-			},
-		},
-	},
+var checkStringsReplaceZeroRules = map[string]CallCheck{
+	"strings.Replace": RepeatZeroTimes("strings.Replace", 3),
+	"bytes.Replace":   RepeatZeroTimes("bytes.Replace", 3),
 }
 
 func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
@@ -2765,10 +2695,9 @@ func (c *Checker) CheckDeprecated(f *lint.File) {
 	f.Walk(fn)
 }
 
-func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
+func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
-		insLoop:
 			for _, ins := range b.Instrs {
 				ssacall, ok := ins.(*ssa.Call)
 				if !ok {
@@ -2783,98 +2712,71 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallRule) {
 					continue
 				}
 
-				r := rules[obj.FullName()]
-				if len(r.Arguments) == 0 {
+				r, ok := rules[obj.FullName()]
+				if !ok {
 					continue
 				}
-				type argError struct {
-					arg lint.Positioner
-					err error
+				var args []*Argument
+				ssaargs := ssacall.Common().Args
+				if ssacall.Common().Signature().Recv() != nil {
+					ssaargs = ssaargs[1:]
 				}
-				errs := make([]*argError, len(r.Arguments))
-				for i, ar := range r.Arguments {
-					idx := ar.Index()
-					if ssacall.Common().Signature().Recv() != nil {
-						idx++
-					}
-					arg := ssacall.Common().Args[idx]
+				for _, arg := range ssaargs {
 					if iarg, ok := arg.(*ssa.MakeInterface); ok {
 						arg = iarg.X
 					}
-					err := ar.Validate(arg, ssafn, c)
-					if err != nil {
+					args = append(args, &Argument{Value: arg})
+				}
+				call := &Call{
+					Common:  ssacall.Common(),
+					Args:    args,
+					Checker: c,
+					Parent:  ssacall.Parent(),
+				}
+				r(call)
+				for idx, arg := range call.Args {
+					for _, e := range arg.invalids {
 						path, _ := astutil.PathEnclosingInterval(f.File, ssacall.Pos(), ssacall.Pos())
 						if len(path) < 2 {
-							continue insLoop
+							continue
 						}
-						call, ok := path[0].(*ast.CallExpr)
+						astcall, ok := path[0].(*ast.CallExpr)
 						if !ok {
-							continue insLoop
+							continue
 						}
-						errs[i] = &argError{call.Args[ar.Index()], err}
+						f.Errorf(astcall.Args[idx], "%s", e)
 					}
 				}
-
-				switch r.Mode {
-				case InvalidIndependent:
-					for _, err := range errs {
-						if err != nil {
-							f.Errorf(err.arg, "%s", err.err)
-						}
-					}
-				case InvalidIfAny:
-					for _, err := range errs {
-						if err == nil {
-							continue insLoop
-						}
-						f.Errorf(ssacall, "%s", err.err)
-						continue
-					}
-				case InvalidIfAll:
-					var first error
-					for _, err := range errs {
-						if err == nil {
-							continue insLoop
-						}
-						if first == nil {
-							first = err.err
-						}
-					}
-					f.Errorf(ssacall, "%s", first)
+				for _, e := range call.invalids {
+					f.Errorf(call.Common, "%s", e)
 				}
 			}
 		}
 	}
 }
 
-var checkListenAddressRules = map[string]CallRule{
-	"net/http.ListenAndServe":    CallRule{Arguments: []ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
-	"net/http.ListenAndServeTLS": CallRule{Arguments: []ArgumentRule{ValidHostPort{argumentRule{idx: 0}}}},
+var checkListenAddressRules = map[string]CallCheck{
+	"net/http.ListenAndServe":    checkValidHostPort(0),
+	"net/http.ListenAndServeTLS": checkValidHostPort(0),
+}
+
+func checkValidHostPort(arg int) CallCheck {
+	return func(call *Call) {
+		if !ValidHostPort(call.Args[arg].Value) {
+			call.Args[arg].Invalid(MsgInvalidHostPort)
+		}
+	}
 }
 
 func (c *Checker) CheckListenAddress(f *lint.File) {
 	c.checkCalls(f, checkListenAddressRules)
 }
 
-var checkBytesEqualIPRules = map[string]CallRule{
-	"bytes.Equal": CallRule{
-		Arguments: []ArgumentRule{
-			NotChangedTypeFrom{
-				argumentRule{
-					idx:     0,
-					Message: "use net.IP.Equal to compare net.IPs, not bytes.Equal",
-				},
-				"net.IP",
-			},
-			NotChangedTypeFrom{
-				argumentRule{
-					idx:     1,
-					Message: "use net.IP.Equal to compare net.IPs, not bytes.Equal",
-				},
-				"net.IP",
-			},
-		},
-		Mode: InvalidIfAll,
+var checkBytesEqualIPRules = map[string]CallCheck{
+	"bytes.Equal": func(call *Call) {
+		if ConvertedFrom(call.Args[0].Value, "net.IP") && ConvertedFrom(call.Args[1].Value, "net.IP") {
+			call.Invalid("use net.IP.Equal to compare net.IPs, not bytes.Equal")
+		}
 	},
 }
 

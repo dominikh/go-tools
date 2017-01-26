@@ -1,7 +1,6 @@
 package staticcheck
 
 import (
-	"errors"
 	"fmt"
 	"go/constant"
 	"go/types"
@@ -17,36 +16,35 @@ import (
 	"honnef.co/go/tools/staticcheck/vrp"
 )
 
-type ArgumentRule interface {
-	Index() int
-	Validate(ssa.Value, *ssa.Function, *Checker) error
-}
-
-type InvalidMode int
-
 const (
-	InvalidIndependent InvalidMode = iota
-	InvalidIfAny
-	InvalidIfAll
+	MsgInvalidHostPort = "invalid port or service name in host:port pair"
+	MsgInvalidUTF8     = "argument is not a valid UTF-8 encoded string"
 )
 
-type CallRule struct {
-	Arguments []ArgumentRule
-	Mode      InvalidMode
+type Call struct {
+	Common *ssa.CallCommon
+	Args   []*Argument
+
+	Checker *Checker
+	Parent  *ssa.Function
+
+	invalids []string
 }
 
-type argumentRule struct {
-	idx     int
-	Message string
+func (c *Call) Invalid(msg string) {
+	c.invalids = append(c.invalids, msg)
 }
 
-func (a argumentRule) Index() int {
-	return a.idx
+type Argument struct {
+	Value    ssa.Value
+	invalids []string
 }
 
-type ValidRegexp struct {
-	argumentRule
+func (arg *Argument) Invalid(msg string) {
+	arg.invalids = append(arg.invalids, msg)
 }
+
+type CallCheck func(call *Call)
 
 func extractConsts(v ssa.Value) []*ssa.Const {
 	switch v := v.(type) {
@@ -59,7 +57,7 @@ func extractConsts(v ssa.Value) []*ssa.Const {
 	}
 }
 
-func (vr ValidRegexp) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
+func ValidateRegexp(v ssa.Value) error {
 	for _, c := range extractConsts(v) {
 		if c.Value == nil {
 			continue
@@ -75,11 +73,7 @@ func (vr ValidRegexp) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
 	return nil
 }
 
-type ValidTimeLayout struct {
-	argumentRule
-}
-
-func (vt ValidTimeLayout) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
+func ValidateTimeLayout(v ssa.Value) error {
 	for _, c := range extractConsts(v) {
 		if c.Value == nil {
 			continue
@@ -98,11 +92,7 @@ func (vt ValidTimeLayout) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) err
 	return nil
 }
 
-type ValidURL struct {
-	argumentRule
-}
-
-func (vt ValidURL) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
+func ValidateURL(v ssa.Value) error {
 	for _, c := range extractConsts(v) {
 		if c.Value == nil {
 			continue
@@ -113,42 +103,27 @@ func (vt ValidURL) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
 		s := constant.StringVal(c.Value)
 		_, err := url.Parse(s)
 		if err != nil {
-			if vt.Message != "" {
-				return errors.New(vt.Message)
-			}
 			return fmt.Errorf("%q is not a valid URL: %s", s, err)
 		}
 	}
 	return nil
 }
 
-type NotIntValue struct {
-	argumentRule
-	Not vrp.Z
-}
-
-func (ni NotIntValue) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
-	r, ok := c.funcDescs.Get(fn).Ranges.Get(v).(vrp.IntInterval)
+func IntValue(v ssa.Value, vr vrp.Range, z vrp.Z) bool {
+	r, ok := vr.(vrp.IntInterval)
 	if !ok || !r.IsKnown() {
-		return nil
+		return false
 	}
 	if r.Lower != r.Upper {
-		return nil
+		return false
 	}
-	if r.Lower.Cmp(ni.Not) == 0 {
-		if ni.Message != "" {
-			return errors.New(ni.Message)
-		}
-		return fmt.Errorf("argument mustn't be of value %s", ni.Not)
+	if r.Lower.Cmp(z) == 0 {
+		return true
 	}
-	return nil
+	return false
 }
 
-type ValidUTF8 struct {
-	argumentRule
-}
-
-func (vu ValidUTF8) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
+func InvalidUTF8(v ssa.Value) bool {
 	for _, c := range extractConsts(v) {
 		if c.Value == nil {
 			continue
@@ -158,73 +133,45 @@ func (vu ValidUTF8) Validate(v ssa.Value, _ *ssa.Function, _ *Checker) error {
 		}
 		s := constant.StringVal(c.Value)
 		if !utf8.ValidString(s) {
-			if vu.Message != "" {
-				return errors.New(vu.Message)
-			}
-			return fmt.Errorf("%q is not a valid UTF-8 encoded string", s)
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
-type BufferedChannel struct {
-	argumentRule
-}
-
-func (bc BufferedChannel) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
-	r, ok := c.funcDescs.Get(fn).Ranges[v].(vrp.ChannelInterval)
+func UnbufferedChannel(v ssa.Value, vr vrp.Range) bool {
+	r, ok := vr.(vrp.ChannelInterval)
 	if !ok || !r.IsKnown() {
-		return nil
+		return false
 	}
 	if r.Size.Lower.Cmp(vrp.NewZ(0)) == 0 &&
 		r.Size.Upper.Cmp(vrp.NewZ(0)) == 0 {
-		if bc.Message != "" {
-			return errors.New(bc.Message)
-		}
-		return errors.New("the channel should be buffered")
+		return true
 	}
-	return nil
+	return false
 }
 
-type Pointer struct {
-	argumentRule
-}
-
-func (p Pointer) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+func Pointer(v ssa.Value) bool {
 	switch v.Type().Underlying().(type) {
 	case *types.Pointer, *types.Interface:
-		return nil
+		return true
 	}
-	if p.Message != "" {
-		return errors.New(p.Message)
-	}
-	return errors.New("argument is expected to be a pointer")
+	return false
 }
 
-type NotConvertedInt struct {
-	argumentRule
-}
-
-func (ci NotConvertedInt) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+func ConvertedFromInt(v ssa.Value) bool {
 	conv, ok := v.(*ssa.Convert)
 	if !ok {
-		return nil
+		return false
 	}
 	b, ok := conv.X.Type().Underlying().(*types.Basic)
 	if !ok {
-		return nil
+		return false
 	}
 	if (b.Info() & types.IsInteger) == 0 {
-		return nil
+		return false
 	}
-	if ci.Message != "" {
-		return errors.New(ci.Message)
-	}
-	return errors.New("argument should not be a converted integer")
-}
-
-type CanBinaryMarshal struct {
-	argumentRule
+	return true
 }
 
 func validEncodingBinaryType(typ types.Type) bool {
@@ -255,7 +202,7 @@ func validEncodingBinaryType(typ types.Type) bool {
 	return false
 }
 
-func (bm CanBinaryMarshal) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+func CanBinaryMarshal(v ssa.Value) bool {
 	typ := v.Type().Underlying()
 	if ttyp, ok := typ.(*types.Pointer); ok {
 		typ = ttyp.Elem().Underlying()
@@ -268,13 +215,19 @@ func (bm CanBinaryMarshal) Validate(v ssa.Value, fn *ssa.Function, c *Checker) e
 		}
 	}
 
-	if validEncodingBinaryType(typ) {
-		return nil
+	return validEncodingBinaryType(typ)
+}
+
+func RepeatZeroTimes(name string, arg int) CallCheck {
+	return func(call *Call) {
+		// TODO we should probably define IntValue etc on *Checker, which
+		// can then grab vrp data on its own
+		arg := call.Args[arg]
+		vr := call.Checker.funcDescs.Get(call.Parent).Ranges.Get(arg.Value)
+		if IntValue(arg.Value, vr, vrp.NewZ(0)) {
+			arg.Invalid(fmt.Sprintf("calling %s with n == 0 will return no results, did you mean -1?", name))
+		}
 	}
-	if bm.Message != "" {
-		return errors.New(bm.Message)
-	}
-	return fmt.Errorf("value of type %s cannot be used with binary.Write", v.Type())
 }
 
 func validateServiceName(s string) bool {
@@ -309,11 +262,7 @@ func validatePort(s string) bool {
 	return n >= 0 && n <= 65535
 }
 
-type ValidHostPort struct {
-	argumentRule
-}
-
-func (hp ValidHostPort) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+func ValidHostPort(v ssa.Value) bool {
 	for _, k := range extractConsts(v) {
 		if k.Value == nil {
 			continue
@@ -324,37 +273,18 @@ func (hp ValidHostPort) Validate(v ssa.Value, fn *ssa.Function, c *Checker) erro
 		s := constant.StringVal(k.Value)
 		_, port, err := net.SplitHostPort(s)
 		if err != nil {
-			if hp.Message != "" {
-				return errors.New(hp.Message)
-			}
-			return err
+			return false
 		}
 		// TODO(dh): check hostname
 		if !validatePort(port) {
-			if hp.Message != "" {
-				return errors.New(hp.Message)
-			}
-			return errors.New("invalid port or service name in host:port pair")
+			return false
 		}
 	}
-	return nil
+	return true
 }
 
-type NotChangedTypeFrom struct {
-	argumentRule
-	Type string
-}
-
-func (nt NotChangedTypeFrom) Validate(v ssa.Value, fn *ssa.Function, c *Checker) error {
+// ConvertedFrom reports whether value v was converted from type typ.
+func ConvertedFrom(v ssa.Value, typ string) bool {
 	change, ok := v.(*ssa.ChangeType)
-	if !ok {
-		return nil
-	}
-	if types.TypeString(change.X.Type(), nil) == nt.Type {
-		if nt.Message != "" {
-			return errors.New(nt.Message)
-		}
-		return fmt.Errorf("shouldn't use function with type %s", nt.Type)
-	}
-	return nil
+	return ok && types.TypeString(change.X.Type(), nil) == typ
 }
