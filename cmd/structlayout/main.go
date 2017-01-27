@@ -78,16 +78,7 @@ func emitText(fields []st.Field) {
 	}
 }
 func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Field {
-	wordSize := int64(8)
-	maxAlign := int64(8)
-	switch build.Default.GOARCH {
-	case "386", "arm":
-		wordSize, maxAlign = 4, 4
-	case "amd64p32":
-		wordSize = 4
-	}
-	s := &gcsizes.Sizes{WordSize: wordSize, MaxAlign: maxAlign}
-
+	s := gcsizes.ForArch(build.Default.GOARCH)
 	n := typ.NumFields()
 	var fields []*types.Var
 	for i := 0; i < n; i++ {

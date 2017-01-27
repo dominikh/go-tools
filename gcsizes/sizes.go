@@ -6,11 +6,27 @@
 // to the rules used by the gc compiler.
 package gcsizes // import "honnef.co/go/tools/gcsizes"
 
-import "go/types"
+import (
+	"go/build"
+	"go/types"
+)
 
 type Sizes struct {
 	WordSize int64
 	MaxAlign int64
+}
+
+// ForArch returns a correct Sizes for the given architecture.
+func ForArch(arch string) *Sizes {
+	wordSize := int64(8)
+	maxAlign := int64(8)
+	switch build.Default.GOARCH {
+	case "386", "arm":
+		wordSize, maxAlign = 4, 4
+	case "amd64p32":
+		wordSize = 4
+	}
+	return &Sizes{WordSize: wordSize, MaxAlign: maxAlign}
 }
 
 func (s *Sizes) Alignof(T types.Type) int64 {
