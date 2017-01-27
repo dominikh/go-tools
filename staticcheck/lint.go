@@ -482,11 +482,57 @@ func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	}
 }
 
-func isInLoop(b *ssa.BasicBlock) bool {
+func allPredsBut(b, but *ssa.BasicBlock, list []*ssa.BasicBlock) []*ssa.BasicBlock {
+outer:
 	for _, pred := range b.Preds {
-		// This will only detect natural loops, which is fine
-		// for detecting `for range`.
-		if b.Dominates(pred) {
+		if pred == but {
+			continue
+		}
+		for _, p := range list {
+			// TODO improve big-o complexity of this function
+			if pred == p {
+				continue outer
+			}
+		}
+		list = append(list, pred)
+		list = allPredsBut(pred, but, list)
+	}
+	return list
+}
+
+type loopSet map[*ssa.BasicBlock]bool
+
+func findLoops(fn *ssa.Function) []loopSet {
+	if fn.Blocks == nil {
+		return nil
+	}
+	tree := fn.DomPreorder()
+	var sets []loopSet
+	for _, h := range tree {
+		for _, n := range h.Preds {
+			if !h.Dominates(n) {
+				continue
+			}
+			// n is a back-edge to h
+			// h is the loop header
+			if n == h {
+				sets = append(sets, loopSet{n: true})
+				continue
+			}
+			set := loopSet{h: true, n: true}
+			for _, b := range allPredsBut(n, h, nil) {
+				set[b] = true
+			}
+			sets = append(sets, set)
+		}
+	}
+	return sets
+}
+
+func isInLoop(b *ssa.BasicBlock) bool {
+	sets := findLoops(b.Parent())
+	for _, set := range sets {
+		if set[b] {
 			return true
 		}
 	}
