@@ -4,6 +4,7 @@ package staticcheck // import "honnef.co/go/tools/staticcheck"
 import (
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/constant"
 	"go/token"
 	"go/types"
@@ -14,6 +15,7 @@ import (
 	"sync"
 	texttemplate "text/template"
 
+	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/staticcheck/pure"
@@ -153,7 +155,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		// "SA5006": c.CheckSliceOutOfBounds,
 		"SA5007": c.CheckInfiniteRecursion,
 
-		"SA9000": c.CheckDubiousSyncPoolPointers,
+		"SA9000": c.CheckDubiousSyncPoolSize,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
 		"SA9002": c.CheckNonOctalFileMode,
 	}
@@ -1180,17 +1182,19 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 	}
 }
 
-var checkDubiousSyncPoolPointersRules = map[string]CallCheck{
+var checkDubiousSyncPoolSizeRules = map[string]CallCheck{
 	"(*sync.Pool).Put": func(call *Call) {
+		// TODO(dh): allow users to pass in a custom build environment
+		sizes := gcsizes.ForArch(build.Default.GOARCH)
 		arg := call.Args[0]
-		if !Pointer(arg.Value) {
-			arg.Invalid("non-pointer type put into sync.Pool")
+		if sizes.Sizeof(arg.Value.Value.Type()) > sizes.WordSize {
+			arg.Invalid("argument should be one word large or less to avoid allocations")
 		}
 	},
 }
 
-func (c *Checker) CheckDubiousSyncPoolPointers(f *lint.File) {
-	c.checkCalls(f, checkDubiousSyncPoolPointersRules)
+func (c *Checker) CheckDubiousSyncPoolSize(f *lint.File) {
+	c.checkCalls(f, checkDubiousSyncPoolSizeRules)
 }
 
 func (c *Checker) CheckEmptyCriticalSection(f *lint.File) {
