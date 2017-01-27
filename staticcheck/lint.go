@@ -414,21 +414,6 @@ func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Prog
 	c.tmpDeprecatedObjs[info.Pkg][obj] = ""
 }
 
-func enclosingFunctionInit(f *ast.File, node ast.Node) *ast.FuncDecl {
-	path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
-	for _, e := range path {
-		fn, ok := e.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-		if fn.Name == nil {
-			continue
-		}
-		return fn
-	}
-	return nil
-}
-
 type globalVisitor struct {
 	m   map[ast.Node]*ssa.Function
 	pkg *lint.Pkg
