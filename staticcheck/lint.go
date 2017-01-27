@@ -348,15 +348,15 @@ func tokenFileContainsPos(f *token.File, pos token.Pos) bool {
 	return base <= p && p < base+f.Size()
 }
 
-func pathEnclosingInterval(info *loader.PackageInfo, prog *loader.Program, start, end token.Pos) (path []ast.Node, exact bool) {
-	for _, f := range info.Files {
+func pathEnclosingInterval(files []*ast.File, fset *token.FileSet, start, end token.Pos) (path []ast.Node, exact bool) {
+	for _, f := range files {
 		if f.Pos() == token.NoPos {
 			// This can happen if the parser saw
 			// too many errors and bailed out.
 			// (Use parser.AllErrors to prevent that.)
 			continue
 		}
-		if !tokenFileContainsPos(prog.Fset.File(f.Pos()), start) {
+		if !tokenFileContainsPos(fset.File(f.Pos()), start) {
 			continue
 		}
 		if path, exact := astutil.PathEnclosingInterval(f, start, end); path != nil {
@@ -367,7 +367,7 @@ func pathEnclosingInterval(info *loader.PackageInfo, prog *loader.Program, start
 }
 
 func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Program, obj types.Object) {
-	path, _ := pathEnclosingInterval(info, prog, obj.Pos(), obj.Pos())
+	path, _ := pathEnclosingInterval(info.Files, prog.Fset, obj.Pos(), obj.Pos())
 	if len(path) <= 2 {
 		c.tmpDeprecatedObjs[info.Pkg][obj] = ""
 		return
