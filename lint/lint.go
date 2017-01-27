@@ -355,10 +355,8 @@ func IsOne(expr ast.Expr) bool {
 	return ok && lit.Kind == token.INT && lit.Value == "1"
 }
 
-func IsNil(expr ast.Expr) bool {
-	// FIXME(dominikh): use type information
-	id, ok := expr.(*ast.Ident)
-	return ok && id.Name == "nil"
+func (f *File) IsNil(expr ast.Expr) bool {
+	return f.Pkg.TypesInfo.Types[expr].IsNil()
 }
 
 var basicTypeKinds = map[types.BasicKind]string{
@@ -419,29 +417,15 @@ func (f *File) IsBoolConst(expr ast.Expr) bool {
 	return true
 }
 
-func ExprToInt(expr ast.Expr) (string, bool) {
-	switch y := expr.(type) {
-	case *ast.BasicLit:
-		if y.Kind != token.INT {
-			return "", false
-		}
-		return y.Value, true
-	case *ast.UnaryExpr:
-		if y.Op != token.SUB && y.Op != token.ADD {
-			return "", false
-		}
-		x, ok := y.X.(*ast.BasicLit)
-		if !ok {
-			return "", false
-		}
-		if x.Kind != token.INT {
-			return "", false
-		}
-		v := constant.MakeFromLiteral(x.Value, x.Kind, 0)
-		return constant.UnaryOp(y.Op, v, 0).String(), true
-	default:
-		return "", false
+func (f *File) ExprToInt(expr ast.Expr) (int64, bool) {
+	tv := f.Pkg.TypesInfo.Types[expr]
+	if tv.Value == nil {
+		return 0, false
 	}
+	if tv.Value.Kind() != constant.Int {
+		return 0, false
+	}
+	return constant.Int64Val(tv.Value)
 }
 
 func (f *File) EnclosingSSAFunction(node Positioner) *ssa.Function {

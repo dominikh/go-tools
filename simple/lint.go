@@ -200,9 +200,9 @@ func LintIfBoolCmp(f *lint.File) {
 
 func LintStringsContains(f *lint.File) {
 	// map of value to token to bool value
-	allowed := map[string]map[token.Token]bool{
-		"-1": {token.GTR: true, token.NEQ: true, token.EQL: false},
-		"0":  {token.GEQ: true, token.LSS: false},
+	allowed := map[int64]map[token.Token]bool{
+		-1: {token.GTR: true, token.NEQ: true, token.EQL: false},
+		0:  {token.GEQ: true, token.LSS: false},
 	}
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
@@ -215,7 +215,7 @@ func LintStringsContains(f *lint.File) {
 			return true
 		}
 
-		value, ok := lint.ExprToInt(expr.Y)
+		value, ok := f.ExprToInt(expr.Y)
 		if !ok {
 			return true
 		}
@@ -284,11 +284,8 @@ func LintBytesCompare(f *lint.File) {
 		if !lint.IsPkgDot(call.Fun, "bytes", "Compare") {
 			return true
 		}
-		value, ok := lint.ExprToInt(expr.Y)
-		if !ok {
-			return true
-		}
-		if value != "0" {
+		value, ok := f.ExprToInt(expr.Y)
+		if !ok || value != 0 {
 			return true
 		}
 		args := f.RenderArgs(call.Args)
@@ -507,7 +504,7 @@ func LintRedundantNilCheckWithLen(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsNil(x.Y) {
+		if !f.IsNil(x.Y) {
 			return true
 		}
 
@@ -777,7 +774,7 @@ func LintSimplerReturn(f *lint.File) {
 					continue
 				}
 				expr, ok := ifs.Cond.(*ast.BinaryExpr)
-				if !ok || expr.Op != token.NEQ || !lint.IsNil(expr.Y) {
+				if !ok || expr.Op != token.NEQ || !f.IsNil(expr.Y) {
 					continue
 				}
 				id1, ok := expr.X.(*ast.Ident)
@@ -1179,7 +1176,7 @@ func LintTrim(f *lint.File) {
 			index = slice.Low
 		case "HasSuffix":
 			if slice.Low != nil {
-				n, ok := intLit(f, slice.Low)
+				n, ok := f.ExprToInt(slice.Low)
 				if !ok || n != 0 {
 					return true
 				}
@@ -1226,7 +1223,7 @@ func LintTrim(f *lint.File) {
 				return true
 			}
 			string, ok1 := stringLit(f, condCall.Args[1])
-			int, ok2 := intLit(f, slice.Low)
+			int, ok2 := f.ExprToInt(slice.Low)
 			if !ok1 || !ok2 || int != int64(len(string)) {
 				return true
 			}
@@ -1267,16 +1264,4 @@ func stringLit(f *lint.File, expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return constant.StringVal(tv.Value), true
-}
-
-func intLit(f *lint.File, expr ast.Expr) (int64, bool) {
-	tv := f.Pkg.TypesInfo.Types[expr]
-	if tv.Value == nil {
-		return 0, false
-	}
-	if tv.Value.Kind() != constant.Int {
-		return 0, false
-	}
-	val, _ := constant.Int64Val(tv.Value)
-	return val, true
 }
