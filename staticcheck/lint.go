@@ -171,6 +171,12 @@ var (
 			}
 		},
 	}
+
+	checkRegexpMatchLoopRules = map[string]CallCheck{
+		"regexp.Match":       loopedRegexp("regexp.Match"),
+		"regexp.MatchReader": loopedRegexp("regexp.MatchReader"),
+		"regexp.MatchString": loopedRegexp("regexp.MatchString"),
+	}
 )
 
 type Checker struct {
@@ -247,6 +253,8 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA5005": c.CheckCyclicFinalizer,
 		// "SA5006": c.CheckSliceOutOfBounds,
 		"SA5007": c.CheckInfiniteRecursion,
+
+		"SA6000": c.CheckRegexpMatchLoop,
 
 		"SA9000": c.callChecker(checkDubiousSyncPoolSizeRules),
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
@@ -2698,5 +2706,21 @@ func (c *Checker) CheckWriterBufferModified(f *lint.File) {
 				}
 			}
 		}
+	}
+}
+
+func (c *Checker) CheckRegexpMatchLoop(f *lint.File) {
+	c.checkCalls(f, checkRegexpMatchLoopRules)
+}
+
+func loopedRegexp(name string) CallCheck {
+	return func(call *Call) {
+		if len(extractConsts(call.Args[0].Value.Value)) == 0 {
+			return
+		}
+		if !call.Checker.isInLoop(call.Instr.Block()) {
+			return
+		}
+		call.Invalid(fmt.Sprintf("calling %s in a loop has poor performance, consider using regexp.Compile", name))
 	}
 }
