@@ -22,8 +22,8 @@ const (
 )
 
 type Call struct {
-	Common *ssa.CallCommon
-	Args   []*Argument
+	Instr *ssa.Call
+	Args  []*Argument
 
 	Checker *Checker
 	Parent  *ssa.Function

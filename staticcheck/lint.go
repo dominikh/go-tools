@@ -555,18 +555,10 @@ func detectInfiniteLoops(fn *ssa.Function) {
 				continue
 			}
 			call, ok := unop.X.(*ssa.Call)
-			if !ok || call.Common().IsInvoke() {
-				continue
-			}
-			fn, ok := call.Common().Value.(*ssa.Function)
 			if !ok {
 				continue
 			}
-			tfn, ok := fn.Object().(*types.Func)
-			if !ok {
-				continue
-			}
-			if tfn.FullName() != "time.Tick" {
+			if !isCallTo(call, "time.Tick") {
 				continue
 			}
 			// XXX check if we're extracting ok from our unop
@@ -2180,15 +2172,7 @@ func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 				if !ok {
 					continue
 				}
-				callee := call.Common().StaticCallee()
-				if callee == nil {
-					continue
-				}
-				obj, ok := callee.Object().(*types.Func)
-				if !ok {
-					continue
-				}
-				if obj.FullName() != "runtime.SetFinalizer" {
+				if !isCallTo(call, "runtime.SetFinalizer") {
 					continue
 				}
 
@@ -2563,9 +2547,7 @@ var checkMathIntRules = map[string]CallCheck{
 
 func pointlessIntMath(call *Call) {
 	if ConvertedFromInt(call.Args[0].Value) {
-		// TODO factor out the following line into a function
-		name := call.Common.StaticCallee().Object().(*types.Func).FullName()
-		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", name))
+		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", callName(call.Instr)))
 	}
 }
 
@@ -2782,7 +2764,7 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 					args = append(args, &Argument{Value: Value{arg, vr}})
 				}
 				call := &Call{
-					Common:  ssacall.Common(),
+					Instr:   ssacall,
 					Args:    args,
 					Checker: c,
 					Parent:  ssacall.Parent(),
@@ -2802,7 +2784,7 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 					}
 				}
 				for _, e := range call.invalids {
-					f.Errorf(call.Common, "%s", e)
+					f.Errorf(call.Instr.Common(), "%s", e)
 				}
 			}
 		}
@@ -2889,21 +2871,29 @@ func unwrapFunction(val ssa.Value) *ssa.Function {
 	}
 }
 
+func callName(call *ssa.Call) string {
+	callee := call.Common().StaticCallee()
+	if callee == nil {
+		return ""
+	}
+	obj, ok := callee.Object().(*types.Func)
+	if !ok {
+		return ""
+	}
+	return obj.FullName()
+}
+
+func isCallTo(call *ssa.Call, name string) bool {
+	return callName(call) == name
+}
+
 func hasCallTo(block *ssa.BasicBlock, name string) bool {
 	for _, ins := range block.Instrs {
 		call, ok := ins.(*ssa.Call)
 		if !ok {
 			continue
 		}
-		callee := call.Common().StaticCallee()
-		if callee == nil {
-			continue
-		}
-		obj, ok := callee.Object().(*types.Func)
-		if !ok {
-			continue
-		}
-		if obj.FullName() == name {
+		if isCallTo(call, name) {
 			return true
 		}
 	}
