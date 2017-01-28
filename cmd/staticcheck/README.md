@@ -64,6 +64,7 @@ The following things are currently checked by staticcheck:
 | SA1019     | Using a deprecated function, variable, constant or field                                                                                              |
 | SA1020     | Using an invalid `host:port` pair with a `net.Listen`-related function                                                                                |
 | SA1021     | Using bytes.Equal to compare two net.IP                                                                                                               |
+| SA1022     | Calling os.Exit in a function assigned to flag.Usage                                                                                                  |
 |            |                                                                                                                                                       |
 | **SA2???** | **Concurrency issues**                                                                                                                                |
 | SA2000     | `sync.WaitGroup.Add` called inside the goroutine, leading to a race condition                                                                         |

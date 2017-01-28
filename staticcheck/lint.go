@@ -117,6 +117,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1019": c.CheckDeprecated,
 		"SA1020": c.CheckListenAddress,
 		"SA1021": c.CheckBytesEqualIP,
+		"SA1022": c.CheckFlagUsage,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -2835,4 +2836,84 @@ var checkBytesEqualIPRules = map[string]CallCheck{
 
 func (c *Checker) CheckBytesEqualIP(f *lint.File) {
 	c.checkCalls(f, checkBytesEqualIPRules)
+}
+
+func (c *Checker) CheckFlagUsage(f *lint.File) {
+	for _, ssafn := range c.funcsForFile(f) {
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				store, ok := ins.(*ssa.Store)
+				if !ok {
+					continue
+				}
+				switch addr := store.Addr.(type) {
+				case *ssa.FieldAddr:
+					typ := addr.X.Type()
+					st := deref(typ).Underlying().(*types.Struct)
+					if types.TypeString(typ, nil) != "*flag.FlagSet" {
+						continue
+					}
+					if st.Field(addr.Field).Name() != "Usage" {
+						continue
+					}
+				case *ssa.Global:
+					if addr.Pkg.Pkg.Path() != "flag" || addr.Name() != "Usage" {
+						continue
+					}
+				default:
+					continue
+				}
+				fn := unwrapFunction(store.Val)
+				if fn == nil {
+					continue
+				}
+				for _, oblock := range fn.Blocks {
+					if hasCallTo(oblock, "os.Exit") {
+						f.Errorf(store, "the function assigned to Usage shouldn't call os.Exit, but it does")
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
+func unwrapFunction(val ssa.Value) *ssa.Function {
+	switch val := val.(type) {
+	case *ssa.Function:
+		return val
+	case *ssa.MakeClosure:
+		return val.Fn.(*ssa.Function)
+	default:
+		return nil
+	}
+}
+
+func hasCallTo(block *ssa.BasicBlock, name string) bool {
+	for _, ins := range block.Instrs {
+		call, ok := ins.(*ssa.Call)
+		if !ok {
+			continue
+		}
+		callee := call.Common().StaticCallee()
+		if callee == nil {
+			continue
+		}
+		obj, ok := callee.Object().(*types.Func)
+		if !ok {
+			continue
+		}
+		if obj.FullName() == name {
+			return true
+		}
+	}
+	return false
+}
+
+// deref returns a pointer's element type; otherwise it returns typ.
+func deref(typ types.Type) types.Type {
+	if p, ok := typ.Underlying().(*types.Pointer); ok {
+		return p.Elem()
+	}
+	return typ
 }
