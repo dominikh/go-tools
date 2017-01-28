@@ -31,6 +31,13 @@ func (s *State) IsPure(fn *ssa.Function) (ret bool) {
 		s.purity[fn] = ret
 	}()
 
+	if fn.Signature.Results().Len() == 0 {
+		// A function with no return values is empty or is doing some
+		// work we cannot see (for example because of build tags);
+		// don't consider it pure.
+		return false
+	}
+
 	for _, param := range fn.Params {
 		if _, ok := param.Type().Underlying().(*types.Basic); !ok {
 			return false

@@ -22,3 +22,9 @@ func bar(a, b int) int {
 	println(a + b)
 	return a + b
 }
+
+func empty() {}
+
+func fn3() {
+	empty()
+}
