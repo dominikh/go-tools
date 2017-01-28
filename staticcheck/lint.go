@@ -80,6 +80,150 @@ func (d FunctionDescriptions) Merge(fn *ssa.Function, desc Function) {
 	d[fn.RelString(nil)] = d[fn.RelString(nil)].Merge(desc)
 }
 
+func validRegexp(call *Call) {
+	arg := call.Args[0]
+	err := ValidateRegexp(arg.Value)
+	if err != nil {
+		arg.Invalid(err.Error())
+	}
+}
+
+var checkRegexpRules = map[string]CallCheck{
+	"regexp.MustCompile": validRegexp,
+	"regexp.Compile":     validRegexp,
+}
+
+var checkTimeParseRules = map[string]CallCheck{
+	"time.Parse": func(call *Call) {
+		arg := call.Args[0]
+		err := ValidateTimeLayout(arg.Value)
+		if err != nil {
+			arg.Invalid(err.Error())
+		}
+	},
+}
+
+var checkEncodingBinaryRules = map[string]CallCheck{
+	"encoding/binary.Write": func(call *Call) {
+		arg := call.Args[2]
+		if !CanBinaryMarshal(arg.Value) {
+			arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
+		}
+	},
+}
+
+var checkURLsRules = map[string]CallCheck{
+	"net/url.Parse": func(call *Call) {
+		arg := call.Args[0]
+		err := ValidateURL(arg.Value)
+		if err != nil {
+			arg.Invalid(err.Error())
+		}
+	},
+}
+
+var checkDubiousSyncPoolSizeRules = map[string]CallCheck{
+	"(*sync.Pool).Put": func(call *Call) {
+		// TODO(dh): allow users to pass in a custom build environment
+		sizes := gcsizes.ForArch(build.Default.GOARCH)
+		arg := call.Args[0]
+		if sizes.Sizeof(arg.Value.Value.Type()) > sizes.WordSize {
+			arg.Invalid("argument should be one word large or less to avoid allocations")
+		}
+	},
+}
+
+var checkRegexpFindAllRules = map[string]CallCheck{
+	"(*regexp.Regexp).FindAll":                    RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllIndex":               RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllString":              RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllStringIndex":         RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllStringSubmatch":      RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllStringSubmatchIndex": RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllSubmatch":            RepeatZeroTimes("a FindAll method", 1),
+	"(*regexp.Regexp).FindAllSubmatchIndex":       RepeatZeroTimes("a FindAll method", 1),
+}
+
+func utf8Cutset(call *Call) {
+	arg := call.Args[1]
+	if InvalidUTF8(arg.Value) {
+		arg.Invalid(MsgInvalidUTF8)
+	}
+}
+
+var checkUTF8CutsetRules = map[string]CallCheck{
+	"strings.IndexAny":     utf8Cutset,
+	"strings.LastIndexAny": utf8Cutset,
+	"strings.ContainsAny":  utf8Cutset,
+	"strings.Trim":         utf8Cutset,
+	"strings.TrimLeft":     utf8Cutset,
+	"strings.TrimRight":    utf8Cutset,
+}
+
+func unmarshalPointer(name string, arg int) CallCheck {
+	return func(call *Call) {
+		if !Pointer(call.Args[arg].Value) {
+			call.Args[arg].Invalid(fmt.Sprintf("%s expects to unmarshal into a pointer, but the provided value is not a pointer", name))
+		}
+	}
+}
+
+var checkUnmarshalPointerRules = map[string]CallCheck{
+	"encoding/xml.Unmarshal":          unmarshalPointer("xml.Unmarshal", 1),
+	"(*encoding/xml.Decoder).Decode":  unmarshalPointer("Decode", 0),
+	"encoding/json.Unmarshal":         unmarshalPointer("json.Unmarshal", 1),
+	"(*encoding/json.Decoder).Decode": unmarshalPointer("Decode", 0),
+}
+
+var checkUnbufferedSignalChanRules = map[string]CallCheck{
+	"os/signal.Notify": func(call *Call) {
+		arg := call.Args[0]
+		if UnbufferedChannel(arg.Value) {
+			arg.Invalid("the channel used with signal.Notify should be buffered")
+		}
+	},
+}
+
+func pointlessIntMath(call *Call) {
+	if ConvertedFromInt(call.Args[0].Value) {
+		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", callName(call.Instr)))
+	}
+}
+
+var checkMathIntRules = map[string]CallCheck{
+	"math.Ceil":  pointlessIntMath,
+	"math.Floor": pointlessIntMath,
+	"math.IsNaN": pointlessIntMath,
+	"math.Trunc": pointlessIntMath,
+	"math.IsInf": pointlessIntMath,
+}
+
+var checkStringsReplaceZeroRules = map[string]CallCheck{
+	"strings.Replace": RepeatZeroTimes("strings.Replace", 3),
+	"bytes.Replace":   RepeatZeroTimes("bytes.Replace", 3),
+}
+
+func checkValidHostPort(arg int) CallCheck {
+	return func(call *Call) {
+		if !ValidHostPort(call.Args[arg].Value) {
+			call.Args[arg].Invalid(MsgInvalidHostPort)
+		}
+	}
+}
+
+var checkListenAddressRules = map[string]CallCheck{
+	"net/http.ListenAndServe":    checkValidHostPort(0),
+	"net/http.ListenAndServeTLS": checkValidHostPort(0),
+}
+
+var checkBytesEqualIPRules = map[string]CallCheck{
+	"bytes.Equal": func(call *Call) {
+		if ConvertedFrom(call.Args[0].Value, "net.IP") && ConvertedFrom(call.Args[1].Value, "net.IP") {
+			call.Invalid("use net.IP.Equal to compare net.IPs, not bytes.Equal")
+		}
+	},
+}
+
 type Checker struct {
 	funcDescs      FunctionDescriptions
 	deprecatedObjs map[types.Object]string
@@ -95,28 +239,28 @@ func NewChecker() *Checker {
 
 func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
-		"SA1000": c.CheckRegexps,
+		"SA1000": c.callChecker(checkRegexpRules),
 		"SA1001": c.CheckTemplate,
-		"SA1002": c.CheckTimeParse,
-		"SA1003": c.CheckEncodingBinary,
+		"SA1002": c.callChecker(checkTimeParseRules),
+		"SA1003": c.callChecker(checkEncodingBinaryRules),
 		"SA1004": c.CheckTimeSleepConstant,
 		"SA1005": c.CheckExec,
 		"SA1006": c.CheckUnsafePrintf,
-		"SA1007": c.CheckURLs,
+		"SA1007": c.callChecker(checkURLsRules),
 		"SA1008": c.CheckCanonicalHeaderKey,
 		"SA1009": nil,
-		"SA1010": c.CheckRegexpFindAll,
-		"SA1011": c.CheckUTF8Cutset,
+		"SA1010": c.callChecker(checkRegexpFindAllRules),
+		"SA1011": c.callChecker(checkUTF8CutsetRules),
 		"SA1012": c.CheckNilContext,
 		"SA1013": c.CheckSeeker,
-		"SA1014": c.CheckUnmarshalPointer,
+		"SA1014": c.callChecker(checkUnmarshalPointerRules),
 		"SA1015": c.CheckLeakyTimeTick,
 		"SA1016": c.CheckUntrappableSignal,
-		"SA1017": c.CheckUnbufferedSignalChan,
-		"SA1018": c.CheckStringsReplaceZero,
+		"SA1017": c.callChecker(checkUnbufferedSignalChanRules),
+		"SA1018": c.callChecker(checkStringsReplaceZeroRules),
 		"SA1019": c.CheckDeprecated,
-		"SA1020": c.CheckListenAddress,
-		"SA1021": c.CheckBytesEqualIP,
+		"SA1020": c.callChecker(checkListenAddressRules),
+		"SA1021": c.callChecker(checkBytesEqualIPRules),
 		"SA1022": c.CheckFlagUsage,
 
 		"SA2000": c.CheckWaitgroupAdd,
@@ -143,7 +287,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4012": c.CheckNaNComparison,
 		"SA4013": c.CheckDoubleNegation,
 		"SA4014": c.CheckRepeatedIfElse,
-		"SA4015": c.CheckMathInt,
+		"SA4015": c.callChecker(checkMathIntRules),
 		"SA4016": c.CheckSillyBitwiseOps,
 		"SA4017": c.CheckPureFunctions,
 
@@ -156,7 +300,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		// "SA5006": c.CheckSliceOutOfBounds,
 		"SA5007": c.CheckInfiniteRecursion,
 
-		"SA9000": c.CheckDubiousSyncPoolSize,
+		"SA9000": c.callChecker(checkDubiousSyncPoolSizeRules),
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
 		"SA9002": c.CheckNonOctalFileMode,
 	}
@@ -623,23 +767,6 @@ func (c *Checker) CheckUntrappableSignal(f *lint.File) {
 	f.Walk(fn)
 }
 
-func validRegexp(call *Call) {
-	arg := call.Args[0]
-	err := ValidateRegexp(arg.Value)
-	if err != nil {
-		arg.Invalid(err.Error())
-	}
-}
-
-var checkRegexpRules = map[string]CallCheck{
-	"regexp.MustCompile": validRegexp,
-	"regexp.Compile":     validRegexp,
-}
-
-func (c *Checker) CheckRegexps(f *lint.File) {
-	c.checkCalls(f, checkRegexpRules)
-}
-
 func (c *Checker) CheckTemplate(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -683,33 +810,6 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
-}
-
-var checkTimeParseRules = map[string]CallCheck{
-	"time.Parse": func(call *Call) {
-		arg := call.Args[0]
-		err := ValidateTimeLayout(arg.Value)
-		if err != nil {
-			arg.Invalid(err.Error())
-		}
-	},
-}
-
-func (c *Checker) CheckTimeParse(f *lint.File) {
-	c.checkCalls(f, checkTimeParseRules)
-}
-
-var checkEncodingBinaryRules = map[string]CallCheck{
-	"encoding/binary.Write": func(call *Call) {
-		arg := call.Args[2]
-		if !CanBinaryMarshal(arg.Value) {
-			arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
-		}
-	},
-}
-
-func (c *Checker) CheckEncodingBinary(f *lint.File) {
-	c.checkCalls(f, checkEncodingBinaryRules)
 }
 
 func (c *Checker) CheckTimeSleepConstant(f *lint.File) {
@@ -1080,20 +1180,6 @@ func (c *Checker) CheckUnsafePrintf(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkURLsRules = map[string]CallCheck{
-	"net/url.Parse": func(call *Call) {
-		arg := call.Args[0]
-		err := ValidateURL(arg.Value)
-		if err != nil {
-			arg.Invalid(err.Error())
-		}
-	},
-}
-
-func (c *Checker) CheckURLs(f *lint.File) {
-	c.checkCalls(f, checkURLsRules)
-}
-
 func (c *Checker) CheckEarlyDefer(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		block, ok := node.(*ast.BlockStmt)
@@ -1173,21 +1259,6 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 	default:
 		return x
 	}
-}
-
-var checkDubiousSyncPoolSizeRules = map[string]CallCheck{
-	"(*sync.Pool).Put": func(call *Call) {
-		// TODO(dh): allow users to pass in a custom build environment
-		sizes := gcsizes.ForArch(build.Default.GOARCH)
-		arg := call.Args[0]
-		if sizes.Sizeof(arg.Value.Value.Type()) > sizes.WordSize {
-			arg.Invalid("argument should be one word large or less to avoid allocations")
-		}
-	},
-}
-
-func (c *Checker) CheckDubiousSyncPoolSize(f *lint.File) {
-	c.checkCalls(f, checkDubiousSyncPoolSizeRules)
 }
 
 func (c *Checker) CheckEmptyCriticalSection(f *lint.File) {
@@ -1914,41 +1985,6 @@ func (c *Checker) CheckIneffectiveLoop(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkRegexpFindAllRules = map[string]CallCheck{
-	"(*regexp.Regexp).FindAll":                    RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllIndex":               RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllString":              RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllStringIndex":         RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllStringSubmatch":      RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllStringSubmatchIndex": RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllSubmatch":            RepeatZeroTimes("a FindAll method", 1),
-	"(*regexp.Regexp).FindAllSubmatchIndex":       RepeatZeroTimes("a FindAll method", 1),
-}
-
-func (c *Checker) CheckRegexpFindAll(f *lint.File) {
-	c.checkCalls(f, checkRegexpFindAllRules)
-}
-
-var checkUTF8CutsetRules = map[string]CallCheck{
-	"strings.IndexAny":     utf8Cutset,
-	"strings.LastIndexAny": utf8Cutset,
-	"strings.ContainsAny":  utf8Cutset,
-	"strings.Trim":         utf8Cutset,
-	"strings.TrimLeft":     utf8Cutset,
-	"strings.TrimRight":    utf8Cutset,
-}
-
-func utf8Cutset(call *Call) {
-	arg := call.Args[1]
-	if InvalidUTF8(arg.Value) {
-		arg.Invalid(MsgInvalidUTF8)
-	}
-}
-
-func (c *Checker) CheckUTF8Cutset(f *lint.File) {
-	c.checkCalls(f, checkUTF8CutsetRules)
-}
-
 func (c *Checker) CheckNilContext(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -2376,25 +2412,6 @@ func isFunctionCallNameAny(f *lint.File, node ast.Node, names ...string) bool {
 	return false
 }
 
-var checkUnmarshalPointerRules = map[string]CallCheck{
-	"encoding/xml.Unmarshal":          unmarshalPointer("xml.Unmarshal", 1),
-	"(*encoding/xml.Decoder).Decode":  unmarshalPointer("Decode", 0),
-	"encoding/json.Unmarshal":         unmarshalPointer("json.Unmarshal", 1),
-	"(*encoding/json.Decoder).Decode": unmarshalPointer("Decode", 0),
-}
-
-func unmarshalPointer(name string, arg int) CallCheck {
-	return func(call *Call) {
-		if !Pointer(call.Args[arg].Value) {
-			call.Args[arg].Invalid(fmt.Sprintf("%s expects to unmarshal into a pointer, but the provided value is not a pointer", name))
-		}
-	}
-}
-
-func (c *Checker) CheckUnmarshalPointer(f *lint.File) {
-	c.checkCalls(f, checkUnmarshalPointerRules)
-}
-
 func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 	if f.IsMain() || f.IsTest() {
 		return
@@ -2524,37 +2541,6 @@ func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
 	f.Walk(fn)
 }
 
-var checkUnbufferedSignalChanRules = map[string]CallCheck{
-	"os/signal.Notify": func(call *Call) {
-		arg := call.Args[0]
-		if UnbufferedChannel(arg.Value) {
-			arg.Invalid("the channel used with signal.Notify should be buffered")
-		}
-	},
-}
-
-func (c *Checker) CheckUnbufferedSignalChan(f *lint.File) {
-	c.checkCalls(f, checkUnbufferedSignalChanRules)
-}
-
-var checkMathIntRules = map[string]CallCheck{
-	"math.Ceil":  pointlessIntMath,
-	"math.Floor": pointlessIntMath,
-	"math.IsNaN": pointlessIntMath,
-	"math.Trunc": pointlessIntMath,
-	"math.IsInf": pointlessIntMath,
-}
-
-func pointlessIntMath(call *Call) {
-	if ConvertedFromInt(call.Args[0].Value) {
-		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", callName(call.Instr)))
-	}
-}
-
-func (c *Checker) CheckMathInt(f *lint.File) {
-	c.checkCalls(f, checkMathIntRules)
-}
-
 func (c *Checker) CheckSillyBitwiseOps(f *lint.File) {
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
@@ -2621,15 +2607,6 @@ func (c *Checker) CheckNonOctalFileMode(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
-}
-
-var checkStringsReplaceZeroRules = map[string]CallCheck{
-	"strings.Replace": RepeatZeroTimes("strings.Replace", 3),
-	"bytes.Replace":   RepeatZeroTimes("bytes.Replace", 3),
-}
-
-func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
-	c.checkCalls(f, checkStringsReplaceZeroRules)
 }
 
 func (c *Checker) CheckPureFunctions(f *lint.File) {
@@ -2730,6 +2707,12 @@ func (c *Checker) CheckDeprecated(f *lint.File) {
 	f.Walk(fn)
 }
 
+func (c *Checker) callChecker(rules map[string]CallCheck) func(f *lint.File) {
+	return func(f *lint.File) {
+		c.checkCalls(f, rules)
+	}
+}
+
 func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
@@ -2789,35 +2772,6 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 			}
 		}
 	}
-}
-
-var checkListenAddressRules = map[string]CallCheck{
-	"net/http.ListenAndServe":    checkValidHostPort(0),
-	"net/http.ListenAndServeTLS": checkValidHostPort(0),
-}
-
-func checkValidHostPort(arg int) CallCheck {
-	return func(call *Call) {
-		if !ValidHostPort(call.Args[arg].Value) {
-			call.Args[arg].Invalid(MsgInvalidHostPort)
-		}
-	}
-}
-
-func (c *Checker) CheckListenAddress(f *lint.File) {
-	c.checkCalls(f, checkListenAddressRules)
-}
-
-var checkBytesEqualIPRules = map[string]CallCheck{
-	"bytes.Equal": func(call *Call) {
-		if ConvertedFrom(call.Args[0].Value, "net.IP") && ConvertedFrom(call.Args[1].Value, "net.IP") {
-			call.Invalid("use net.IP.Equal to compare net.IPs, not bytes.Equal")
-		}
-	},
-}
-
-func (c *Checker) CheckBytesEqualIP(f *lint.File) {
-	c.checkCalls(f, checkBytesEqualIPRules)
 }
 
 func (c *Checker) CheckFlagUsage(f *lint.File) {
