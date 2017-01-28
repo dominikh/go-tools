@@ -2650,7 +2650,25 @@ func (c *Checker) CheckStringsReplaceZero(f *lint.File) {
 }
 
 func (c *Checker) CheckPureFunctions(f *lint.File) {
+fnLoop:
 	for _, ssafn := range c.funcsForFile(f) {
+		if f.IsTest() {
+			params := ssafn.Signature.Params()
+			for i := 0; i < params.Len(); i++ {
+				param := params.At(i)
+				if types.TypeString(param.Type(), nil) == "*testing.B" {
+					// Ignore discarded pure functions in code related
+					// to benchmarks. Instead of matching BenchmarkFoo
+					// functions, we match any function accepting a
+					// *testing.B. Benchmarks sometimes call generic
+					// functions for doing the actual work, and
+					// checking for the parameter is a lot easier and
+					// faster than analyzing call trees.
+					continue fnLoop
+				}
+			}
+		}
+
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
 				ins, ok := ins.(*ssa.Call)
