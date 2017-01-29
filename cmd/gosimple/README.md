@@ -41,7 +41,7 @@ Gosimple makes the following recommendations for avoiding unsimple
 constructs:
 
 | Check | Description                                                                 | Suggestion                                                             |
-|-------|-----------------------------------------------------------------------------|------------------------------------------------------------------------ |
+|-------|-----------------------------------------------------------------------------|------------------------------------------------------------------------|
 | S1000 | `select{}` with a single case                                               | Use a plain channel send or receive                                    |
 | S1001 | A loop copying elements of `s2` to `s1`                                     | `copy(s1, s2)`                                                         |
 | S1002 | `if b == true`                                                              | `if b`                                                                 |
@@ -60,6 +60,7 @@ constructs:
 | S1015 | Using `strconv.FormatInt` when `strconv.Atoi` would be more straightforward |                                                                        |
 | S1016 | Converting two struct types by manually copying each field                  | A type conversion: `T(v)`                                              |
 | S1017 | `if strings.HasPrefix` + string slicing                                     | Call `strings.TrimPrefix` unconditionally                              |
+| S1018 | A loop sliding elements in a slice to the beginning                         | `copy(s[:n], s[offset:])`                                              |
 
 ## gofmt -r
 

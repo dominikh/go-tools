@@ -33,6 +33,7 @@ var Funcs = map[string]lint.Func{
 	"S1015": LintFormatInt,
 	"S1016": LintSimplerStructConversion,
 	"S1017": LintTrim,
+	"S1018": LintLoopSlide,
 }
 
 type Checker struct {
@@ -1285,4 +1286,107 @@ func stringLit(f *lint.File, expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return constant.StringVal(tv.Value), true
+}
+
+func LintLoopSlide(f *lint.File) {
+	// TODO(dh): detect bs[i+offset] in addition to bs[offset+i]
+	// TODO(dh): consider merging this function with LintLoopCopy
+	// TODO(dh): detect length that is an expression, not a variable name
+	// TODO(dh): support sliding to a different offset than the beginning of the slice
+
+	fn := func(node ast.Node) bool {
+		/*
+			for i := 0; i < n; i++ {
+				bs[i] = bs[offset+i]
+			}
+
+						↓
+
+			copy(bs[:n], bs[offset:offset+n])
+		*/
+
+		loop, ok := node.(*ast.ForStmt)
+		if !ok || len(loop.Body.List) != 1 || loop.Init == nil || loop.Cond == nil || loop.Post == nil {
+			return true
+		}
+		assign, ok := loop.Init.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 || !lint.IsZero(assign.Rhs[0]) {
+			return true
+		}
+		initvar, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		post, ok := loop.Post.(*ast.IncDecStmt)
+		if !ok || post.Tok != token.INC {
+			return true
+		}
+		postvar, ok := post.X.(*ast.Ident)
+		if !ok || f.Pkg.TypesInfo.ObjectOf(postvar) != f.Pkg.TypesInfo.ObjectOf(initvar) {
+			return true
+		}
+		bin, ok := loop.Cond.(*ast.BinaryExpr)
+		if !ok || bin.Op != token.LSS {
+			return true
+		}
+		binx, ok := bin.X.(*ast.Ident)
+		if !ok || f.Pkg.TypesInfo.ObjectOf(binx) != f.Pkg.TypesInfo.ObjectOf(initvar) {
+			return true
+		}
+		biny, ok := bin.Y.(*ast.Ident)
+		if !ok {
+			return true
+		}
+
+		assign, ok = loop.Body.List[0].(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 || assign.Tok != token.ASSIGN {
+			return true
+		}
+		lhs, ok := assign.Lhs[0].(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+		rhs, ok := assign.Rhs[0].(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+
+		bs1, ok := lhs.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		bs2, ok := rhs.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		obj1 := f.Pkg.TypesInfo.ObjectOf(bs1)
+		obj2 := f.Pkg.TypesInfo.ObjectOf(bs2)
+		if obj1 != obj2 {
+			return true
+		}
+		if _, ok := obj1.Type().Underlying().(*types.Slice); !ok {
+			return true
+		}
+
+		index1, ok := lhs.Index.(*ast.Ident)
+		if !ok || f.Pkg.TypesInfo.ObjectOf(index1) != f.Pkg.TypesInfo.ObjectOf(initvar) {
+			return true
+		}
+		index2, ok := rhs.Index.(*ast.BinaryExpr)
+		if !ok || index2.Op != token.ADD {
+			return true
+		}
+		add1, ok := index2.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		add2, ok := index2.Y.(*ast.Ident)
+		if !ok || f.Pkg.TypesInfo.ObjectOf(add2) != f.Pkg.TypesInfo.ObjectOf(initvar) {
+			return true
+		}
+
+		f.Errorf(loop, "should use copy(%s[:%s], %s[%s:]) instead", f.Render(bs1), f.Render(biny), f.Render(bs1), f.Render(add1))
+		return true
+	}
+	f.Walk(fn)
 }
