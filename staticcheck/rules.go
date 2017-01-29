@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/staticcheck/vrp"
 )
@@ -188,6 +189,8 @@ func validEncodingBinaryType(typ types.Type) bool {
 			types.Int8, types.Int16, types.Int32, types.Int64,
 			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
 			return true
+		case types.Bool:
+			return lint.IsGoVersion("1.8")
 		}
 		return false
 	case *types.Struct:

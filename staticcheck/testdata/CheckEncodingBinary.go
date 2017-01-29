@@ -7,6 +7,8 @@ import (
 )
 
 func fn() {
+	// TODO(dh): test that bools fail on <=1.7 and pass on >=1.8
+
 	type T1 struct {
 		A int32
 	}
@@ -36,7 +38,6 @@ func fn() {
 	var x9 T3
 	var x10 T4
 	var x11 = &T5{}
-	var x12 bool
 	var x13 []byte
 	var x14 *[]byte
 	var x15 T6
@@ -51,7 +52,6 @@ func fn() {
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x9))  // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x10)) // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x11))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x12)) // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x13))
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x14)) // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x15))
