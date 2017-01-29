@@ -19,14 +19,7 @@ var (
 	fDebug        string
 	fWholeProgram bool
 	fReflection   bool
-	fTags         string
-	fIgnore       string
-	fTests        bool
 )
-
-func init() {
-
-}
 
 func newChecker(mode unused.CheckMode) *unused.Checker {
 	checker := unused.NewChecker(mode)
