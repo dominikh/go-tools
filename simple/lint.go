@@ -37,9 +37,24 @@ var Funcs = map[string]lint.Func{
 
 type Checker struct{}
 
-func NewChecker() *Checker                     { return &Checker{} }
-func (c *Checker) Init(*lint.Program)          {}
-func (c *Checker) Funcs() map[string]lint.Func { return Funcs }
+func NewChecker() *Checker            { return &Checker{} }
+func (c *Checker) Init(*lint.Program) {}
+
+func (c *Checker) Funcs() map[string]lint.Func {
+	fns := map[string]lint.Func{}
+	for k, v := range Funcs {
+		fns[k] = skipGenerated(v)
+	}
+	return fns
+}
+
+func skipGenerated(fn lint.Func) lint.Func {
+	return func(f *lint.File) {
+		if !f.IsGenerated() {
+			fn(f)
+		}
+	}
+}
 
 func LintSingleCaseSelect(f *lint.File) {
 	isSingleSelect := func(node ast.Node) bool {
