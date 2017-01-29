@@ -23,4 +23,7 @@ func fn() {
 	p := &sync.Pool{}
 	p.Put(s) // MATCH /argument should be one word large or less/
 	p.Put(&s)
+
+	var i interface{}
+	p.Put(i)
 }

@@ -157,7 +157,8 @@ var (
 			// TODO(dh): allow users to pass in a custom build environment
 			sizes := gcsizes.ForArch(build.Default.GOARCH)
 			arg := call.Args[0]
-			if sizes.Sizeof(arg.Value.Value.Type()) > sizes.WordSize {
+			typ := arg.Value.Value.Type()
+			if !types.IsInterface(typ) && sizes.Sizeof(typ) > sizes.WordSize {
 				arg.Invalid("argument should be one word large or less to avoid allocations")
 			}
 		},
