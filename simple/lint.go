@@ -1385,6 +1385,7 @@ func LintMakeLenCap(f *lint.File) {
 			return true
 		}
 		if fn, ok := call.Fun.(*ast.Ident); !ok || fn.Name != "make" {
+			// FIXME check whether make is indeed the built-in function
 			return true
 		}
 		switch len(call.Args) {
@@ -1393,7 +1394,7 @@ func LintMakeLenCap(f *lint.File) {
 			if _, ok := f.Pkg.TypesInfo.TypeOf(call.Args[0]).Underlying().(*types.Slice); ok {
 				break
 			}
-			if length, ok := call.Args[1].(*ast.BasicLit); ok && length.Value == "0" {
+			if lint.IsZero(call.Args[1]) {
 				f.Errorf(call.Args[1], "when length is zero, length can be omitted")
 			}
 		case 3:
