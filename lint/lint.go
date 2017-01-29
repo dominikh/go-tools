@@ -271,25 +271,6 @@ func (f *File) IsMain() bool {
 	return f.File.Name.Name == "main"
 }
 
-// exportedType reports whether typ is an exported type.
-// It is imprecise, and will err on the side of returning true,
-// such as for composite types.
-func ExportedType(typ types.Type) bool {
-	switch T := typ.(type) {
-	case *types.Named:
-		// Builtin types have no package.
-		return T.Obj().Pkg() == nil || T.Obj().Exported()
-	case *types.Map:
-		return ExportedType(T.Key()) && ExportedType(T.Elem())
-	case interface {
-		Elem() types.Type
-	}: // array, slice, pointer, chan
-		return ExportedType(T.Elem())
-	}
-	// Be conservative about other types, such as struct, interface, etc.
-	return true
-}
-
 func (f *File) Walk(fn func(ast.Node) bool) {
 	ast.Inspect(f.File, fn)
 }
