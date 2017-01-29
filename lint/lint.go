@@ -322,11 +322,6 @@ func IsBlank(id ast.Expr) bool {
 	return ok && ident.Name == "_"
 }
 
-func IsPkgDot(expr ast.Expr, pkg, name string) bool {
-	sel, ok := expr.(*ast.SelectorExpr)
-	return ok && IsIdent(sel.X, pkg) && IsIdent(sel.Sel, name)
-}
-
 func IsZero(expr ast.Expr) bool {
 	lit, ok := expr.(*ast.BasicLit)
 	return ok && lit.Kind == token.INT && lit.Value == "0"
@@ -396,6 +391,28 @@ func IsGoVersion(version string) bool {
 	// TODO(dh): allow users to pass in a custom build environment
 	for _, tag := range build.Default.ReleaseTags {
 		if tag == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *File) IsFunctionCallName(node ast.Node, name string) bool {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+	return ok && fn.FullName() == name
+}
+
+func (f *File) IsFunctionCallNameAny(node ast.Node, names ...string) bool {
+	for _, name := range names {
+		if f.IsFunctionCallName(node, name) {
 			return true
 		}
 	}

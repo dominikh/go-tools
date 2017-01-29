@@ -749,7 +749,7 @@ func (c *Checker) CheckUntrappableSignal(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !isFunctionCallNameAny(f, call,
+		if !f.IsFunctionCallNameAny(call,
 			"os/signal.Ignore", "os/signal.Notify", "os/signal.Reset") {
 			return true
 		}
@@ -777,16 +777,16 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 			return true
 		}
 		var kind string
-		if isFunctionCallName(f, call, "(*text/template.Template).Parse") {
+		if f.IsFunctionCallName(call, "(*text/template.Template).Parse") {
 			kind = "text"
-		} else if isFunctionCallName(f, call, "(*html/template.Template).Parse") {
+		} else if f.IsFunctionCallName(call, "(*html/template.Template).Parse") {
 			kind = "html"
 		} else {
 			return true
 		}
 		sel := call.Fun.(*ast.SelectorExpr)
-		if !isFunctionCallName(f, sel.X, "text/template.New") &&
-			!isFunctionCallName(f, sel.X, "html/template.New") {
+		if !f.IsFunctionCallName(sel.X, "text/template.New") &&
+			!f.IsFunctionCallName(sel.X, "html/template.New") {
 			// TODO(dh): this is a cheap workaround for templates with
 			// different delims. A better solution with less false
 			// negatives would use data flow analysis to see where the
@@ -821,7 +821,7 @@ func (c *Checker) CheckTimeSleepConstant(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !isFunctionCallName(f, call, "time.Sleep") {
+		if !f.IsFunctionCallName(call, "time.Sleep") {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -999,7 +999,7 @@ func (c *Checker) CheckTestMainExit(f *lint.File) {
 
 		callsExit := false
 		fn3 := func(node ast.Node) bool {
-			if isFunctionCallName(f, node, "os.Exit") {
+			if f.IsFunctionCallName(node, "os.Exit") {
 				callsExit = true
 				return false
 			}
@@ -1039,7 +1039,7 @@ func (c *Checker) CheckExec(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !isFunctionCallName(f, call, "os/exec.Command") {
+		if !f.IsFunctionCallName(call, "os/exec.Command") {
 			return true
 		}
 		val, ok := constantString(f, call.Args[0])
@@ -1166,7 +1166,7 @@ func (c *Checker) CheckUnsafePrintf(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !isFunctionCallNameAny(f, call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
+		if !f.IsFunctionCallNameAny(call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
 			return true
 		}
 		if len(call.Args) != 1 {
@@ -2313,7 +2313,7 @@ func (c *Checker) CheckDeferLock(f *lint.File) {
 
 func (c *Checker) CheckNaNComparison(f *lint.File) {
 	isNaN := func(x ast.Expr) bool {
-		return isFunctionCallName(f, x, "math.NaN")
+		return f.IsFunctionCallName(x, "math.NaN")
 	}
 	fn := func(node ast.Node) bool {
 		op, ok := node.(*ast.BinaryExpr)
@@ -2393,28 +2393,6 @@ func isName(f *lint.File, expr ast.Expr, name string) bool {
 	return objectName(obj) == name
 }
 
-func isFunctionCallName(f *lint.File, node ast.Node, name string) bool {
-	call, ok := node.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
-	return ok && fn.FullName() == name
-}
-
-func isFunctionCallNameAny(f *lint.File, node ast.Node, names ...string) bool {
-	for _, name := range names {
-		if isFunctionCallName(f, node, name) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 	if f.IsMain() || f.IsTest() {
 		return
@@ -2447,7 +2425,7 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 		return false
 	}
 	fn := func(node ast.Node) bool {
-		if !isFunctionCallName(f, node, "time.Tick") {
+		if !f.IsFunctionCallName(node, "time.Tick") {
 			return true
 		}
 		ssafn := c.nodeFns[node]

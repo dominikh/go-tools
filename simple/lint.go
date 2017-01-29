@@ -303,7 +303,7 @@ func LintBytesCompare(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "bytes", "Compare") {
+		if !f.IsFunctionCallName(call, "bytes.Compare") {
 			return true
 		}
 		value, ok := f.ExprToInt(expr.Y)
@@ -359,11 +359,12 @@ func LintRegexpRaw(f *lint.File) {
 		if !ok {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
+		if !f.IsFunctionCallName(call, "regexp.MustCompile") &&
+			!f.IsFunctionCallName(call, "regexp.Compile") {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "regexp", "MustCompile") && !lint.IsPkgDot(call.Fun, "regexp", "Compile") {
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
 			return true
 		}
 		if len(call.Args) != 1 {
@@ -738,11 +739,7 @@ func LintTimeSince(f *lint.File) {
 		if !ok {
 			return true
 		}
-		subcall, ok := sel.X.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if !lint.IsPkgDot(subcall.Fun, "time", "Now") {
+		if !f.IsFunctionCallName(sel.X, "time.Now") {
 			return true
 		}
 		if sel.Sel.Name != "Sub" {
@@ -935,7 +932,7 @@ func LintFormatInt(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if !lint.IsPkgDot(call.Fun, "strconv", "FormatInt") {
+		if !f.IsFunctionCallName(call, "strconv.FormatInt") {
 			return true
 		}
 		if len(call.Args) != 2 {
