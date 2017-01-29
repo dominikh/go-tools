@@ -3,8 +3,6 @@
 package main // import "honnef.co/go/tools/cmd/unused"
 
 import (
-	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -27,22 +25,7 @@ var (
 )
 
 func init() {
-	flag.BoolVar(&fConstants, "consts", true, "Report unused constants")
-	flag.BoolVar(&fFields, "fields", true, "Report unused fields")
-	flag.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
-	flag.BoolVar(&fTypes, "types", true, "Report unused types")
-	flag.BoolVar(&fVariables, "vars", true, "Report unused variables")
-	flag.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
-	flag.BoolVar(&fWholeProgram, "exported", false, "Treat arguments as a program and report unused exported identifiers")
-	flag.BoolVar(&fReflection, "reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
-	flag.StringVar(&fTags, "tags", "", "List of `build tags`")
-	flag.StringVar(&fIgnore, "ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
-	flag.BoolVar(&fTests, "tests", true, "Include tests")
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", os.Args[0])
-		flag.PrintDefaults()
-	}
 }
 
 func newChecker(mode unused.CheckMode) *unused.Checker {
@@ -63,7 +46,18 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 
 func main() {
 	log.SetFlags(0)
-	flag.Parse()
+
+	fs := lintutil.FlagSet("unused")
+	fs.BoolVar(&fConstants, "consts", true, "Report unused constants")
+	fs.BoolVar(&fFields, "fields", true, "Report unused fields")
+	fs.BoolVar(&fFunctions, "funcs", true, "Report unused functions and methods")
+	fs.BoolVar(&fTypes, "types", true, "Report unused types")
+	fs.BoolVar(&fVariables, "vars", true, "Report unused variables")
+	fs.StringVar(&fDebug, "debug", "", "Write a debug graph to `file`. Existing files will be overwritten.")
+	fs.BoolVar(&fWholeProgram, "exported", false, "Treat arguments as a program and report unused exported identifiers")
+	fs.BoolVar(&fReflection, "reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
+	fs.Parse(os.Args[1:])
+
 	var mode unused.CheckMode
 	if fConstants {
 		mode |= unused.CheckConstants
@@ -83,16 +77,5 @@ func main() {
 
 	checker := newChecker(mode)
 	l := unused.NewLintChecker(checker)
-	t := "false"
-	if fTests {
-		t = "true"
-	}
-	args := []string{
-		"-tags", fTags,
-		"-ignore", fIgnore,
-		"-tests=" + t,
-	}
-
-	args = append(args, flag.Args()...)
-	lintutil.ProcessArgs("unused", l, args)
+	lintutil.ProcessFlagSet("unused", l, fs)
 }

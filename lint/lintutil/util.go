@@ -84,26 +84,32 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 	return out, nil
 }
 
-func ProcessArgs(name string, c lint.Checker, args []string) {
+func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
 	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
-	tags := flags.String("tags", "", "List of `build tags`")
-	ignore := flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
-	tests := flags.Bool("tests", true, "Include tests")
-	flags.Parse(args)
+	flags.String("tags", "", "List of `build tags`")
+	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
+	flags.Bool("tests", true, "Include tests")
+	return flags
+}
 
-	ignores, err := parseIgnore(*ignore)
+func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
+	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
+	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
+	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
+
+	ignores, err := parseIgnore(ignore)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	runner := &runner{
 		checker: c,
-		tags:    strings.Fields(*tags),
+		tags:    strings.Fields(tags),
 		ignores: ignores,
 	}
-	paths := gotool.ImportPaths(flags.Args())
+	paths := gotool.ImportPaths(fs.Args())
 	goFiles, err := runner.resolveRelative(paths)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -139,7 +145,7 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 			return false
 		}
 		for _, path := range paths {
-			conf.ImportPkgs[path] = *tests
+			conf.ImportPkgs[path] = tests
 		}
 		lprog, err := conf.Load()
 		if err != nil {
@@ -157,6 +163,13 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 	if runner.unclean {
 		os.Exit(1)
 	}
+}
+
+func ProcessArgs(name string, c lint.Checker, args []string) {
+	flags := FlagSet(name)
+	flags.Parse(args)
+
+	ProcessFlagSet(name, c, flags)
 }
 
 func (runner *runner) lint(lprog *loader.Program) map[string][]lint.Problem {
