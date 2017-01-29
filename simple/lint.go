@@ -486,9 +486,9 @@ func LintIfReturn(f *lint.File) {
 //
 func LintRedundantNilCheckWithLen(f *lint.File) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
-		lit, ok := expr.(*ast.BasicLit)
+		_, ok := expr.(*ast.BasicLit)
 		if ok {
-			return true, lit.Kind == token.INT && lit.Value == "0"
+			return true, lint.IsZero(expr)
 		}
 		id, ok := expr.(*ast.Ident)
 		if !ok {
