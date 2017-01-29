@@ -266,15 +266,6 @@ func (p *Pkg) errorfAt(pos token.Position, check string, format string, args ...
 	return &p.problems[len(p.problems)-1]
 }
 
-func (p *Pkg) IsNamedType(typ types.Type, importPath, name string) bool {
-	n, ok := typ.(*types.Named)
-	if !ok {
-		return false
-	}
-	tn := n.Obj()
-	return tn != nil && tn.Pkg() != nil && tn.Pkg().Path() == importPath && tn.Name() == name
-}
-
 func (f *File) IsMain() bool {
 	return f.File.Name.Name == "main"
 }
@@ -296,16 +287,6 @@ func ExportedType(typ types.Type) bool {
 	}
 	// Be conservative about other types, such as struct, interface, etc.
 	return true
-}
-
-func ReceiverType(fn *ast.FuncDecl) string {
-	switch e := fn.Recv.List[0].Type.(type) {
-	case *ast.Ident:
-		return e.Name
-	case *ast.StarExpr:
-		return e.X.(*ast.Ident).Name
-	}
-	panic(fmt.Sprintf("unknown method receiver AST node type %T", fn.Recv.List[0].Type))
 }
 
 func (f *File) Walk(fn func(ast.Node) bool) {
@@ -350,42 +331,8 @@ func IsZero(expr ast.Expr) bool {
 	return ok && lit.Kind == token.INT && lit.Value == "0"
 }
 
-func IsOne(expr ast.Expr) bool {
-	lit, ok := expr.(*ast.BasicLit)
-	return ok && lit.Kind == token.INT && lit.Value == "1"
-}
-
 func (f *File) IsNil(expr ast.Expr) bool {
 	return f.Pkg.TypesInfo.Types[expr].IsNil()
-}
-
-var basicTypeKinds = map[types.BasicKind]string{
-	types.UntypedBool:    "bool",
-	types.UntypedInt:     "int",
-	types.UntypedRune:    "rune",
-	types.UntypedFloat:   "float64",
-	types.UntypedComplex: "complex128",
-	types.UntypedString:  "string",
-}
-
-// isUntypedConst reports whether expr is an untyped constant,
-// and indicates what its default type is.
-// scope may be nil.
-func (f *File) IsUntypedConst(expr ast.Expr) (defType string, ok bool) {
-	// Re-evaluate expr outside of its context to see if it's untyped.
-	// (An expr evaluated within, for example, an assignment context will get the type of the LHS.)
-	exprStr := f.Render(expr)
-	tv, err := types.Eval(f.Fset, f.Pkg.TypesPkg, expr.Pos(), exprStr)
-	if err != nil {
-		return "", false
-	}
-	if b, ok := tv.Type.(*types.Basic); ok {
-		if dt, ok := basicTypeKinds[b.Kind()]; ok {
-			return dt, true
-		}
-	}
-
-	return "", false
 }
 
 func (f *File) BoolConst(expr ast.Expr) bool {
