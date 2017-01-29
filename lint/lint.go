@@ -352,6 +352,17 @@ func (f *File) ExprToInt(expr ast.Expr) (int64, bool) {
 	return constant.Int64Val(tv.Value)
 }
 
+func (f *File) ExprToString(expr ast.Expr) (string, bool) {
+	val := f.Pkg.TypesInfo.Types[expr].Value
+	if val == nil {
+		return "", false
+	}
+	if val.Kind() != constant.String {
+		return "", false
+	}
+	return constant.StringVal(val), true
+}
+
 func (f *File) EnclosingSSAFunction(node Positioner) *ssa.Function {
 	path, _ := astutil.PathEnclosingInterval(f.File, node.Pos(), node.Pos())
 	return ssa.EnclosingFunction(f.Pkg.SSAPkg, path)

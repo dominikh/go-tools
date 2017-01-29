@@ -728,17 +728,6 @@ func detectInfiniteLoops(fn *ssa.Function) {
 	}
 }
 
-func constantString(f *lint.File, expr ast.Expr) (string, bool) {
-	val := f.Pkg.TypesInfo.Types[expr].Value
-	if val == nil {
-		return "", false
-	}
-	if val.Kind() != constant.String {
-		return "", false
-	}
-	return constant.StringVal(val), true
-}
-
 func hasType(f *lint.File, expr ast.Expr, name string) bool {
 	return types.TypeString(f.Pkg.TypesInfo.TypeOf(expr), nil) == name
 }
@@ -793,7 +782,7 @@ func (c *Checker) CheckTemplate(f *lint.File) {
 			// template comes from and where it has been
 			return true
 		}
-		s, ok := constantString(f, call.Args[0])
+		s, ok := f.ExprToString(call.Args[0])
 		if !ok {
 			return true
 		}
@@ -1042,7 +1031,7 @@ func (c *Checker) CheckExec(f *lint.File) {
 		if !f.IsFunctionCallName(call, "os/exec.Command") {
 			return true
 		}
-		val, ok := constantString(f, call.Args[0])
+		val, ok := f.ExprToString(call.Args[0])
 		if !ok {
 			return true
 		}
@@ -1389,7 +1378,7 @@ func (c *Checker) CheckCanonicalHeaderKey(f *lint.File) {
 		if !hasType(f, op.X, "net/http.Header") {
 			return true
 		}
-		s, ok := constantString(f, op.Index)
+		s, ok := f.ExprToString(op.Index)
 		if !ok {
 			return true
 		}

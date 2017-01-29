@@ -1224,8 +1224,8 @@ func LintTrim(f *lint.File) {
 				if !ok {
 					return true
 				}
-				s1, ok1 := stringLit(f, lit)
-				s2, ok2 := stringLit(f, condCall.Args[1])
+				s1, ok1 := f.ExprToString(lit)
+				s2, ok2 := f.ExprToString(condCall.Args[1])
 				if !ok1 || !ok2 || s1 != s2 {
 					return true
 				}
@@ -1241,7 +1241,7 @@ func LintTrim(f *lint.File) {
 			if pkg != "strings" {
 				return true
 			}
-			string, ok1 := stringLit(f, condCall.Args[1])
+			string, ok1 := f.ExprToString(condCall.Args[1])
 			int, ok2 := f.ExprToInt(slice.Low)
 			if !ok1 || !ok2 || int != int64(len(string)) {
 				return true
@@ -1272,17 +1272,6 @@ func LintTrim(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
-}
-
-func stringLit(f *lint.File, expr ast.Expr) (string, bool) {
-	tv := f.Pkg.TypesInfo.Types[expr]
-	if tv.Value == nil {
-		return "", false
-	}
-	if tv.Value.Kind() != constant.String {
-		return "", false
-	}
-	return constant.StringVal(tv.Value), true
 }
 
 func LintLoopSlide(f *lint.File) {
