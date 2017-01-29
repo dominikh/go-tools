@@ -327,7 +327,7 @@ func LintRanges(f *lint.File) {
 		if !ok {
 			return true
 		}
-		if lint.IsIdent(rs.Key, "_") && (rs.Value == nil || lint.IsIdent(rs.Value, "_")) {
+		if lint.IsBlank(rs.Key) && (rs.Value == nil || lint.IsBlank(rs.Value)) {
 			f.Errorf(rs.Key, "should omit values from range; this loop is equivalent to `for range ...`")
 		}
 
