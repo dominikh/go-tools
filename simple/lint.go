@@ -35,12 +35,18 @@ var Funcs = map[string]lint.Func{
 	"S1017": LintTrim,
 }
 
-type Checker struct{}
+type Checker struct {
+	CheckGenerated bool
+}
 
 func NewChecker() *Checker            { return &Checker{} }
 func (c *Checker) Init(*lint.Program) {}
 
 func (c *Checker) Funcs() map[string]lint.Func {
+	if c.CheckGenerated {
+		return Funcs
+	}
+
 	fns := map[string]lint.Func{}
 	for k, v := range Funcs {
 		fns[k] = skipGenerated(v)
