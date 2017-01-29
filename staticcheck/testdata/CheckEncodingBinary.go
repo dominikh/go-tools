@@ -51,7 +51,7 @@ func fn() {
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x9))  // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x10)) // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x11))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x12)) // MATCH /cannot be used with binary.Write/
+	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x12))
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x13))
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x14)) // MATCH /cannot be used with binary.Write/
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x15))
