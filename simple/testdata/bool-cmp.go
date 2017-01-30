@@ -9,18 +9,18 @@ func fn() {
 	const t T = false
 	if x == t {
 	}
-	if fn1() == true { // MATCH /simplified to fn1\(\)/
+	if fn1() == true { // MATCH "simplified to fn1()"
 	}
-	if fn1() != true { // MATCH /simplified to !fn1\(\)/
+	if fn1() != true { // MATCH "simplified to !fn1()"
 	}
-	if fn1() == false { // MATCH /simplified to !fn1\(\)/
+	if fn1() == false { // MATCH "simplified to !fn1()"
 	}
-	if fn1() != false { // MATCH /simplified to fn1\(\)/
+	if fn1() != false { // MATCH "simplified to fn1()"
 	}
-	if fn1() && (fn1() || fn1()) || (fn1() && fn1()) == true { // MATCH /simplified to \(fn1\(\) && fn1\(\)\)/
+	if fn1() && (fn1() || fn1()) || (fn1() && fn1()) == true { // MATCH "simplified to (fn1() && fn1())"
 	}
 
-	if (fn1() && fn2()) == false { // MATCH /simplified to !\(fn1\(\) && fn2\(\)\)/
+	if (fn1() && fn2()) == false { // MATCH "simplified to !(fn1() && fn2())"
 	}
 
 	var y bool

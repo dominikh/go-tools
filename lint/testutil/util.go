@@ -142,42 +142,61 @@ func parseInstructions(t *testing.T, filename string, src []byte) []instruction 
 				ins = make([]instruction, 0)
 				continue
 			}
-			if strings.Contains(line, "MATCH") {
-				rx, err := extractPattern(line)
-				if err != nil {
-					t.Fatalf("At %v:%d: %v", filename, ln, err)
-				}
-				matchLine := ln
-				if i := strings.Index(line, "MATCH:"); i >= 0 {
-					// This is a match for a different line.
-					lns := strings.TrimPrefix(line[i:], "MATCH:")
-					lns = lns[:strings.Index(lns, " ")]
-					matchLine, err = strconv.Atoi(lns)
-					if err != nil {
-						t.Fatalf("Bad match line number %q at %v:%d: %v", lns, filename, ln, err)
-					}
-				}
-				var repl string
-				if r, ok := extractReplacement(line); ok {
-					repl = r
-				}
-				ins = append(ins, instruction{
-					Line:        matchLine,
-					Match:       rx,
-					Replacement: repl,
-				})
+			if !strings.Contains(line, "MATCH") {
+				continue
 			}
+			rx, err := extractPattern(line)
+			if err != nil {
+				t.Fatalf("At %v:%d: %v", filename, ln, err)
+			}
+			matchLine := ln
+			if i := strings.Index(line, "MATCH:"); i >= 0 {
+				// This is a match for a different line.
+				lns := strings.TrimPrefix(line[i:], "MATCH:")
+				lns = lns[:strings.Index(lns, " ")]
+				matchLine, err = strconv.Atoi(lns)
+				if err != nil {
+					t.Fatalf("Bad match line number %q at %v:%d: %v", lns, filename, ln, err)
+				}
+			}
+			var repl string
+			if r, ok := extractReplacement(line); ok {
+				repl = r
+			}
+			ins = append(ins, instruction{
+				Line:        matchLine,
+				Match:       rx,
+				Replacement: repl,
+			})
 		}
 	}
 	return ins
 }
 
 func extractPattern(line string) (*regexp.Regexp, error) {
-	a, b := strings.Index(line, "/"), strings.LastIndex(line, "/")
-	if a == -1 || a == b {
+	n := strings.Index(line, " ")
+	if n == 01 {
 		return nil, fmt.Errorf("malformed match instruction %q", line)
 	}
-	pat := line[a+1 : b]
+	line = line[n+1:]
+	var pat string
+	switch line[0] {
+	case '/':
+		a, b := strings.Index(line, "/"), strings.LastIndex(line, "/")
+		if a == -1 || a == b {
+			return nil, fmt.Errorf("malformed match instruction %q", line)
+		}
+		pat = line[a+1 : b]
+	case '"':
+		a, b := strings.Index(line, `"`), strings.LastIndex(line, `"`)
+		if a == -1 || a == b {
+			return nil, fmt.Errorf("malformed match instruction %q", line)
+		}
+		pat = regexp.QuoteMeta(line[a+1 : b])
+	default:
+		return nil, fmt.Errorf("malformed match instruction %q", line)
+	}
+
 	rx, err := regexp.Compile(pat)
 	if err != nil {
 		return nil, fmt.Errorf("bad match pattern %q: %v", pat, err)
