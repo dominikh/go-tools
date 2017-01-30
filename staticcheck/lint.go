@@ -105,7 +105,7 @@ func unmarshalPointer(name string, arg int) CallCheck {
 
 func pointlessIntMath(call *Call) {
 	if ConvertedFromInt(call.Args[0].Value) {
-		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", callName(call.Instr)))
+		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", callName(call.Instr.Common())))
 	}
 }
 
@@ -265,6 +265,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1020": c.callChecker(checkListenAddressRules),
 		"SA1021": c.callChecker(checkBytesEqualIPRules),
 		"SA1022": c.CheckFlagUsage,
+		"SA1023": c.CheckWriterBufferModified,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -705,7 +706,7 @@ func detectInfiniteLoops(fn *ssa.Function) {
 			if !ok {
 				continue
 			}
-			if !isCallTo(call, "time.Tick") {
+			if !isCallTo(call.Common(), "time.Tick") {
 				continue
 			}
 			// XXX check if we're extracting ok from our unop
@@ -2200,7 +2201,7 @@ func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 				if !ok {
 					continue
 				}
-				if !isCallTo(call, "runtime.SetFinalizer") {
+				if !isCallTo(call.Common(), "runtime.SetFinalizer") {
 					continue
 				}
 
@@ -2795,19 +2796,24 @@ func unwrapFunction(val ssa.Value) *ssa.Function {
 	}
 }
 
-func callName(call *ssa.Call) string {
-	callee := call.Common().StaticCallee()
-	if callee == nil {
+func callName(call *ssa.CallCommon) string {
+	if call.IsInvoke() {
 		return ""
 	}
-	obj, ok := callee.Object().(*types.Func)
-	if !ok {
-		return ""
+	switch v := call.Value.(type) {
+	case *ssa.Function:
+		fn, ok := v.Object().(*types.Func)
+		if !ok {
+			return ""
+		}
+		return fn.FullName()
+	case *ssa.Builtin:
+		return v.Name()
 	}
-	return obj.FullName()
+	return ""
 }
 
-func isCallTo(call *ssa.Call, name string) bool {
+func isCallTo(call *ssa.CallCommon, name string) bool {
 	return callName(call) == name
 }
 
@@ -2817,7 +2823,7 @@ func hasCallTo(block *ssa.BasicBlock, name string) bool {
 		if !ok {
 			continue
 		}
-		if isCallTo(call, name) {
+		if isCallTo(call.Common(), name) {
 			return true
 		}
 	}
@@ -2830,4 +2836,53 @@ func deref(typ types.Type) types.Type {
 		return p.Elem()
 	}
 	return typ
+}
+
+func (c *Checker) CheckWriterBufferModified(f *lint.File) {
+	// TODO(dh): this might be a good candidate for taint analysis.
+	// Taint the argument as MUST_NOT_MODIFY, then propagate that
+	// through functions like bytes.Split
+	for _, ssafn := range c.funcsForFile(f) {
+		sig := ssafn.Signature
+		if ssafn.Name() != "Write" || sig.Recv() == nil || sig.Params().Len() != 1 || sig.Results().Len() != 2 {
+			continue
+		}
+		tArg, ok := sig.Params().At(0).Type().(*types.Slice)
+		if !ok {
+			continue
+		}
+		if basic, ok := tArg.Elem().(*types.Basic); !ok || basic.Kind() != types.Byte {
+			continue
+		}
+		if basic, ok := sig.Results().At(0).Type().(*types.Basic); !ok || basic.Kind() != types.Int {
+			continue
+		}
+		if named, ok := sig.Results().At(1).Type().(*types.Named); !ok || types.TypeString(named, nil) != "error" {
+			continue
+		}
+
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				switch ins := ins.(type) {
+				case *ssa.Store:
+					addr, ok := ins.Addr.(*ssa.IndexAddr)
+					if !ok {
+						continue
+					}
+					if addr.X != ssafn.Params[1] {
+						continue
+					}
+					f.Errorf(ins, "io.Writer.Write must not modify the provided buffer, not even temporarily")
+				case *ssa.Call:
+					if !isCallTo(ins.Common(), "append") {
+						continue
+					}
+					if ins.Common().Args[0] != ssafn.Params[1] {
+						continue
+					}
+					f.Errorf(ins, "io.Writer.Write must not modify the provided buffer, not even temporarily")
+				}
+			}
+		}
+	}
 }
