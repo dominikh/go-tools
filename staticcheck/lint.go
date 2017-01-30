@@ -449,7 +449,7 @@ func (c *Checker) Init(prog *lint.Program) {
 	rwg.Wait()
 
 	wg := &sync.WaitGroup{}
-	chNodeFns := make(chan map[ast.Node]*ssa.Function)
+	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)
 	for _, pkg := range prog.Packages {
 		pkg := pkg
 		for _, f := range pkg.PkgInfo.Files {
