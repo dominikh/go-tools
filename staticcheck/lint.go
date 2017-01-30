@@ -10,6 +10,7 @@ import (
 	"go/types"
 	htmltemplate "html/template"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,7 +23,6 @@ import (
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/loader"
 )
 
 type Function struct {
@@ -232,8 +232,6 @@ type Checker struct {
 	deprecatedObjs map[types.Object]string
 	nodeFns        map[ast.Node]*ssa.Function
 	funcs          map[*token.File][]*ssa.Function
-
-	tmpDeprecatedObjs map[*types.Package]map[types.Object]string
 }
 
 func NewChecker() *Checker {
@@ -340,7 +338,6 @@ func (c *Checker) Init(prog *lint.Program) {
 	c.funcDescs = FunctionDescriptions{}
 	c.deprecatedObjs = map[types.Object]string{}
 	c.nodeFns = map[ast.Node]*ssa.Function{}
-	c.tmpDeprecatedObjs = map[*types.Package]map[types.Object]string{}
 
 	for fn, desc := range stdlibDescs {
 		c.funcDescs[fn] = desc
@@ -477,39 +474,49 @@ func (c *Checker) Init(prog *lint.Program) {
 		}
 	}
 
-	for _, pkginfo := range prog.Prog.AllPackages {
-		c.tmpDeprecatedObjs[pkginfo.Pkg] = map[types.Object]string{}
-	}
+	chDeprecated := make(chan struct {
+		obj types.Object
+		msg string
+	}, runtime.NumCPU()*2)
 	wg = &sync.WaitGroup{}
 	for _, pkginfo := range prog.Prog.AllPackages {
 		pkginfo := pkginfo
-		wg.Add(1)
-		go func() {
-			scope := pkginfo.Pkg.Scope()
-			names := scope.Names()
-			for _, name := range names {
+		scope := pkginfo.Pkg.Scope()
+		names := scope.Names()
+		for _, name := range names {
+			name := name
+			wg.Add(1)
+			go func() {
 				obj := scope.Lookup(name)
-				c.buildDeprecatedMap(pkginfo, prog.Prog, obj)
+				msg := c.deprecationMessage(pkginfo.Files, prog.Prog.Fset, obj)
+				chDeprecated <- struct {
+					obj types.Object
+					msg string
+				}{obj, msg}
 				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
 					n := typ.NumFields()
 					for i := 0; i < n; i++ {
 						// FIXME(dh): This code will not find deprecated
 						// fields in anonymous structs.
 						field := typ.Field(i)
-						c.buildDeprecatedMap(pkginfo, prog.Prog, field)
+						msg := c.deprecationMessage(pkginfo.Files, prog.Prog.Fset, field)
+						chDeprecated <- struct {
+							obj types.Object
+							msg string
+						}{field, msg}
 					}
 				}
-			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	for _, m := range c.tmpDeprecatedObjs {
-		for k, v := range m {
-			c.deprecatedObjs[k] = v
+				wg.Done()
+			}()
 		}
 	}
-	c.tmpDeprecatedObjs = nil
+	go func() {
+		wg.Wait()
+		close(chDeprecated)
+	}()
+	for dep := range chDeprecated {
+		c.deprecatedObjs[dep.obj] = dep.msg
+	}
 }
 
 // TODO(adonovan): make this a method: func (*token.File) Contains(token.Pos)
@@ -537,11 +544,10 @@ func pathEnclosingInterval(files []*ast.File, fset *token.FileSet, start, end to
 	return nil, false
 }
 
-func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Program, obj types.Object) {
-	path, _ := pathEnclosingInterval(info.Files, prog.Fset, obj.Pos(), obj.Pos())
+func (c *Checker) deprecationMessage(files []*ast.File, fset *token.FileSet, obj types.Object) (message string) {
+	path, _ := pathEnclosingInterval(files, fset, obj.Pos(), obj.Pos())
 	if len(path) <= 2 {
-		c.tmpDeprecatedObjs[info.Pkg][obj] = ""
-		return
+		return ""
 	}
 	var docs []*ast.CommentGroup
 	switch n := path[1].(type) {
@@ -564,8 +570,7 @@ func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Prog
 			}
 		}
 	default:
-		c.tmpDeprecatedObjs[info.Pkg][obj] = ""
-		return
+		return ""
 	}
 
 	for _, doc := range docs {
@@ -579,10 +584,9 @@ func (c *Checker) buildDeprecatedMap(info *loader.PackageInfo, prog *loader.Prog
 		}
 		alt := last[len("Deprecated: "):]
 		alt = strings.Replace(alt, "\n", " ", -1)
-		c.tmpDeprecatedObjs[info.Pkg][obj] = alt
-		return
+		return alt
 	}
-	c.tmpDeprecatedObjs[info.Pkg][obj] = ""
+	return ""
 }
 
 type globalVisitor struct {
