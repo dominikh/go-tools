@@ -1395,12 +1395,12 @@ func LintMakeLenCap(f *lint.File) {
 				break
 			}
 			if lint.IsZero(call.Args[1]) {
-				f.Errorf(call.Args[1], "when length is zero, length can be omitted")
+				f.Errorf(call.Args[1], "should use make(%s) instead", f.Render(call.Args[0]))
 			}
 		case 3:
 			// make(T, len, cap)
 			if f.Render(call.Args[1]) == f.Render(call.Args[2]) {
-				f.Errorf(call.Args[1], "when length equals capacity, capacity can be omitted")
+				f.Errorf(call.Args[1], "should use make(%s, %s) instead", f.Render(call.Args[0]), f.Render(call.Args[1]))
 			}
 		}
 		return false
