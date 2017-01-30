@@ -18,7 +18,6 @@ import (
 	"go/types"
 	"io/ioutil"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -145,10 +144,11 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 		path     string
 		problems []Problem
 	}
-	work := make(chan *Pkg, runtime.NumCPU())
-	res := make(chan result, runtime.NumCPU())
-	worker := func(wg *sync.WaitGroup, work chan *Pkg, res chan result) {
-		for pkg := range work {
+	wg = &sync.WaitGroup{}
+	for _, pkg := range pkgs {
+		pkg := pkg
+		wg.Add(1)
+		go func() {
 			for _, file := range pkg.PkgInfo.Files {
 				path := lprog.Fset.Position(file.Pos()).Filename
 				for _, k := range keys {
@@ -171,28 +171,13 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 					fn(f)
 				}
 			}
-			sort.Sort(ByPosition(pkg.problems))
-			res <- result{pkg.PkgInfo.Pkg.Path(), pkg.problems}
-		}
-		wg.Done()
+			wg.Done()
+		}()
 	}
-	wg = &sync.WaitGroup{}
-	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-		go worker(wg, work, res)
-	}
-	go func() {
-		wg.Wait()
-		close(res)
-	}()
-	go func() {
-		for _, pkg := range pkgs {
-			work <- pkg
-		}
-		close(work)
-	}()
-	for r := range res {
-		out[r.path] = r.problems
+	wg.Wait()
+	for _, pkg := range pkgs {
+		sort.Sort(ByPosition(pkg.problems))
+		out[pkg.PkgInfo.Pkg.Path()] = pkg.problems
 	}
 	return out
 }
