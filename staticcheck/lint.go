@@ -451,16 +451,36 @@ func (c *Checker) Init(prog *lint.Program) {
 	}()
 	rwg.Wait()
 
+	wg := &sync.WaitGroup{}
+	chNodeFns := make(chan map[ast.Node]*ssa.Function)
 	for _, pkg := range prog.Packages {
+		pkg := pkg
 		for _, f := range pkg.PkgInfo.Files {
-			ast.Walk(&globalVisitor{c.nodeFns, pkg, f}, f)
+			f := f
+			wg.Add(1)
+			go func() {
+				m := map[ast.Node]*ssa.Function{}
+				ast.Walk(&globalVisitor{m, pkg, f}, f)
+				chNodeFns <- m
+				wg.Done()
+			}()
+		}
+	}
+	go func() {
+		wg.Wait()
+		close(chNodeFns)
+	}()
+
+	for nodeFns := range chNodeFns {
+		for k, v := range nodeFns {
+			c.nodeFns[k] = v
 		}
 	}
 
 	for _, pkginfo := range prog.Prog.AllPackages {
 		c.tmpDeprecatedObjs[pkginfo.Pkg] = map[types.Object]string{}
 	}
-	var wg sync.WaitGroup
+	wg = &sync.WaitGroup{}
 	for _, pkginfo := range prog.Prog.AllPackages {
 		pkginfo := pkginfo
 		wg.Add(1)
