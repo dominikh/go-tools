@@ -2285,44 +2285,42 @@ func (c *Checker) CheckSliceOutOfBounds(f *lint.File) {
 }
 
 func (c *Checker) CheckDeferLock(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		block, ok := node.(*ast.BlockStmt)
-		if !ok {
-			return true
+	for _, ssafn := range c.funcsForFile(f) {
+		for _, block := range ssafn.Blocks {
+			if len(block.Instrs) < 2 {
+				continue
+			}
+			instrs := filterDebug(block.Instrs)
+			for i, ins := range instrs[:len(instrs)-1] {
+				call, ok := ins.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				if !isCallTo(call.Common(), "(*sync.Mutex).Lock") && !isCallTo(call.Common(), "(*sync.RWMutex).RLock") {
+					continue
+				}
+				nins, ok := instrs[i+1].(*ssa.Defer)
+				if !ok {
+					continue
+				}
+				if !isCallTo(&nins.Call, "(*sync.Mutex).Lock") && !isCallTo(&nins.Call, "(*sync.RWMutex).RLock") {
+					continue
+				}
+				if call.Common().Args[0] != nins.Call.Args[0] {
+					continue
+				}
+				name := shortCallName(call.Common())
+				alt := ""
+				switch name {
+				case "Lock":
+					alt = "Unlock"
+				case "RLock":
+					alt = "RUnlock"
+				}
+				f.Errorf(nins, "deferring %s right after having locked already; did you mean to defer %s?", name, alt)
+			}
 		}
-		if len(block.List) < 2 {
-			return true
-		}
-		for i, stmt := range block.List[:len(block.List)-1] {
-			expr, ok := stmt.(*ast.ExprStmt)
-			if !ok {
-				continue
-			}
-			call, ok := expr.X.(*ast.CallExpr)
-			if !ok {
-				continue
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (sel.Sel.Name != "Lock" && sel.Sel.Name != "RLock") || len(call.Args) != 0 {
-				continue
-			}
-			d, ok := block.List[i+1].(*ast.DeferStmt)
-			if !ok || len(d.Call.Args) != 0 {
-				continue
-			}
-			dsel, ok := d.Call.Fun.(*ast.SelectorExpr)
-			if !ok || dsel.Sel.Name != sel.Sel.Name || f.Render(dsel.X) != f.Render(sel.X) {
-				continue
-			}
-			unlock := "Unlock"
-			if sel.Sel.Name[0] == 'R' {
-				unlock = "RUnlock"
-			}
-			f.Errorf(d, "deferring %s right after having locked already; did you mean to defer %s?", sel.Sel.Name, unlock)
-		}
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckNaNComparison(f *lint.File) {
@@ -2831,6 +2829,23 @@ func unwrapFunction(val ssa.Value) *ssa.Function {
 	default:
 		return nil
 	}
+}
+
+func shortCallName(call *ssa.CallCommon) string {
+	if call.IsInvoke() {
+		return ""
+	}
+	switch v := call.Value.(type) {
+	case *ssa.Function:
+		fn, ok := v.Object().(*types.Func)
+		if !ok {
+			return ""
+		}
+		return fn.Name()
+	case *ssa.Builtin:
+		return v.Name()
+	}
+	return ""
 }
 
 func callName(call *ssa.CallCommon) string {
