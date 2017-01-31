@@ -2326,20 +2326,26 @@ func (c *Checker) CheckDeferLock(f *lint.File) {
 }
 
 func (c *Checker) CheckNaNComparison(f *lint.File) {
-	isNaN := func(x ast.Expr) bool {
-		return f.IsFunctionCallName(x, "math.NaN")
-	}
-	fn := func(node ast.Node) bool {
-		op, ok := node.(*ast.BinaryExpr)
+	isNaN := func(v ssa.Value) bool {
+		call, ok := v.(*ssa.Call)
 		if !ok {
-			return true
+			return false
 		}
-		if isNaN(op.X) || isNaN(op.Y) {
-			f.Errorf(op, "no value is equal to NaN, not even NaN itself")
-		}
-		return true
+		return isCallTo(call.Common(), "math.NaN")
 	}
-	f.Walk(fn)
+	for _, ssafn := range c.funcsForFile(f) {
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				ins, ok := ins.(*ssa.BinOp)
+				if !ok {
+					continue
+				}
+				if isNaN(ins.X) || isNaN(ins.Y) {
+					f.Errorf(ins, "no value is equal to NaN, not even NaN itself")
+				}
+			}
+		}
+	}
 }
 
 func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
