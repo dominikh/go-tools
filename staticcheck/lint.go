@@ -2537,30 +2537,37 @@ func (c *Checker) CheckRepeatedIfElse(f *lint.File) {
 }
 
 func (c *Checker) CheckSillyBitwiseOps(f *lint.File) {
-	fn := func(node ast.Node) bool {
-		expr, ok := node.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
-		// We check for a literal 0, not a constant expression
-		// evaluating to 0. The latter tend to be false positives due
-		// to system-dependent constants.
-		if !lint.IsZero(expr.Y) {
-			return true
-		}
-		switch expr.Op {
-		case token.AND:
-			f.Errorf(expr, "x & 0 always equals 0")
-		case token.OR, token.XOR:
-			f.Errorf(expr, "x %s 0 always equals x", expr.Op)
-		case token.SHL, token.SHR:
-			// we do not flag shifts because too often, x<<0 is part
-			// of a pattern, x<<0, x<<8, x<<16, ...
-		}
-		return true
-	}
+	for _, ssafn := range c.funcsForFile(f) {
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				ins, ok := ins.(*ssa.BinOp)
+				if !ok {
+					continue
+				}
 
-	f.Walk(fn)
+				if c, ok := ins.Y.(*ssa.Const); !ok || c.Value == nil || c.Value.Kind() != constant.Int || c.Uint64() != 0 {
+					continue
+				}
+				path, _ := astutil.PathEnclosingInterval(f.File, ins.Pos(), ins.Pos())
+				if len(path) == 0 {
+					continue
+				}
+				if node, ok := path[0].(*ast.BinaryExpr); !ok || !lint.IsZero(node.Y) {
+					continue
+				}
+
+				switch ins.Op {
+				case token.AND:
+					f.Errorf(ins, "x & 0 always equals 0")
+				case token.OR, token.XOR:
+					f.Errorf(ins, "x %s 0 always equals x", ins.Op)
+				case token.SHL, token.SHR:
+					// we do not flag shifts because too often, x<<0 is part
+					// of a pattern, x<<0, x<<8, x<<16, ...
+				}
+			}
+		}
+	}
 }
 
 func (c *Checker) CheckNonOctalFileMode(f *lint.File) {
