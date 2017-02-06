@@ -4,8 +4,9 @@
 working with Go code, including linters and static analysis.
 
 **These tools are supported by
-[patrons on Patreon](https://www.patreon.com/dominikh). If you, too,
-would like to support the project's development, consider
+[patrons on Patreon](https://www.patreon.com/dominikh) and
+[sponsors](#sponsors). If you, too, would like to support the
+project's development, consider
 [becoming a patron](https://www.patreon.com/dominikh).**
 
 ## Tools
@@ -33,6 +34,12 @@ Unless otherwise noted, none of these libraries have stable APIs.
 Their main purpose is to aid the implementation of the tools. If you
 decide to use these libraries, please vendor them and expect regular
 backwards-incompatible changes.
+
+## Sponsors
+
+This project is sponsored by:
+
+[<img src="images/sponsors/digitalocean.png" alt="DigitalOcean" height="35"></img>](https://digitalocean.com)
 
 ## Licenses
 
