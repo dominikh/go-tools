@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"go/build"
 	"go/parser"
+	"go/token"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"honnef.co/go/tools/lint"
@@ -132,7 +134,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 		for _, ps := range ps {
 			for _, p := range ps {
 				runner.unclean = true
-				fmt.Printf("%v: %s\n", p.Position, p.Text)
+				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
 			}
 		}
 	} else {
@@ -155,7 +157,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 		for _, ps := range ps {
 			for _, p := range ps {
 				runner.unclean = true
-				fmt.Printf("%v: %s\n", p.Position, p.Text)
+				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
 			}
 
 		}
@@ -163,6 +165,30 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 	if runner.unclean {
 		os.Exit(1)
 	}
+}
+
+func relativePositionString(pos token.Position) string {
+	var s string
+	pwd, err := os.Getwd()
+	if err == nil {
+		rel, err := filepath.Rel(pwd, pos.Filename)
+		if err == nil {
+			s = rel
+		}
+	}
+	if s == "" {
+		s = pos.Filename
+	}
+	if pos.IsValid() {
+		if s != "" {
+			s += ":"
+		}
+		s += fmt.Sprintf("%d:%d", pos.Line, pos.Column)
+	}
+	if s == "" {
+		s = "-"
+	}
+	return s
 }
 
 func ProcessArgs(name string, c lint.Checker, args []string) {
