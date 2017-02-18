@@ -62,6 +62,7 @@ constructs:
 | S1017 | `if strings.HasPrefix` + string slicing                                     | Call `strings.TrimPrefix` unconditionally                              |
 | S1018 | A loop sliding elements in a slice to the beginning                         | `copy(s[:n], s[offset:])`                                              |
 | S1019 | `make(T, 0)` or `make(T, x, x)`                                             | `make(T)` or `make(T, x)`                                              |
+| S1020 | `if _, ok := i.(T); ok && i != nil`                                         | `if _, ok := i.(T); ok`
 
 ## gofmt -r
 

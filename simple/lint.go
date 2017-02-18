@@ -35,6 +35,7 @@ var Funcs = map[string]lint.Func{
 	"S1017": LintTrim,
 	"S1018": LintLoopSlide,
 	"S1019": LintMakeLenCap,
+	"S1020": LintAssertNotNil,
 }
 
 type Checker struct {
@@ -1404,6 +1405,63 @@ func LintMakeLenCap(f *lint.File) {
 			}
 		}
 		return false
+	}
+	f.Walk(fn)
+}
+
+func LintAssertNotNil(f *lint.File) {
+	isNilCheck := func(ident *ast.Ident, expr ast.Expr) bool {
+		xbinop, ok := expr.(*ast.BinaryExpr)
+		if !ok || xbinop.Op != token.NEQ {
+			return false
+		}
+		xident, ok := xbinop.X.(*ast.Ident)
+		if !ok || xident.Obj != ident.Obj {
+			return false
+		}
+		if !f.IsNil(xbinop.Y) {
+			return false
+		}
+		return true
+	}
+	isOKCheck := func(ident *ast.Ident, expr ast.Expr) bool {
+		yident, ok := expr.(*ast.Ident)
+		if !ok || yident.Obj != ident.Obj {
+			return false
+		}
+		return true
+	}
+	fn := func(node ast.Node) bool {
+		ifstmt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		assign, ok := ifstmt.Init.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 2 || len(assign.Rhs) != 1 || !lint.IsBlank(assign.Lhs[0]) {
+			return true
+		}
+		assert, ok := assign.Rhs[0].(*ast.TypeAssertExpr)
+		if !ok {
+			return true
+		}
+		binop, ok := ifstmt.Cond.(*ast.BinaryExpr)
+		if !ok || binop.Op != token.LAND {
+			return true
+		}
+		assertIdent, ok := assert.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		assignIdent, ok := assign.Lhs[1].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if !(isNilCheck(assertIdent, binop.X) && isOKCheck(assignIdent, binop.Y)) &&
+			!(isNilCheck(assertIdent, binop.Y) && isOKCheck(assignIdent, binop.X)) {
+			return true
+		}
+		f.Errorf(ifstmt, "when %s is true, %s can't be nil", f.Render(assignIdent), f.Render(assertIdent))
+		return true
 	}
 	f.Walk(fn)
 }
