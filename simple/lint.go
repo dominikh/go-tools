@@ -36,6 +36,7 @@ var Funcs = map[string]lint.Func{
 	"S1018": LintLoopSlide,
 	"S1019": LintMakeLenCap,
 	"S1020": LintAssertNotNil,
+	"S1021": LintDeclareAssign,
 }
 
 type Checker struct {
@@ -1461,6 +1462,55 @@ func LintAssertNotNil(f *lint.File) {
 			return true
 		}
 		f.Errorf(ifstmt, "when %s is true, %s can't be nil", f.Render(assignIdent), f.Render(assertIdent))
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintDeclareAssign(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		block, ok := node.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		if len(block.List) < 2 {
+			return true
+		}
+		for i, stmt := range block.List[:len(block.List)-1] {
+			_ = i
+			decl, ok := stmt.(*ast.DeclStmt)
+			if !ok {
+				continue
+			}
+			gdecl, ok := decl.Decl.(*ast.GenDecl)
+			if !ok || gdecl.Tok != token.VAR || len(gdecl.Specs) != 1 {
+				continue
+			}
+			vspec, ok := gdecl.Specs[0].(*ast.ValueSpec)
+			if !ok || len(vspec.Names) != 1 || len(vspec.Values) != 0 {
+				continue
+			}
+
+			assign, ok := block.List[i+1].(*ast.AssignStmt)
+			if !ok || assign.Tok != token.ASSIGN {
+				continue
+			}
+			if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+				continue
+			}
+			ident, ok := assign.Lhs[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if vspec.Names[0].Obj != ident.Obj {
+				continue
+			}
+
+			if refersTo(f.Pkg.TypesInfo, assign.Rhs[0], ident) {
+				continue
+			}
+			f.Errorf(decl, "should merge variable declaration with assignment on next line")
+		}
 		return true
 	}
 	f.Walk(fn)
