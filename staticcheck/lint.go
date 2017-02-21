@@ -350,7 +350,10 @@ func (c *Checker) Init(prog *lint.Program) {
 				fns = append(fns, fn)
 			}
 			if typ, ok := m.(*ssa.Type); ok {
-				ttyp := typ.Type().(*types.Named)
+				ttyp, ok := typ.Type().(*types.Named)
+				if !ok {
+					continue
+				}
 				if _, ok := ttyp.Underlying().(*types.Interface); ok {
 					continue
 				}
