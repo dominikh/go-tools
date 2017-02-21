@@ -23,7 +23,7 @@ const (
 )
 
 type Call struct {
-	Instr *ssa.Call
+	Instr ssa.CallInstruction
 	Args  []*Argument
 
 	Checker *Checker

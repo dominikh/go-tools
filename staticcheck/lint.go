@@ -2726,7 +2726,7 @@ func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 	for _, ssafn := range c.funcsForFile(f) {
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
-				ssacall, ok := ins.(*ssa.Call)
+				ssacall, ok := ins.(ssa.CallInstruction)
 				if !ok {
 					continue
 				}
