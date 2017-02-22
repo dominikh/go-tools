@@ -16,16 +16,17 @@ import (
 	"sync"
 	texttemplate "text/template"
 
+	"honnef.co/go/tools/callgraph"
+	"honnef.co/go/tools/callgraph/static"
 	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/staticcheck/pure"
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-type Function struct {
+type FunctionDescription struct {
 	// The function is known to be pure
 	Pure bool
 	// The function is known to never return (panics notwithstanding)
@@ -34,50 +35,64 @@ type Function struct {
 	Ranges vrp.Ranges
 }
 
-func (fn Function) Merge(other Function) Function {
-	r := fn.Ranges
-	if r == nil {
-		r = other.Ranges
+var stdlibDescs = map[string]FunctionDescription{
+	"strings.Map":            FunctionDescription{Pure: true},
+	"strings.Repeat":         FunctionDescription{Pure: true},
+	"strings.Replace":        FunctionDescription{Pure: true},
+	"strings.Title":          FunctionDescription{Pure: true},
+	"strings.ToLower":        FunctionDescription{Pure: true},
+	"strings.ToLowerSpecial": FunctionDescription{Pure: true},
+	"strings.ToTitle":        FunctionDescription{Pure: true},
+	"strings.ToTitleSpecial": FunctionDescription{Pure: true},
+	"strings.ToUpper":        FunctionDescription{Pure: true},
+	"strings.ToUpperSpecial": FunctionDescription{Pure: true},
+	"strings.Trim":           FunctionDescription{Pure: true},
+	"strings.TrimFunc":       FunctionDescription{Pure: true},
+	"strings.TrimLeft":       FunctionDescription{Pure: true},
+	"strings.TrimLeftFunc":   FunctionDescription{Pure: true},
+	"strings.TrimPrefix":     FunctionDescription{Pure: true},
+	"strings.TrimRight":      FunctionDescription{Pure: true},
+	"strings.TrimRightFunc":  FunctionDescription{Pure: true},
+	"strings.TrimSpace":      FunctionDescription{Pure: true},
+	"strings.TrimSuffix":     FunctionDescription{Pure: true},
+
+	"(*net/http.Request).WithContext": FunctionDescription{Pure: true},
+}
+
+type functionDescriptionEntry struct {
+	ready  chan struct{}
+	result FunctionDescription
+}
+
+type FunctionDescriptions struct {
+	checker *Checker
+	mu      sync.Mutex
+	cache   map[*ssa.Function]*functionDescriptionEntry
+}
+
+func (d *FunctionDescriptions) Get(fn *ssa.Function) FunctionDescription {
+	d.mu.Lock()
+	fd := d.cache[fn]
+	if fd == nil {
+		fd = &functionDescriptionEntry{
+			ready: make(chan struct{}),
+		}
+		d.cache[fn] = fd
+		d.mu.Unlock()
+
+		{
+			fd.result = stdlibDescs[fn.RelString(nil)]
+			fd.result.Pure = fd.result.Pure || d.checker.IsPure(d, fn)
+			fd.result.Infinite = fd.result.Infinite || !terminates(fn)
+			fd.result.Ranges = vrp.BuildGraph(fn).Solve()
+		}
+
+		close(fd.ready)
+	} else {
+		d.mu.Unlock()
+		<-fd.ready
 	}
-	return Function{
-		Pure:     fn.Pure || other.Pure,
-		Infinite: fn.Infinite || other.Infinite,
-		Ranges:   r,
-	}
-}
-
-var stdlibDescs = map[string]Function{
-	"strings.Map":            Function{Pure: true},
-	"strings.Repeat":         Function{Pure: true},
-	"strings.Replace":        Function{Pure: true},
-	"strings.Title":          Function{Pure: true},
-	"strings.ToLower":        Function{Pure: true},
-	"strings.ToLowerSpecial": Function{Pure: true},
-	"strings.ToTitle":        Function{Pure: true},
-	"strings.ToTitleSpecial": Function{Pure: true},
-	"strings.ToUpper":        Function{Pure: true},
-	"strings.ToUpperSpecial": Function{Pure: true},
-	"strings.Trim":           Function{Pure: true},
-	"strings.TrimFunc":       Function{Pure: true},
-	"strings.TrimLeft":       Function{Pure: true},
-	"strings.TrimLeftFunc":   Function{Pure: true},
-	"strings.TrimPrefix":     Function{Pure: true},
-	"strings.TrimRight":      Function{Pure: true},
-	"strings.TrimRightFunc":  Function{Pure: true},
-	"strings.TrimSpace":      Function{Pure: true},
-	"strings.TrimSuffix":     Function{Pure: true},
-
-	"(*net/http.Request).WithContext": Function{Pure: true},
-}
-
-type FunctionDescriptions map[string]Function
-
-func (d FunctionDescriptions) Get(fn *ssa.Function) Function {
-	return d[fn.RelString(nil)]
-}
-
-func (d FunctionDescriptions) Merge(fn *ssa.Function, desc Function) {
-	d[fn.RelString(nil)] = d[fn.RelString(nil)].Merge(desc)
+	return fd.result
 }
 
 func validRegexp(call *Call) {
@@ -228,7 +243,8 @@ var (
 )
 
 type Checker struct {
-	funcDescs      FunctionDescriptions
+	CallGraph      *callgraph.Graph
+	funcDescs      *FunctionDescriptions
 	deprecatedObjs map[types.Object]string
 	nodeFns        map[ast.Node]*ssa.Function
 	funcs          map[*token.File][]*ssa.Function
@@ -335,14 +351,14 @@ func terminates(fn *ssa.Function) (ret bool) {
 
 func (c *Checker) Init(prog *lint.Program) {
 	c.funcs = map[*token.File][]*ssa.Function{}
-	c.funcDescs = FunctionDescriptions{}
+	c.funcDescs = &FunctionDescriptions{
+		checker: c,
+		cache:   map[*ssa.Function]*functionDescriptionEntry{},
+	}
 	c.deprecatedObjs = map[types.Object]string{}
 	c.nodeFns = map[ast.Node]*ssa.Function{}
 
-	for fn, desc := range stdlibDescs {
-		c.funcDescs[fn] = desc
-	}
-
+	c.CallGraph = static.CallGraph(prog.SSA)
 	var fns []*ssa.Function
 	for _, pkg := range prog.SSA.AllPackages() {
 		for _, m := range pkg.Members {
@@ -370,24 +386,10 @@ func (c *Checker) Init(prog *lint.Program) {
 		}
 	}
 
-	s := &pure.State{}
-	var processPure func(*ssa.Function)
-	processPure = func(fn *ssa.Function) {
-		// TODO(dh): parallelize this
-		s.IsPure(fn)
-		for _, anon := range fn.AnonFuncs {
-			processPure(anon)
-		}
-	}
-	for _, fn := range fns {
-		processPure(fn)
-	}
-
 	type desc struct {
 		fn   *ssa.Function
-		desc Function
+		desc FunctionDescription
 	}
-	descs := make(chan desc)
 	funcs := make(chan *ssa.Function)
 	var pwg sync.WaitGroup
 	var processFn func(*ssa.Function)
@@ -397,12 +399,6 @@ func (c *Checker) Init(prog *lint.Program) {
 			ssa.OptimizeBlocks(fn)
 
 			funcs <- fn
-			descs <- desc{fn, Function{
-				Pure:     s.IsPure(fn),
-				Ranges:   vrp.BuildGraph(fn).Solve(),
-				Infinite: !terminates(fn),
-			}}
-
 		}
 		for _, anon := range fn.AnonFuncs {
 			pwg.Add(1)
@@ -416,40 +412,27 @@ func (c *Checker) Init(prog *lint.Program) {
 	}
 	go func() {
 		pwg.Wait()
-		close(descs)
 		close(funcs)
 	}()
 
-	var rwg sync.WaitGroup
-	rwg.Add(2)
-	go func() {
-		for fn := range funcs {
-			if fn.Synthetic != "" && (fn.Package() == nil || fn != fn.Package().Members["init"]) {
-				// Don't track synthetic functions, unless they're the
-				// init function
-				continue
-			}
-			pos := fn.Pos()
-			if pos == 0 {
-				for _, pkg := range prog.Packages {
-					if pkg.SSAPkg == fn.Pkg {
-						pos = pkg.PkgInfo.Files[0].Pos()
-						break
-					}
+	for fn := range funcs {
+		if fn.Synthetic != "" && (fn.Package() == nil || fn != fn.Package().Members["init"]) {
+			// Don't track synthetic functions, unless they're the
+			// init function
+			continue
+		}
+		pos := fn.Pos()
+		if pos == 0 {
+			for _, pkg := range prog.Packages {
+				if pkg.SSAPkg == fn.Pkg {
+					pos = pkg.PkgInfo.Files[0].Pos()
+					break
 				}
 			}
-			f := prog.Prog.Fset.File(pos)
-			c.funcs[f] = append(c.funcs[f], fn)
 		}
-		rwg.Done()
-	}()
-	go func() {
-		for desc := range descs {
-			c.funcDescs.Merge(desc.fn, desc.desc)
-		}
-		rwg.Done()
-	}()
-	rwg.Wait()
+		f := prog.Prog.Fset.File(pos)
+		c.funcs[f] = append(c.funcs[f], fn)
+	}
 
 	wg := &sync.WaitGroup{}
 	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)

@@ -1,36 +1,14 @@
-// Package pure analyzes functions for purity.
-//
-// It currently does a (very) conservative analysis, forbidding most
-// language constructs. It's in turn only able to detect simple pure
-// functions.
-//
-// The analysis may be improved in the future.
-package pure
+package staticcheck
 
 import (
 	"go/token"
 	"go/types"
 
+	"honnef.co/go/tools/callgraph"
 	"honnef.co/go/tools/ssa"
 )
 
-type State struct {
-	purity map[*ssa.Function]bool
-}
-
-func (s *State) IsPure(fn *ssa.Function) (ret bool) {
-	if s.purity == nil {
-		s.purity = map[*ssa.Function]bool{}
-	}
-	if p, ok := s.purity[fn]; ok {
-		return p
-	}
-	// stop infinite recursion by considering recursive calls unpure.
-	s.purity[fn] = false
-	defer func() {
-		s.purity[fn] = ret
-	}()
-
+func (c *Checker) IsPure(d *FunctionDescriptions, fn *ssa.Function) bool {
 	if fn.Signature.Results().Len() == 0 {
 		// A function with no return values is empty or is doing some
 		// work we cannot see (for example because of build tags);
@@ -47,14 +25,26 @@ func (s *State) IsPure(fn *ssa.Function) (ret bool) {
 	if fn.Blocks == nil {
 		return false
 	}
-	checkCall := func(c *ssa.CallCommon) bool {
-		if c.IsInvoke() {
+	checkCall := func(common *ssa.CallCommon) bool {
+		if common.IsInvoke() {
 			return false
 		}
-		builtin, ok := c.Value.(*ssa.Builtin)
+		builtin, ok := common.Value.(*ssa.Builtin)
 		if !ok {
-			if c.StaticCallee() != fn {
-				if c.StaticCallee() == nil || !s.IsPure(c.StaticCallee()) {
+			if common.StaticCallee() != fn {
+				if common.StaticCallee() == nil {
+					return false
+				}
+				// TODO(dh): ideally, IsPure wouldn't be responsible
+				// for avoiding infinite recursion, but
+				// FunctionDescriptions would be.
+				node := c.CallGraph.CreateNode(common.StaticCallee())
+				if callgraph.PathSearch(node, func(other *callgraph.Node) bool {
+					return other.Func == fn
+				}) != nil {
+					return false
+				}
+				if !d.Get(common.StaticCallee()).Pure {
 					return false
 				}
 			}
