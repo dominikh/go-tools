@@ -138,14 +138,6 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 			}
 		}
 	} else {
-		conf.TypeCheckFuncBodies = func(s string) bool {
-			for _, path := range paths {
-				if s == path || s == path+"_test" {
-					return true
-				}
-			}
-			return false
-		}
 		for _, path := range paths {
 			conf.ImportPkgs[path] = tests
 		}

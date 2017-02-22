@@ -34,6 +34,7 @@ type Ignore struct {
 }
 
 type Program struct {
+	SSA      *ssa.Program
 	Prog     *loader.Program
 	Packages []*Pkg
 }
@@ -107,8 +108,8 @@ func (l *Linter) ignore(f *File, check string) bool {
 
 func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
+	ssaprog.Build()
 	var pkgs []*Pkg
-	wg := &sync.WaitGroup{}
 	for _, pkginfo := range lprog.InitialPackages() {
 		ssapkg := ssaprog.Package(pkginfo.Pkg)
 		pkg := &Pkg{
@@ -118,15 +119,9 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 			PkgInfo:   pkginfo,
 		}
 		pkgs = append(pkgs, pkg)
-
-		wg.Add(1)
-		go func() {
-			ssapkg.Build()
-			wg.Done()
-		}()
 	}
-	wg.Wait()
 	prog := &Program{
+		SSA:      ssaprog,
 		Prog:     lprog,
 		Packages: pkgs,
 	}
@@ -144,7 +139,7 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 		path     string
 		problems []Problem
 	}
-	wg = &sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
 	for _, pkg := range pkgs {
 		pkg := pkg
 		wg.Add(1)

@@ -344,8 +344,8 @@ func (c *Checker) Init(prog *lint.Program) {
 	}
 
 	var fns []*ssa.Function
-	for _, pkg := range prog.Packages {
-		for _, m := range pkg.SSAPkg.Members {
+	for _, pkg := range prog.SSA.AllPackages() {
+		for _, m := range pkg.Members {
 			if fn, ok := m.(*ssa.Function); ok {
 				fns = append(fns, fn)
 			}
@@ -358,13 +358,13 @@ func (c *Checker) Init(prog *lint.Program) {
 					continue
 				}
 				ptr := types.NewPointer(ttyp)
-				ms := pkg.SSAPkg.Prog.MethodSets.MethodSet(ptr)
+				ms := pkg.Prog.MethodSets.MethodSet(ptr)
 				for i := 0; i < ms.Len(); i++ {
-					fns = append(fns, pkg.SSAPkg.Prog.MethodValue(ms.At(i)))
+					fns = append(fns, pkg.Prog.MethodValue(ms.At(i)))
 				}
-				ms = pkg.SSAPkg.Prog.MethodSets.MethodSet(ttyp)
+				ms = pkg.Prog.MethodSets.MethodSet(ttyp)
 				for i := 0; i < ms.Len(); i++ {
-					fns = append(fns, pkg.SSAPkg.Prog.MethodValue(ms.At(i)))
+					fns = append(fns, pkg.Prog.MethodValue(ms.At(i)))
 				}
 			}
 		}
