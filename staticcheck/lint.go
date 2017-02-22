@@ -2201,41 +2201,35 @@ func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 
 func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 	for _, ssafn := range c.funcsForFile(f) {
-		for _, b := range ssafn.Blocks {
-			for _, ins := range b.Instrs {
-				call, ok := ins.(*ssa.Call)
-				if !ok {
-					continue
-				}
-				if !isCallTo(call.Common(), "runtime.SetFinalizer") {
-					continue
-				}
-
-				arg0 := call.Common().Args[0]
-				if iface, ok := arg0.(*ssa.MakeInterface); ok {
-					arg0 = iface.X
-				}
-				unop, ok := arg0.(*ssa.UnOp)
-				if !ok {
-					continue
-				}
-				v, ok := unop.X.(*ssa.Alloc)
-				if !ok {
-					continue
-				}
-				arg1 := call.Common().Args[1]
-				if iface, ok := arg1.(*ssa.MakeInterface); ok {
-					arg1 = iface.X
-				}
-				mc, ok := arg1.(*ssa.MakeClosure)
-				if !ok {
-					continue
-				}
-				for _, b := range mc.Bindings {
-					if b == v {
-						pos := f.Fset.Position(mc.Fn.Pos())
-						f.Errorf(call, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
-					}
+		node := c.CallGraph.CreateNode(ssafn)
+		for _, edge := range node.Out {
+			if edge.Callee.Func.RelString(nil) != "runtime.SetFinalizer" {
+				continue
+			}
+			arg0 := edge.Site.Common().Args[0]
+			if iface, ok := arg0.(*ssa.MakeInterface); ok {
+				arg0 = iface.X
+			}
+			unop, ok := arg0.(*ssa.UnOp)
+			if !ok {
+				continue
+			}
+			v, ok := unop.X.(*ssa.Alloc)
+			if !ok {
+				continue
+			}
+			arg1 := edge.Site.Common().Args[1]
+			if iface, ok := arg1.(*ssa.MakeInterface); ok {
+				arg1 = iface.X
+			}
+			mc, ok := arg1.(*ssa.MakeClosure)
+			if !ok {
+				continue
+			}
+			for _, b := range mc.Bindings {
+				if b == v {
+					pos := f.Fset.Position(mc.Fn.Pos())
+					f.Errorf(edge.Site, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
 				}
 			}
 		}
