@@ -2695,60 +2695,52 @@ func (c *Checker) callChecker(rules map[string]CallCheck) func(f *lint.File) {
 
 func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 	for _, ssafn := range c.funcsForFile(f) {
-		for _, b := range ssafn.Blocks {
-			for _, ins := range b.Instrs {
-				ssacall, ok := ins.(ssa.CallInstruction)
-				if !ok {
-					continue
-				}
-				callee := ssacall.Common().StaticCallee()
-				if callee == nil {
-					continue
-				}
-				obj, ok := callee.Object().(*types.Func)
-				if !ok {
-					continue
-				}
+		node := c.CallGraph.CreateNode(ssafn)
+		for _, edge := range node.Out {
+			callee := edge.Callee.Func
+			obj, ok := callee.Object().(*types.Func)
+			if !ok {
+				continue
+			}
 
-				r, ok := rules[obj.FullName()]
-				if !ok {
-					continue
+			r, ok := rules[obj.FullName()]
+			if !ok {
+				continue
+			}
+			var args []*Argument
+			ssaargs := edge.Site.Common().Args
+			if callee.Signature.Recv() != nil {
+				ssaargs = ssaargs[1:]
+			}
+			for _, arg := range ssaargs {
+				if iarg, ok := arg.(*ssa.MakeInterface); ok {
+					arg = iarg.X
 				}
-				var args []*Argument
-				ssaargs := ssacall.Common().Args
-				if ssacall.Common().Signature().Recv() != nil {
-					ssaargs = ssaargs[1:]
-				}
-				for _, arg := range ssaargs {
-					if iarg, ok := arg.(*ssa.MakeInterface); ok {
-						arg = iarg.X
+				vr := c.funcDescs.Get(edge.Site.Parent()).Ranges[arg]
+				args = append(args, &Argument{Value: Value{arg, vr}})
+			}
+			call := &Call{
+				Instr:   edge.Site,
+				Args:    args,
+				Checker: c,
+				Parent:  edge.Site.Parent(),
+			}
+			r(call)
+			for idx, arg := range call.Args {
+				for _, e := range arg.invalids {
+					path, _ := astutil.PathEnclosingInterval(f.File, edge.Site.Pos(), edge.Site.Pos())
+					if len(path) < 2 {
+						continue
 					}
-					vr := c.funcDescs.Get(ssacall.Parent()).Ranges[arg]
-					args = append(args, &Argument{Value: Value{arg, vr}})
-				}
-				call := &Call{
-					Instr:   ssacall,
-					Args:    args,
-					Checker: c,
-					Parent:  ssacall.Parent(),
-				}
-				r(call)
-				for idx, arg := range call.Args {
-					for _, e := range arg.invalids {
-						path, _ := astutil.PathEnclosingInterval(f.File, ssacall.Pos(), ssacall.Pos())
-						if len(path) < 2 {
-							continue
-						}
-						astcall, ok := path[0].(*ast.CallExpr)
-						if !ok {
-							continue
-						}
-						f.Errorf(astcall.Args[idx], "%s", e)
+					astcall, ok := path[0].(*ast.CallExpr)
+					if !ok {
+						continue
 					}
+					f.Errorf(astcall.Args[idx], "%s", e)
 				}
-				for _, e := range call.invalids {
-					f.Errorf(call.Instr.Common(), "%s", e)
-				}
+			}
+			for _, e := range call.invalids {
+				f.Errorf(call.Instr.Common(), "%s", e)
 			}
 		}
 	}
