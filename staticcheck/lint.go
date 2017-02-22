@@ -386,10 +386,6 @@ func (c *Checker) Init(prog *lint.Program) {
 		}
 	}
 
-	type desc struct {
-		fn   *ssa.Function
-		desc FunctionDescription
-	}
 	funcs := make(chan *ssa.Function)
 	var pwg sync.WaitGroup
 	var processFn func(*ssa.Function)
