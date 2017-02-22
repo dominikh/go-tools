@@ -2334,38 +2334,30 @@ func (c *Checker) CheckNaNComparison(f *lint.File) {
 
 func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
 	for _, ssafn := range c.funcsForFile(f) {
-		for _, block := range ssafn.Blocks {
-			for _, ins := range block.Instrs {
-				call, ok := ins.(*ssa.Call)
-				if !ok {
-					continue
-				}
-				if call.Common().IsInvoke() {
-					continue
-				}
-				subfn, ok := call.Common().Value.(*ssa.Function)
-				if !ok || subfn != ssafn {
-					continue
-				}
-
-				canReturn := false
-				for _, b := range subfn.Blocks {
-					if block.Dominates(b) {
-						continue
-					}
-					if len(b.Instrs) == 0 {
-						continue
-					}
-					if _, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return); ok {
-						canReturn = true
-						break
-					}
-				}
-				if canReturn {
-					continue
-				}
-				f.Errorf(call, "infinite recursive call")
+		node := c.CallGraph.CreateNode(ssafn)
+		for _, edge := range node.Out {
+			if edge.Callee != node {
+				continue
 			}
+
+			block := edge.Site.Block()
+			canReturn := false
+			for _, b := range ssafn.Blocks {
+				if block.Dominates(b) {
+					continue
+				}
+				if len(b.Instrs) == 0 {
+					continue
+				}
+				if _, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return); ok {
+					canReturn = true
+					break
+				}
+			}
+			if canReturn {
+				continue
+			}
+			f.Errorf(edge.Site, "infinite recursive call")
 		}
 	}
 }
