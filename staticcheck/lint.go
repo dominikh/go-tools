@@ -365,24 +365,13 @@ func (c *Checker) Init(prog *lint.Program) {
 			if fn, ok := m.(*ssa.Function); ok {
 				fns = append(fns, fn)
 			}
-			if typ, ok := m.(*ssa.Type); ok {
-				ttyp, ok := typ.Type().(*types.Named)
-				if !ok {
-					continue
-				}
-				if _, ok := ttyp.Underlying().(*types.Interface); ok {
-					continue
-				}
-				ptr := types.NewPointer(ttyp)
-				ms := pkg.Prog.MethodSets.MethodSet(ptr)
-				for i := 0; i < ms.Len(); i++ {
-					fns = append(fns, pkg.Prog.MethodValue(ms.At(i)))
-				}
-				ms = pkg.Prog.MethodSets.MethodSet(ttyp)
-				for i := 0; i < ms.Len(); i++ {
-					fns = append(fns, pkg.Prog.MethodValue(ms.At(i)))
-				}
-			}
+		}
+	}
+
+	for _, typ := range prog.SSA.RuntimeTypes() {
+		ms := prog.SSA.MethodSets.MethodSet(typ)
+		for i := 0; i < ms.Len(); i++ {
+			fns = append(fns, prog.SSA.MethodValue(ms.At(i)))
 		}
 	}
 

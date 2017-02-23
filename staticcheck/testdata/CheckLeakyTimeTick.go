@@ -41,3 +41,9 @@ func (t *T) foo() {
 		println("")
 	}
 }
+
+func (t T) bar() {
+	for range time.Tick(0) {
+		println("")
+	}
+}
