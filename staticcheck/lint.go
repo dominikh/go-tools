@@ -21,6 +21,7 @@ import (
 	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ssa/ssautil"
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -359,21 +360,7 @@ func (c *Checker) Init(prog *lint.Program) {
 	c.nodeFns = map[ast.Node]*ssa.Function{}
 
 	c.CallGraph = static.CallGraph(prog.SSA)
-	var fns []*ssa.Function
-	for _, pkg := range prog.SSA.AllPackages() {
-		for _, m := range pkg.Members {
-			if fn, ok := m.(*ssa.Function); ok {
-				fns = append(fns, fn)
-			}
-		}
-	}
-
-	for _, typ := range prog.SSA.RuntimeTypes() {
-		ms := prog.SSA.MethodSets.MethodSet(typ)
-		for i := 0; i < ms.Len(); i++ {
-			fns = append(fns, prog.SSA.MethodValue(ms.At(i)))
-		}
-	}
+	fns := ssautil.AllFunctions(prog.SSA)
 
 	funcs := make(chan *ssa.Function)
 	var pwg sync.WaitGroup
@@ -385,13 +372,9 @@ func (c *Checker) Init(prog *lint.Program) {
 
 			funcs <- fn
 		}
-		for _, anon := range fn.AnonFuncs {
-			pwg.Add(1)
-			processFn(anon)
-		}
 		pwg.Done()
 	}
-	for _, fn := range fns {
+	for fn := range fns {
 		pwg.Add(1)
 		go processFn(fn)
 	}
