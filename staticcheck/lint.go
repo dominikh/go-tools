@@ -271,7 +271,7 @@ func (c *Checker) Init(prog *lint.Program) {
 	var processFn func(*ssa.Function)
 	processFn = func(fn *ssa.Function) {
 		if fn.Blocks != nil {
-			detectInfiniteLoops(fn)
+			applyStdlibKnowledge(fn)
 			ssa.OptimizeBlocks(fn)
 
 			funcs <- fn
@@ -500,55 +500,8 @@ func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	}
 }
 
-func allPredsBut(b, but *ssa.BasicBlock, list []*ssa.BasicBlock) []*ssa.BasicBlock {
-outer:
-	for _, pred := range b.Preds {
-		if pred == but {
-			continue
-		}
-		for _, p := range list {
-			// TODO improve big-o complexity of this function
-			if pred == p {
-				continue outer
-			}
-		}
-		list = append(list, pred)
-		list = allPredsBut(pred, but, list)
-	}
-	return list
-}
-
-type loopSet map[*ssa.BasicBlock]bool
-
-func findLoops(fn *ssa.Function) []loopSet {
-	if fn.Blocks == nil {
-		return nil
-	}
-	tree := fn.DomPreorder()
-	var sets []loopSet
-	for _, h := range tree {
-		for _, n := range h.Preds {
-			if !h.Dominates(n) {
-				continue
-			}
-			// n is a back-edge to h
-			// h is the loop header
-			if n == h {
-				sets = append(sets, loopSet{n: true})
-				continue
-			}
-			set := loopSet{h: true, n: true}
-			for _, b := range allPredsBut(n, h, nil) {
-				set[b] = true
-			}
-			sets = append(sets, set)
-		}
-	}
-	return sets
-}
-
-func isInLoop(b *ssa.BasicBlock) bool {
-	sets := findLoops(b.Parent())
+func (c *Checker) isInLoop(b *ssa.BasicBlock) bool {
+	sets := c.funcDescs.Get(b.Parent()).Loops
 	for _, set := range sets {
 		if set[b] {
 			return true
@@ -557,13 +510,16 @@ func isInLoop(b *ssa.BasicBlock) bool {
 	return false
 }
 
-func detectInfiniteLoops(fn *ssa.Function) {
+func applyStdlibKnowledge(fn *ssa.Function) {
 	if len(fn.Blocks) == 0 {
 		return
 	}
 
-	// Detect loops that can terminate from a compiler POV, but can't
-	// due to stdlib behaviour
+	// comma-ok receiving from a time.Tick channel will never return
+	// ok == false, so any branching on the value of ok can be
+	// replaced with an unconditional jump. This will primarily match
+	// `for range time.Tick(x)` loops, but it can also match
+	// user-written code.
 	for _, block := range fn.Blocks {
 		if len(block.Instrs) < 3 {
 			continue
@@ -591,18 +547,16 @@ func detectInfiniteLoops(fn *ssa.Function) {
 			if !isCallTo(call.Common(), "time.Tick") {
 				continue
 			}
-			// XXX check if we're extracting ok from our unop
-			if _, ok := (*instrs[i+1]).(*ssa.Extract); !ok {
-				continue
-			}
-			// XXX check that we're branching on our extract result
-			if _, ok := (*instrs[i+2]).(*ssa.If); !ok {
+			ex, ok := (*instrs[i+1]).(*ssa.Extract)
+			if !ok || ex.Tuple != unop || ex.Index != 1 {
 				continue
 			}
 
-			if !isInLoop(block) {
+			ifstmt, ok := (*instrs[i+2]).(*ssa.If)
+			if !ok || ifstmt.Cond != ex {
 				continue
 			}
+
 			*instrs[i+2] = ssa.NewJump(block)
 			succ := block.Succs[1]
 			block.Succs = block.Succs[0:1]

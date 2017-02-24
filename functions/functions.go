@@ -40,6 +40,7 @@ type Description struct {
 	Infinite bool
 	// Variable ranges
 	Ranges vrp.Ranges
+	Loops  []Loop
 }
 
 type descriptionEntry struct {
@@ -75,6 +76,7 @@ func (d *Descriptions) Get(fn *ssa.Function) Description {
 			fd.result.Pure = fd.result.Pure || d.IsPure(fn)
 			fd.result.Infinite = fd.result.Infinite || !terminates(fn)
 			fd.result.Ranges = vrp.BuildGraph(fn).Solve()
+			fd.result.Loops = findLoops(fn)
 		}
 
 		close(fd.ready)
