@@ -1,9 +1,8 @@
 // rdeps scans GOPATH for all reverse dependencies of a set of Go
 // packages.
 //
-// rdeps will not sort or deduplicate its output, and the order of the
-// output is undefined. Pipe its output through sort [-u] if you need
-// stable output.
+// rdeps will not sort its output, and the order of the output is
+// undefined. Pipe its output through sort if you need stable output.
 package main
 
 import (
@@ -22,6 +21,7 @@ func main() {
 	var tags buildutil.TagsFlag
 	flag.Var(&tags, "tags", "List of build tags")
 	stdin := flag.Bool("stdin", false, "Read packages from stdin instead of the command line")
+	recursive := flag.Bool("r", false, "Print reverse dependencies recursively")
 	flag.Parse()
 
 	ctx := build.Default
@@ -53,10 +53,24 @@ func main() {
 	}
 	_, reverse, errors := importgraph.Build(&ctx)
 	_ = errors
-	for _, pkg := range pkgs {
+
+	seen := map[string]bool{}
+	var printRDeps func(pkg string)
+	printRDeps = func(pkg string) {
 		for rdep := range reverse[pkg] {
+			if seen[rdep] {
+				continue
+			}
+			seen[rdep] = true
 			fmt.Println(rdep)
+			if *recursive {
+				printRDeps(rdep)
+			}
 		}
+	}
+
+	for _, pkg := range pkgs {
+		printRDeps(pkg)
 	}
 	for pkg, err := range errors {
 		fmt.Fprintf(os.Stderr, "error in package %s: %s\n", pkg, err)
