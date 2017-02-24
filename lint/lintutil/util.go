@@ -93,6 +93,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("tags", "", "List of `build tags`")
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
+	flags.Bool("abspath", false, "Print absolute paths to files")
 	return flags
 }
 
@@ -100,6 +101,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
+	absPath := fs.Lookup("abspath").Value.(flag.Getter).Get().(bool)
 
 	ignores, err := parseIgnore(ignore)
 	if err != nil {
@@ -134,7 +136,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 		for _, ps := range ps {
 			for _, p := range ps {
 				runner.unclean = true
-				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
+				fmt.Printf("%v: %s\n", positionString(p.Position, absPath), p.Text)
 			}
 		}
 	} else {
@@ -149,7 +151,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 		for _, ps := range ps {
 			for _, p := range ps {
 				runner.unclean = true
-				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
+				fmt.Printf("%v: %s\n", positionString(p.Position, absPath), p.Text)
 			}
 
 		}
@@ -159,13 +161,17 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 	}
 }
 
-func relativePositionString(pos token.Position) string {
+func positionString(pos token.Position, absPath bool) string {
 	var s string
-	pwd, err := os.Getwd()
-	if err == nil {
-		rel, err := filepath.Rel(pwd, pos.Filename)
+	if absPath {
+		s = pos.Filename
+	} else {
+		pwd, err := os.Getwd()
 		if err == nil {
-			s = rel
+			rel, err := filepath.Rel(pwd, pos.Filename)
+			if err == nil {
+				s = rel
+			}
 		}
 	}
 	if s == "" {
