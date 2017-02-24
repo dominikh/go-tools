@@ -1,4 +1,4 @@
-package staticcheck
+package functions
 
 import (
 	"go/token"
@@ -8,7 +8,7 @@ import (
 	"honnef.co/go/tools/ssa"
 )
 
-func (c *Checker) IsPure(d *FunctionDescriptions, fn *ssa.Function) bool {
+func (d *Descriptions) IsPure(fn *ssa.Function) bool {
 	if fn.Signature.Results().Len() == 0 {
 		// A function with no return values is empty or is doing some
 		// work we cannot see (for example because of build tags);
@@ -38,7 +38,7 @@ func (c *Checker) IsPure(d *FunctionDescriptions, fn *ssa.Function) bool {
 				// TODO(dh): ideally, IsPure wouldn't be responsible
 				// for avoiding infinite recursion, but
 				// FunctionDescriptions would be.
-				node := c.CallGraph.CreateNode(common.StaticCallee())
+				node := d.CallGraph.CreateNode(common.StaticCallee())
 				if callgraph.PathSearch(node, func(other *callgraph.Node) bool {
 					return other.Func == fn
 				}) != nil {

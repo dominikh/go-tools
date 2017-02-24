@@ -16,8 +16,7 @@ import (
 	"sync"
 	texttemplate "text/template"
 
-	"honnef.co/go/tools/callgraph"
-	"honnef.co/go/tools/callgraph/static"
+	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
@@ -26,75 +25,6 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 )
-
-type FunctionDescription struct {
-	// The function is known to be pure
-	Pure bool
-	// The function is known to never return (panics notwithstanding)
-	Infinite bool
-	// Variable ranges
-	Ranges vrp.Ranges
-}
-
-var stdlibDescs = map[string]FunctionDescription{
-	"strings.Map":            FunctionDescription{Pure: true},
-	"strings.Repeat":         FunctionDescription{Pure: true},
-	"strings.Replace":        FunctionDescription{Pure: true},
-	"strings.Title":          FunctionDescription{Pure: true},
-	"strings.ToLower":        FunctionDescription{Pure: true},
-	"strings.ToLowerSpecial": FunctionDescription{Pure: true},
-	"strings.ToTitle":        FunctionDescription{Pure: true},
-	"strings.ToTitleSpecial": FunctionDescription{Pure: true},
-	"strings.ToUpper":        FunctionDescription{Pure: true},
-	"strings.ToUpperSpecial": FunctionDescription{Pure: true},
-	"strings.Trim":           FunctionDescription{Pure: true},
-	"strings.TrimFunc":       FunctionDescription{Pure: true},
-	"strings.TrimLeft":       FunctionDescription{Pure: true},
-	"strings.TrimLeftFunc":   FunctionDescription{Pure: true},
-	"strings.TrimPrefix":     FunctionDescription{Pure: true},
-	"strings.TrimRight":      FunctionDescription{Pure: true},
-	"strings.TrimRightFunc":  FunctionDescription{Pure: true},
-	"strings.TrimSpace":      FunctionDescription{Pure: true},
-	"strings.TrimSuffix":     FunctionDescription{Pure: true},
-
-	"(*net/http.Request).WithContext": FunctionDescription{Pure: true},
-}
-
-type functionDescriptionEntry struct {
-	ready  chan struct{}
-	result FunctionDescription
-}
-
-type FunctionDescriptions struct {
-	checker *Checker
-	mu      sync.Mutex
-	cache   map[*ssa.Function]*functionDescriptionEntry
-}
-
-func (d *FunctionDescriptions) Get(fn *ssa.Function) FunctionDescription {
-	d.mu.Lock()
-	fd := d.cache[fn]
-	if fd == nil {
-		fd = &functionDescriptionEntry{
-			ready: make(chan struct{}),
-		}
-		d.cache[fn] = fd
-		d.mu.Unlock()
-
-		{
-			fd.result = stdlibDescs[fn.RelString(nil)]
-			fd.result.Pure = fd.result.Pure || d.checker.IsPure(d, fn)
-			fd.result.Infinite = fd.result.Infinite || !terminates(fn)
-			fd.result.Ranges = vrp.BuildGraph(fn).Solve()
-		}
-
-		close(fd.ready)
-	} else {
-		d.mu.Unlock()
-		<-fd.ready
-	}
-	return fd.result
-}
 
 func validRegexp(call *Call) {
 	arg := call.Args[0]
@@ -244,8 +174,7 @@ var (
 )
 
 type Checker struct {
-	CallGraph      *callgraph.Graph
-	funcDescs      *FunctionDescriptions
+	funcDescs      *functions.Descriptions
 	deprecatedObjs map[types.Object]string
 	nodeFns        map[ast.Node]*ssa.Function
 	funcs          map[*token.File][]*ssa.Function
@@ -329,37 +258,12 @@ func (c *Checker) funcsForFile(f *lint.File) []*ssa.Function {
 	return c.funcs[f.Program.Fset.File(f.File.Pos())]
 }
 
-// terminates reports whether fn is supposed to return, that is if it
-// has at least one theoretic path that returns from the function.
-// Explicit panics do not count as terminating.
-func terminates(fn *ssa.Function) (ret bool) {
-	if fn.Blocks == nil {
-		// assuming that a function terminates is the conservative
-		// choice
-		return true
-	}
-
-	for _, block := range fn.Blocks {
-		if len(block.Instrs) == 0 {
-			continue
-		}
-		if _, ok := block.Instrs[len(block.Instrs)-1].(*ssa.Return); ok {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *Checker) Init(prog *lint.Program) {
 	c.funcs = map[*token.File][]*ssa.Function{}
-	c.funcDescs = &FunctionDescriptions{
-		checker: c,
-		cache:   map[*ssa.Function]*functionDescriptionEntry{},
-	}
+	c.funcDescs = functions.NewDescriptions(prog.SSA)
 	c.deprecatedObjs = map[types.Object]string{}
 	c.nodeFns = map[ast.Node]*ssa.Function{}
 
-	c.CallGraph = static.CallGraph(prog.SSA)
 	fns := ssautil.AllFunctions(prog.SSA)
 
 	funcs := make(chan *ssa.Function)
@@ -2173,7 +2077,7 @@ func (c *Checker) CheckConcurrentTesting(f *lint.File) {
 
 func (c *Checker) CheckCyclicFinalizer(f *lint.File) {
 	for _, ssafn := range c.funcsForFile(f) {
-		node := c.CallGraph.CreateNode(ssafn)
+		node := c.funcDescs.CallGraph.CreateNode(ssafn)
 		for _, edge := range node.Out {
 			if edge.Callee.Func.RelString(nil) != "runtime.SetFinalizer" {
 				continue
@@ -2296,7 +2200,7 @@ func (c *Checker) CheckNaNComparison(f *lint.File) {
 
 func (c *Checker) CheckInfiniteRecursion(f *lint.File) {
 	for _, ssafn := range c.funcsForFile(f) {
-		node := c.CallGraph.CreateNode(ssafn)
+		node := c.funcDescs.CallGraph.CreateNode(ssafn)
 		for _, edge := range node.Out {
 			if edge.Callee != node {
 				continue
@@ -2661,7 +2565,7 @@ func (c *Checker) callChecker(rules map[string]CallCheck) func(f *lint.File) {
 
 func (c *Checker) checkCalls(f *lint.File, rules map[string]CallCheck) {
 	for _, ssafn := range c.funcsForFile(f) {
-		node := c.CallGraph.CreateNode(ssafn)
+		node := c.funcDescs.CallGraph.CreateNode(ssafn)
 		for _, edge := range node.Out {
 			callee := edge.Callee.Func
 			obj, ok := callee.Object().(*types.Func)
