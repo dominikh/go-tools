@@ -2259,21 +2259,20 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 	if f.IsMain() || f.IsTest() {
 		return
 	}
-	fn := func(node ast.Node) bool {
-		if !f.IsFunctionCallName(node, "time.Tick") {
-			return true
+	for _, ssafn := range c.funcsForFile(f) {
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				call, ok := ins.(*ssa.Call)
+				if !ok || !isCallTo(call.Common(), "time.Tick") {
+					continue
+				}
+				if c.funcDescs.Get(call.Parent()).Infinite {
+					continue
+				}
+				f.Errorf(call, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
+			}
 		}
-		ssafn := c.nodeFns[node]
-		if ssafn == nil {
-			return false
-		}
-		if c.funcDescs.Get(ssafn).Infinite {
-			return true
-		}
-		f.Errorf(node, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
-		return true
 	}
-	f.Walk(fn)
 }
 
 func (c *Checker) CheckDoubleNegation(f *lint.File) {
