@@ -2259,33 +2259,6 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 	if f.IsMain() || f.IsTest() {
 		return
 	}
-	var flowTerminates func(start, b *ssa.BasicBlock, seen map[*ssa.BasicBlock]bool) bool
-	flowTerminates = func(start, b *ssa.BasicBlock, seen map[*ssa.BasicBlock]bool) bool {
-		if seen == nil {
-			seen = map[*ssa.BasicBlock]bool{}
-		}
-		if seen[b] {
-			return false
-		}
-		seen[b] = true
-		for _, ins := range b.Instrs {
-			if _, ok := ins.(*ssa.Return); ok {
-				return true
-			}
-		}
-		if b == start {
-			if flowTerminates(start, b.Succs[0], seen) {
-				return true
-			}
-		} else {
-			for _, succ := range b.Succs {
-				if flowTerminates(start, succ, seen) {
-					return true
-				}
-			}
-		}
-		return false
-	}
 	fn := func(node ast.Node) bool {
 		if !f.IsFunctionCallName(node, "time.Tick") {
 			return true
