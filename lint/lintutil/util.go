@@ -159,18 +159,19 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 	}
 }
 
+func shortPath(path string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return path
+	}
+	if rel, err := filepath.Rel(cwd, path); err == nil && len(rel) < len(path) {
+		return rel
+	}
+	return path
+}
+
 func relativePositionString(pos token.Position) string {
-	var s string
-	pwd, err := os.Getwd()
-	if err == nil {
-		rel, err := filepath.Rel(pwd, pos.Filename)
-		if err == nil {
-			s = rel
-		}
-	}
-	if s == "" {
-		s = pos.Filename
-	}
+	s := shortPath(pos.Filename)
 	if pos.IsValid() {
 		if s != "" {
 			s += ":"
