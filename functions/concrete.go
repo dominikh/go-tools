@@ -1,21 +1,27 @@
 package functions
 
 import (
+	"go/token"
 	"go/types"
 
 	"honnef.co/go/tools/ssa"
 )
 
-func concreteReturnTypes(fn *ssa.Function) []types.Type {
-	// TODO(dh): support functions with >1 return values
-	if fn.Signature.Results().Len() != 1 {
+func concreteReturnTypes(fn *ssa.Function) []*types.Tuple {
+	res := fn.Signature.Results()
+	if res == nil {
 		return nil
 	}
-	typ := fn.Signature.Results().At(0).Type()
-	if _, ok := typ.Underlying().(*types.Interface); !ok {
-		return nil
+	ifaces := make([]bool, res.Len())
+	any := false
+	for i := 0; i < res.Len(); i++ {
+		_, ifaces[i] = res.At(i).Type().Underlying().(*types.Interface)
+		any = any || ifaces[i]
 	}
-	var typs []types.Type
+	if !any {
+		return []*types.Tuple{res}
+	}
+	var out []*types.Tuple
 	for _, block := range fn.Blocks {
 		if len(block.Instrs) == 0 {
 			continue
@@ -24,12 +30,27 @@ func concreteReturnTypes(fn *ssa.Function) []types.Type {
 		if !ok {
 			continue
 		}
-		if ins, ok := ret.Results[0].(*ssa.MakeInterface); ok {
-			typs = append(typs, ins.X.Type())
-		} else {
-			return nil
+		vars := make([]*types.Var, res.Len())
+		for i, v := range ret.Results {
+			var typ types.Type
+			if !ifaces[i] {
+				typ = res.At(i).Type()
+			} else if mi, ok := v.(*ssa.MakeInterface); ok {
+				// TODO(dh): if mi.X is a function call that returns
+				// an interface, call concreteReturnTypes on that
+				// function (or, really, go through Descriptions,
+				// avoid infinite recursion etc, just like nil error
+				// detection)
+
+				// TODO(dh): support Phi nodes
+				typ = mi.X.Type()
+			} else {
+				typ = res.At(i).Type()
+			}
+			vars[i] = types.NewParam(token.NoPos, nil, "", typ)
 		}
+		out = append(out, types.NewTuple(vars...))
 	}
-	// TODO(dh): deduplicate typs
-	return typs
+	// TODO(dh): deduplicate out
+	return out
 }

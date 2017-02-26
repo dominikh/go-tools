@@ -48,7 +48,7 @@ type Description struct {
 	// Function returns an error as its last argument, but it is
 	// always nil
 	NilError            bool
-	ConcreteReturnTypes []types.Type
+	ConcreteReturnTypes []*types.Tuple
 }
 
 type descriptionEntry struct {
