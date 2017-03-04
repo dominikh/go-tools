@@ -37,6 +37,7 @@ var Funcs = map[string]lint.Func{
 	"S1019": LintMakeLenCap,
 	"S1020": LintAssertNotNil,
 	"S1021": LintDeclareAssign,
+	"S1022": LintBlankOK,
 }
 
 type Checker struct {
@@ -1511,6 +1512,40 @@ func LintDeclareAssign(f *lint.File) {
 			}
 			f.Errorf(decl, "should merge variable declaration with assignment on next line")
 		}
+		return true
+	}
+	f.Walk(fn)
+}
+
+func LintBlankOK(f *lint.File) {
+	fn := func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if len(assign.Lhs) != 2 || len(assign.Rhs) != 1 {
+			return true
+		}
+		if !lint.IsBlank(assign.Lhs[1]) {
+			return true
+		}
+		switch rhs := assign.Rhs[0].(type) {
+		case *ast.IndexExpr:
+			// The type-checker should make sure that it's a map, but
+			// let's be safe.
+			if _, ok := f.Pkg.TypesInfo.TypeOf(rhs.X).Underlying().(*types.Map); !ok {
+				return true
+			}
+		case *ast.UnaryExpr:
+			if rhs.Op != token.ARROW {
+				return true
+			}
+		default:
+			return true
+		}
+		cp := *assign
+		cp.Lhs = cp.Lhs[0:1]
+		f.Errorf(assign, "should write %s instead of %s", f.Render(&cp), f.Render(assign))
 		return true
 	}
 	f.Walk(fn)
