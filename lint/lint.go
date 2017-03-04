@@ -18,6 +18,7 @@ import (
 	"go/types"
 	"io/ioutil"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -375,4 +376,120 @@ func (f *File) IsFunctionCallNameAny(node ast.Node, names ...string) bool {
 		}
 	}
 	return false
+}
+
+func CallName(call *ssa.CallCommon) string {
+	if call.IsInvoke() {
+		return ""
+	}
+	switch v := call.Value.(type) {
+	case *ssa.Function:
+		fn, ok := v.Object().(*types.Func)
+		if !ok {
+			return ""
+		}
+		return fn.FullName()
+	case *ssa.Builtin:
+		return v.Name()
+	}
+	return ""
+}
+
+func IsCallTo(call *ssa.CallCommon, name string) bool {
+	return CallName(call) == name
+}
+
+func FilterDebug(instr []ssa.Instruction) []ssa.Instruction {
+	var out []ssa.Instruction
+	for _, ins := range instr {
+		if _, ok := ins.(*ssa.DebugRef); !ok {
+			out = append(out, ins)
+		}
+	}
+	return out
+}
+
+func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
+	out := map[ast.Node]*ssa.Function{}
+
+	wg := &sync.WaitGroup{}
+	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)
+	for _, pkg := range pkgs {
+		pkg := pkg
+		for _, f := range pkg.PkgInfo.Files {
+			f := f
+			wg.Add(1)
+			go func() {
+				m := map[ast.Node]*ssa.Function{}
+				ast.Walk(&globalVisitor{m, pkg, f}, f)
+				chNodeFns <- m
+				wg.Done()
+			}()
+		}
+	}
+	go func() {
+		wg.Wait()
+		close(chNodeFns)
+	}()
+
+	for nodeFns := range chNodeFns {
+		for k, v := range nodeFns {
+			out[k] = v
+		}
+	}
+
+	return out
+}
+
+type globalVisitor struct {
+	m   map[ast.Node]*ssa.Function
+	pkg *Pkg
+	f   *ast.File
+}
+
+func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
+	switch node := node.(type) {
+	case *ast.CallExpr:
+		v.m[node] = v.pkg.SSAPkg.Func("init")
+		return v
+	case *ast.FuncDecl:
+		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
+		return nv.Visit(node)
+	default:
+		return v
+	}
+}
+
+type fnVisitor struct {
+	m     map[ast.Node]*ssa.Function
+	f     *ast.File
+	pkg   *Pkg
+	ssafn *ssa.Function
+}
+
+func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
+	switch node := node.(type) {
+	case *ast.FuncDecl:
+		var ssafn *ssa.Function
+		ssafn = v.pkg.SSAPkg.Prog.FuncValue(v.pkg.TypesInfo.ObjectOf(node.Name).(*types.Func))
+		v.m[node] = ssafn
+		if ssafn == nil {
+			return nil
+		}
+		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
+	case *ast.FuncLit:
+		var ssafn *ssa.Function
+		path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
+		ssafn = ssa.EnclosingFunction(v.pkg.SSAPkg, path)
+		v.m[node] = ssafn
+		if ssafn == nil {
+			return nil
+		}
+		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
+	case nil:
+		return nil
+	default:
+		v.m[node] = v.ssafn
+		return v
+	}
 }

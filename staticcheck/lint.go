@@ -51,7 +51,7 @@ func unmarshalPointer(name string, arg int) CallCheck {
 
 func pointlessIntMath(call *Call) {
 	if ConvertedFromInt(call.Args[0].Value) {
-		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", callName(call.Instr.Common())))
+		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", lint.CallName(call.Instr.Common())))
 	}
 }
 
@@ -314,37 +314,13 @@ func (c *Checker) Init(prog *lint.Program) {
 		c.funcs[f] = append(c.funcs[f], fn)
 	}
 
-	wg := &sync.WaitGroup{}
-	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)
-	for _, pkg := range prog.Packages {
-		pkg := pkg
-		for _, f := range pkg.PkgInfo.Files {
-			f := f
-			wg.Add(1)
-			go func() {
-				m := map[ast.Node]*ssa.Function{}
-				ast.Walk(&globalVisitor{m, pkg, f}, f)
-				chNodeFns <- m
-				wg.Done()
-			}()
-		}
-	}
-	go func() {
-		wg.Wait()
-		close(chNodeFns)
-	}()
-
-	for nodeFns := range chNodeFns {
-		for k, v := range nodeFns {
-			c.nodeFns[k] = v
-		}
-	}
+	c.nodeFns = lint.NodeFns(prog.Packages)
 
 	chDeprecated := make(chan struct {
 		obj types.Object
 		msg string
 	}, runtime.NumCPU()*2)
-	wg = &sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
 	for _, pkginfo := range prog.Prog.AllPackages {
 		pkginfo := pkginfo
 		scope := pkginfo.Pkg.Scope()
@@ -455,59 +431,6 @@ func (c *Checker) deprecationMessage(files []*ast.File, fset *token.FileSet, obj
 	return ""
 }
 
-type globalVisitor struct {
-	m   map[ast.Node]*ssa.Function
-	pkg *lint.Pkg
-	f   *ast.File
-}
-
-func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
-	switch node := node.(type) {
-	case *ast.CallExpr:
-		v.m[node] = v.pkg.SSAPkg.Func("init")
-		return v
-	case *ast.FuncDecl:
-		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
-		return nv.Visit(node)
-	default:
-		return v
-	}
-}
-
-type fnVisitor struct {
-	m     map[ast.Node]*ssa.Function
-	f     *ast.File
-	pkg   *lint.Pkg
-	ssafn *ssa.Function
-}
-
-func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
-	switch node := node.(type) {
-	case *ast.FuncDecl:
-		var ssafn *ssa.Function
-		ssafn = v.pkg.SSAPkg.Prog.FuncValue(v.pkg.TypesInfo.ObjectOf(node.Name).(*types.Func))
-		v.m[node] = ssafn
-		if ssafn == nil {
-			return nil
-		}
-		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
-	case *ast.FuncLit:
-		var ssafn *ssa.Function
-		path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
-		ssafn = ssa.EnclosingFunction(v.pkg.SSAPkg, path)
-		v.m[node] = ssafn
-		if ssafn == nil {
-			return nil
-		}
-		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
-	case nil:
-		return nil
-	default:
-		v.m[node] = v.ssafn
-		return v
-	}
-}
-
 func (c *Checker) isInLoop(b *ssa.BasicBlock) bool {
 	sets := c.funcDescs.Get(b.Parent()).Loops
 	for _, set := range sets {
@@ -552,7 +475,7 @@ func applyStdlibKnowledge(fn *ssa.Function) {
 			if !ok {
 				continue
 			}
-			if !isCallTo(call.Common(), "time.Tick") {
+			if !lint.IsCallTo(call.Common(), "time.Tick") {
 				continue
 			}
 			ex, ok := (*instrs[i+1]).(*ssa.Extract)
@@ -1404,7 +1327,7 @@ func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 					if exrefs == nil {
 						continue
 					}
-					if len(filterDebug(*exrefs)) == 0 {
+					if len(lint.FilterDebug(*exrefs)) == 0 {
 						lhs := assign.Lhs[ex.Index]
 						if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
 							continue
@@ -1429,7 +1352,7 @@ func (c *Checker) CheckUnreadVariableValues(f *lint.File) {
 					// TODO investigate why refs can be nil
 					return true
 				}
-				if len(filterDebug(*refs)) == 0 {
+				if len(lint.FilterDebug(*refs)) == 0 {
 					f.Errorf(lhs, "this value of %s is never used", lhs)
 				}
 			}
@@ -1534,15 +1457,6 @@ func (c *Checker) CheckUnsignedComparison(f *lint.File) {
 		return true
 	}
 	f.Walk(fn)
-}
-func filterDebug(instr []ssa.Instruction) []ssa.Instruction {
-	var out []ssa.Instruction
-	for _, ins := range instr {
-		if _, ok := ins.(*ssa.DebugRef); !ok {
-			out = append(out, ins)
-		}
-	}
-	return out
 }
 
 func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ssa.Const, bool) {
@@ -1686,7 +1600,7 @@ func (c *Checker) CheckArgOverwritten(f *lint.File) {
 				if refs == nil {
 					continue
 				}
-				if len(filterDebug(*refs)) != 0 {
+				if len(lint.FilterDebug(*refs)) != 0 {
 					continue
 				}
 
@@ -2104,20 +2018,20 @@ func (c *Checker) CheckDeferLock(f *lint.File) {
 			if len(block.Instrs) < 2 {
 				continue
 			}
-			instrs := filterDebug(block.Instrs)
+			instrs := lint.FilterDebug(block.Instrs)
 			for i, ins := range instrs[:len(instrs)-1] {
 				call, ok := ins.(*ssa.Call)
 				if !ok {
 					continue
 				}
-				if !isCallTo(call.Common(), "(*sync.Mutex).Lock") && !isCallTo(call.Common(), "(*sync.RWMutex).RLock") {
+				if !lint.IsCallTo(call.Common(), "(*sync.Mutex).Lock") && !lint.IsCallTo(call.Common(), "(*sync.RWMutex).RLock") {
 					continue
 				}
 				nins, ok := instrs[i+1].(*ssa.Defer)
 				if !ok {
 					continue
 				}
-				if !isCallTo(&nins.Call, "(*sync.Mutex).Lock") && !isCallTo(&nins.Call, "(*sync.RWMutex).RLock") {
+				if !lint.IsCallTo(&nins.Call, "(*sync.Mutex).Lock") && !lint.IsCallTo(&nins.Call, "(*sync.RWMutex).RLock") {
 					continue
 				}
 				if call.Common().Args[0] != nins.Call.Args[0] {
@@ -2143,7 +2057,7 @@ func (c *Checker) CheckNaNComparison(f *lint.File) {
 		if !ok {
 			return false
 		}
-		return isCallTo(call.Common(), "math.NaN")
+		return lint.IsCallTo(call.Common(), "math.NaN")
 	}
 	for _, ssafn := range c.funcsForFile(f) {
 		for _, block := range ssafn.Blocks {
@@ -2225,7 +2139,7 @@ func (c *Checker) CheckLeakyTimeTick(f *lint.File) {
 		for _, block := range ssafn.Blocks {
 			for _, ins := range block.Instrs {
 				call, ok := ins.(*ssa.Call)
-				if !ok || !isCallTo(call.Common(), "time.Tick") {
+				if !ok || !lint.IsCallTo(call.Common(), "time.Tick") {
 					continue
 				}
 				if c.funcDescs.Get(call.Parent()).Infinite {
@@ -2420,7 +2334,7 @@ fnLoop:
 					continue
 				}
 				refs := ins.Referrers()
-				if refs == nil || len(filterDebug(*refs)) > 0 {
+				if refs == nil || len(lint.FilterDebug(*refs)) > 0 {
 					continue
 				}
 				callee := ins.Common().StaticCallee()
@@ -2618,34 +2532,13 @@ func shortCallName(call *ssa.CallCommon) string {
 	return ""
 }
 
-func callName(call *ssa.CallCommon) string {
-	if call.IsInvoke() {
-		return ""
-	}
-	switch v := call.Value.(type) {
-	case *ssa.Function:
-		fn, ok := v.Object().(*types.Func)
-		if !ok {
-			return ""
-		}
-		return fn.FullName()
-	case *ssa.Builtin:
-		return v.Name()
-	}
-	return ""
-}
-
-func isCallTo(call *ssa.CallCommon, name string) bool {
-	return callName(call) == name
-}
-
 func hasCallTo(block *ssa.BasicBlock, name string) bool {
 	for _, ins := range block.Instrs {
 		call, ok := ins.(*ssa.Call)
 		if !ok {
 			continue
 		}
-		if isCallTo(call.Common(), name) {
+		if lint.IsCallTo(call.Common(), name) {
 			return true
 		}
 	}
@@ -2696,7 +2589,7 @@ func (c *Checker) CheckWriterBufferModified(f *lint.File) {
 					}
 					f.Errorf(ins, "io.Writer.Write must not modify the provided buffer, not even temporarily")
 				case *ssa.Call:
-					if !isCallTo(ins.Common(), "append") {
+					if !lint.IsCallTo(ins.Common(), "append") {
 						continue
 					}
 					if ins.Common().Args[0] != ssafn.Params[1] {
