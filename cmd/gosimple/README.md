@@ -29,12 +29,6 @@ code, while golint flags common style issues. Furthermore, gosimple
 always targets the latest Go version. If a new Go release adds a
 simpler way of doing something, gosimple will suggest that way.
 
-Gosimple will never contain rules that are also present in golint,
-even if they would fit into gosimple. If golint should merge one of
-gosimple's rules, it will be removed from gosimple shortly after, to
-avoid duplicate results. It is strongly suggested that you use golint
-and gosimple together and consider gosimple an addon to golint.
-
 ## Checks
 
 Gosimple makes the following recommendations for avoiding unsimple
