@@ -1,7 +1,6 @@
 package errcheck
 
 import (
-	"go/token"
 	"go/types"
 
 	"honnef.co/go/tools/functions"
@@ -12,7 +11,6 @@ import (
 
 type Checker struct {
 	funcDescs *functions.Descriptions
-	funcs     map[*token.File][]*ssa.Function
 }
 
 func NewChecker() *Checker {
@@ -25,12 +23,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 	}
 }
 
-func (c *Checker) funcsForFile(f *lint.File) []*ssa.Function {
-	return c.funcs[f.Program.Fset.File(f.File.Pos())]
-}
-
 func (c *Checker) Init(prog *lint.Program) {
-	c.funcs = map[*token.File][]*ssa.Function{}
 	c.funcDescs = functions.NewDescriptions(prog.SSA)
 
 	fns := ssautil.AllFunctions(prog.SSA)
@@ -47,19 +40,17 @@ func (c *Checker) Init(prog *lint.Program) {
 		pos := fn.Pos()
 		if pos == 0 {
 			for _, pkg := range prog.Packages {
-				if pkg.SSAPkg == fn.Pkg {
-					pos = pkg.PkgInfo.Files[0].Pos()
+				if pkg.Package == fn.Pkg {
+					pos = pkg.Info.Files[0].Pos()
 					break
 				}
 			}
 		}
-		f := prog.Prog.Fset.File(pos)
-		c.funcs[f] = append(c.funcs[f], fn)
 	}
 }
 
-func (c *Checker) CheckErrcheck(f *lint.File) {
-	for _, ssafn := range c.funcsForFile(f) {
+func (c *Checker) CheckErrcheck(j *lint.Job) {
+	for _, ssafn := range j.Program.InitialFunctions {
 		for _, b := range ssafn.Blocks {
 			for _, ins := range b.Instrs {
 				ssacall, ok := ins.(ssa.CallInstruction)
@@ -109,7 +100,7 @@ func (c *Checker) CheckErrcheck(f *lint.File) {
 								// variable names, clean this up
 								fn, _ := ms.Lookup(nil, ssacall.Common().Method.Name()).Obj().(*types.Func)
 								if fn != nil {
-									ssafn := f.Pkg.SSAPkg.Prog.FuncValue(fn)
+									ssafn := j.Program.SSA.FuncValue(fn)
 									if ssafn != nil {
 										if c.funcDescs.Get(ssafn).NilError {
 											continue
@@ -146,7 +137,7 @@ func (c *Checker) CheckErrcheck(f *lint.File) {
 						continue
 					}
 				}
-				f.Errorf(ins, "unchecked error")
+				j.Errorf(ins, "unchecked error")
 			}
 		}
 	}

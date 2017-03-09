@@ -76,29 +76,17 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 	for name, src := range files {
 		ins := parseInstructions(t, name, src)
 
-		ps := res[name]
 		for _, in := range ins {
 			ok := false
-			for i, p := range ps {
-				if p.Position.Line != in.Line {
+			for i, p := range res {
+				pos := lprog.Fset.Position(p.Position)
+				if pos.Line != in.Line || filepath.Base(pos.Filename) != name {
 					continue
 				}
 				if in.Match.MatchString(p.Text) {
-					// check replacement if we are expecting one
-					if in.Replacement != "" {
-						// ignore any inline comments, since that would be recursive
-						r := p.ReplacementLine
-						if i := strings.Index(r, " //"); i >= 0 {
-							r = r[:i]
-						}
-						if r != in.Replacement {
-							t.Errorf("Lint failed at %s:%d; got replacement %q, want %q", name, in.Line, r, in.Replacement)
-						}
-					}
-
 					// remove this problem from ps
-					copy(ps[i:], ps[i+1:])
-					ps = ps[:len(ps)-1]
+					copy(res[i:], res[i+1:])
+					res = res[:len(res)-1]
 
 					//t.Logf("/%v/ matched at %s:%d", in.Match, fi.Name(), in.Line)
 					ok = true
@@ -109,9 +97,10 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 				t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
 			}
 		}
-		for _, p := range ps {
-			t.Errorf("Unexpected problem at %s:%d: %v", name, p.Position.Line, p.Text)
-		}
+	}
+	for _, p := range res {
+		pos := lprog.Fset.Position(p.Position)
+		t.Errorf("Unexpected problem at %s: %v", pos, p.Text)
 	}
 }
 

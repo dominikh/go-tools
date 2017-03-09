@@ -16,7 +16,6 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
-	"io/ioutil"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -29,52 +28,41 @@ import (
 	"honnef.co/go/tools/ssa/ssautil"
 )
 
+type Job struct {
+	Program *Program
+
+	check    string
+	problems []Problem
+}
+
 type Ignore struct {
 	Pattern string
 	Checks  []string
 }
 
 type Program struct {
-	SSA      *ssa.Program
-	Prog     *loader.Program
-	Packages []*Pkg
+	SSA              *ssa.Program
+	Prog             *loader.Program
+	Packages         []*Pkg
+	InitialFunctions []*ssa.Function
+	AllFunctions     []*ssa.Function
+	Files            []*ast.File
+	Info             *types.Info
+
+	tokenFileMap map[*token.File]*ast.File
+	astFileMap   map[*ast.File]*ssa.Package
 }
 
-type Func func(*File)
+type Func func(*Job)
 
 // Problem represents a problem in some source code.
 type Problem struct {
-	Position token.Position // position in source file
-	Text     string         // the prose that describes the problem
-
-	// If the problem has a suggested fix (the minority case),
-	// ReplacementLine is a full replacement for the relevant line of the source file.
-	ReplacementLine string
+	Position token.Pos // position in source file
+	Text     string    // the prose that describes the problem
 }
 
 func (p *Problem) String() string {
 	return p.Text
-}
-
-type ByPosition []Problem
-
-func (p ByPosition) Len() int      { return len(p) }
-func (p ByPosition) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
-
-func (p ByPosition) Less(i, j int) bool {
-	pi, pj := p[i].Position, p[j].Position
-
-	if pi.Filename != pj.Filename {
-		return pi.Filename < pj.Filename
-	}
-	if pi.Line != pj.Line {
-		return pi.Line < pj.Line
-	}
-	if pi.Column != pj.Column {
-		return pi.Column < pj.Column
-	}
-
-	return p[i].Text < p[j].Text
 }
 
 type Checker interface {
@@ -88,18 +76,22 @@ type Linter struct {
 	Ignores []Ignore
 }
 
-func (l *Linter) ignore(f *File, check string) bool {
+func (l *Linter) ignore(j *Job, p Problem) bool {
+	tf := j.Program.SSA.Fset.File(p.Position)
+	f := j.Program.tokenFileMap[tf]
+	pkg := j.Program.astFileMap[f].Pkg
+
 	for _, ig := range l.Ignores {
-		pkg := f.Pkg.TypesPkg.Path()
-		if strings.HasSuffix(pkg, "_test") {
-			pkg = pkg[:len(pkg)-len("_test")]
+		pkgpath := pkg.Path()
+		if strings.HasSuffix(pkgpath, "_test") {
+			pkgpath = pkgpath[:len(pkgpath)-len("_test")]
 		}
-		name := filepath.Join(pkg, filepath.Base(f.Filename))
+		name := filepath.Join(pkgpath, filepath.Base(tf.Name()))
 		if m, _ := filepath.Match(ig.Pattern, name); !m {
 			continue
 		}
 		for _, c := range ig.Checks {
-			if m, _ := filepath.Match(c, check); m {
+			if m, _ := filepath.Match(c, j.check); m {
 				return true
 			}
 		}
@@ -107,17 +99,19 @@ func (l *Linter) ignore(f *File, check string) bool {
 	return false
 }
 
-func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
+func (j *Job) File(node Positioner) *ast.File {
+	return j.Program.tokenFileMap[j.Program.SSA.Fset.File(node.Pos())]
+}
+
+func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaprog.Build()
 	var pkgs []*Pkg
 	for _, pkginfo := range lprog.InitialPackages() {
 		ssapkg := ssaprog.Package(pkginfo.Pkg)
 		pkg := &Pkg{
-			TypesPkg:  pkginfo.Pkg,
-			TypesInfo: pkginfo.Info,
-			SSAPkg:    ssapkg,
-			PkgInfo:   pkginfo,
+			Package: ssapkg,
+			Info:    pkginfo,
 		}
 		pkgs = append(pkgs, pkg)
 	}
@@ -125,6 +119,59 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 		SSA:      ssaprog,
 		Prog:     lprog,
 		Packages: pkgs,
+		Info: &types.Info{
+			Types:      map[ast.Expr]types.TypeAndValue{},
+			Defs:       map[*ast.Ident]types.Object{},
+			Uses:       map[*ast.Ident]types.Object{},
+			Implicits:  map[ast.Node]types.Object{},
+			Selections: map[*ast.SelectorExpr]*types.Selection{},
+			Scopes:     map[ast.Node]*types.Scope{},
+		},
+		tokenFileMap: map[*token.File]*ast.File{},
+		astFileMap:   map[*ast.File]*ssa.Package{},
+	}
+	for fn := range ssautil.AllFunctions(ssaprog) {
+		prog.AllFunctions = append(prog.AllFunctions, fn)
+		// TODO(dh): optimize this function
+		for _, pkg := range lprog.InitialPackages() {
+			if fn.Pkg == nil {
+				continue
+			}
+			if fn.Pkg.Pkg == pkg.Pkg {
+				prog.InitialFunctions = append(prog.InitialFunctions, fn)
+				break
+			}
+		}
+	}
+	for _, pkginfo := range lprog.InitialPackages() {
+		prog.Files = append(prog.Files, pkginfo.Files...)
+
+		ssapkg := ssaprog.Package(pkginfo.Pkg)
+		for _, f := range pkginfo.Files {
+			tf := lprog.Fset.File(f.Pos())
+			prog.tokenFileMap[tf] = f
+			prog.astFileMap[f] = ssapkg
+		}
+	}
+	for _, pkginfo := range lprog.InitialPackages() {
+		for k, v := range pkginfo.Info.Types {
+			prog.Info.Types[k] = v
+		}
+		for k, v := range pkginfo.Info.Defs {
+			prog.Info.Defs[k] = v
+		}
+		for k, v := range pkginfo.Info.Uses {
+			prog.Info.Uses[k] = v
+		}
+		for k, v := range pkginfo.Info.Implicits {
+			prog.Info.Implicits[k] = v
+		}
+		for k, v := range pkginfo.Info.Selections {
+			prog.Info.Selections[k] = v
+		}
+		for k, v := range pkginfo.Info.Scopes {
+			prog.Info.Scopes[k] = v
+		}
 	}
 	l.Checker.Init(prog)
 
@@ -135,125 +182,106 @@ func (l *Linter) Lint(lprog *loader.Program) map[string][]Problem {
 	}
 	sort.Strings(keys)
 
-	out := map[string][]Problem{}
-	type result struct {
-		path     string
-		problems []Problem
+	var jobs []*Job
+	for _, k := range keys {
+		j := &Job{
+			Program: prog,
+			check:   k,
+		}
+		jobs = append(jobs, j)
 	}
 	wg := &sync.WaitGroup{}
-	for _, pkg := range pkgs {
-		pkg := pkg
+	for _, j := range jobs {
 		wg.Add(1)
-		go func() {
-			for _, file := range pkg.PkgInfo.Files {
-				path := lprog.Fset.Position(file.Pos()).Filename
-				for _, k := range keys {
-					f := &File{
-						Pkg:      pkg,
-						File:     file,
-						Filename: path,
-						Fset:     lprog.Fset,
-						Program:  lprog,
-						check:    k,
-					}
-
-					fn := funcs[k]
-					if fn == nil {
-						continue
-					}
-					if l.ignore(f, k) {
-						continue
-					}
-					fn(f)
-				}
+		go func(j *Job) {
+			defer wg.Done()
+			fn := funcs[j.check]
+			if fn == nil {
+				return
 			}
-			wg.Done()
-		}()
+			fn(j)
+		}(j)
 	}
 	wg.Wait()
-	for _, pkg := range pkgs {
-		sort.Sort(ByPosition(pkg.problems))
-		out[pkg.PkgInfo.Pkg.Path()] = pkg.problems
+
+	var out []Problem
+	for _, j := range jobs {
+		for _, p := range j.problems {
+			if !l.ignore(j, p) {
+				out = append(out, p)
+			}
+		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		pi, pj := lprog.Fset.Position(out[i].Position), lprog.Fset.Position(out[j].Position)
+
+		if pi.Filename != pj.Filename {
+			return pi.Filename < pj.Filename
+		}
+		if pi.Line != pj.Line {
+			return pi.Line < pj.Line
+		}
+		if pi.Column != pj.Column {
+			return pi.Column < pj.Column
+		}
+
+		return out[i].Text < out[j].Text
+	})
 	return out
 }
 
-func (f *File) Source() []byte {
-	if f.src != nil {
-		return f.src
-	}
-	path := f.Fset.Position(f.File.Pos()).Filename
-	if path != "" {
-		f.src, _ = ioutil.ReadFile(path)
-	}
-	return f.src
-}
-
-// pkg represents a package being linted.
+// Pkg represents a package being linted.
 type Pkg struct {
-	TypesPkg  *types.Package
-	TypesInfo types.Info
-	SSAPkg    *ssa.Package
-	PkgInfo   *loader.PackageInfo
-
-	problems []Problem
+	*ssa.Package
+	Info *loader.PackageInfo
 }
 
-// file represents a file being linted.
-type File struct {
-	Pkg      *Pkg
-	File     *ast.File
-	Filename string
-	Fset     *token.FileSet
-	Program  *loader.Program
-	src      []byte
-	check    string
+type packager interface {
+	Package() *ssa.Package
 }
 
-func (f *File) IsTest() bool { return strings.HasSuffix(f.Filename, "_test.go") }
+func (j *Job) IsInTest(node Positioner) bool {
+	f := j.Program.SSA.Fset.File(node.Pos())
+	return f != nil && strings.HasSuffix(f.Name(), "_test.go")
+}
+
+func (j *Job) IsInMain(node Positioner) bool {
+	if node, ok := node.(packager); ok {
+		return node.Package().Pkg.Name() == "main"
+	}
+	pkg := j.NodePackage(node)
+	if pkg == nil {
+		return false
+	}
+	return pkg.Pkg.Name() == "main"
+}
 
 type Positioner interface {
 	Pos() token.Pos
 }
 
-func (f *File) Errorf(n Positioner, format string, args ...interface{}) *Problem {
-	pos := f.Fset.Position(n.Pos())
-	if !pos.IsValid() {
-		pos = f.Fset.Position(f.File.Pos())
-	}
-	return f.Pkg.errorfAt(pos, f.check, format, args...)
-}
-
-func (p *Pkg) errorfAt(pos token.Position, check string, format string, args ...interface{}) *Problem {
+func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	problem := Problem{
-		Position: pos,
+		Position: n.Pos(),
+		Text:     fmt.Sprintf(format, args...) + fmt.Sprintf(" (%s)", j.check),
 	}
-
-	problem.Text = fmt.Sprintf(format, args...) + fmt.Sprintf(" (%s)", check)
-	p.problems = append(p.problems, problem)
-	return &p.problems[len(p.problems)-1]
+	j.problems = append(j.problems, problem)
+	return &j.problems[len(j.problems)-1]
 }
 
-func (f *File) IsMain() bool {
-	return f.File.Name.Name == "main"
-}
-
-func (f *File) Walk(fn func(ast.Node) bool) {
-	ast.Inspect(f.File, fn)
-}
-
-func (f *File) Render(x interface{}) string {
+func (j *Job) Render(x interface{}) string {
+	fset := j.Program.SSA.Fset
 	var buf bytes.Buffer
-	if err := printer.Fprint(&buf, f.Fset, x); err != nil {
+	if err := printer.Fprint(&buf, fset, x); err != nil {
 		panic(err)
 	}
 	return buf.String()
 }
 
-func (f *File) RenderArgs(args []ast.Expr) string {
+func (j *Job) RenderArgs(args []ast.Expr) string {
 	var ss []string
 	for _, arg := range args {
-		ss = append(ss, f.Render(arg))
+		ss = append(ss, j.Render(arg))
 	}
 	return strings.Join(ss, ", ")
 }
@@ -275,16 +303,16 @@ func IsZero(expr ast.Expr) bool {
 	return ok && lit.Kind == token.INT && lit.Value == "0"
 }
 
-func (f *File) IsNil(expr ast.Expr) bool {
-	return f.Pkg.TypesInfo.Types[expr].IsNil()
+func (j *Job) IsNil(expr ast.Expr) bool {
+	return j.Program.Info.Types[expr].IsNil()
 }
 
-func (f *File) BoolConst(expr ast.Expr) bool {
-	val := f.Pkg.TypesInfo.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
+func (j *Job) BoolConst(expr ast.Expr) bool {
+	val := j.Program.Info.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
 	return constant.BoolVal(val)
 }
 
-func (f *File) IsBoolConst(expr ast.Expr) bool {
+func (j *Job) IsBoolConst(expr ast.Expr) bool {
 	// We explicitly don't support typed bools because more often than
 	// not, custom bool types are used as binary enums and the
 	// explicit comparison is desired.
@@ -293,7 +321,7 @@ func (f *File) IsBoolConst(expr ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	obj := f.Pkg.TypesInfo.ObjectOf(ident)
+	obj := j.Program.Info.ObjectOf(ident)
 	c, ok := obj.(*types.Const)
 	if !ok {
 		return false
@@ -308,8 +336,8 @@ func (f *File) IsBoolConst(expr ast.Expr) bool {
 	return true
 }
 
-func (f *File) ExprToInt(expr ast.Expr) (int64, bool) {
-	tv := f.Pkg.TypesInfo.Types[expr]
+func (j *Job) ExprToInt(expr ast.Expr) (int64, bool) {
+	tv := j.Program.Info.Types[expr]
 	if tv.Value == nil {
 		return 0, false
 	}
@@ -319,8 +347,8 @@ func (f *File) ExprToInt(expr ast.Expr) (int64, bool) {
 	return constant.Int64Val(tv.Value)
 }
 
-func (f *File) ExprToString(expr ast.Expr) (string, bool) {
-	val := f.Pkg.TypesInfo.Types[expr].Value
+func (j *Job) ExprToString(expr ast.Expr) (string, bool) {
+	val := j.Program.Info.Types[expr].Value
 	if val == nil {
 		return "", false
 	}
@@ -330,13 +358,20 @@ func (f *File) ExprToString(expr ast.Expr) (string, bool) {
 	return constant.StringVal(val), true
 }
 
-func (f *File) EnclosingSSAFunction(node Positioner) *ssa.Function {
-	path, _ := astutil.PathEnclosingInterval(f.File, node.Pos(), node.Pos())
-	return ssa.EnclosingFunction(f.Pkg.SSAPkg, path)
+func (j *Job) NodePackage(node Positioner) *ssa.Package {
+	f := j.File(node)
+	return j.Program.astFileMap[f]
 }
 
-func (f *File) IsGenerated() bool {
-	comments := f.File.Comments
+func (j *Job) EnclosingSSAFunction(node Positioner) *ssa.Function {
+	f := j.File(node)
+	path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
+	pkg := j.Program.astFileMap[f]
+	return ssa.EnclosingFunction(pkg, path)
+}
+
+func IsGenerated(f *ast.File) bool {
+	comments := f.Comments
 	if len(comments) > 0 {
 		comment := comments[0].Text()
 		return strings.Contains(comment, "Code generated by") ||
@@ -356,7 +391,7 @@ func IsGoVersion(version string) bool {
 	return false
 }
 
-func (f *File) IsFunctionCallName(node ast.Node, name string) bool {
+func (j *Job) IsFunctionCallName(node ast.Node, name string) bool {
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return false
@@ -365,13 +400,13 @@ func (f *File) IsFunctionCallName(node ast.Node, name string) bool {
 	if !ok {
 		return false
 	}
-	fn, ok := f.Pkg.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+	fn, ok := j.Program.Info.ObjectOf(sel.Sel).(*types.Func)
 	return ok && fn.FullName() == name
 }
 
-func (f *File) IsFunctionCallNameAny(node ast.Node, names ...string) bool {
+func (j *Job) IsFunctionCallNameAny(node ast.Node, names ...string) bool {
 	for _, name := range names {
-		if f.IsFunctionCallName(node, name) {
+		if j.IsFunctionCallName(node, name) {
 			return true
 		}
 	}
@@ -416,7 +451,7 @@ func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
 	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)
 	for _, pkg := range pkgs {
 		pkg := pkg
-		for _, f := range pkg.PkgInfo.Files {
+		for _, f := range pkg.Info.Files {
 			f := f
 			wg.Add(1)
 			go func() {
@@ -450,7 +485,7 @@ type globalVisitor struct {
 func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.CallExpr:
-		v.m[node] = v.pkg.SSAPkg.Func("init")
+		v.m[node] = v.pkg.Func("init")
 		return v
 	case *ast.FuncDecl:
 		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
@@ -471,7 +506,7 @@ func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.FuncDecl:
 		var ssafn *ssa.Function
-		ssafn = v.pkg.SSAPkg.Prog.FuncValue(v.pkg.TypesInfo.ObjectOf(node.Name).(*types.Func))
+		ssafn = v.pkg.Prog.FuncValue(v.pkg.Info.ObjectOf(node.Name).(*types.Func))
 		v.m[node] = ssafn
 		if ssafn == nil {
 			return nil
@@ -480,7 +515,7 @@ func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	case *ast.FuncLit:
 		var ssafn *ssa.Function
 		path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
-		ssafn = ssa.EnclosingFunction(v.pkg.SSAPkg, path)
+		ssafn = ssa.EnclosingFunction(v.pkg.Package, path)
 		v.m[node] = ssafn
 		if ssafn == nil {
 			return nil

@@ -131,11 +131,10 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 			log.Fatal(err)
 		}
 		ps := runner.lint(lprog)
-		for _, ps := range ps {
-			for _, p := range ps {
-				runner.unclean = true
-				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
-			}
+		for _, p := range ps {
+			runner.unclean = true
+			pos := lprog.Fset.Position(p.Position)
+			fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
 		}
 	} else {
 		for _, path := range paths {
@@ -146,12 +145,10 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 			log.Fatal(err)
 		}
 		ps := runner.lint(lprog)
-		for _, ps := range ps {
-			for _, p := range ps {
-				runner.unclean = true
-				fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.Text)
-			}
-
+		for _, p := range ps {
+			runner.unclean = true
+			pos := lprog.Fset.Position(p.Position)
+			fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
 		}
 	}
 	if runner.unclean {
@@ -191,7 +188,7 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 	ProcessFlagSet(name, c, flags)
 }
 
-func (runner *runner) lint(lprog *loader.Program) map[string][]lint.Problem {
+func (runner *runner) lint(lprog *loader.Program) []lint.Problem {
 	l := &lint.Linter{
 		Checker: runner.checker,
 		Ignores: runner.ignores,

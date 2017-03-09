@@ -8,7 +8,6 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"honnef.co/go/tools/lint"
 
@@ -18,18 +17,13 @@ import (
 
 func NewLintChecker(c *Checker) *LintChecker {
 	l := &LintChecker{
-		c:     c,
-		seen:  map[*loader.Program]struct{}{},
-		found: map[string][]Unused{},
+		c: c,
 	}
 	return l
 }
 
 type LintChecker struct {
-	mu    sync.Mutex
-	c     *Checker
-	seen  map[*loader.Program]struct{}
-	found map[string][]Unused
+	c *Checker
 }
 
 func (l *LintChecker) Init(*lint.Program) {}
@@ -58,19 +52,8 @@ func typString(obj types.Object) string {
 	}
 }
 
-func (l *LintChecker) Lint(f *lint.File) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if _, ok := l.seen[f.Program]; !ok {
-		l.seen[f.Program] = struct{}{}
-		unused := l.c.Check(f.Program)
-		for _, u := range unused {
-			name := u.Position.Filename
-			l.found[name] = append(l.found[name], u)
-		}
-	}
-
-	unused := l.found[f.Filename]
+func (l *LintChecker) Lint(j *lint.Job) {
+	unused := l.c.Check(j.Program.Prog)
 	for _, u := range unused {
 		name := u.Obj.Name()
 		if sig, ok := u.Obj.Type().(*types.Signature); ok && sig.Recv() != nil {
@@ -84,7 +67,7 @@ func (l *LintChecker) Lint(f *lint.File) {
 				}
 			}
 		}
-		f.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), name)
+		j.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), name)
 	}
 }
 
