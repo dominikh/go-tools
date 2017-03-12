@@ -234,7 +234,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4007": nil,
 		"SA4008": c.CheckLoopCondition,
 		"SA4009": c.CheckArgOverwritten,
-		"SA4010": c.CheckIneffectiveAppend,
+		"SA4010": nil,
 		"SA4011": c.CheckScopedBreak,
 		"SA4012": c.CheckNaNComparison,
 		"SA4013": c.CheckDoubleNegation,
@@ -1815,98 +1815,6 @@ func (c *Checker) CheckSeeker(j *lint.Job) {
 			return true
 		}
 		j.Errorf(call, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
-		return true
-	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) CheckIneffectiveAppend(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
-			return true
-		}
-		ident, ok := assign.Lhs[0].(*ast.Ident)
-		if !ok || ident.Name == "_" {
-			return true
-		}
-		call, ok := assign.Rhs[0].(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if callIdent, ok := call.Fun.(*ast.Ident); !ok || callIdent.Name != "append" {
-			// XXX check that it's the built-in append
-			return true
-		}
-		ssafn := j.EnclosingSSAFunction(assign)
-		if ssafn == nil {
-			return true
-		}
-		tfn, ok := ssafn.Object().(*types.Func)
-		if ok {
-			res := tfn.Type().(*types.Signature).Results()
-			for i := 0; i < res.Len(); i++ {
-				if res.At(i) == j.Program.Info.ObjectOf(ident) {
-					// Don't flag appends assigned to named return arguments
-					return true
-				}
-			}
-		}
-		isAppend := func(ins ssa.Value) bool {
-			call, ok := ins.(*ssa.Call)
-			if !ok {
-				return false
-			}
-			if call.Call.IsInvoke() {
-				return false
-			}
-			if builtin, ok := call.Call.Value.(*ssa.Builtin); !ok || builtin.Name() != "append" {
-				return false
-			}
-			return true
-		}
-		isUsed := false
-		visited := map[ssa.Instruction]bool{}
-		var walkRefs func(refs []ssa.Instruction)
-		walkRefs = func(refs []ssa.Instruction) {
-		loop:
-			for _, ref := range refs {
-				if visited[ref] {
-					continue
-				}
-				visited[ref] = true
-				if _, ok := ref.(*ssa.DebugRef); ok {
-					continue
-				}
-				switch ref := ref.(type) {
-				case *ssa.Phi:
-					walkRefs(*ref.Referrers())
-				case ssa.Value:
-					if !isAppend(ref) {
-						isUsed = true
-					} else {
-						walkRefs(*ref.Referrers())
-					}
-				case ssa.Instruction:
-					isUsed = true
-					break loop
-				}
-			}
-		}
-		expr, _ := ssafn.ValueForExpr(call)
-		if expr == nil {
-			return true
-		}
-		refs := expr.Referrers()
-		if refs == nil {
-			return true
-		}
-		walkRefs(*refs)
-		if !isUsed {
-			j.Errorf(assign, "this result of append is never used, except maybe in other appends")
-		}
 		return true
 	}
 	for _, f := range j.Program.Files {
