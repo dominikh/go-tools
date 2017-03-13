@@ -46,6 +46,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1020": c.LintAssertNotNil,
 		"S1021": c.LintDeclareAssign,
 		"S1022": c.LintBlankOK,
+		"S1023": c.LintRedundantBreak,
 	}
 }
 
@@ -1587,6 +1588,27 @@ func (c *Checker) LintBlankOK(j *lint.Job) {
 		cp := *assign
 		cp.Lhs = cp.Lhs[0:1]
 		j.Errorf(assign, "should write %s instead of %s", j.Render(&cp), j.Render(assign))
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintRedundantBreak(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		clause, ok := node.(*ast.CaseClause)
+		if !ok {
+			return true
+		}
+		if len(clause.Body) < 2 {
+			return true
+		}
+		branch, ok := clause.Body[len(clause.Body)-1].(*ast.BranchStmt)
+		if !ok || branch.Tok != token.BREAK {
+			return true
+		}
+		j.Errorf(branch, "redundant break statement")
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {

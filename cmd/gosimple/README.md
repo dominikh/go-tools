@@ -58,7 +58,8 @@ constructs:
 | S1019 | `make(T, 0)` or `make(T, x, x)`                                             | `make(T)` or `make(T, x)`                                              |
 | S1020 | `if _, ok := i.(T); ok && i != nil`                                         | `if _, ok := i.(T); ok`                                                |
 | S1021 | `var x uint; x = 1`                                                         | `var x uint = 1`                                                       |
-| S1022 | `x, _ = someMap[key]`                                                       | `x = someMap[key]`
+| S1022 | `x, _ = someMap[key]`                                                       | `x = someMap[key]`                                                     |
+| S1023 | `break` as the final statement of a `case` clause                           | Go doesn't have automatic fallthrough, making final `break` redundant  |
 
 ## gofmt -r
 
