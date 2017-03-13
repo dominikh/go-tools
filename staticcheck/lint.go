@@ -1458,8 +1458,6 @@ func (c *Checker) CheckUnsignedComparison(j *lint.Job) {
 			j.Errorf(expr, "unsigned values are always >= 0")
 		case token.LSS:
 			j.Errorf(expr, "unsigned values are never < 0")
-		case token.LEQ:
-			j.Errorf(expr, "'x <= 0' for unsigned values of x is the same as 'x == 0'")
 		}
 		return true
 	}
