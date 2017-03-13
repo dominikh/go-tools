@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/lint"
@@ -41,6 +42,7 @@ type runner struct {
 	checker lint.Checker
 	tags    []string
 	ignores []lint.Ignore
+	version int
 
 	unclean bool
 }
@@ -86,6 +88,31 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 	return out, nil
 }
 
+type versionFlag int
+
+func (v *versionFlag) String() string {
+	return fmt.Sprintf("1.%d", *v)
+}
+
+func (v *versionFlag) Set(s string) error {
+	if len(s) < 3 {
+		return errors.New("invalid Go version")
+	}
+	if s[0] != '1' {
+		return errors.New("invalid Go version")
+	}
+	if s[1] != '.' {
+		return errors.New("invalid Go version")
+	}
+	i, err := strconv.Atoi(s[2:])
+	*v = versionFlag(i)
+	return err
+}
+
+func (v *versionFlag) Get() interface{} {
+	return int(*v)
+}
+
 func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
@@ -93,6 +120,15 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("tags", "", "List of `build tags`")
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
+
+	tags := build.Default.ReleaseTags
+	v := tags[len(tags)-1][2:]
+	version := new(versionFlag)
+	if err := version.Set(v); err != nil {
+		panic(fmt.Sprintf("internal error: %s", err))
+	}
+
+	flags.Var(version, "go", "Target Go `version` in the format '1.x'")
 	return flags
 }
 
@@ -100,6 +136,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
+	version := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 
 	ignores, err := parseIgnore(ignore)
 	if err != nil {
@@ -110,6 +147,7 @@ func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
 		checker: c,
 		tags:    strings.Fields(tags),
 		ignores: ignores,
+		version: version,
 	}
 	paths := gotool.ImportPaths(fs.Args())
 	goFiles, err := runner.resolveRelative(paths)
@@ -190,8 +228,9 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 
 func (runner *runner) lint(lprog *loader.Program) []lint.Problem {
 	l := &lint.Linter{
-		Checker: runner.checker,
-		Ignores: runner.ignores,
+		Checker:   runner.checker,
+		Ignores:   runner.ignores,
+		GoVersion: runner.version,
 	}
 	return l.Lint(lprog)
 }

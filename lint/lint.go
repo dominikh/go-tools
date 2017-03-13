@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/constant"
 	"go/printer"
 	"go/token"
@@ -48,6 +47,7 @@ type Program struct {
 	AllFunctions     []*ssa.Function
 	Files            []*ast.File
 	Info             *types.Info
+	GoVersion        int
 
 	tokenFileMap map[*token.File]*ast.File
 	astFileMap   map[*ast.File]*ssa.Package
@@ -72,8 +72,9 @@ type Checker interface {
 
 // A Linter lints Go source code.
 type Linter struct {
-	Checker Checker
-	Ignores []Ignore
+	Checker   Checker
+	Ignores   []Ignore
+	GoVersion int
 }
 
 func (l *Linter) ignore(j *Job, p Problem) bool {
@@ -127,6 +128,7 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			Selections: map[*ast.SelectorExpr]*types.Selection{},
 			Scopes:     map[ast.Node]*types.Scope{},
 		},
+		GoVersion:    l.GoVersion,
 		tokenFileMap: map[*token.File]*ast.File{},
 		astFileMap:   map[*ast.File]*ssa.Package{},
 	}
@@ -380,15 +382,8 @@ func IsGenerated(f *ast.File) bool {
 	return false
 }
 
-func IsGoVersion(version string) bool {
-	needle := "go" + version
-	// TODO(dh): allow users to pass in a custom build environment
-	for _, tag := range build.Default.ReleaseTags {
-		if tag == needle {
-			return true
-		}
-	}
-	return false
+func (j *Job) IsGoVersion(minor int) bool {
+	return j.Program.GoVersion >= minor
 }
 
 func (j *Job) IsFunctionCallName(node ast.Node, name string) bool {

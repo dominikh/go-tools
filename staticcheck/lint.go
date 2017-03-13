@@ -81,7 +81,7 @@ var (
 	checkEncodingBinaryRules = map[string]CallCheck{
 		"encoding/binary.Write": func(call *Call) {
 			arg := call.Args[2]
-			if !CanBinaryMarshal(arg.Value) {
+			if !CanBinaryMarshal(call.Job, arg.Value) {
 				arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 			}
 		},
@@ -2379,6 +2379,7 @@ func (c *Checker) checkCalls(j *lint.Job, rules map[string]CallCheck) {
 				args = append(args, &Argument{Value: Value{arg, vr}})
 			}
 			call := &Call{
+				Job:     j,
 				Instr:   edge.Site,
 				Args:    args,
 				Checker: c,

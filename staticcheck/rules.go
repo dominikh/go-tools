@@ -23,6 +23,7 @@ const (
 )
 
 type Call struct {
+	Job   *lint.Job
 	Instr ssa.CallInstruction
 	Args  []*Argument
 
@@ -180,7 +181,7 @@ func ConvertedFromInt(v Value) bool {
 	return true
 }
 
-func validEncodingBinaryType(typ types.Type) bool {
+func validEncodingBinaryType(j *lint.Job, typ types.Type) bool {
 	typ = typ.Underlying()
 	switch typ := typ.(type) {
 	case *types.Basic:
@@ -190,19 +191,19 @@ func validEncodingBinaryType(typ types.Type) bool {
 			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
 			return true
 		case types.Bool:
-			return lint.IsGoVersion("1.8")
+			return j.IsGoVersion(8)
 		}
 		return false
 	case *types.Struct:
 		n := typ.NumFields()
 		for i := 0; i < n; i++ {
-			if !validEncodingBinaryType(typ.Field(i).Type()) {
+			if !validEncodingBinaryType(j, typ.Field(i).Type()) {
 				return false
 			}
 		}
 		return true
 	case *types.Array:
-		return validEncodingBinaryType(typ.Elem())
+		return validEncodingBinaryType(j, typ.Elem())
 	case *types.Interface:
 		// we can't determine if it's a valid type or not
 		return true
@@ -210,7 +211,7 @@ func validEncodingBinaryType(typ types.Type) bool {
 	return false
 }
 
-func CanBinaryMarshal(v Value) bool {
+func CanBinaryMarshal(j *lint.Job, v Value) bool {
 	typ := v.Value.Type().Underlying()
 	if ttyp, ok := typ.(*types.Pointer); ok {
 		typ = ttyp.Elem().Underlying()
@@ -223,7 +224,7 @@ func CanBinaryMarshal(v Value) bool {
 		}
 	}
 
-	return validEncodingBinaryType(typ)
+	return validEncodingBinaryType(j, typ)
 }
 
 func RepeatZeroTimes(name string, arg int) CallCheck {
