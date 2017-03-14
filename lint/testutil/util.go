@@ -12,6 +12,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -27,12 +28,6 @@ import (
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
 
 func TestAll(t *testing.T, c lint.Checker, dir string) {
-	l := &lint.Linter{Checker: c}
-	rx, err := regexp.Compile(*lintMatch)
-	if err != nil {
-		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
-	}
-
 	baseDir := filepath.Join("testdata", dir)
 	fis, err := ioutil.ReadDir(baseDir)
 	if err != nil {
@@ -41,11 +36,12 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 	if len(fis) == 0 {
 		t.Fatalf("no files in %v", baseDir)
 	}
-
-	conf := &loader.Config{
-		ParserMode: parser.ParseComments,
+	rx, err := regexp.Compile(*lintMatch)
+	if err != nil {
+		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
 	}
-	files := map[string][]byte{}
+
+	files := map[int][]os.FileInfo{}
 	for _, fi := range fis {
 		if !rx.MatchString(fi.Name()) {
 			continue
@@ -53,54 +49,77 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 		if !strings.HasSuffix(fi.Name(), ".go") {
 			continue
 		}
-		filename := path.Join(baseDir, fi.Name())
-		src, err := ioutil.ReadFile(filename)
-		if err != nil {
-			t.Errorf("Failed reading %s: %v", fi.Name(), err)
-			continue
-		}
-		f, err := conf.ParseFile(filename, src)
-		if err != nil {
-			t.Errorf("error parsing %s: %s", filename, err)
-			continue
-		}
-		files[fi.Name()] = src
-		conf.CreateFromFiles(fi.Name(), f)
-	}
-
-	lprog, err := conf.Load()
-	if err != nil {
-		t.Fatalf("error loading program: %s", err)
-	}
-	res := l.Lint(lprog)
-	for name, src := range files {
-		ins := parseInstructions(t, name, src)
-
-		for _, in := range ins {
-			ok := false
-			for i, p := range res {
-				pos := lprog.Fset.Position(p.Position)
-				if pos.Line != in.Line || filepath.Base(pos.Filename) != name {
-					continue
-				}
-				if in.Match.MatchString(p.Text) {
-					// remove this problem from ps
-					copy(res[i:], res[i+1:])
-					res = res[:len(res)-1]
-
-					//t.Logf("/%v/ matched at %s:%d", in.Match, fi.Name(), in.Line)
-					ok = true
-					break
-				}
-			}
-			if !ok {
-				t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
+		parts := strings.Split(fi.Name(), "_")
+		v := 0
+		if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "go1") {
+			var err error
+			s := parts[len(parts)-1][len("go1"):]
+			s = s[:len(s)-len(".go")]
+			v, err = strconv.Atoi(s)
+			if err != nil {
+				t.Fatalf("cannot process file name %q: %s", fi.Name(), err)
 			}
 		}
+		files[v] = append(files[v], fi)
 	}
-	for _, p := range res {
-		pos := lprog.Fset.Position(p.Position)
-		t.Errorf("Unexpected problem at %s: %v", pos, p.Text)
+
+	for version, fis := range files {
+		l := &lint.Linter{Checker: c, GoVersion: version}
+
+		conf := &loader.Config{
+			ParserMode: parser.ParseComments,
+		}
+		files := map[string][]byte{}
+		for _, fi := range fis {
+			filename := path.Join(baseDir, fi.Name())
+			src, err := ioutil.ReadFile(filename)
+			if err != nil {
+				t.Errorf("Failed reading %s: %v", fi.Name(), err)
+				continue
+			}
+			f, err := conf.ParseFile(filename, src)
+			if err != nil {
+				t.Errorf("error parsing %s: %s", filename, err)
+				continue
+			}
+			files[fi.Name()] = src
+			conf.CreateFromFiles(fi.Name(), f)
+		}
+
+		lprog, err := conf.Load()
+		if err != nil {
+			t.Fatalf("error loading program: %s", err)
+		}
+		res := l.Lint(lprog)
+		for name, src := range files {
+			ins := parseInstructions(t, name, src)
+
+			for _, in := range ins {
+				ok := false
+				for i, p := range res {
+					pos := lprog.Fset.Position(p.Position)
+					if pos.Line != in.Line || filepath.Base(pos.Filename) != name {
+						continue
+					}
+					if in.Match.MatchString(p.Text) {
+						// remove this problem from ps
+						copy(res[i:], res[i+1:])
+						res = res[:len(res)-1]
+
+						//t.Logf("/%v/ matched at %s:%d", in.Match, fi.Name(), in.Line)
+						ok = true
+						break
+					}
+				}
+				if !ok {
+					t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
+				}
+			}
+		}
+		for _, p := range res {
+			pos := lprog.Fset.Position(p.Position)
+			t.Errorf("Unexpected problem at %s: %v", pos, p.Text)
+		}
 	}
 }
 
