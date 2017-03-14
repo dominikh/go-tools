@@ -6,7 +6,6 @@ import (
 	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssa/ssautil"
 )
 
 type Checker struct {
@@ -25,28 +24,6 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 func (c *Checker) Init(prog *lint.Program) {
 	c.funcDescs = functions.NewDescriptions(prog.SSA)
-
-	fns := ssautil.AllFunctions(prog.SSA)
-
-	for fn := range fns {
-		if fn.Blocks == nil {
-			continue
-		}
-		if fn.Synthetic != "" && (fn.Package() == nil || fn != fn.Package().Members["init"]) {
-			// Don't track synthetic functions, unless they're the
-			// init function
-			continue
-		}
-		pos := fn.Pos()
-		if pos == 0 {
-			for _, pkg := range prog.Packages {
-				if pkg.Package == fn.Pkg {
-					pos = pkg.Info.Files[0].Pos()
-					break
-				}
-			}
-		}
-	}
 }
 
 func (c *Checker) CheckErrcheck(j *lint.Job) {
