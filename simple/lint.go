@@ -1605,7 +1605,7 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 			return true
 		}
 		branch, ok := clause.Body[len(clause.Body)-1].(*ast.BranchStmt)
-		if !ok || branch.Tok != token.BREAK {
+		if !ok || branch.Tok != token.BREAK || branch.Label != nil {
 			return true
 		}
 		j.Errorf(branch, "redundant break statement")

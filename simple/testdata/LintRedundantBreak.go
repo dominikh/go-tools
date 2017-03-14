@@ -25,4 +25,13 @@ func fn(x int) {
 		}
 		println()
 	}
+
+label:
+	for {
+		switch x {
+		case 1:
+			println()
+			break label
+		}
+	}
 }
