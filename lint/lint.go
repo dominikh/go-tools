@@ -104,6 +104,36 @@ func (j *Job) File(node Positioner) *ast.File {
 	return j.Program.tokenFileMap[j.Program.SSA.Fset.File(node.Pos())]
 }
 
+// TODO(dh): switch to sort.Slice when Go 1.9 lands.
+type byPosition struct {
+	fset *token.FileSet
+	ps   []Problem
+}
+
+func (ps byPosition) Len() int {
+	return len(ps.ps)
+}
+
+func (ps byPosition) Less(i int, j int) bool {
+	pi, pj := ps.fset.Position(ps.ps[i].Position), ps.fset.Position(ps.ps[j].Position)
+
+	if pi.Filename != pj.Filename {
+		return pi.Filename < pj.Filename
+	}
+	if pi.Line != pj.Line {
+		return pi.Line < pj.Line
+	}
+	if pi.Column != pj.Column {
+		return pi.Column < pj.Column
+	}
+
+	return ps.ps[i].Text < ps.ps[j].Text
+}
+
+func (ps byPosition) Swap(i int, j int) {
+	ps.ps[i], ps.ps[j] = ps.ps[j], ps.ps[i]
+}
+
 func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaprog.Build()
@@ -214,21 +244,8 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		pi, pj := lprog.Fset.Position(out[i].Position), lprog.Fset.Position(out[j].Position)
 
-		if pi.Filename != pj.Filename {
-			return pi.Filename < pj.Filename
-		}
-		if pi.Line != pj.Line {
-			return pi.Line < pj.Line
-		}
-		if pi.Column != pj.Column {
-			return pi.Column < pj.Column
-		}
-
-		return out[i].Text < out[j].Text
-	})
+	sort.Sort(byPosition{lprog.Fset, out})
 	return out
 }
 
