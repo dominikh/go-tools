@@ -7,8 +7,6 @@ import (
 )
 
 func fn() {
-	// TODO(dh): test that bools fail on <=1.7 and pass on >=1.8
-
 	type T1 struct {
 		A int32
 	}
