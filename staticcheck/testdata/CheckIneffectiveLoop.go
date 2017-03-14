@@ -3,6 +3,7 @@ package pkg
 func fn() {
 	for {
 		if true {
+			println()
 		}
 		break // MATCH /the surrounding loop is unconditionally terminated/
 	}
@@ -15,11 +16,13 @@ func fn() {
 	}
 	for range ([]int)(nil) {
 		if true {
+			println()
 		}
 		break // MATCH /the surrounding loop is unconditionally terminated/
 	}
 	for range (map[int]int)(nil) {
 		if true {
+			println()
 		}
 		break
 	}

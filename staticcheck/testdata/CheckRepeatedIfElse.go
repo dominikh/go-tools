@@ -6,6 +6,7 @@ func fn1(b1, b2 bool) {
 	} else if b1 && !b2 { // MATCH /condition occurs multiple times/
 	} else if b1 { // MATCH /condition occurs multiple times/
 	} else {
+		println()
 	}
 }
 
@@ -15,6 +16,7 @@ func fn2(b1, b2 bool, ch chan string) {
 	} else if <-ch == "" {
 	} else if <-ch == "" {
 	} else {
+		println()
 	}
 }
 
@@ -29,6 +31,7 @@ func fn3() {
 func fn4() {
 	if s := gen2(); s == "" {
 	} else if s := gen2(); s == "" {
+		println()
 	}
 }
 
@@ -38,6 +41,7 @@ func fn5() {
 	} else if s != "foo" {
 	} else if s = gen2(); s == "" {
 	} else if s != "foo" {
+		println()
 	}
 }
 

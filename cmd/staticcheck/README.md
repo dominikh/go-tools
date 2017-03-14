@@ -113,6 +113,7 @@ The following things are currently checked by staticcheck:
 | [SA9000](#sa9000--storing-non-pointer-values-in-syncpool-allocates-memory)                     | Storing non-pointer values in sync.Pool allocates memory                                                                                              |
 | SA9001                                                                                         | `defer`s in `for range` loops may not run when you expect them to                                                                                     |
 | SA9002                                                                                         | Using a non-octal `os.FileMode`  that looks like it was meant to be in octal.                                                                         |
+| SA9003                                                                                         | Empty body in an if or else branch
 
 ### SA1005 – Invalid first argument to exec.Command
 `os/exec` runs programs directly (using variants of the

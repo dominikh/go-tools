@@ -179,6 +179,7 @@ var (
 )
 
 type Checker struct {
+	CheckGenerated bool
 	funcDescs      *functions.Descriptions
 	deprecatedObjs map[types.Object]string
 	nodeFns        map[ast.Node]*ssa.Function
@@ -257,7 +258,21 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA9000": c.callChecker(checkDubiousSyncPoolSizeRules),
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
 		"SA9002": c.CheckNonOctalFileMode,
+		"SA9003": c.CheckEmptyBranch,
 	}
+}
+
+func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
+	if c.CheckGenerated {
+		return files
+	}
+	var out []*ast.File
+	for _, f := range files {
+		if !lint.IsGenerated(f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 func (c *Checker) Init(prog *lint.Program) {
@@ -2557,5 +2572,29 @@ func loopedRegexp(name string) CallCheck {
 			return
 		}
 		call.Invalid(fmt.Sprintf("calling %s in a loop has poor performance, consider using regexp.Compile", name))
+	}
+}
+
+func (c *Checker) CheckEmptyBranch(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		ifstmt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		if ifstmt.Else != nil {
+			b, ok := ifstmt.Else.(*ast.BlockStmt)
+			if !ok || len(b.List) != 0 {
+				return true
+			}
+			j.Errorf(ifstmt.Else, "empty branch")
+		}
+		if len(ifstmt.Body.List) != 0 {
+			return true
+		}
+		j.Errorf(ifstmt, "empty branch")
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
 	}
 }

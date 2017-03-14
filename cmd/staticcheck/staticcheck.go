@@ -10,13 +10,10 @@ import (
 )
 
 func main() {
-	var args []string
-	for _, arg := range os.Args[1:] {
-		if arg == "-dubious" {
-			continue
-		}
-		args = append(args, arg)
-	}
+	fs := lintutil.FlagSet("staticcheck")
+	gen := fs.Bool("generated", false, "Check generated code")
+	fs.Parse(os.Args[1:])
 	c := staticcheck.NewChecker()
-	lintutil.ProcessArgs("staticcheck", c, args)
+	c.CheckGenerated = *gen
+	lintutil.ProcessFlagSet("staticcheck", c, fs)
 }

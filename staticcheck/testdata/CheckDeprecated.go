@@ -15,6 +15,7 @@ func fn1(err error) {
 	_ = syscall.StringByteSlice("")     // MATCH /Use ByteSliceFromString instead/
 	_ = os.SEEK_SET                     // MATCH /Use io.SeekStart, io.SeekCurrent, and io.SeekEnd/
 	if err == http.ErrWriteAfterFlush { // MATCH /ErrWriteAfterFlush is no longer used/
+		println()
 	}
 	var _ flate.ReadError // MATCH /No longer returned/
 }
