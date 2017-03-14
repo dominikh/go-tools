@@ -60,6 +60,7 @@ constructs:
 | S1021 | `var x uint; x = 1`                                                         | `var x uint = 1`                                                       |
 | S1022 | `x, _ = someMap[key]`                                                       | `x = someMap[key]`                                                     |
 | S1023 | `break` as the final statement of a `case` clause                           | Go doesn't have automatic fallthrough, making final `break` redundant  |
+| S1024 | `t.Sub(time.Now())`                                                         | `time.Until(t)`                                                        |
 
 ## gofmt -r
 

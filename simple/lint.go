@@ -47,6 +47,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1021": c.LintDeclareAssign,
 		"S1022": c.LintBlankOK,
 		"S1023": c.LintRedundantBreak,
+		"S1024": c.LintTimeUntil,
 	}
 }
 
@@ -772,6 +773,29 @@ func (c *Checker) LintTimeSince(j *lint.Job) {
 			return true
 		}
 		j.Errorf(call, "should use time.Since instead of time.Now().Sub")
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintTimeUntil(j *lint.Job) {
+	if !j.IsGoVersion(8) {
+		return
+	}
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !j.IsFunctionCallName(call, "(time.Time).Sub") {
+			return true
+		}
+		if !j.IsFunctionCallName(call.Args[0], "time.Now") {
+			return true
+		}
+		j.Errorf(call, "should use time.Until instead of t.Sub(time.Now())")
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
