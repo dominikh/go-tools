@@ -63,35 +63,39 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 		files[v] = append(files[v], fi)
 	}
 
+	conf := &loader.Config{
+		ParserMode: parser.ParseComments,
+	}
+	sources := map[string][]byte{}
+	for _, fi := range fis {
+		filename := path.Join(baseDir, fi.Name())
+		src, err := ioutil.ReadFile(filename)
+		if err != nil {
+			t.Errorf("Failed reading %s: %v", fi.Name(), err)
+			continue
+		}
+		f, err := conf.ParseFile(filename, src)
+		if err != nil {
+			t.Errorf("error parsing %s: %s", filename, err)
+			continue
+		}
+		sources[fi.Name()] = src
+		conf.CreateFromFiles(fi.Name(), f)
+	}
+
+	lprog, err := conf.Load()
+	if err != nil {
+		t.Fatalf("error loading program: %s", err)
+	}
+
 	for version, fis := range files {
 		l := &lint.Linter{Checker: c, GoVersion: version}
 
-		conf := &loader.Config{
-			ParserMode: parser.ParseComments,
-		}
-		files := map[string][]byte{}
-		for _, fi := range fis {
-			filename := path.Join(baseDir, fi.Name())
-			src, err := ioutil.ReadFile(filename)
-			if err != nil {
-				t.Errorf("Failed reading %s: %v", fi.Name(), err)
-				continue
-			}
-			f, err := conf.ParseFile(filename, src)
-			if err != nil {
-				t.Errorf("error parsing %s: %s", filename, err)
-				continue
-			}
-			files[fi.Name()] = src
-			conf.CreateFromFiles(fi.Name(), f)
-		}
-
-		lprog, err := conf.Load()
-		if err != nil {
-			t.Fatalf("error loading program: %s", err)
-		}
 		res := l.Lint(lprog)
-		for name, src := range files {
+		for _, fi := range fis {
+			name := fi.Name()
+			src := sources[name]
+
 			ins := parseInstructions(t, name, src)
 
 			for _, in := range ins {
@@ -118,7 +122,13 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 		}
 		for _, p := range res {
 			pos := lprog.Fset.Position(p.Position)
-			t.Errorf("Unexpected problem at %s: %v", pos, p.Text)
+			name := filepath.Base(pos.Filename)
+			for _, fi := range fis {
+				if name == fi.Name() {
+					t.Errorf("Unexpected problem at %s: %v", pos, p.Text)
+					break
+				}
+			}
 		}
 	}
 }
