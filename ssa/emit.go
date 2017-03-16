@@ -279,63 +279,9 @@ func (b *BasicBlock) emitJump(target *BasicBlock) {
 func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) {
 	b := f.currentBlock
 	b.emit(&If{Cond: cond})
-
-	tt := f.newBasicBlock("if.sigma")
-	ft := f.newBasicBlock("if.sigma")
-
-	addEdge(b, tt)
-	addEdge(b, ft)
-
-	switch cond := cond.(type) {
-	case *BinOp:
-		switch x := cond.X.(type) {
-		case *Const:
-		default:
-			emitSigma(f, tt, x, true)
-			emitSigma(f, ft, x, false)
-		}
-		switch y := cond.Y.(type) {
-		case *Const:
-		default:
-			emitSigma(f, tt, y, true)
-			emitSigma(f, ft, y, false)
-		}
-	}
-
-	tt.emitJump(tblock)
-	ft.emitJump(fblock)
-
+	addEdge(b, tblock)
+	addEdge(b, fblock)
 	f.currentBlock = nil
-}
-
-func emitSigma(f *Function, b *BasicBlock, v Value, branch bool) {
-	f.currentBlock = b
-	switch v := v.(type) {
-	case *UnOp:
-		if alloc, ok := v.X.(*Alloc); !ok || alloc.Heap {
-			return
-		}
-		sigma := &Sigma{
-			X:      v,
-			Branch: branch,
-		}
-		sigma.setType(v.Type())
-		pv := f.emit(sigma)
-		emitStore(f, v.X, pv, 0)
-	case *Call:
-		call, ok := v.Common().Value.(*Builtin)
-		if !ok {
-			return
-		}
-		ops := v.Operands(nil)
-		switch call.Name() {
-		case "len":
-			switch (*ops[1]).Type().Underlying().(type) {
-			case *types.Basic:
-				emitSigma(f, b, *ops[1], branch)
-			}
-		}
-	}
 }
 
 // emitExtract emits to f an instruction to extract the index'th
