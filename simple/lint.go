@@ -56,6 +56,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1023": c.LintRedundantBreak,
 		"S1024": c.LintTimeUntil,
 		"S1025": c.LintRedundantSprintf,
+		"S1026": c.LintStringCopy,
 	}
 }
 
@@ -1700,6 +1701,64 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 			} else {
 				j.Errorf(call, "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf")
 			}
+		}
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintStringCopy(j *lint.Job) {
+	emptyStringLit := func(e ast.Expr) bool {
+		bl, ok := e.(*ast.BasicLit)
+		return ok && bl.Value == `""`
+	}
+	fn := func(node ast.Node) bool {
+		switch x := node.(type) {
+		case *ast.BinaryExpr: // "" + s, s + ""
+			if x.Op != token.ADD {
+				break
+			}
+			l1 := j.Program.Prog.Fset.Position(x.X.Pos()).Line
+			l2 := j.Program.Prog.Fset.Position(x.Y.Pos()).Line
+			if l1 != l2 {
+				break
+			}
+			var want ast.Expr
+			switch {
+			case emptyStringLit(x.X):
+				want = x.Y
+			case emptyStringLit(x.Y):
+				want = x.X
+			default:
+				return true
+			}
+			j.Errorf(x, "should use %s instead of %s",
+				j.Render(want), j.Render(x))
+		case *ast.CallExpr: // string([]byte(s))
+			bt, ok := j.Program.Info.TypeOf(x.Fun).(*types.Basic)
+			if !ok || bt.Kind() != types.String {
+				break
+			}
+			nested, ok := x.Args[0].(*ast.CallExpr)
+			if !ok {
+				break
+			}
+			st, ok := j.Program.Info.TypeOf(nested.Fun).(*types.Slice)
+			if !ok {
+				break
+			}
+			et, ok := st.Elem().(*types.Basic)
+			if !ok || et.Kind() != types.Byte {
+				break
+			}
+			xt, ok := j.Program.Info.TypeOf(nested.Args[0]).(*types.Basic)
+			if !ok || xt.Kind() != types.String {
+				break
+			}
+			j.Errorf(x, "should use %s instead of %s",
+				j.Render(nested.Args[0]), j.Render(x))
 		}
 		return true
 	}
