@@ -43,7 +43,6 @@ func f(spilled, unspilled int) {
 	sl := []int{}
 	_ = /*@Slice*/ (sl[:0])
 
-	_ = /*@<nil>*/ (new(int)) // optimized away
 	tmp := /*@Alloc*/ (new(int))
 	_ = tmp
 	var iface interface{}
@@ -88,7 +87,6 @@ func complit() {
 	_, _, _ = sl1, sl2, sl3
 
 	_ = /*@Slice*/ ([]int{})
-	_ = /*@<nil>*/ (& /*@Slice*/ ([]int{})) // & optimized away
 	_ = & /*@Slice*/ ([]int{})
 
 	// 2. Arrays
@@ -117,7 +115,6 @@ func complit() {
 	_, _, _ = m1, m2, m3
 
 	_ = /*@MakeMap*/ (M{})
-	_ = /*@<nil>*/ (& /*@MakeMap*/ (M{})) // & optimized away
 	_ = & /*@MakeMap*/ (M{})
 
 	// 4. Structs
