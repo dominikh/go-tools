@@ -351,29 +351,8 @@ func (f *Function) finishBody() {
 		printMu.Unlock()
 	}
 
-	flattenPhis(f)
-	optimizeBlocks(f)
-
 	if f.Prog.mode&SanityCheckFunctions != 0 {
 		mustSanityCheck(f, nil)
-	}
-}
-
-func flattenPhis(fn *Function) {
-	if len(fn.Blocks) == 0 {
-		return
-	}
-	for _, block := range fn.Blocks {
-		var newInstrs []Instruction
-		for _, ins := range block.Instrs {
-			phi, ok := ins.(*Phi)
-			if !ok || len(phi.Edges) > 1 {
-				newInstrs = append(newInstrs, ins)
-				continue
-			}
-			ReplaceAll(phi, phi.Edges[0])
-		}
-		block.Instrs = newInstrs
 	}
 }
 
