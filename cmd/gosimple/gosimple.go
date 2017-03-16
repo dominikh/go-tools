@@ -14,5 +14,5 @@ func main() {
 	c := simple.NewChecker()
 	c.CheckGenerated = *gen
 
-	lintutil.ProcessFlagSet("gosimple", c, fs)
+	lintutil.ProcessFlagSet(c, fs)
 }
