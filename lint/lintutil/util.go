@@ -132,7 +132,7 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-func ProcessFlagSet(name string, c lint.Checker, fs *flag.FlagSet) {
+func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
@@ -223,7 +223,7 @@ func ProcessArgs(name string, c lint.Checker, args []string) {
 	flags := FlagSet(name)
 	flags.Parse(args)
 
-	ProcessFlagSet(name, c, flags)
+	ProcessFlagSet(c, flags)
 }
 
 func (runner *runner) lint(lprog *loader.Program) []lint.Problem {

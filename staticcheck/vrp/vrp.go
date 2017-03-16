@@ -558,7 +558,7 @@ func (g *Graph) Solve() Ranges {
 				v := actives[len(actives)-1]
 				actives = actives[:len(actives)-1]
 				for _, use := range uses[v] {
-					if g.narrow(use, consts) {
+					if g.narrow(use) {
 						actives = append(actives, use.Y())
 					}
 				}
@@ -778,7 +778,7 @@ func (g *Graph) widen(c Constraint, consts []Z) bool {
 	}
 }
 
-func (g *Graph) narrow(c Constraint, consts []Z) bool {
+func (g *Graph) narrow(c Constraint) bool {
 	narrowIntInterval := func(oi, ni IntInterval) (IntInterval, bool) {
 		oLower := oi.Lower
 		oUpper := oi.Upper

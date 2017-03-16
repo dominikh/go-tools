@@ -70,5 +70,5 @@ func main() {
 
 	checker := newChecker(mode)
 	l := unused.NewLintChecker(checker)
-	lintutil.ProcessFlagSet("unused", l, fs)
+	lintutil.ProcessFlagSet(l, fs)
 }
