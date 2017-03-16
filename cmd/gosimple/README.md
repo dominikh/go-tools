@@ -64,6 +64,7 @@ constructs:
 | S1025 | `fmt.Sprintf("%s", x)` where `x` is already a string                        | `x`                                                                    |
 |       | `fmt.Sprintf("%s", x)` where `x`'s underlying type is a string              | `string(x)`                                                            |
 |       | `fmt.Sprintf("%s", x)` where `x` has a String method                        | `x.String()`                                                           |
+| S1026 | Copies of strings, like `string([]byte(x))` or `"" + x`                     | `x`                                                                    |
 
 ## gofmt -r
 
