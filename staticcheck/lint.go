@@ -870,11 +870,16 @@ func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
 
 func (c *Checker) CheckScopedBreak(j *lint.Job) {
 	fn := func(node ast.Node) bool {
-		loop, ok := node.(*ast.ForStmt)
-		if !ok {
+		var body *ast.BlockStmt
+		switch node := node.(type) {
+		case *ast.ForStmt:
+			body = node.Body
+		case *ast.RangeStmt:
+			body = node.Body
+		default:
 			return true
 		}
-		for _, stmt := range loop.Body.List {
+		for _, stmt := range body.List {
 			var blocks [][]ast.Stmt
 			switch stmt := stmt.(type) {
 			case *ast.SwitchStmt:

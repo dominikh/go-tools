@@ -6,6 +6,8 @@ func fn() {
 		switch {
 		case true:
 			break // MATCH /ineffective break statement/
+		default:
+			break // MATCH /ineffective break statement/
 		}
 	}
 
@@ -58,6 +60,13 @@ label:
 		switch {
 		case true:
 			break label
+		}
+	}
+
+	for range ([]int)(nil) {
+		switch {
+		default:
+			break // MATCH /ineffective break statement/
 		}
 	}
 }
