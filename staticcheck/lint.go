@@ -254,6 +254,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA5007": c.CheckInfiniteRecursion,
 
 		"SA6000": c.callChecker(checkRegexpMatchLoopRules),
+		"SA6001": c.CheckMapBytesKey,
 
 		"SA9000": c.callChecker(checkDubiousSyncPoolSizeRules),
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
@@ -2601,5 +2602,56 @@ func (c *Checker) CheckEmptyBranch(j *lint.Job) {
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
 		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckMapBytesKey(j *lint.Job) {
+	for _, fn := range j.Program.InitialFunctions {
+		for _, b := range fn.Blocks {
+		insLoop:
+			for _, ins := range b.Instrs {
+				// find []byte -> string conversions
+				conv, ok := ins.(*ssa.Convert)
+				if !ok || conv.Type() != types.Universe.Lookup("string").Type() {
+					continue
+				}
+				if s, ok := conv.X.Type().(*types.Slice); !ok || s.Elem() != types.Universe.Lookup("byte").Type() {
+					continue
+				}
+				refs := conv.Referrers()
+				// need at least two (DebugRef) references: the
+				// conversion and the *ast.Ident
+				if refs == nil || len(*refs) < 2 {
+					continue
+				}
+				ident := false
+				// skip first reference, that's the conversion itself
+				for _, ref := range (*refs)[1:] {
+					switch ref := ref.(type) {
+					case *ssa.DebugRef:
+						if _, ok := ref.Expr.(*ast.Ident); !ok {
+							// the string seems to be used somewhere
+							// unexpected; the default branch should
+							// catch this already, but be safe
+							continue insLoop
+						} else {
+							ident = true
+						}
+					case *ssa.Lookup:
+					default:
+						// the string is used somewhere else than a
+						// map lookup
+						continue insLoop
+					}
+				}
+
+				// the result of the conversion wasn't assigned to an
+				// identifier
+				if !ident {
+					continue
+				}
+				j.Errorf(conv, "m[string(key)] would be more efficient than k := string(key); m[k]")
+			}
+		}
 	}
 }

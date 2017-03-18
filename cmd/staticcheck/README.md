@@ -108,6 +108,7 @@ The following things are currently checked by staticcheck:
 |                                                                                                |                                                                                                                                                       |
 | **SA6???**                                                                                     | **Performance issues**                                                                                                                                |
 | SA6000                                                                                         | Using `regexp.Match` or related in a loop, should use `regexp.Compile`                                                                                |
+| [SA6001](#sa6001--maps-and-byte-keys)                                                          | Missing an optimization opportunity when indexing maps by byte slices                                                                                 |
 |                                                                                                |                                                                                                                                                       |
 | **SA9???**                                                                                     | **Dubious code constructs that have a high probability of being wrong**                                                                               |
 | [SA9000](#sa9000--storing-non-pointer-values-in-syncpool-allocates-memory)                     | Storing non-pointer values in sync.Pool allocates memory                                                                                              |
@@ -190,6 +191,37 @@ exit condition. It can also happen "on purpose". Some languages have
 [tail call optimization](https://en.wikipedia.org/wiki/Tail_call)
 which makes certain infinite recursive calls safe to use. Go, however,
 does not implement TCO, and as such a loop should be used instead.
+
+### SA6001 – maps and []byte keys
+
+Map keys must be comparable, which precludes the use of []byte. This
+usually leads to using string keys and converting []bytes to
+strings.
+
+Normally, a conversion of []byte to string needs to copy the data and
+causes allocations. The compiler, however, recognizes `m[string(b)]`
+and uses the data of `b` directly, without copying it, because it
+knows that the data can't change during the map lookup. This leads
+to the counter-intuitive situation that
+
+```
+k := string(b)
+println(m[k])
+println(m[k])
+```
+
+will be less efficient than
+
+```
+println(m[string(b)])
+println(m[string(b)])
+```
+
+because the first version needs to copy and allocate, while the second
+one does not.
+
+For some history on this optimization, check out commit
+[f5f5a8b6209f84961687d993b93ea0d397f5d5bf](https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf).
 
 ### SA9000 – Storing non-pointer values in sync.Pool allocates memory
 A `sync.Pool` is used to avoid unnecessary allocations and reduce the
