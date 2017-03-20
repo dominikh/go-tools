@@ -395,13 +395,6 @@ func (j *Job) NodePackage(node Positioner) *Pkg {
 	return j.Program.astFileMap[f]
 }
 
-func (j *Job) EnclosingSSAFunction(node Positioner) *ssa.Function {
-	f := j.File(node)
-	path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
-	pkg := j.Program.astFileMap[f]
-	return ssa.EnclosingFunction(pkg.Package, path)
-}
-
 func IsGenerated(f *ast.File) bool {
 	comments := f.Comments
 	if len(comments) > 0 {

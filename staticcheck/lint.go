@@ -1560,7 +1560,7 @@ func (c *Checker) CheckLoopCondition(j *lint.Job) {
 			return true
 		}
 
-		ssafn := j.EnclosingSSAFunction(cond)
+		ssafn := c.nodeFns[cond]
 		if ssafn == nil {
 			return true
 		}
