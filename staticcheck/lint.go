@@ -1319,18 +1319,20 @@ func (c *Checker) CheckIneffecitiveFieldAssignments(j *lint.Job) {
 
 func (c *Checker) CheckUnreadVariableValues(j *lint.Job) {
 	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
+		switch node.(type) {
+		case *ast.FuncDecl, *ast.FuncLit:
+		default:
 			return true
 		}
-		ssafn := c.nodeFns[fn]
+
+		ssafn := c.nodeFns[node]
 		if ssafn == nil {
 			return true
 		}
 		if lint.IsExample(ssafn) {
 			return true
 		}
-		ast.Inspect(fn, func(node ast.Node) bool {
+		ast.Inspect(node, func(node ast.Node) bool {
 			assign, ok := node.(*ast.AssignStmt)
 			if !ok {
 				return true
@@ -1602,21 +1604,27 @@ func (c *Checker) CheckLoopCondition(j *lint.Job) {
 
 func (c *Checker) CheckArgOverwritten(j *lint.Job) {
 	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
+		var typ *ast.FuncType
+		var body *ast.BlockStmt
+		switch fn := node.(type) {
+		case *ast.FuncDecl:
+			typ = fn.Type
+			body = fn.Body
+		case *ast.FuncLit:
+			typ = fn.Type
+			body = fn.Body
+		}
+		if body == nil {
 			return true
 		}
-		if fn.Body == nil {
-			return true
-		}
-		ssafn := c.nodeFns[fn]
+		ssafn := c.nodeFns[node]
 		if ssafn == nil {
 			return true
 		}
-		if len(fn.Type.Params.List) == 0 {
+		if len(typ.Params.List) == 0 {
 			return true
 		}
-		for _, field := range fn.Type.Params.List {
+		for _, field := range typ.Params.List {
 			for _, arg := range field.Names {
 				obj := j.Program.Info.ObjectOf(arg)
 				var ssaobj *ssa.Parameter
@@ -1638,7 +1646,7 @@ func (c *Checker) CheckArgOverwritten(j *lint.Job) {
 				}
 
 				assigned := false
-				ast.Inspect(fn.Body, func(node ast.Node) bool {
+				ast.Inspect(body, func(node ast.Node) bool {
 					assign, ok := node.(*ast.AssignStmt)
 					if !ok {
 						return true
@@ -1677,15 +1685,20 @@ func (c *Checker) CheckIneffectiveLoop(j *lint.Job) {
 	// - any nested, unlabelled continue, even if it is in another
 	// loop or closure.
 	fn := func(node ast.Node) bool {
-		fn, ok := node.(*ast.FuncDecl)
-		if !ok {
+		var body *ast.BlockStmt
+		switch fn := node.(type) {
+		case *ast.FuncDecl:
+			body = fn.Body
+		case *ast.FuncLit:
+			body = fn.Body
+		default:
 			return true
 		}
-		if fn.Body == nil {
+		if body == nil {
 			return true
 		}
 		labels := map[*ast.Object]ast.Stmt{}
-		ast.Inspect(fn.Body, func(node ast.Node) bool {
+		ast.Inspect(body, func(node ast.Node) bool {
 			label, ok := node.(*ast.LabeledStmt)
 			if !ok {
 				return true
@@ -1694,7 +1707,7 @@ func (c *Checker) CheckIneffectiveLoop(j *lint.Job) {
 			return true
 		})
 
-		ast.Inspect(fn.Body, func(node ast.Node) bool {
+		ast.Inspect(body, func(node ast.Node) bool {
 			var loop ast.Node
 			var body *ast.BlockStmt
 			switch node := node.(type) {
