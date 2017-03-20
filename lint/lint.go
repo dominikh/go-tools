@@ -505,7 +505,7 @@ func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
 	case *ast.CallExpr:
 		v.m[node] = v.pkg.Func("init")
 		return v
-	case *ast.FuncDecl:
+	case *ast.FuncDecl, *ast.FuncLit:
 		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
 		return nv.Visit(node)
 	default:
