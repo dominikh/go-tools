@@ -1327,6 +1327,9 @@ func (c *Checker) CheckUnreadVariableValues(j *lint.Job) {
 		if ssafn == nil {
 			return true
 		}
+		if lint.IsExample(ssafn) {
+			return true
+		}
 		ast.Inspect(fn, func(node ast.Node) bool {
 			assign, ok := node.(*ast.AssignStmt)
 			if !ok {
