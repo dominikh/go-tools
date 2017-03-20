@@ -1979,10 +1979,10 @@ func (c *Checker) CheckSliceOutOfBounds(j *lint.Job) {
 func (c *Checker) CheckDeferLock(j *lint.Job) {
 	for _, ssafn := range j.Program.InitialFunctions {
 		for _, block := range ssafn.Blocks {
-			if len(block.Instrs) < 2 {
+			instrs := lint.FilterDebug(block.Instrs)
+			if len(instrs) < 2 {
 				continue
 			}
-			instrs := lint.FilterDebug(block.Instrs)
 			for i, ins := range instrs[:len(instrs)-1] {
 				call, ok := ins.(*ssa.Call)
 				if !ok {
