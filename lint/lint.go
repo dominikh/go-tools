@@ -261,6 +261,17 @@ type packager interface {
 	Package() *ssa.Package
 }
 
+func IsExample(fn *ssa.Function) bool {
+	if !strings.HasPrefix(fn.Name(), "Example") {
+		return false
+	}
+	f := fn.Prog.Fset.File(fn.Pos())
+	if f == nil {
+		return false
+	}
+	return strings.HasSuffix(f.Name(), "_test.go")
+}
+
 func (j *Job) IsInTest(node Positioner) bool {
 	f := j.Program.SSA.Fset.File(node.Pos())
 	return f != nil && strings.HasSuffix(f.Name(), "_test.go")

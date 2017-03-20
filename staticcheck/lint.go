@@ -2587,6 +2587,10 @@ func (c *Checker) CheckEmptyBranch(j *lint.Job) {
 		if !ok {
 			return true
 		}
+		ssafn := c.nodeFns[node]
+		if lint.IsExample(ssafn) {
+			return true
+		}
 		if ifstmt.Else != nil {
 			b, ok := ifstmt.Else.(*ast.BlockStmt)
 			if !ok || len(b.List) != 0 {
