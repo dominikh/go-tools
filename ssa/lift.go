@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package ssa
 
 // This file defines the lifting pass which tries to "lift" Alloc
@@ -36,6 +38,9 @@ package ssa
 // Consider exploiting liveness information to avoid creating dead
 // φ-nodes which we then immediately remove.
 //
+// Integrate lifting with scalar replacement of aggregates (SRA) since
+// the two are synergistic.
+//
 // Also see many other "TODO: opt" suggestions in the code.
 
 import (
@@ -46,8 +51,8 @@ import (
 	"os"
 )
 
-// If true, show diagnostic information at each step of lifting.
-// Very verbose.
+// If true, perform sanity checking and show diagnostic information at
+// each step of lifting.  Very verbose.
 const debugLifting = false
 
 // domFrontier maps each block to the set of blocks in its dominance
@@ -123,7 +128,7 @@ func removeInstr(refs []Instruction, instr Instruction) []Instruction {
 	return refs[:i]
 }
 
-// lift replaces local and new Allocs accessed only with
+// lift attempts to replace local and new Allocs accessed only with
 // load/store by SSA registers, inserting φ-nodes where necessary.
 // The result is a program in classical pruned SSA form.
 //
@@ -179,11 +184,6 @@ func lift(fn *Function) {
 	// instructions.
 	usesDefer := false
 
-	// A counter used to generate ~unique ids for Phi nodes, as an
-	// aid to debugging.  We use large numbers to make them highly
-	// visible.  All nodes are renumbered later.
-	fresh := 1000
-
 	// Determine which allocs we can lift and number them densely.
 	// The renaming phase uses this numbering for compact maps.
 	numAllocs := 0
@@ -194,7 +194,7 @@ func lift(fn *Function) {
 			switch instr := instr.(type) {
 			case *Alloc:
 				index := -1
-				if liftAlloc(df, instr, newPhis, &fresh) {
+				if liftAlloc(df, instr, newPhis) {
 					index = numAllocs
 					numAllocs++
 				}
@@ -217,13 +217,29 @@ func lift(fn *Function) {
 	// Renaming.
 	rename(fn.Blocks[0], renaming, newPhis)
 
-	// Eliminate dead φ-nodes.
-	removeDeadPhis(newPhis)
-
-	// Prepend remaining live φ-nodes to each block.
+	// Eliminate dead new phis, then prepend the live ones to each block.
 	for _, b := range fn.Blocks {
+
+		// Compress the newPhis slice to eliminate unused phis.
+		// TODO(adonovan): opt: compute liveness to avoid
+		// placing phis in blocks for which the alloc cell is
+		// not live.
 		nps := newPhis[b]
-		j := len(nps)
+		j := 0
+		for _, np := range nps {
+			if !phiIsLive(np.phi) {
+				// discard it, first removing it from referrers
+				for _, newval := range np.phi.Edges {
+					if refs := newval.Referrers(); refs != nil {
+						*refs = removeInstr(*refs, np.phi)
+					}
+				}
+				continue
+			}
+			nps[j] = np
+			j++
+		}
+		nps = nps[:j]
 
 		rundefersToKill := b.rundefers
 		if usesDefer {
@@ -235,8 +251,8 @@ func lift(fn *Function) {
 		}
 
 		// Compact nps + non-nil Instrs into a new slice.
-		// TODO(adonovan): opt: compact in situ (rightwards)
-		// if Instrs has sufficient space or slack.
+		// TODO(adonovan): opt: compact in situ if there is
+		// sufficient space or slack in the slice.
 		dst := make([]Instruction, len(b.Instrs)+j-b.gaps-rundefersToKill)
 		for i, np := range nps {
 			dst[i] = np.phi
@@ -252,6 +268,9 @@ func lift(fn *Function) {
 			}
 			dst[j] = instr
 			j++
+		}
+		for i, np := range nps {
+			dst[i] = np.phi
 		}
 		b.Instrs = dst
 	}
@@ -271,67 +290,15 @@ func lift(fn *Function) {
 	fn.Locals = fn.Locals[:j]
 }
 
-// removeDeadPhis removes φ-nodes not transitively needed by a
-// non-Phi, non-DebugRef instruction.
-func removeDeadPhis(newPhis newPhiMap) {
-	// First pass: compute reachability from non-Phi/DebugRef instructions.
-	livePhis := make(map[*Phi]bool)
-	for _, npList := range newPhis {
-		for _, np := range npList {
-			phi := np.phi
-			if !livePhis[phi] && phiHasDirectReferrer(phi) {
-				markLivePhi(livePhis, phi)
-			}
-		}
-	}
-
-	// Second pass: eliminate unused phis from newPhis.
-	for block, npList := range newPhis {
-		j := 0
-		for _, np := range npList {
-			if livePhis[np.phi] {
-				npList[j] = np
-				j++
-			} else {
-				// discard it, first removing it from referrers
-				for _, val := range np.phi.Edges {
-					if refs := val.Referrers(); refs != nil {
-						*refs = removeInstr(*refs, np.phi)
-					}
-				}
-				// This may leave DebugRef instructions referring to
-				// Phis that aren't in the control flow graph.
-				// TODO(adonovan): we should delete them.
-			}
-		}
-		newPhis[block] = npList[:j]
-	}
-}
-
-// markLivePhi marks phi, and all φ-nodes transitively reachable via
-// its Operands, live.
-func markLivePhi(livePhis map[*Phi]bool, phi *Phi) {
-	livePhis[phi] = true
-	for _, rand := range phi.Operands(nil) {
-		if q, ok := (*rand).(*Phi); ok {
-			if !livePhis[q] {
-				markLivePhi(livePhis, q)
-			}
-		}
-	}
-}
-
-// phiHasDirectReferrer reports whether phi is directly referred to by
-// a non-Phi, non-DebugRef instruction.  Such instructions are the
-// roots of the liveness traversal.
-func phiHasDirectReferrer(phi *Phi) bool {
+func phiIsLive(phi *Phi) bool {
 	for _, instr := range *phi.Referrers() {
-		switch instr.(type) {
-		case *Phi, *DebugRef:
-			// ignore
-		default:
-			return true
+		if instr == phi {
+			continue // self-refs don't count
 		}
+		if _, ok := instr.(*DebugRef); ok {
+			continue // debug refs don't count
+		}
+		return true
 	}
 	return false
 }
@@ -376,9 +343,7 @@ type newPhiMap map[*BasicBlock][]newPhi
 // and if so, it populates newPhis with all the φ-nodes it may require
 // and returns true.
 //
-// fresh is a source of fresh ids for phi nodes.
-//
-func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool {
+func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 	// Don't lift aggregates into registers, because we don't have
 	// a way to express their zero-constants.
 	switch deref(alloc.Type()).Underlying().(type) {
@@ -461,10 +426,6 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 					Edges:   make([]Value, len(v.Preds)),
 					Comment: alloc.Comment,
 				}
-				// This is merely a debugging aid:
-				phi.setNum(*fresh)
-				*fresh++
-
 				phi.pos = alloc.Pos()
 				phi.setType(deref(alloc.Type()))
 				phi.block = v

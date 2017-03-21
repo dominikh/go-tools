@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package ssa
 
 // This file defines a number of miscellaneous utility functions.
@@ -58,7 +60,7 @@ func recvType(obj *types.Func) types.Type {
 //
 // Exported to ssa/interp.
 //
-// TODO(adonovan): use go/types.DefaultType after 1.8.
+// TODO(gri): this is a copy of go/types.defaultType; export that function.
 //
 func DefaultType(typ types.Type) types.Type {
 	if t, ok := typ.(*types.Basic); ok {
