@@ -1039,6 +1039,17 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 }
 
 func (c *Checker) CheckEmptyCriticalSection(j *lint.Job) {
+	// Initially it might seem like this check would be easier to
+	// implement in SSA. After all, we're only checking for two
+	// consecutive method calls. In reality, however, there may be any
+	// number of other instructions between the lock and unlock, while
+	// still constituting an empty critical section. For example,
+	// given `m.x().Lock(); m.x().Unlock()`, there will be a call to
+	// x(). In the AST-based approach, this has a tiny potential for a
+	// false positive (the second call to x might be doing work that
+	// is protected by the mutex). In an SSA-based approach, however,
+	// it would miss a lot of real bugs.
+
 	mutexParams := func(s ast.Stmt) (x ast.Expr, funcName string, ok bool) {
 		expr, ok := s.(*ast.ExprStmt)
 		if !ok {
