@@ -164,30 +164,20 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 	}
 	if goFiles {
 		conf.CreateFromFilenames("adhoc", paths...)
-		lprog, err := conf.Load()
-		if err != nil {
-			log.Fatal(err)
-		}
-		ps := runner.lint(lprog)
-		for _, p := range ps {
-			runner.unclean = true
-			pos := lprog.Fset.Position(p.Position)
-			fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
-		}
 	} else {
 		for _, path := range paths {
 			conf.ImportPkgs[path] = tests
 		}
-		lprog, err := conf.Load()
-		if err != nil {
-			log.Fatal(err)
-		}
-		ps := runner.lint(lprog)
-		for _, p := range ps {
-			runner.unclean = true
-			pos := lprog.Fset.Position(p.Position)
-			fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
-		}
+	}
+	lprog, err := conf.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ps := runner.lint(lprog)
+	for _, p := range ps {
+		runner.unclean = true
+		pos := lprog.Fset.Position(p.Position)
+		fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
 	}
 	if runner.unclean {
 		os.Exit(1)
