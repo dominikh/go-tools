@@ -10,7 +10,6 @@ import (
 	"go/types"
 	htmltemplate "html/template"
 	"net/http"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -290,24 +289,21 @@ func (c *Checker) Init(prog *lint.Program) {
 
 	c.nodeFns = lint.NodeFns(prog.Packages)
 
-	chDeprecated := make(chan struct {
-		obj types.Object
-		msg string
-	}, runtime.NumCPU()*2)
+	deprecated := []map[types.Object]string{}
 	wg := &sync.WaitGroup{}
 	for _, pkginfo := range prog.Prog.AllPackages {
 		pkginfo := pkginfo
 		scope := pkginfo.Pkg.Scope()
 		names := scope.Names()
 		wg.Add(1)
-		go func() {
+
+		m := map[types.Object]string{}
+		deprecated = append(deprecated, m)
+		go func(m map[types.Object]string) {
 			for _, name := range names {
 				obj := scope.Lookup(name)
 				msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, obj)
-				chDeprecated <- struct {
-					obj types.Object
-					msg string
-				}{obj, msg}
+				m[obj] = msg
 				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
 					n := typ.NumFields()
 					for i := 0; i < n; i++ {
@@ -315,22 +311,18 @@ func (c *Checker) Init(prog *lint.Program) {
 						// fields in anonymous structs.
 						field := typ.Field(i)
 						msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, field)
-						chDeprecated <- struct {
-							obj types.Object
-							msg string
-						}{field, msg}
+						m[field] = msg
 					}
 				}
 			}
 			wg.Done()
-		}()
+		}(m)
 	}
-	go func() {
-		wg.Wait()
-		close(chDeprecated)
-	}()
-	for dep := range chDeprecated {
-		c.deprecatedObjs[dep.obj] = dep.msg
+	wg.Wait()
+	for _, m := range deprecated {
+		for k, v := range m {
+			c.deprecatedObjs[k] = v
+		}
 	}
 }
 
