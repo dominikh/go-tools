@@ -303,7 +303,9 @@ func (c *Checker) Init(prog *lint.Program) {
 			for _, name := range names {
 				obj := scope.Lookup(name)
 				msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, obj)
-				m[obj] = msg
+				if msg != "" {
+					m[obj] = msg
+				}
 				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
 					n := typ.NumFields()
 					for i := 0; i < n; i++ {
@@ -311,7 +313,9 @@ func (c *Checker) Init(prog *lint.Program) {
 						// fields in anonymous structs.
 						field := typ.Field(i)
 						msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, field)
-						m[field] = msg
+						if msg != "" {
+							m[field] = msg
+						}
 					}
 				}
 			}
