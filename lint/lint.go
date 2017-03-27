@@ -470,16 +470,15 @@ func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
 	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)
 	for _, pkg := range pkgs {
 		pkg := pkg
-		for _, f := range pkg.Info.Files {
-			f := f
-			wg.Add(1)
-			go func() {
-				m := map[ast.Node]*ssa.Function{}
+		wg.Add(1)
+		go func() {
+			m := map[ast.Node]*ssa.Function{}
+			for _, f := range pkg.Info.Files {
 				ast.Walk(&globalVisitor{m, pkg, f}, f)
-				chNodeFns <- m
-				wg.Done()
-			}()
-		}
+			}
+			chNodeFns <- m
+			wg.Done()
+		}()
 	}
 	go func() {
 		wg.Wait()

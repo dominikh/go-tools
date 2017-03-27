@@ -281,22 +281,12 @@ func (c *Checker) Init(prog *lint.Program) {
 	c.deprecatedObjs = map[types.Object]string{}
 	c.nodeFns = map[ast.Node]*ssa.Function{}
 
-	fns := prog.AllFunctions
-
-	var pwg sync.WaitGroup
-	var processFn func(*ssa.Function)
-	processFn = func(fn *ssa.Function) {
+	for _, fn := range prog.AllFunctions {
 		if fn.Blocks != nil {
 			applyStdlibKnowledge(fn)
 			ssa.OptimizeBlocks(fn)
 		}
-		pwg.Done()
 	}
-	for _, fn := range fns {
-		pwg.Add(1)
-		go processFn(fn)
-	}
-	pwg.Wait()
 
 	c.nodeFns = lint.NodeFns(prog.Packages)
 
