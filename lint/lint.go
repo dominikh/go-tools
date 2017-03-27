@@ -150,17 +150,10 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 		pkgs = append(pkgs, pkg)
 	}
 	prog := &Program{
-		SSA:      ssaprog,
-		Prog:     lprog,
-		Packages: pkgs,
-		Info: &types.Info{
-			Types:      map[ast.Expr]types.TypeAndValue{},
-			Defs:       map[*ast.Ident]types.Object{},
-			Uses:       map[*ast.Ident]types.Object{},
-			Implicits:  map[ast.Node]types.Object{},
-			Selections: map[*ast.SelectorExpr]*types.Selection{},
-			Scopes:     map[ast.Node]*types.Scope{},
-		},
+		SSA:          ssaprog,
+		Prog:         lprog,
+		Packages:     pkgs,
+		Info:         &types.Info{},
 		GoVersion:    l.GoVersion,
 		tokenFileMap: map[*token.File]*ast.File{},
 		astFileMap:   map[*ast.File]*Pkg{},
@@ -188,6 +181,29 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			prog.astFileMap[f] = pkgMap[ssapkg]
 		}
 	}
+
+	sizes := struct {
+		types      int
+		defs       int
+		uses       int
+		implicits  int
+		selections int
+		scopes     int
+	}{}
+	for _, pkg := range pkgs {
+		sizes.types += len(pkg.Info.Info.Types)
+		sizes.defs += len(pkg.Info.Info.Defs)
+		sizes.uses += len(pkg.Info.Info.Uses)
+		sizes.implicits += len(pkg.Info.Info.Implicits)
+		sizes.selections += len(pkg.Info.Info.Selections)
+		sizes.scopes += len(pkg.Info.Info.Scopes)
+	}
+	prog.Info.Types = make(map[ast.Expr]types.TypeAndValue, sizes.types)
+	prog.Info.Defs = make(map[*ast.Ident]types.Object, sizes.defs)
+	prog.Info.Uses = make(map[*ast.Ident]types.Object, sizes.uses)
+	prog.Info.Implicits = make(map[ast.Node]types.Object, sizes.implicits)
+	prog.Info.Selections = make(map[*ast.SelectorExpr]*types.Selection, sizes.selections)
+	prog.Info.Scopes = make(map[ast.Node]*types.Scope, sizes.scopes)
 	for _, pkg := range pkgs {
 		for k, v := range pkg.Info.Info.Types {
 			prog.Info.Types[k] = v
