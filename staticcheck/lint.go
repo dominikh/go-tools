@@ -299,10 +299,9 @@ func (c *Checker) Init(prog *lint.Program) {
 		pkginfo := pkginfo
 		scope := pkginfo.Pkg.Scope()
 		names := scope.Names()
-		for _, name := range names {
-			name := name
-			wg.Add(1)
-			go func() {
+		wg.Add(1)
+		go func() {
+			for _, name := range names {
 				obj := scope.Lookup(name)
 				msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, obj)
 				chDeprecated <- struct {
@@ -322,9 +321,9 @@ func (c *Checker) Init(prog *lint.Program) {
 						}{field, msg}
 					}
 				}
-				wg.Done()
-			}()
-		}
+			}
+			wg.Done()
+		}()
 	}
 	go func() {
 		wg.Wait()
