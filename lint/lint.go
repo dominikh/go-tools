@@ -166,8 +166,8 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 		astFileMap:   map[*ast.File]*Pkg{},
 	}
 	initial := map[*types.Package]struct{}{}
-	for _, pkg := range lprog.InitialPackages() {
-		initial[pkg.Pkg] = struct{}{}
+	for _, pkg := range pkgs {
+		initial[pkg.Info.Pkg] = struct{}{}
 	}
 	for fn := range ssautil.AllFunctions(ssaprog) {
 		if fn.Pkg == nil {
@@ -178,33 +178,33 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			prog.InitialFunctions = append(prog.InitialFunctions, fn)
 		}
 	}
-	for _, pkginfo := range lprog.InitialPackages() {
-		prog.Files = append(prog.Files, pkginfo.Files...)
+	for _, pkg := range pkgs {
+		prog.Files = append(prog.Files, pkg.Info.Files...)
 
-		ssapkg := ssaprog.Package(pkginfo.Pkg)
-		for _, f := range pkginfo.Files {
+		ssapkg := ssaprog.Package(pkg.Info.Pkg)
+		for _, f := range pkg.Info.Files {
 			tf := lprog.Fset.File(f.Pos())
 			prog.tokenFileMap[tf] = f
 			prog.astFileMap[f] = pkgMap[ssapkg]
 		}
 	}
-	for _, pkginfo := range lprog.InitialPackages() {
-		for k, v := range pkginfo.Info.Types {
+	for _, pkg := range pkgs {
+		for k, v := range pkg.Info.Info.Types {
 			prog.Info.Types[k] = v
 		}
-		for k, v := range pkginfo.Info.Defs {
+		for k, v := range pkg.Info.Info.Defs {
 			prog.Info.Defs[k] = v
 		}
-		for k, v := range pkginfo.Info.Uses {
+		for k, v := range pkg.Info.Info.Uses {
 			prog.Info.Uses[k] = v
 		}
-		for k, v := range pkginfo.Info.Implicits {
+		for k, v := range pkg.Info.Info.Implicits {
 			prog.Info.Implicits[k] = v
 		}
-		for k, v := range pkginfo.Info.Selections {
+		for k, v := range pkg.Info.Info.Selections {
 			prog.Info.Selections[k] = v
 		}
-		for k, v := range pkginfo.Info.Scopes {
+		for k, v := range pkg.Info.Info.Scopes {
 			prog.Info.Scopes[k] = v
 		}
 	}
