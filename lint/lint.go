@@ -165,17 +165,17 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 		tokenFileMap: map[*token.File]*ast.File{},
 		astFileMap:   map[*ast.File]*Pkg{},
 	}
+	initial := map[*types.Package]struct{}{}
+	for _, pkg := range lprog.InitialPackages() {
+		initial[pkg.Pkg] = struct{}{}
+	}
 	for fn := range ssautil.AllFunctions(ssaprog) {
+		if fn.Pkg == nil {
+			continue
+		}
 		prog.AllFunctions = append(prog.AllFunctions, fn)
-		// TODO(dh): optimize this function
-		for _, pkg := range lprog.InitialPackages() {
-			if fn.Pkg == nil {
-				continue
-			}
-			if fn.Pkg.Pkg == pkg.Pkg {
-				prog.InitialFunctions = append(prog.InitialFunctions, fn)
-				break
-			}
+		if _, ok := initial[fn.Pkg.Pkg]; ok {
+			prog.InitialFunctions = append(prog.InitialFunctions, fn)
 		}
 	}
 	for _, pkginfo := range lprog.InitialPackages() {
