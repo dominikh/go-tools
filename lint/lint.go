@@ -40,8 +40,9 @@ type Ignore struct {
 }
 
 type Program struct {
-	SSA              *ssa.Program
-	Prog             *loader.Program
+	SSA  *ssa.Program
+	Prog *loader.Program
+	// TODO(dh): Rename to InitialPackages?
 	Packages         []*Pkg
 	InitialFunctions []*ssa.Function
 	AllFunctions     []*ssa.Function
