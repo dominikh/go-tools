@@ -788,7 +788,7 @@ func (c *Checker) CheckExec(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !strings.Contains(val, " ") || strings.Contains(val, `\`) {
+		if !strings.Contains(val, " ") || strings.Contains(val, `\`) || strings.Contains(val, "/") {
 			return true
 		}
 		j.Errorf(call.Args[0], "first argument to exec.Command looks like a shell command, but a program name or path are expected")
