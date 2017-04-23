@@ -475,7 +475,7 @@ func (c *Checker) CheckUntrappableSignal(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallNameAny(call,
+		if !j.IsCallToAnyAST(call,
 			"os/signal.Ignore", "os/signal.Notify", "os/signal.Reset") {
 			return true
 		}
@@ -921,7 +921,7 @@ func (c *Checker) CheckUnsafePrintf(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallNameAny(call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
+		if !j.IsCallToAnyAST(call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
 			return true
 		}
 		if len(call.Args) != 1 {

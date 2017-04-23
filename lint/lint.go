@@ -439,7 +439,7 @@ func (j *Job) IsCallToAST(node ast.Node, name string) bool {
 	return ok && fn.FullName() == name
 }
 
-func (j *Job) IsFunctionCallNameAny(node ast.Node, names ...string) bool {
+func (j *Job) IsCallToAnyAST(node ast.Node, names ...string) bool {
 	for _, name := range names {
 		if j.IsCallToAST(node, name) {
 			return true
