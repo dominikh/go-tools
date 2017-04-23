@@ -505,16 +505,16 @@ func (c *Checker) CheckTemplate(j *lint.Job) {
 			return true
 		}
 		var kind string
-		if j.IsFunctionCallName(call, "(*text/template.Template).Parse") {
+		if j.IsCallToAST(call, "(*text/template.Template).Parse") {
 			kind = "text"
-		} else if j.IsFunctionCallName(call, "(*html/template.Template).Parse") {
+		} else if j.IsCallToAST(call, "(*html/template.Template).Parse") {
 			kind = "html"
 		} else {
 			return true
 		}
 		sel := call.Fun.(*ast.SelectorExpr)
-		if !j.IsFunctionCallName(sel.X, "text/template.New") &&
-			!j.IsFunctionCallName(sel.X, "html/template.New") {
+		if !j.IsCallToAST(sel.X, "text/template.New") &&
+			!j.IsCallToAST(sel.X, "html/template.New") {
 			// TODO(dh): this is a cheap workaround for templates with
 			// different delims. A better solution with less false
 			// negatives would use data flow analysis to see where the
@@ -551,7 +551,7 @@ func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "time.Sleep") {
+		if !j.IsCallToAST(call, "time.Sleep") {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -739,7 +739,7 @@ func (c *Checker) CheckTestMainExit(j *lint.Job) {
 
 		callsExit := false
 		fn3 := func(node ast.Node) bool {
-			if j.IsFunctionCallName(node, "os.Exit") {
+			if j.IsCallToAST(node, "os.Exit") {
 				callsExit = true
 				return false
 			}
@@ -781,7 +781,7 @@ func (c *Checker) CheckExec(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "os/exec.Command") {
+		if !j.IsCallToAST(call, "os/exec.Command") {
 			return true
 		}
 		val, ok := j.ExprToString(call.Args[0])

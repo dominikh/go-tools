@@ -323,7 +323,7 @@ func (c *Checker) LintBytesCompare(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "bytes.Compare") {
+		if !j.IsCallToAST(call, "bytes.Compare") {
 			return true
 		}
 		value, ok := j.ExprToInt(expr.Y)
@@ -386,8 +386,8 @@ func (c *Checker) LintRegexpRaw(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "regexp.MustCompile") &&
-			!j.IsFunctionCallName(call, "regexp.Compile") {
+		if !j.IsCallToAST(call, "regexp.MustCompile") &&
+			!j.IsCallToAST(call, "regexp.Compile") {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -776,7 +776,7 @@ func (c *Checker) LintTimeSince(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(sel.X, "time.Now") {
+		if !j.IsCallToAST(sel.X, "time.Now") {
 			return true
 		}
 		if sel.Sel.Name != "Sub" {
@@ -799,10 +799,10 @@ func (c *Checker) LintTimeUntil(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "(time.Time).Sub") {
+		if !j.IsCallToAST(call, "(time.Time).Sub") {
 			return true
 		}
-		if !j.IsFunctionCallName(call.Args[0], "time.Now") {
+		if !j.IsCallToAST(call.Args[0], "time.Now") {
 			return true
 		}
 		j.Errorf(call, "should use time.Until instead of t.Sub(time.Now())")
@@ -998,7 +998,7 @@ func (c *Checker) LintFormatInt(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "strconv.FormatInt") {
+		if !j.IsCallToAST(call, "strconv.FormatInt") {
 			return true
 		}
 		if len(call.Args) != 2 {
@@ -1678,7 +1678,7 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !j.IsFunctionCallName(call, "fmt.Sprintf") {
+		if !j.IsCallToAST(call, "fmt.Sprintf") {
 			return true
 		}
 		if len(call.Args) != 2 {
