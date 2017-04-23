@@ -58,6 +58,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1025": c.LintRedundantSprintf,
 		"S1026": c.LintStringCopy,
 		"S1027": c.LintRedundantReturn,
+		"S1028": c.LintErrorsNewSprintf,
 	}
 }
 
@@ -1795,6 +1796,23 @@ func (c *Checker) LintRedundantReturn(j *lint.Job) {
 		// we don't need to check rst.Results as we already
 		// checked x.Type.Results to be nil.
 		j.Errorf(rst, "redundant return statement")
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		if !j.IsCallToAST(node, "errors.New") {
+			return true
+		}
+		call := node.(*ast.CallExpr)
+		if !j.IsCallToAST(call.Args[0], "fmt.Sprintf") {
+			return true
+		}
+		j.Errorf(node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))")
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {

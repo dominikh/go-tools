@@ -66,6 +66,7 @@ constructs:
 |       | `fmt.Sprintf("%s", x)` where `x` has a String method                        | `x.String()`                                                           |
 | S1026 | Copies of strings, like `string([]byte(x))` or `"" + x`                     | `x`                                                                    |
 | S1027 | `return` as the final statement of a func body with no return values        | Functions that don't return anything don't need a final return statement     |
+| S1028 | `errors.New(fmt.Sprintf(...))`                                              | `fmt.Errorf(...)`
 
 ## gofmt -r
 
