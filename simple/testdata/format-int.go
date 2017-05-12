@@ -16,7 +16,7 @@ func fn() {
 
 	strconv.FormatInt(int64(i), 10) // MATCH /strconv.Itoa instead of strconv.FormatInt/
 	strconv.FormatInt(int64(i), 2)
-	strconv.FormatInt(int64(i32), 10) // MATCH /strconv.Itoa instead of strconv.FormatInt/
+	strconv.FormatInt(int64(i32), 10)
 	strconv.FormatInt(int64(i64), 10)
 	strconv.FormatInt(i64, 10)
 	strconv.FormatInt(123, 10)        // MATCH /strconv.Itoa instead of strconv.FormatInt/
@@ -27,7 +27,7 @@ func fn() {
 	strconv.FormatInt(int64(c), 10)   // MATCH /strconv.Itoa instead of strconv.FormatInt/
 	strconv.FormatInt(int64(c32), 10) // MATCH /strconv.Itoa instead of strconv.FormatInt/
 	strconv.FormatInt(c64, 10)
-	strconv.FormatInt(int64(ifn()), 10)   // MATCH /strconv.Itoa instead of strconv.FormatInt/
-	strconv.FormatInt(int64(ifn32()), 10) // MATCH /strconv.Itoa instead of strconv.FormatInt/
+	strconv.FormatInt(int64(ifn()), 10) // MATCH /strconv.Itoa instead of strconv.FormatInt/
+	strconv.FormatInt(int64(ifn32()), 10)
 	strconv.FormatInt(int64(ifn64()), 10)
 }

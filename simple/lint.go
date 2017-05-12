@@ -969,11 +969,7 @@ func (c *Checker) LintFormatInt(j *lint.Job) {
 		if !ok {
 			return false
 		}
-		switch typ.Kind() {
-		case types.Int, types.Int32:
-			return true
-		}
-		return false
+		return typ.Kind() == types.Int
 	}
 	checkConst := func(v *ast.Ident) bool {
 		c, ok := j.Program.Info.ObjectOf(v).(*types.Const)
