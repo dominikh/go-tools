@@ -109,7 +109,7 @@ var (
 		},
 	}
 
-	checkDubiousSyncPoolSizeRules = map[string]CallCheck{
+	checkSyncPoolSizeRules = map[string]CallCheck{
 		"(*sync.Pool).Put": func(call *Call) {
 			// TODO(dh): allow users to pass in a custom build environment
 			sizes := gcsizes.ForArch(build.Default.GOARCH)
@@ -274,8 +274,9 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 		"SA6000": c.callChecker(checkRegexpMatchLoopRules),
 		"SA6001": c.CheckMapBytesKey,
+		"SA6002": c.callChecker(checkSyncPoolSizeRules),
 
-		"SA9000": c.callChecker(checkDubiousSyncPoolSizeRules),
+		"SA9000": nil,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
 		"SA9002": c.CheckNonOctalFileMode,
 		"SA9003": c.CheckEmptyBranch,

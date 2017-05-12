@@ -110,12 +110,13 @@ The following things are currently checked by staticcheck:
 | **SA6???**                                                                                     | **Performance issues**                                                                                                                                |
 | SA6000                                                                                         | Using `regexp.Match` or related in a loop, should use `regexp.Compile`                                                                                |
 | [SA6001](#sa6001--maps-and-byte-keys)                                                          | Missing an optimization opportunity when indexing maps by byte slices                                                                                 |
+| [SA6002](#sa6002--storing-non-pointer-values-in-syncpool-allocates-memory)                     | Storing non-pointer values in sync.Pool allocates memory                                                                                              |
 |                                                                                                |                                                                                                                                                       |
 | **SA9???**                                                                                     | **Dubious code constructs that have a high probability of being wrong**                                                                               |
-| [SA9000](#sa9000--storing-non-pointer-values-in-syncpool-allocates-memory)                     | Storing non-pointer values in sync.Pool allocates memory                                                                                              |
+| ~~SA9000~~                                                                                     | ~~Storing non-pointer values in sync.Pool allocates memory~~                                                                                          |
 | SA9001                                                                                         | `defer`s in `for range` loops may not run when you expect them to                                                                                     |
 | SA9002                                                                                         | Using a non-octal `os.FileMode`  that looks like it was meant to be in octal.                                                                         |
-| SA9003                                                                                         | Empty body in an if or else branch
+| SA9003                                                                                         | Empty body in an if or else branch                                                                                                                    |
 
 ### SA1005 – Invalid first argument to exec.Command
 `os/exec` runs programs directly (using variants of the
@@ -224,7 +225,7 @@ one does not.
 For some history on this optimization, check out commit
 [f5f5a8b6209f84961687d993b93ea0d397f5d5bf](https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf).
 
-### SA9000 – Storing non-pointer values in sync.Pool allocates memory
+### SA6002 – Storing non-pointer values in sync.Pool allocates memory
 A `sync.Pool` is used to avoid unnecessary allocations and reduce the
 amount of work the garbage collector has to do.
 
