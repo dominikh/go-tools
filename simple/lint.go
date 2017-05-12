@@ -910,7 +910,7 @@ func (c *Checker) LintSimplerReturn(j *lint.Job) {
 					continue
 				}
 				_, idIface := id1Obj.Type().Underlying().(*types.Interface)
-				_, retIface := j.Program.Info.TypeOf(ret.List[ret.NumFields()-1].Type).Underlying().(*types.Interface)
+				_, retIface := j.Program.Info.TypeOf(ret.List[len(ret.List)-1].Type).Underlying().(*types.Interface)
 
 				if retIface && !idIface {
 					// When the return value is an interface, but the

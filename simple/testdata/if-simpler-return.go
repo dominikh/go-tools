@@ -1,6 +1,9 @@
 package pkg
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 func fn1() error {
 	var err error
@@ -102,4 +105,13 @@ func fn6() {
 		}
 		return nil
 	}
+}
+
+func fn7(to string) (fromTime, toTime time.Time, err error) {
+	toTime, err = time.Parse("2006-01-02", to)
+	if err != nil { // MATCH /simplified/
+		return fromTime, toTime, err
+	}
+
+	return fromTime, toTime, nil
 }
