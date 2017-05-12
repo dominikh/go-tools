@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 const (
 	MsgInvalidHostPort = "invalid port or service name in host:port pair"
 	MsgInvalidUTF8     = "argument is not a valid UTF-8 encoded string"
+	MsgNonUniqueCutset = "cutset contains duplicate characters"
 )
 
 type Call struct {
@@ -293,4 +295,27 @@ func ValidHostPort(v Value) bool {
 func ConvertedFrom(v Value, typ string) bool {
 	change, ok := v.Value.(*ssa.ChangeType)
 	return ok && types.TypeString(change.X.Type(), nil) == typ
+}
+
+func UniqueStringCutset(v Value) bool {
+	for _, c := range extractConsts(v.Value) {
+		if c.Value == nil {
+			continue
+		}
+		if c.Value.Kind() != constant.String {
+			continue
+		}
+		s := constant.StringVal(c.Value)
+		rs := runeSlice(s)
+		if len(rs) < 2 {
+			continue
+		}
+		sort.Sort(rs)
+		for i, r := range rs[1:] {
+			if rs[i] == r {
+				return false
+			}
+		}
+	}
+	return true
 }

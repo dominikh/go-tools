@@ -32,10 +32,23 @@ func validRegexp(call *Call) {
 	}
 }
 
+type runeSlice []rune
+
+func (rs runeSlice) Len() int               { return len(rs) }
+func (rs runeSlice) Less(i int, j int) bool { return rs[i] < rs[j] }
+func (rs runeSlice) Swap(i int, j int)      { rs[i], rs[j] = rs[j], rs[i] }
+
 func utf8Cutset(call *Call) {
 	arg := call.Args[1]
 	if InvalidUTF8(arg.Value) {
 		arg.Invalid(MsgInvalidUTF8)
+	}
+}
+
+func uniqueCutset(call *Call) {
+	arg := call.Args[1]
+	if !UniqueStringCutset(arg.Value) {
+		arg.Invalid(MsgNonUniqueCutset)
 	}
 }
 
@@ -128,6 +141,12 @@ var (
 		"strings.TrimRight":    utf8Cutset,
 	}
 
+	checkUniqueCutsetRules = map[string]CallCheck{
+		"strings.Trim":      uniqueCutset,
+		"strings.TrimLeft":  uniqueCutset,
+		"strings.TrimRight": uniqueCutset,
+	}
+
 	checkUnmarshalPointerRules = map[string]CallCheck{
 		"encoding/xml.Unmarshal":          unmarshalPointer("xml.Unmarshal", 1),
 		"(*encoding/xml.Decoder).Decode":  unmarshalPointer("Decode", 0),
@@ -214,6 +233,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1021": c.callChecker(checkBytesEqualIPRules),
 		"SA1022": c.CheckFlagUsage,
 		"SA1023": c.CheckWriterBufferModified,
+		"SA1024": c.callChecker(checkUniqueCutsetRules),
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
