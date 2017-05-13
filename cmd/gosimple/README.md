@@ -97,6 +97,7 @@ bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)
 bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)
 
 time.Now().Sub(a) -> time.Since(a)
+a.Sub(time.Now()) -> time.Until(a)
 ```
 
 ## Ignoring checks
