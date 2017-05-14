@@ -1647,50 +1647,33 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 	}
 }
 
-func (c *Checker) isStringer(typ types.Type) bool {
-	m := c.MS.MethodSet(typ).Lookup(nil, "String")
-	if m == nil {
-		return false
+func (c *Checker) Implements(j *lint.Job, typ types.Type, iface string) bool {
+	// OPT(dh): we can cache the type lookup
+	idx := strings.IndexRune(iface, '.')
+	var scope *types.Scope
+	var ifaceName string
+	if idx == -1 {
+		scope = types.Universe
+		ifaceName = iface
+	} else {
+		pkgName := iface[:idx]
+		pkg := j.Program.Prog.Package(pkgName)
+		if pkg == nil {
+			return false
+		}
+		scope = pkg.Pkg.Scope()
+		ifaceName = iface[idx+1:]
 	}
-	fn, ok := m.Obj().(*types.Func)
-	if !ok {
-		// String is a field, not a method
-		return false
-	}
-	sig := fn.Type().(*types.Signature)
-	if sig.Params().Len() != 0 {
-		return false
-	}
-	if sig.Results().Len() != 1 {
-		return false
-	}
-	if sig.Results().At(0).Type() != types.Universe.Lookup("string").Type() {
-		return false
-	}
-	return true
-}
 
-func (c *Checker) isErrorer(typ types.Type) bool {
-	m := c.MS.MethodSet(typ).Lookup(nil, "Error")
-	if m == nil {
+	obj := scope.Lookup(ifaceName)
+	if obj == nil {
 		return false
 	}
-	fn, ok := m.Obj().(*types.Func)
+	i, ok := obj.Type().Underlying().(*types.Interface)
 	if !ok {
-		// String is a field, not a method
 		return false
 	}
-	sig := fn.Type().(*types.Signature)
-	if sig.Params().Len() != 0 {
-		return false
-	}
-	if sig.Results().Len() != 1 {
-		return false
-	}
-	if sig.Results().At(0).Type() != types.Universe.Lookup("string").Type() {
-		return false
-	}
-	return true
+	return types.Implements(typ, i)
 }
 
 func (c *Checker) LintRedundantSprintf(j *lint.Job) {
@@ -1712,7 +1695,7 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		arg := call.Args[1]
 		typ := pkg.Info.TypeOf(arg)
 
-		if c.isStringer(typ) {
+		if c.Implements(j, typ, "fmt.Stringer") {
 			j.Errorf(call, "should use String() instead of fmt.Sprintf")
 			return true
 		}
@@ -1767,7 +1750,7 @@ func (c *Checker) LintStringCopy(j *lint.Job) {
 				if !ok || bt.Kind() != types.String {
 					return true
 				}
-				if c.isStringer(argT) || c.isErrorer(argT) {
+				if c.Implements(j, argT, "fmt.Stringer") || c.Implements(j, argT, "error") {
 					return true
 				}
 
