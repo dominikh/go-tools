@@ -1647,29 +1647,53 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 	}
 }
 
-func (c *Checker) LintRedundantSprintf(j *lint.Job) {
-	isStringer := func(typ types.Type) bool {
-		m := c.MS.MethodSet(typ).Lookup(nil, "String")
-		if m == nil {
-			return false
-		}
-		fn, ok := m.Obj().(*types.Func)
-		if !ok {
-			// String is a field, not a method
-			return false
-		}
-		sig := fn.Type().(*types.Signature)
-		if sig.Params().Len() != 0 {
-			return false
-		}
-		if sig.Results().Len() != 1 {
-			return false
-		}
-		if sig.Results().At(0).Type() != types.Universe.Lookup("string").Type() {
-			return false
-		}
-		return true
+func (c *Checker) isStringer(typ types.Type) bool {
+	m := c.MS.MethodSet(typ).Lookup(nil, "String")
+	if m == nil {
+		return false
 	}
+	fn, ok := m.Obj().(*types.Func)
+	if !ok {
+		// String is a field, not a method
+		return false
+	}
+	sig := fn.Type().(*types.Signature)
+	if sig.Params().Len() != 0 {
+		return false
+	}
+	if sig.Results().Len() != 1 {
+		return false
+	}
+	if sig.Results().At(0).Type() != types.Universe.Lookup("string").Type() {
+		return false
+	}
+	return true
+}
+
+func (c *Checker) isErrorer(typ types.Type) bool {
+	m := c.MS.MethodSet(typ).Lookup(nil, "Error")
+	if m == nil {
+		return false
+	}
+	fn, ok := m.Obj().(*types.Func)
+	if !ok {
+		// String is a field, not a method
+		return false
+	}
+	sig := fn.Type().(*types.Signature)
+	if sig.Params().Len() != 0 {
+		return false
+	}
+	if sig.Results().Len() != 1 {
+		return false
+	}
+	if sig.Results().At(0).Type() != types.Universe.Lookup("string").Type() {
+		return false
+	}
+	return true
+}
+
+func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 	fn := func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
@@ -1688,7 +1712,7 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		arg := call.Args[1]
 		typ := pkg.Info.TypeOf(arg)
 
-		if isStringer(typ) {
+		if c.isStringer(typ) {
 			j.Errorf(call, "should use String() instead of fmt.Sprintf")
 			return true
 		}
@@ -1734,7 +1758,24 @@ func (c *Checker) LintStringCopy(j *lint.Job) {
 			}
 			j.Errorf(x, "should use %s instead of %s",
 				j.Render(want), j.Render(x))
-		case *ast.CallExpr: // string([]byte(s))
+		case *ast.CallExpr:
+			if j.IsCallToAST(x, "fmt.Sprint") && len(x.Args) == 1 {
+				// fmt.Sprint(x)
+
+				argT := j.Program.Info.TypeOf(x.Args[0])
+				bt, ok := argT.Underlying().(*types.Basic)
+				if !ok || bt.Kind() != types.String {
+					return true
+				}
+				if c.isStringer(argT) || c.isErrorer(argT) {
+					return true
+				}
+
+				j.Errorf(x, "should use %s instead of %s", j.Render(x.Args[0]), j.Render(x))
+				return true
+			}
+
+			// string([]byte(s))
 			bt, ok := j.Program.Info.TypeOf(x.Fun).(*types.Basic)
 			if !ok || bt.Kind() != types.String {
 				break
