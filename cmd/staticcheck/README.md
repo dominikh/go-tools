@@ -242,10 +242,9 @@ See the
 that discuss this problem.
 ### <a id="SA6003">SA6003 – Converting a string to a slice of runes before ranging over it
 
-You may want to loop over the runes in a string. As long as you are
-only interested in the runes, and not the indices, you can loop over
-the string itself, instead of converting it to a slice of runes first.
-That is,
+You may want to loop over the runes in a string. Instead of converting
+the string to a slice of runes and looping over that, you can loop
+over the string itself. That is,
 
 ```
 for _, r := range s {}
