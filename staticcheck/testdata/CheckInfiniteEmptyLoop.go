@@ -3,7 +3,7 @@ package pkg
 func fn2() bool { return true }
 
 func fn() {
-	for { // MATCH /infinite empty loop/
+	for { // MATCH /this loop will spin/
 	}
 
 	for fn2() {
@@ -12,4 +12,9 @@ func fn() {
 	for {
 		break
 	}
+
+	for true { // MATCH "loop condition never changes"
+	}
 }
+
+// MATCH:16 "this loop will spin"
