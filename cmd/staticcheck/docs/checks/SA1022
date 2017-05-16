@@ -1,0 +1,13 @@
+Calling os.Exit in a function assigned to flag.Usage
+
+The `flag` package has the notion of a `Usage` function, assigned to
+`flag.Usage` or `flag.FlagSet.Usage`. The job of this function is to
+print usage instructions for the program and it is called when invalid
+flags were provided.
+
+This function should not, however, terminate the program by calling
+`os.Exit`. The `flag` package already has a mechanism for exiting on
+incorrect flags, the `errorHandling` argument of `flag.NewFlagSet`.
+Setting it to `flag.ExitOnError` instructs it to call `os.Exit(2)`.
+There exist other values to react differently, which is why `Usage`
+shouldn't call `os.Exit` on its own.
