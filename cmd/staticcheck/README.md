@@ -111,6 +111,7 @@ The following things are currently checked by staticcheck:
 | SA6000                                                                                         | Using `regexp.Match` or related in a loop, should use `regexp.Compile`                                                                                |
 | [SA6001](#sa6001--maps-and-byte-keys)                                                          | Missing an optimization opportunity when indexing maps by byte slices                                                                                 |
 | [SA6002](#sa6002--storing-non-pointer-values-in-syncpool-allocates-memory)                     | Storing non-pointer values in sync.Pool allocates memory                                                                                              |
+| [SA6003](#sa6003--converting-a-string-to-a-slice-of-runes-before-ranging-over-it)              | Converting a string to `[]rune` before ranging over it                                                                                                |
 |                                                                                                |                                                                                                                                                       |
 | **SA9???**                                                                                     | **Dubious code constructs that have a high probability of being wrong**                                                                               |
 | ~~SA9000~~                                                                                     | ~~Storing non-pointer values in sync.Pool allocates memory~~                                                                                          |
@@ -240,6 +241,31 @@ See the
 [comments on a Go CL](https://go-review.googlesource.com/#/c/24371/)
 that discuss this problem.
 
+
+### SA6003 – Converting a string to a slice of runes before ranging over it
+
+You may want to loop over the runes in a string. As long as you are
+only interested in the runes, and not the indices, you can loop over
+the string itself, instead of converting it to a slice of runes first.
+That is,
+
+```
+for _, r := range s {}`
+```
+
+and
+
+```
+for _, r := range []rune(s) {}
+```
+
+will yield the same values. The first version, however, will be faster
+and avoid unnecessary memory allocations.
+
+Do note that if you are interested in the indices, ranging over a
+string and over a slice of runes will yield different indices. The
+first one yields byte offsets, while the second one yields indices in
+the slice of runes.
 
 ## Ignoring checks
 
