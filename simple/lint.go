@@ -11,7 +11,9 @@ import (
 	"strconv"
 	"strings"
 
+	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
+	"honnef.co/go/tools/ssa"
 
 	"golang.org/x/tools/go/types/typeutil"
 )
@@ -19,6 +21,8 @@ import (
 type Checker struct {
 	CheckGenerated bool
 	MS             *typeutil.MethodSetCache
+
+	nodeFns map[ast.Node]*ssa.Function
 }
 
 func NewChecker() *Checker {
@@ -26,7 +30,10 @@ func NewChecker() *Checker {
 		MS: &typeutil.MethodSetCache{},
 	}
 }
-func (c *Checker) Init(*lint.Program) {}
+
+func (c *Checker) Init(prog *lint.Program) {
+	c.nodeFns = lint.NodeFns(prog.Packages)
+}
 
 func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
@@ -59,6 +66,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1026": c.LintStringCopy,
 		"S1027": c.LintRedundantReturn,
 		"S1028": c.LintErrorsNewSprintf,
+		"S1029": c.LintRangeStringRunes,
 	}
 }
 
@@ -1838,4 +1846,8 @@ func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
 	for _, f := range c.filterGenerated(j.Program.Files) {
 		ast.Inspect(f, fn)
 	}
+}
+
+func (c *Checker) LintRangeStringRunes(j *lint.Job) {
+	sharedcheck.CheckRangeStringRunes(c.nodeFns, j)
 }
