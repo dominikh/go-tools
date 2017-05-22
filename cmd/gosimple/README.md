@@ -35,7 +35,7 @@ Gosimple makes the following recommendations for avoiding unsimple
 constructs:
 
 | Check | Description                                                                 | Suggestion                                                               |
-|-------+-----------------------------------------------------------------------------|--------------------------------------------------------------------------|
+|-------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------|
 | S1000 | `select{}` with a single case                                               | Use a plain channel send or receive                                      |
 | S1001 | A loop copying elements of `s2` to `s1`                                     | `copy(s1, s2)`                                                           |
 | S1002 | `if b == true`                                                              | `if b`                                                                   |
