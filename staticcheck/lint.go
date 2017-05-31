@@ -249,7 +249,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4002": c.CheckDiffSizeComparison,
 		"SA4003": c.CheckUnsignedComparison,
 		"SA4004": c.CheckIneffectiveLoop,
-		"SA4005": c.CheckIneffecitiveFieldAssignments,
+		"SA4005": c.CheckIneffectiveFieldAssignments,
 		"SA4006": c.CheckUnreadVariableValues,
 		// "SA4007": c.CheckPredeterminedBooleanExprs,
 		"SA4007": nil,
@@ -1254,7 +1254,7 @@ func (c *Checker) CheckBenchmarkN(j *lint.Job) {
 	}
 }
 
-func (c *Checker) CheckIneffecitiveFieldAssignments(j *lint.Job) {
+func (c *Checker) CheckIneffectiveFieldAssignments(j *lint.Job) {
 	for _, ssafn := range j.Program.InitialFunctions {
 		// fset := j.Program.SSA.Fset
 		// if fset.File(f.File.Pos()) != fset.File(ssafn.Pos()) {
