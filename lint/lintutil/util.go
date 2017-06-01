@@ -117,6 +117,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("tags", "", "List of `build tags`")
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
+	flags.Bool("allow_errors", false, "Do not stop linting even if erroneous packages or files are found")
 
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
@@ -133,13 +134,15 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
+	allowErrors := fs.Lookup("allow_errors").Value.(flag.Getter).Get().(bool)
 	version := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 
 	ps, lprog, err := Lint(c, fs.Args(), &Options{
-		Tags:      strings.Fields(tags),
-		LintTests: tests,
-		Ignores:   ignore,
-		GoVersion: version,
+		Tags:        strings.Fields(tags),
+		LintTests:   tests,
+		Ignores:     ignore,
+		GoVersion:   version,
+		AllowErrors: allowErrors,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -157,10 +160,11 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 }
 
 type Options struct {
-	Tags      []string
-	LintTests bool
-	Ignores   string
-	GoVersion int
+	Tags        []string
+	LintTests   bool
+	Ignores     string
+	GoVersion   int
+	AllowErrors bool
 }
 
 func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.Program, error) {
@@ -187,9 +191,10 @@ func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.
 	ctx := build.Default
 	ctx.BuildTags = runner.tags
 	conf := &loader.Config{
-		Build:      &ctx,
-		ParserMode: parser.ParseComments,
-		ImportPkgs: map[string]bool{},
+		Build:       &ctx,
+		ParserMode:  parser.ParseComments,
+		ImportPkgs:  map[string]bool{},
+		AllowErrors: opt.AllowErrors,
 	}
 	if goFiles {
 		conf.CreateFromFilenames("adhoc", paths...)
