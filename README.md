@@ -1,7 +1,15 @@
 # honnef.co/go/tools
 
-`honnef.co/go/tools/...` is a collection of tools and libraries for
-working with Go code, including linters and static analysis.
+This is a collection of tools and libraries for working with Go code,
+including linters and static analysis.
+
+## Install instructions
+
+To install it or update it run:
+ 
+
+    go get -u honnef.co/go/tools/cmd/...
+
 
 **These tools are supported by
 [patrons on Patreon](https://www.patreon.com/dominikh) and

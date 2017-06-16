@@ -21,7 +21,7 @@ _structlayout-pretty_, visualises struct layouts. It does so by
 generating a fancy-looking SVG graphic. You can install it via
 
 ```
-go get github.com/ajstarks/svgo/structlayout-svg
+go get -u github.com/ajstarks/svgo/structlayout-svg
 ```
 
 ## Installation

@@ -5,7 +5,7 @@ types.
 
 ## Install
 
-	go get honnef.co/go/tools/cmd/unused
+	go get -u honnef.co/go/tools/cmd/unused
 
 ## Usage
 
