@@ -376,6 +376,12 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 		return &cp
 	case *ast.FuncLit:
 		return expr
+	case *ast.ChanType:
+		cp := *expr
+		cp.Arrow = 0
+		cp.Begin = 0
+		cp.Value = copyExpr(cp.Value, line)
+		return &cp
 	case nil:
 		return nil
 	default:
