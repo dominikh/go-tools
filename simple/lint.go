@@ -67,6 +67,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1027": c.LintRedundantReturn,
 		"S1028": c.LintErrorsNewSprintf,
 		"S1029": c.LintRangeStringRunes,
+		"S1030": c.LintBytesBufferConversions,
 	}
 }
 
@@ -240,6 +241,55 @@ func (c *Checker) LintIfBoolCmp(j *lint.Job) {
 			r = "!" + r
 		}
 		j.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s", r)
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintBytesBufferConversions(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 {
+			return true
+		}
+
+		var castName string
+		switch typ := call.Fun.(type) {
+		case *ast.Ident:
+			if j.Program.Info.ObjectOf(typ).Type() != types.Universe.Lookup("string").Type() {
+				return true
+			}
+			castName = "string"
+		case *ast.ArrayType:
+			arrTyp, ok := typ.Elt.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if j.Program.Info.ObjectOf(arrTyp).Type() != types.Universe.Lookup("byte").Type() {
+				return true
+			}
+			castName = "[]byte"
+		default:
+			return true
+		}
+
+		argCall, ok := call.Args[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := argCall.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		switch {
+		case castName == "string" && j.IsCallToAST(call.Args[0], "(*bytes.Buffer).Bytes"):
+			j.Errorf(call, "should use %v.String() instead of %v", j.Render(sel.X), j.Render(call))
+		case castName == "[]byte" && j.IsCallToAST(call.Args[0], "(*bytes.Buffer).String"):
+			j.Errorf(call, "should use %v.Bytes() instead of %v", j.Render(sel.X), j.Render(call))
+		}
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
