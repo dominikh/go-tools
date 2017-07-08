@@ -258,12 +258,16 @@ func (c *Checker) LintBytesConversion(j *lint.Job) {
 		var castName string
 		switch typ := call.Fun.(type) {
 		case *ast.Ident:
-			if typ.Name != "string" {
+			if j.Program.Info.ObjectOf(typ).Type() != types.Universe.Lookup("string").Type() {
 				return true
 			}
 			castName = "string"
 		case *ast.ArrayType:
-			if e, ok := typ.Elt.(*ast.Ident); !ok || e.Name != "byte" {
+			arrTyp, ok := typ.Elt.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if j.Program.Info.ObjectOf(arrTyp).Type() != types.Universe.Lookup("byte").Type() {
 				return true
 			}
 			castName = "[]byte"
