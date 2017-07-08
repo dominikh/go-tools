@@ -13,4 +13,8 @@ func fn() {
 	_ = string(m["key"].Bytes())  // MATCH "should use m["key"].String() instead of string(m["key"].Bytes())"
 	_ = []byte(m["key"].String()) // MATCH "should use m["key"].Bytes() instead of []byte(m["key"].String())"
 
+	string := func(_ interface{}) interface{} {
+		return nil
+	}
+	_ = string(m["key"].Bytes())
 }
