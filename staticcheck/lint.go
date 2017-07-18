@@ -283,6 +283,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
 		"SA9002": c.CheckNonOctalFileMode,
 		"SA9003": c.CheckEmptyBranch,
+		"SA9004": c.CheckTimeEqualityComparison,
 	}
 }
 
@@ -1190,6 +1191,29 @@ func (c *Checker) CheckDiffSizeComparison(j *lint.Job) {
 				if r1.Length.Intersection(r2.Length).Empty() {
 					j.Errorf(binop, "comparing strings of different sizes for equality will always return false")
 				}
+			}
+		}
+	}
+}
+
+func (c *Checker) CheckTimeEqualityComparison(j *lint.Job) {
+	for _, ssafn := range j.Program.InitialFunctions {
+		for _, block := range ssafn.Blocks {
+			for _, ins := range block.Instrs {
+				binop, ok := ins.(*ssa.BinOp)
+				if !ok {
+					continue
+				}
+				if binop.Op != token.EQL && binop.Op != token.NEQ {
+					continue
+				}
+
+				if types.TypeString(binop.X.Type(), nil) != "time.Time" ||
+					types.TypeString(binop.Y.Type(), nil) != "time.Time" {
+					continue
+				}
+
+				j.Errorf(binop, "using == or != operators to compare time is problematic; prefer Time.Equal")
 			}
 		}
 	}
