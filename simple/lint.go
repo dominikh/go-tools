@@ -255,26 +255,6 @@ func (c *Checker) LintBytesBufferConversions(j *lint.Job) {
 			return true
 		}
 
-		var castName string
-		switch typ := call.Fun.(type) {
-		case *ast.Ident:
-			if j.Program.Info.ObjectOf(typ).Type() != types.Universe.Lookup("string").Type() {
-				return true
-			}
-			castName = "string"
-		case *ast.ArrayType:
-			arrTyp, ok := typ.Elt.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if j.Program.Info.ObjectOf(arrTyp).Type() != types.Universe.Lookup("byte").Type() {
-				return true
-			}
-			castName = "[]byte"
-		default:
-			return true
-		}
-
 		argCall, ok := call.Args[0].(*ast.CallExpr)
 		if !ok {
 			return true
@@ -284,12 +264,13 @@ func (c *Checker) LintBytesBufferConversions(j *lint.Job) {
 			return true
 		}
 
-		switch {
-		case castName == "string" && j.IsCallToAST(call.Args[0], "(*bytes.Buffer).Bytes"):
+		typ := j.Program.Info.TypeOf(call.Fun)
+		if typ == types.Universe.Lookup("string").Type() && j.IsCallToAST(call.Args[0], "(*bytes.Buffer).Bytes") {
 			j.Errorf(call, "should use %v.String() instead of %v", j.Render(sel.X), j.Render(call))
-		case castName == "[]byte" && j.IsCallToAST(call.Args[0], "(*bytes.Buffer).String"):
+		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && j.IsCallToAST(call.Args[0], "(*bytes.Buffer).String") {
 			j.Errorf(call, "should use %v.Bytes() instead of %v", j.Render(sel.X), j.Render(call))
 		}
+
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
