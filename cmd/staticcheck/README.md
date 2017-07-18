@@ -117,6 +117,7 @@ The following things are currently checked by staticcheck:
 |SA9001|`defer`s in `for range` loops may not run when you expect them to|
 |SA9002|Using a non-octal `os.FileMode`  that looks like it was meant to be in octal.|
 |SA9003|Empty body in an if or else branch|
+|SA9004|Using == or != operators to compare time.Time is problematic; prefer Time.Equal|
 |||
 
 ### <a id="SA1005">SA1005 – Invalid first argument to exec.Command
