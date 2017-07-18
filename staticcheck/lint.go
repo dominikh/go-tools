@@ -10,6 +10,7 @@ import (
 	"go/types"
 	htmltemplate "html/template"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -1137,11 +1138,18 @@ func (c *Checker) CheckEmptyCriticalSection(j *lint.Job) {
 	}
 }
 
+// cgo produces code like fn(&*_Cvar_kSomeCallbacks) which we don't
+// want to flag.
+var cgoIdent = regexp.MustCompile(`^_C(func|var)_.+$`)
+
 func (c *Checker) CheckIneffectiveCopy(j *lint.Job) {
 	fn := func(node ast.Node) bool {
 		if unary, ok := node.(*ast.UnaryExpr); ok {
-			if _, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
-				j.Errorf(unary, "&*x will be simplified to x. It will not copy x.")
+			if star, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
+				ident, ok := star.X.(*ast.Ident)
+				if !ok || !cgoIdent.MatchString(ident.Name) {
+					j.Errorf(unary, "&*x will be simplified to x. It will not copy x.")
+				}
 			}
 		}
 
