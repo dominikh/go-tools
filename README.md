@@ -5,9 +5,9 @@ working with Go code, including linters and static analysis.
 
 **These tools are supported by
 [patrons on Patreon](https://www.patreon.com/dominikh) and
-[sponsors](#sponsors). If you, too, would like to support the
-project's development, consider
-[becoming a patron](https://www.patreon.com/dominikh).**
+[sponsors](#sponsors). If you use these tools at your company,
+consider purchasing
+[commercial support](https://staticcheck.io/pricing).**
 
 ## Tools
 
@@ -36,6 +36,11 @@ Unless otherwise noted, none of these libraries have stable APIs.
 Their main purpose is to aid the implementation of the tools. If you
 decide to use these libraries, please vendor them and expect regular
 backwards-incompatible changes.
+
+## Documentation
+
+You can find more documentation on
+[staticcheck.io](https://staticcheck.io).
 
 ## Sponsors
 
