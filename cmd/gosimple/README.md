@@ -69,6 +69,7 @@ constructs:
 | S1028 | `errors.New(fmt.Sprintf(...))`                                              | `fmt.Errorf(...)`                                                        |
 | S1029 | `for _, r := range []rune(s)`                                               | `for _, r := range s`                                                    |
 | S1030 | `string(buf.Bytes())` or `[]byte(buf.String())`                           | Use the appropriate method of `bytes.Buffer` instead                     |
+| S1031 | `if list != nil { for _, s := range list }`  | Remove nil check and use range directly |
 
 ## gofmt -r
 
