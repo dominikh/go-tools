@@ -84,20 +84,25 @@ func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
 			return true
 		}
 
-		if ifCond.Op == token.NEQ && j.IsNil(ifCond.Y) && len(ifSt.Body.List) == 1 {
-			rangeSt, ok := ifSt.Body.List[0].(*ast.RangeStmt)
-			if !ok {
-				return true
-			}
-			ifXIdent, ok := ifCond.X.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			rangeXIdent, ok := rangeSt.X.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if ifXIdent.Name == rangeXIdent.Name {
+		if ifCond.Op != token.NEQ || !j.IsNil(ifCond.Y) || len(ifSt.Body.List) != 1 {
+			return true
+		}
+
+		rangeSt, ok := ifSt.Body.List[0].(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+		ifXIdent, ok := ifCond.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		rangeXIdent, ok := rangeSt.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if ifXIdent.Obj == rangeXIdent.Obj {
+			switch j.Program.Info.TypeOf(rangeXIdent).(type) {
+			case *types.Slice, *types.Map:
 				j.Errorf(node, "unnecessary nil check around range")
 			}
 		}
