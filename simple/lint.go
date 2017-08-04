@@ -68,6 +68,48 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1028": c.LintErrorsNewSprintf,
 		"S1029": c.LintRangeStringRunes,
 		"S1030": c.LintBytesBufferConversions,
+		"S1031": c.LintNilCheckAroundRange,
+	}
+}
+
+func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		ifSt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+
+		ifCond, ok := ifSt.Cond.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+
+		if ifCond.Op != token.NEQ || !j.IsNil(ifCond.Y) || len(ifSt.Body.List) != 1 {
+			return true
+		}
+
+		rangeSt, ok := ifSt.Body.List[0].(*ast.RangeStmt)
+		if !ok {
+			return true
+		}
+		ifXIdent, ok := ifCond.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		rangeXIdent, ok := rangeSt.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if ifXIdent.Obj == rangeXIdent.Obj {
+			switch j.Program.Info.TypeOf(rangeXIdent).(type) {
+			case *types.Slice, *types.Map:
+				j.Errorf(node, "unnecessary nil check around range")
+			}
+		}
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
 	}
 }
 
