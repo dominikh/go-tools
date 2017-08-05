@@ -6,7 +6,7 @@ import (
 )
 
 const c1 = `[`
-const c2 = `abc`
+const c2 = `(abc)`
 
 var re1 = regexp.MustCompile(`ab\yef`) // MATCH /error parsing regexp/
 var re2 = regexp.MustCompile(c1)       // MATCH /error parsing regexp/

@@ -10,6 +10,7 @@ import (
 	htmltemplate "html/template"
 	"net/http"
 	"regexp"
+	"regexp/syntax"
 	"sort"
 	"strconv"
 	"strings"
@@ -285,7 +286,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA6001": c.CheckMapBytesKey,
 		"SA6002": c.callChecker(checkSyncPoolValueRules),
 		"SA6003": c.CheckRangeStringRunes,
-		"SA6004": nil,
+		"SA6004": c.CheckSillyRegexp,
 
 		"SA9000": nil,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
@@ -2777,5 +2778,38 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckSillyRegexp(j *lint.Job) {
+	// We could use the rule checking engine for this, but the
+	// arguments aren't really invalid.
+	for _, fn := range j.Program.InitialFunctions {
+		for _, b := range fn.Blocks {
+			for _, ins := range b.Instrs {
+				call, ok := ins.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				switch lint.CallName(call.Common()) {
+				case "regexp.MustCompile", "regexp.Compile", "regexp.Match", "regexp.MatchReader", "regexp.MatchString":
+				default:
+					continue
+				}
+				c, ok := call.Common().Args[0].(*ssa.Const)
+				if !ok {
+					continue
+				}
+				s := constant.StringVal(c.Value)
+				re, err := syntax.Parse(s, 0)
+				if err != nil {
+					continue
+				}
+				if re.Op != syntax.OpLiteral && re.Op != syntax.OpEmptyMatch {
+					continue
+				}
+				j.Errorf(call, "regular expression does not contain any meta characters")
+			}
+		}
 	}
 }
