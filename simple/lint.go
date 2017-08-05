@@ -42,7 +42,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1002": c.LintIfBoolCmp,
 		"S1003": c.LintStringsContains,
 		"S1004": c.LintBytesCompare,
-		"S1005": c.LintRanges,
+		"S1005": c.LintUnnecessaryBlank,
 		"S1006": c.LintForTrue,
 		"S1007": c.LintRegexpRaw,
 		"S1008": c.LintIfReturn,
@@ -51,7 +51,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1011": c.LintLoopAppend,
 		"S1012": c.LintTimeSince,
 		"S1013": c.LintSimplerReturn,
-		"S1014": c.LintReceiveIntoBlank,
+		"S1014": nil,
 		"S1015": c.LintFormatInt,
 		"S1016": c.LintSimplerStructConversion,
 		"S1017": c.LintTrim,
@@ -59,7 +59,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1019": c.LintMakeLenCap,
 		"S1020": c.LintAssertNotNil,
 		"S1021": c.LintDeclareAssign,
-		"S1022": c.LintBlankOK,
+		"S1022": nil,
 		"S1023": c.LintRedundantBreak,
 		"S1024": c.LintTimeUntil,
 		"S1025": c.LintRedundantSprintf,
@@ -376,23 +376,6 @@ func (c *Checker) LintBytesCompare(j *lint.Job) {
 			prefix = "!"
 		}
 		j.Errorf(node, "should use %sbytes.Equal(%s) instead", prefix, args)
-		return true
-	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) LintRanges(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		rs, ok := node.(*ast.RangeStmt)
-		if !ok {
-			return true
-		}
-		if lint.IsBlank(rs.Key) && (rs.Value == nil || lint.IsBlank(rs.Value)) {
-			j.Errorf(rs.Key, "should omit values from range; this loop is equivalent to `for range ...`")
-		}
-
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
@@ -972,14 +955,44 @@ func (c *Checker) LintSimplerReturn(j *lint.Job) {
 	}
 }
 
-func (c *Checker) LintReceiveIntoBlank(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
+	fn1 := func(node ast.Node) {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return
+		}
+		if len(assign.Lhs) != 2 || len(assign.Rhs) != 1 {
+			return
+		}
+		if !lint.IsBlank(assign.Lhs[1]) {
+			return
+		}
+		switch rhs := assign.Rhs[0].(type) {
+		case *ast.IndexExpr:
+			// The type-checker should make sure that it's a map, but
+			// let's be safe.
+			if _, ok := j.Program.Info.TypeOf(rhs.X).Underlying().(*types.Map); !ok {
+				return
+			}
+		case *ast.UnaryExpr:
+			if rhs.Op != token.ARROW {
+				return
+			}
+		default:
+			return
+		}
+		cp := *assign
+		cp.Lhs = cp.Lhs[0:1]
+		j.Errorf(assign, "should write %s instead of %s", j.Render(&cp), j.Render(assign))
+	}
+
+	fn2 := func(node ast.Node) {
 		stmt, ok := node.(*ast.AssignStmt)
 		if !ok {
-			return true
+			return
 		}
 		if len(stmt.Lhs) != len(stmt.Rhs) {
-			return true
+			return
 		}
 		for i, lh := range stmt.Lhs {
 			rh := stmt.Rhs[i]
@@ -995,6 +1008,22 @@ func (c *Checker) LintReceiveIntoBlank(j *lint.Job) {
 			}
 			j.Errorf(lh, "'_ = <-ch' can be simplified to '<-ch'")
 		}
+	}
+
+	fn3 := func(node ast.Node) {
+		rs, ok := node.(*ast.RangeStmt)
+		if !ok {
+			return
+		}
+		if lint.IsBlank(rs.Key) && (rs.Value == nil || lint.IsBlank(rs.Value)) {
+			j.Errorf(rs.Key, "should omit values from range; this loop is equivalent to `for range ...`")
+		}
+	}
+
+	fn := func(node ast.Node) bool {
+		fn1(node)
+		fn2(node)
+		fn3(node)
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
@@ -1622,42 +1651,6 @@ func (c *Checker) LintDeclareAssign(j *lint.Job) {
 			}
 			j.Errorf(decl, "should merge variable declaration with assignment on next line")
 		}
-		return true
-	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) LintBlankOK(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		if len(assign.Lhs) != 2 || len(assign.Rhs) != 1 {
-			return true
-		}
-		if !lint.IsBlank(assign.Lhs[1]) {
-			return true
-		}
-		switch rhs := assign.Rhs[0].(type) {
-		case *ast.IndexExpr:
-			// The type-checker should make sure that it's a map, but
-			// let's be safe.
-			if _, ok := j.Program.Info.TypeOf(rhs.X).Underlying().(*types.Map); !ok {
-				return true
-			}
-		case *ast.UnaryExpr:
-			if rhs.Op != token.ARROW {
-				return true
-			}
-		default:
-			return true
-		}
-		cp := *assign
-		cp.Lhs = cp.Lhs[0:1]
-		j.Errorf(assign, "should write %s instead of %s", j.Render(&cp), j.Render(assign))
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {

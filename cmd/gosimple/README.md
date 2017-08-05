@@ -41,7 +41,7 @@ constructs:
 | S1002 | `if b == true`                                                              | `if b`                                                                   |
 | S1003 | `strings.Index*(x, y) != -1`                                                | `strings.Contains(x, y)`                                                 |
 | S1004 | `bytes.Compare(x, y) == 0`                                                  | `bytes.Equal(x, y)`                                                      |
-| S1005 | `for _ = range x`                                                           | `for range x`                                                            |
+| S1005 | Unnecessary use of blank identifier                                                           |                                                             |
 | S1006 | `for true {...}`                                                            | `for {...}`                                                              |
 | S1007 | Using double quotes and escaping for regular expressions                    | Use raw strings                                                          |
 | S1008 | `if <expr> { return <bool> }; return <bool>`                                | `return <expr>`                                                          |
@@ -50,7 +50,6 @@ constructs:
 | S1011 | A loop appending each element of `s2` to `s1`                               | `append(s1, s2...)`                                                      |
 | S1012 | `time.Now().Sub(x)`                                                         | `time.Since(x)`                                                          |
 | S1013 | `if err != nil { return err }; return nil`                                  | `return err`                                                             |
-| S1014 | `_ = <-x`                                                                   | `<-x`                                                                    |
 | S1015 | Using `strconv.FormatInt` when `strconv.Atoi` would be more straightforward |                                                                          |
 | S1016 | Converting two struct types by manually copying each field                  | A type conversion: `T(v)`                                                |
 | S1017 | `if strings.HasPrefix` + string slicing                                     | Call `strings.TrimPrefix` unconditionally                                |
@@ -58,7 +57,6 @@ constructs:
 | S1019 | `make(T, 0)` or `make(T, x, x)`                                             | `make(T)` or `make(T, x)`                                                |
 | S1020 | `if _, ok := i.(T); ok && i != nil`                                         | `if _, ok := i.(T); ok`                                                  |
 | S1021 | `var x uint; x = 1`                                                         | `var x uint = 1`                                                         |
-| S1022 | `x, _ = someMap[key]`                                                       | `x = someMap[key]`                                                       |
 | S1023 | `break` as the final statement of a `case` clause                           | Go doesn't have automatic fallthrough, making final `break` redundant    |
 | S1024 | `t.Sub(time.Now())`                                                         | `time.Until(t)`                                                          |
 | S1025 | `fmt.Sprintf("%s", x)` where `x` is already a string                        | `x`                                                                      |
