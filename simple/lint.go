@@ -6,9 +6,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
-	"math"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/internal/sharedcheck"
@@ -52,7 +50,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1012": c.LintTimeSince,
 		"S1013": c.LintSimplerReturn,
 		"S1014": nil,
-		"S1015": c.LintFormatInt,
+		"S1015": nil,
 		"S1016": c.LintSimplerStructConversion,
 		"S1017": c.LintTrim,
 		"S1018": c.LintLoopSlide,
@@ -1024,101 +1022,6 @@ func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
 		fn1(node)
 		fn2(node)
 		fn3(node)
-		return true
-	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) LintFormatInt(j *lint.Job) {
-	checkBasic := func(v ast.Expr) bool {
-		typ, ok := j.Program.Info.TypeOf(v).(*types.Basic)
-		if !ok {
-			return false
-		}
-		return typ.Kind() == types.Int
-	}
-	checkConst := func(v *ast.Ident) bool {
-		c, ok := j.Program.Info.ObjectOf(v).(*types.Const)
-		if !ok {
-			return false
-		}
-		if c.Val().Kind() != constant.Int {
-			return false
-		}
-		i, _ := constant.Int64Val(c.Val())
-		return i <= math.MaxInt32
-	}
-	checkConstStrict := func(v *ast.Ident) bool {
-		if !checkConst(v) {
-			return false
-		}
-		basic, ok := j.Program.Info.ObjectOf(v).(*types.Const).Type().(*types.Basic)
-		return ok && basic.Kind() == types.UntypedInt
-	}
-
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if !j.IsCallToAST(call, "strconv.FormatInt") {
-			return true
-		}
-		if len(call.Args) != 2 {
-			return true
-		}
-		if lit, ok := call.Args[1].(*ast.BasicLit); !ok || lit.Value != "10" {
-			return true
-		}
-
-		matches := false
-		switch v := call.Args[0].(type) {
-		case *ast.CallExpr:
-			if len(v.Args) != 1 {
-				return true
-			}
-			ident, ok := v.Fun.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			obj, ok := j.Program.Info.ObjectOf(ident).(*types.TypeName)
-			if !ok || obj.Parent() != types.Universe || obj.Name() != "int64" {
-				return true
-			}
-
-			switch vv := v.Args[0].(type) {
-			case *ast.BasicLit:
-				i, _ := strconv.ParseInt(vv.Value, 10, 64)
-				if i <= math.MaxInt32 {
-					matches = true
-				}
-			case *ast.Ident:
-				if checkConst(vv) || checkBasic(v.Args[0]) {
-					matches = true
-				}
-			default:
-				if checkBasic(v.Args[0]) {
-					matches = true
-				}
-			}
-		case *ast.BasicLit:
-			if v.Kind != token.INT {
-				return true
-			}
-			i, _ := strconv.ParseInt(v.Value, 10, 64)
-			if i <= math.MaxInt32 {
-				matches = true
-			}
-		case *ast.Ident:
-			if checkConstStrict(v) {
-				matches = true
-			}
-		}
-		if matches {
-			j.Errorf(call, "should use strconv.Itoa instead of strconv.FormatInt")
-		}
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {

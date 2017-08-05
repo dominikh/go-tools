@@ -50,7 +50,6 @@ constructs:
 | S1011 | A loop appending each element of `s2` to `s1`                               | `append(s1, s2...)`                                                      |
 | S1012 | `time.Now().Sub(x)`                                                         | `time.Since(x)`                                                          |
 | S1013 | `if err != nil { return err }; return nil`                                  | `return err`                                                             |
-| S1015 | Using `strconv.FormatInt` when `strconv.Atoi` would be more straightforward |                                                                          |
 | S1016 | Converting two struct types by manually copying each field                  | A type conversion: `T(v)`                                                |
 | S1017 | `if strings.HasPrefix` + string slicing                                     | Call `strings.TrimPrefix` unconditionally                                |
 | S1018 | A loop sliding elements in a slice to the beginning                         | `copy(s[:n], s[offset:])`                                                |
