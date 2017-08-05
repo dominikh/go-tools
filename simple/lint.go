@@ -64,7 +64,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1024": c.LintTimeUntil,
 		"S1025": c.LintRedundantSprintf,
 		"S1026": c.LintStringCopy,
-		"S1027": c.LintRedundantReturn,
+		"S1027": nil,
 		"S1028": c.LintErrorsNewSprintf,
 		"S1029": c.LintRangeStringRunes,
 		"S1030": c.LintBytesBufferConversions,
@@ -1659,19 +1659,51 @@ func (c *Checker) LintDeclareAssign(j *lint.Job) {
 }
 
 func (c *Checker) LintRedundantBreak(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn1 := func(node ast.Node) {
 		clause, ok := node.(*ast.CaseClause)
 		if !ok {
-			return true
+			return
 		}
 		if len(clause.Body) < 2 {
-			return true
+			return
 		}
 		branch, ok := clause.Body[len(clause.Body)-1].(*ast.BranchStmt)
 		if !ok || branch.Tok != token.BREAK || branch.Label != nil {
-			return true
+			return
 		}
 		j.Errorf(branch, "redundant break statement")
+		return
+	}
+	fn2 := func(node ast.Node) {
+		var ret *ast.FieldList
+		var body *ast.BlockStmt
+		switch x := node.(type) {
+		case *ast.FuncDecl:
+			ret = x.Type.Results
+			body = x.Body
+		case *ast.FuncLit:
+			ret = x.Type.Results
+			body = x.Body
+		default:
+			return
+		}
+		// if the func has results, a return can't be redundant.
+		// similarly, if there are no statements, there can be
+		// no return.
+		if ret != nil || body == nil || len(body.List) < 1 {
+			return
+		}
+		rst, ok := body.List[len(body.List)-1].(*ast.ReturnStmt)
+		if !ok {
+			return
+		}
+		// we don't need to check rst.Results as we already
+		// checked x.Type.Results to be nil.
+		j.Errorf(rst, "redundant return statement")
+	}
+	fn := func(node ast.Node) bool {
+		fn1(node)
+		fn2(node)
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
@@ -1814,40 +1846,6 @@ func (c *Checker) LintStringCopy(j *lint.Job) {
 			j.Errorf(x, "should use %s instead of %s",
 				j.Render(nested.Args[0]), j.Render(x))
 		}
-		return true
-	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) LintRedundantReturn(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		var ret *ast.FieldList
-		var body *ast.BlockStmt
-		switch x := node.(type) {
-		case *ast.FuncDecl:
-			ret = x.Type.Results
-			body = x.Body
-		case *ast.FuncLit:
-			ret = x.Type.Results
-			body = x.Body
-		default:
-			return true
-		}
-		// if the func has results, a return can't be redundant.
-		// similarly, if there are no statements, there can be
-		// no return.
-		if ret != nil || body == nil || len(body.List) < 1 {
-			return true
-		}
-		rst, ok := body.List[len(body.List)-1].(*ast.ReturnStmt)
-		if !ok {
-			return true
-		}
-		// we don't need to check rst.Results as we already
-		// checked x.Type.Results to be nil.
-		j.Errorf(rst, "redundant return statement")
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {

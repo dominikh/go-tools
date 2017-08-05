@@ -57,13 +57,12 @@ constructs:
 | S1019 | `make(T, 0)` or `make(T, x, x)`                                             | `make(T)` or `make(T, x)`                                                |
 | S1020 | `if _, ok := i.(T); ok && i != nil`                                         | `if _, ok := i.(T); ok`                                                  |
 | S1021 | `var x uint; x = 1`                                                         | `var x uint = 1`                                                         |
-| S1023 | `break` as the final statement of a `case` clause                           | Go doesn't have automatic fallthrough, making final `break` redundant    |
+| S1023 | redundant control flow | |
 | S1024 | `t.Sub(time.Now())`                                                         | `time.Until(t)`                                                          |
 | S1025 | `fmt.Sprintf("%s", x)` where `x` is already a string                        | `x`                                                                      |
 |       | `fmt.Sprintf("%s", x)` where `x`'s underlying type is a string              | `string(x)`                                                              |
 |       | `fmt.Sprintf("%s", x)` where `x` has a String method                        | `x.String()`                                                             |
 | S1026 | Copies of strings, like `string([]byte(x))` or `"" + x`                     | `x`                                                                      |
-| S1027 | `return` as the final statement of a func body with no return values        | Functions that don't return anything don't need a final return statement |
 | S1028 | `errors.New(fmt.Sprintf(...))`                                              | `fmt.Errorf(...)`                                                        |
 | S1029 | `for _, r := range []rune(s)`                                               | `for _, r := range s`                                                    |
 | S1030 | `string(buf.Bytes())` or `[]byte(buf.String())`                           | Use the appropriate method of `bytes.Buffer` instead                     |
