@@ -1,4 +1,4 @@
-Calling os.Exit in a function assigned to flag.Usage
+Calling `os.Exit` in a function assigned to `flag.Usage`
 
 The `flag` package has the notion of a `Usage` function, assigned to
 `flag.Usage` or `flag.FlagSet.Usage`. The job of this function is to

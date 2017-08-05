@@ -1,1 +1,1 @@
-Non-pointer value passed to Unmarshal or Decode
+Non-pointer value passed to `Unmarshal` or `Decode`

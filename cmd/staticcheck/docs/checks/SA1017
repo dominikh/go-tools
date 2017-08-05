@@ -1,1 +1,1 @@
-Channels used with signal.Notify should be buffered
+Channels used with `signal.Notify` should be buffered

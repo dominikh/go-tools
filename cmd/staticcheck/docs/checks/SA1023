@@ -1,1 +1,1 @@
-Modifying the buffer in an io.Writer implementation
+Modifying the buffer in an `io.Writer` implementation

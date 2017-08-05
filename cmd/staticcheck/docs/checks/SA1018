@@ -1,1 +1,1 @@
-`strings.Replace` called with n == 0, which does nothing
+`strings.Replace` called with `n == 0`, which does nothing

@@ -1,4 +1,4 @@
-Using bytes.Equal to compare two net.IP
+Using `bytes.Equal` to compare two `net.IP`
 
 A `net.IP` stores an IPv4 or IPv6 address as a slice of bytes. The
 length of the slice for an IPv4 address, however, can be either 4 or

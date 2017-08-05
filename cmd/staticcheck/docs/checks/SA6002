@@ -1,4 +1,4 @@
-Storing non-pointer values in sync.Pool allocates memory
+Storing non-pointer values in `sync.Pool` allocates memory
 
 A `sync.Pool` is used to avoid unnecessary allocations and reduce the
 amount of work the garbage collector has to do.

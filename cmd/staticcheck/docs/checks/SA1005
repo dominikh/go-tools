@@ -1,4 +1,4 @@
-Invalid first argument to exec.Command
+Invalid first argument to `exec.Command`
 
 `os/exec` runs programs directly (using variants of the
 [fork](https://en.wikipedia.org/wiki/Fork_(system_call)) and
