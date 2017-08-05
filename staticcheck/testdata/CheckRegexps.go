@@ -20,4 +20,8 @@ func fn() {
 	if re2.MatchString("foo(") {
 		log.Println("of course 'foo(' matches 'foo('")
 	}
+
+	regexp.Match("foo(", nil)       // MATCH /error parsing regexp/
+	regexp.MatchReader("foo(", nil) // MATCH /error parsing regexp/
+	regexp.MatchString("foo(", "")  // MATCH /error parsing regexp/
 }

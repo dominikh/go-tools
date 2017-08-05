@@ -80,6 +80,9 @@ var (
 	checkRegexpRules = map[string]CallCheck{
 		"regexp.MustCompile": validRegexp,
 		"regexp.Compile":     validRegexp,
+		"regexp.Match":       validRegexp,
+		"regexp.MatchReader": validRegexp,
+		"regexp.MatchString": validRegexp,
 	}
 
 	checkTimeParseRules = map[string]CallCheck{
