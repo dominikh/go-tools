@@ -278,6 +278,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA6001": c.CheckMapBytesKey,
 		"SA6002": c.callChecker(checkSyncPoolSizeRules),
 		"SA6003": c.CheckRangeStringRunes,
+		"SA6004": nil,
 
 		"SA9000": nil,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
