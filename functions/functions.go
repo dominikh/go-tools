@@ -11,6 +11,14 @@ import (
 )
 
 var stdlibDescs = map[string]Description{
+	"errors.New": Description{Pure: true},
+
+	"fmt.Errorf":  Description{Pure: true},
+	"fmt.Sprintf": Description{Pure: true},
+	"fmt.Sprint":  Description{Pure: true},
+
+	"sort.Reverse": Description{Pure: true},
+
 	"strings.Map":            Description{Pure: true},
 	"strings.Repeat":         Description{Pure: true},
 	"strings.Replace":        Description{Pure: true},
