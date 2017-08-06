@@ -264,6 +264,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4015": c.callChecker(checkMathIntRules),
 		"SA4016": c.CheckSillyBitwiseOps,
 		"SA4017": c.CheckPureFunctions,
+		"SA4018": c.CheckSelfAssignment,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -2799,4 +2800,27 @@ func (c *Checker) CheckMapBytesKey(j *lint.Job) {
 
 func (c *Checker) CheckRangeStringRunes(j *lint.Job) {
 	sharedcheck.CheckRangeStringRunes(c.nodeFns, j)
+}
+
+func (c *Checker) CheckSelfAssignment(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		if assign.Tok != token.ASSIGN || len(assign.Lhs) != len(assign.Rhs) {
+			return true
+		}
+		for i, stmt := range assign.Lhs {
+			rlh := j.Render(stmt)
+			rrh := j.Render(assign.Rhs[i])
+			if rlh == rrh {
+				j.Errorf(assign, "self-assignment of %s to %s", rrh, rlh)
+			}
+		}
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
 }
