@@ -10,7 +10,7 @@ func main() {
 		s = s + "B"
 	}
 
-	// range with multiple statements should not match
+	// body with multiple statements should not match
 	if str != nil {
 		str = append(str, "C")
 		for _, s := range str {
