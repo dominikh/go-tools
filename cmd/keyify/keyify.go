@@ -128,7 +128,13 @@ func main() {
 		printComplit(complit, lit, lprog.Fset, lprog.Fset)
 		return
 	}
-	_, ok := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
+
+	typ := pkg.TypeOf(complit.Type)
+	if typ == nil {
+		log.Fatal("cannot keyify implied struct type")
+	}
+
+	_, ok := typ.Underlying().(*types.Struct)
 	if !ok {
 		log.Fatal("not a struct initialiser")
 		return
