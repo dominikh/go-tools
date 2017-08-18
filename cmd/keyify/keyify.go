@@ -128,7 +128,7 @@ func main() {
 		printComplit(complit, lit, lprog.Fset, lprog.Fset)
 		return
 	}
-	_, ok := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
+	_, ok := pkg.TypeOf(complit).Underlying().(*types.Struct)
 	if !ok {
 		log.Fatal("not a struct initialiser")
 		return
@@ -154,7 +154,7 @@ func keyify(
 		calcPos = func(i int) token.Pos { return token.Pos(2 + i) }
 	}
 
-	st, _ := pkg.TypeOf(complit.Type).Underlying().(*types.Struct)
+	st, _ := pkg.TypeOf(complit).Underlying().(*types.Struct)
 	newComplit := &ast.CompositeLit{
 		Type:   complit.Type,
 		Lbrace: 1,
