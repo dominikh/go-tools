@@ -1040,13 +1040,11 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 		if typ1 == nil {
 			return true
 		}
-		// FIXME support pointer to struct
 		s1, ok := typ1.Underlying().(*types.Struct)
 		if !ok {
 			return true
 		}
 
-		n := s1.NumFields()
 		var typ2 types.Type
 		var ident *ast.Ident
 		getSelType := func(expr ast.Expr) (types.Type, *ast.Ident, bool) {
@@ -1064,8 +1062,10 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 		if len(lit.Elts) == 0 {
 			return true
 		}
+		if s1.NumFields() != len(lit.Elts) {
+			return true
+		}
 		for i, elt := range lit.Elts {
-			n--
 			var t types.Type
 			var id *ast.Ident
 			var ok bool
@@ -1093,18 +1093,12 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 			if !ok {
 				return true
 			}
-			if typ2 != nil && typ2 != t {
-				return true
-			}
+			// All fields must be initialized from the same object
 			if ident != nil && ident.Obj != id.Obj {
 				return true
 			}
 			typ2 = t
 			ident = id
-		}
-
-		if n != 0 {
-			return true
 		}
 
 		if typ2 == nil {
