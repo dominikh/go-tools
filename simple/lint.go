@@ -1140,7 +1140,8 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 		if !structsIdentical(s1, s2) {
 			return true
 		}
-		j.Errorf(node, "should use type conversion instead of struct literal")
+		j.Errorf(node, "should convert %s (type %s) to %s instead of using struct literal",
+			ident.Name, typ2.Obj().Name(), typ1.Obj().Name())
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
