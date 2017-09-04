@@ -1036,7 +1036,7 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		typ1 := j.Program.Info.TypeOf(lit.Type)
+		typ1, _ := j.Program.Info.TypeOf(lit.Type).(*types.Named)
 		if typ1 == nil {
 			return true
 		}
@@ -1045,7 +1045,7 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 			return true
 		}
 
-		var typ2 types.Type
+		var typ2 *types.Named
 		var ident *ast.Ident
 		getSelType := func(expr ast.Expr) (types.Type, *ast.Ident, bool) {
 			sel, ok := expr.(*ast.SelectorExpr)
@@ -1097,11 +1097,23 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 			if ident != nil && ident.Obj != id.Obj {
 				return true
 			}
-			typ2 = t
+			typ2, _ = t.(*types.Named)
+			if typ2 == nil {
+				return true
+			}
 			ident = id
 		}
 
 		if typ2 == nil {
+			return true
+		}
+
+		if typ1.Obj().Pkg() != typ2.Obj().Pkg() {
+			// Do not suggest type conversions between different
+			// packages. Types in different packages might only match
+			// by coincidence. Furthermore, if the dependency ever
+			// adds more fields to its type, it could break the code
+			// that relies on the type conversion to work.
 			return true
 		}
 
