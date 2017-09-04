@@ -1031,7 +1031,20 @@ func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
 }
 
 func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
+	var skip ast.Node
 	fn := func(node ast.Node) bool {
+		// Do not suggest type conversion between pointers
+		if unary, ok := node.(*ast.UnaryExpr); ok && unary.Op == token.AND {
+			if lit, ok := unary.X.(*ast.CompositeLit); ok {
+				skip = lit
+			}
+			return true
+		}
+
+		if node == skip {
+			return true
+		}
+
 		lit, ok := node.(*ast.CompositeLit)
 		if !ok {
 			return true
