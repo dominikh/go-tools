@@ -233,7 +233,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1019": c.CheckDeprecated,
 		"SA1020": c.callChecker(checkListenAddressRules),
 		"SA1021": c.callChecker(checkBytesEqualIPRules),
-		"SA1022": c.CheckFlagUsage,
+		"SA1022": nil,
 		"SA1023": c.CheckWriterBufferModified,
 		"SA1024": c.callChecker(checkUniqueCutsetRules),
 
@@ -2563,46 +2563,6 @@ func (c *Checker) checkCalls(j *lint.Job, rules map[string]CallCheck) {
 			}
 			for _, e := range call.invalids {
 				j.Errorf(call.Instr.Common(), "%s", e)
-			}
-		}
-	}
-}
-
-func (c *Checker) CheckFlagUsage(j *lint.Job) {
-	for _, ssafn := range j.Program.InitialFunctions {
-		for _, block := range ssafn.Blocks {
-			for _, ins := range block.Instrs {
-				store, ok := ins.(*ssa.Store)
-				if !ok {
-					continue
-				}
-				switch addr := store.Addr.(type) {
-				case *ssa.FieldAddr:
-					typ := addr.X.Type()
-					st := deref(typ).Underlying().(*types.Struct)
-					if types.TypeString(typ, nil) != "*flag.FlagSet" {
-						continue
-					}
-					if st.Field(addr.Field).Name() != "Usage" {
-						continue
-					}
-				case *ssa.Global:
-					if addr.Pkg.Pkg.Path() != "flag" || addr.Name() != "Usage" {
-						continue
-					}
-				default:
-					continue
-				}
-				fn := unwrapFunction(store.Val)
-				if fn == nil {
-					continue
-				}
-				for _, oblock := range fn.Blocks {
-					if hasCallTo(oblock, "os.Exit") {
-						j.Errorf(store, "the function assigned to Usage shouldn't call os.Exit, but it does")
-						break
-					}
-				}
 			}
 		}
 	}
