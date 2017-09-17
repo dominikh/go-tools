@@ -11,6 +11,7 @@ import (
 	htmltemplate "html/template"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -265,6 +266,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4016": c.CheckSillyBitwiseOps,
 		"SA4017": c.CheckPureFunctions,
 		"SA4018": c.CheckSelfAssignment,
+		"SA4019": c.CheckDuplicateBuildConstraints,
 
 		"SA5000": c.CheckNilMaps,
 		"SA5001": c.CheckEarlyDefer,
@@ -2782,5 +2784,41 @@ func (c *Checker) CheckSelfAssignment(j *lint.Job) {
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
 		ast.Inspect(f, fn)
+	}
+}
+
+func buildTagsIdentical(s1, s2 []string) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+	s1s := make([]string, len(s1))
+	copy(s1s, s1)
+	sort.Strings(s1s)
+	s2s := make([]string, len(s2))
+	copy(s2s, s2)
+	sort.Strings(s2s)
+	for i, s := range s1s {
+		if s != s2s[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Checker) CheckDuplicateBuildConstraints(job *lint.Job) {
+	for _, f := range c.filterGenerated(job.Program.Files) {
+		constraints := buildTags(f)
+		for i, constraint1 := range constraints {
+			for j, constraint2 := range constraints {
+				if i >= j {
+					continue
+				}
+				if buildTagsIdentical(constraint1, constraint2) {
+					job.Errorf(f, "identical build constraints %q and %q",
+						strings.Join(constraint1, " "),
+						strings.Join(constraint2, " "))
+				}
+			}
+		}
 	}
 }

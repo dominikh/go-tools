@@ -422,6 +422,21 @@ func IsGenerated(f *ast.File) bool {
 	return false
 }
 
+func Preamble(f *ast.File) string {
+	cutoff := f.Package
+	if f.Doc != nil {
+		cutoff = f.Doc.Pos()
+	}
+	var out []string
+	for _, cmt := range f.Comments {
+		if cmt.Pos() >= cutoff {
+			break
+		}
+		out = append(out, cmt.Text())
+	}
+	return strings.Join(out, "\n")
+}
+
 func (j *Job) IsGoVersion(minor int) bool {
 	return j.Program.GoVersion >= minor
 }
