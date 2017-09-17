@@ -4,7 +4,6 @@ package staticcheck // import "honnef.co/go/tools/staticcheck"
 import (
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/constant"
 	"go/token"
 	"go/types"
@@ -18,7 +17,6 @@ import (
 	texttemplate "text/template"
 
 	"honnef.co/go/tools/functions"
-	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
@@ -112,14 +110,12 @@ var (
 		},
 	}
 
-	checkSyncPoolSizeRules = map[string]CallCheck{
+	checkSyncPoolValueRules = map[string]CallCheck{
 		"(*sync.Pool).Put": func(call *Call) {
-			// TODO(dh): allow users to pass in a custom build environment
-			sizes := gcsizes.ForArch(build.Default.GOARCH)
 			arg := call.Args[0]
 			typ := arg.Value.Value.Type()
-			if !types.IsInterface(typ) && sizes.Sizeof(typ) > sizes.WordSize {
-				arg.Invalid("argument should be one word large or less to avoid allocations")
+			if !lint.IsPointerLike(typ) {
+				arg.Invalid("argument should be pointer-like to avoid allocations")
 			}
 		},
 	}
@@ -279,7 +275,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 
 		"SA6000": c.callChecker(checkRegexpMatchLoopRules),
 		"SA6001": c.CheckMapBytesKey,
-		"SA6002": c.callChecker(checkSyncPoolSizeRules),
+		"SA6002": c.callChecker(checkSyncPoolValueRules),
 		"SA6003": c.CheckRangeStringRunes,
 		"SA6004": nil,
 

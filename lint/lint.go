@@ -437,6 +437,14 @@ func Preamble(f *ast.File) string {
 	return strings.Join(out, "\n")
 }
 
+func IsPointerLike(T types.Type) bool {
+	switch T.Underlying().(type) {
+	case *types.Interface, *types.Chan, *types.Map, *types.Pointer:
+		return true
+	}
+	return false
+}
+
 func (j *Job) IsGoVersion(minor int) bool {
 	return j.Program.GoVersion >= minor
 }
