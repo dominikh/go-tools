@@ -14,6 +14,7 @@ import (
 	"go/build"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -25,6 +26,18 @@ import (
 	"github.com/kisielk/gotool"
 	"golang.org/x/tools/go/loader"
 )
+
+type OutputFormatter interface {
+	Format(p lint.Problem)
+}
+
+type TextOutput struct {
+	w io.Writer
+}
+
+func (o TextOutput) Format(p lint.Problem) {
+	fmt.Fprintf(o.w, "%v: %s\n", relativePositionString(p.Position), p.String())
+}
 
 func usage(name string, flags *flag.FlagSet) func() {
 	return func() {
@@ -153,12 +166,12 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	unclean := false
+
+	f := TextOutput{os.Stdout}
 	for _, p := range ps {
-		unclean = true
-		fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.String())
+		f.Format(p)
 	}
-	if unclean {
+	if len(ps) != 0 {
 		os.Exit(1)
 	}
 }
