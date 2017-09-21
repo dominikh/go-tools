@@ -29,6 +29,8 @@ func NewChecker() *Checker {
 	}
 }
 
+func (*Checker) Name() string { return "gosimple" }
+
 func (c *Checker) Init(prog *lint.Program) {
 	c.nodeFns = lint.NodeFns(prog.Packages)
 }

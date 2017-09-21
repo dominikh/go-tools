@@ -26,6 +26,8 @@ type LintChecker struct {
 	c *Checker
 }
 
+func (*LintChecker) Name() string { return "unused" }
+
 func (l *LintChecker) Init(*lint.Program) {}
 func (l *LintChecker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{

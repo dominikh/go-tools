@@ -15,6 +15,8 @@ type Checker struct {
 	Checkers []lint.Checker
 }
 
+func (*Checker) Name() string { return "megacheck" }
+
 func (c *Checker) Init(prog *lint.Program) {
 	for _, cc := range c.Checkers {
 		cc.Init(prog)

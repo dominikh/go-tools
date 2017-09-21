@@ -206,6 +206,8 @@ func NewChecker() *Checker {
 	return &Checker{}
 }
 
+func (*Checker) Name() string { return "staticcheck" }
+
 func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
 		"SA1000": c.callChecker(checkRegexpRules),

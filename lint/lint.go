@@ -30,6 +30,7 @@ import (
 type Job struct {
 	Program *Program
 
+	checker  string
 	check    string
 	problems []Problem
 }
@@ -62,6 +63,7 @@ type Problem struct {
 	Position token.Position // position in source file
 	Text     string         // the prose that describes the problem
 	Check    string
+	Checker  string
 	Package  *types.Package
 }
 
@@ -70,6 +72,7 @@ func (p *Problem) String() string {
 }
 
 type Checker interface {
+	Name() string
 	Init(*Program)
 	Funcs() map[string]Func
 }
@@ -242,6 +245,7 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	for _, k := range keys {
 		j := &Job{
 			Program: prog,
+			checker: l.Checker.Name(),
 			check:   k,
 		}
 		jobs = append(jobs, j)
@@ -325,6 +329,7 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 		Position: pos,
 		Text:     fmt.Sprintf(format, args...),
 		Check:    j.check,
+		Checker:  j.checker,
 		Package:  pkg,
 	}
 	j.problems = append(j.problems, problem)

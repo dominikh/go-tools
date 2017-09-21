@@ -8,6 +8,7 @@
 package lintutil // import "honnef.co/go/tools/lint/lintutil"
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -39,6 +40,35 @@ func (o TextOutput) Format(p lint.Problem) {
 	fmt.Fprintf(o.w, "%v: %s\n", relativePositionString(p.Position), p.String())
 }
 
+type JSONOutput struct {
+	w io.Writer
+}
+
+func (o JSONOutput) Format(p lint.Problem) {
+	type location struct {
+		File   string `json:"file"`
+		Line   int    `json:"line"`
+		Column int    `json:"column"`
+	}
+	jp := struct {
+		Checker  string   `json:"checker"`
+		Code     string   `json:"code"`
+		Severity string   `json:"severity,omitempty"`
+		Location location `json:"location"`
+		Message  string   `json:"message"`
+	}{
+		p.Checker,
+		p.Check,
+		"", // TODO(dh): support severity
+		location{
+			p.Position.Filename,
+			p.Position.Line,
+			p.Position.Column,
+		},
+		p.Text,
+	}
+	_ = json.NewEncoder(o.w).Encode(jp)
+}
 func usage(name string, flags *flag.FlagSet) func() {
 	return func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", name)
