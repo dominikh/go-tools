@@ -162,6 +162,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
 	flags.Bool("version", false, "Print version and exit")
+	flags.String("f", "text", "Output `format` (valid choices are 'text' and 'json')")
 
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
@@ -179,6 +180,7 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
+	format := fs.Lookup("f").Value.(flag.Getter).Get().(string)
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 
 	if printVersion {
@@ -197,7 +199,17 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 		os.Exit(1)
 	}
 
-	f := TextOutput{os.Stdout}
+	var f OutputFormatter
+	switch format {
+	case "text":
+		f = TextOutput{os.Stdout}
+	case "json":
+		f = JSONOutput{os.Stdout}
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported outut format %q\n", format)
+		os.Exit(2)
+	}
+
 	for _, p := range ps {
 		f.Format(p)
 	}
