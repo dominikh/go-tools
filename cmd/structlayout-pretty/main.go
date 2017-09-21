@@ -11,17 +11,27 @@ import (
 	"strings"
 
 	st "honnef.co/go/tools/structlayout"
+	"honnef.co/go/tools/version"
 )
 
-var fVerbose bool
+var (
+	fVerbose bool
+	fVersion bool
+)
 
 func init() {
 	flag.BoolVar(&fVerbose, "v", false, "Do not compact consecutive bytes of fields")
+	flag.BoolVar(&fVersion, "version", false, "Print version and exit")
 }
 
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
+
+	if fVersion {
+		version.Print()
+		os.Exit(0)
+	}
 
 	var fields []st.Field
 	if err := json.NewDecoder(os.Stdin).Decode(&fields); err != nil {

@@ -12,6 +12,8 @@ import (
 	"go/build"
 	"os"
 
+	"honnef.co/go/tools/version"
+
 	"github.com/kisielk/gotool"
 	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/refactor/importgraph"
@@ -22,7 +24,13 @@ func main() {
 	flag.Var(&tags, "tags", "List of build tags")
 	stdin := flag.Bool("stdin", false, "Read packages from stdin instead of the command line")
 	recursive := flag.Bool("r", false, "Print reverse dependencies recursively")
+	printVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
+
+	if *printVersion {
+		version.Print()
+		os.Exit(0)
+	}
 
 	ctx := build.Default
 	ctx.BuildTags = tags

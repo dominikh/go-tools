@@ -12,21 +12,29 @@ import (
 	"strings"
 
 	st "honnef.co/go/tools/structlayout"
+	"honnef.co/go/tools/version"
 )
 
 var (
 	fJSON    bool
 	fRecurse bool
+	fVersion bool
 )
 
 func init() {
 	flag.BoolVar(&fJSON, "json", false, "Format data as JSON")
 	flag.BoolVar(&fRecurse, "r", false, "Break up structs and reorder their fields freely")
+	flag.BoolVar(&fVersion, "version", false, "Print version and exit")
 }
 
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
+
+	if fVersion {
+		version.Print()
+		os.Exit(0)
+	}
 
 	var in []st.Field
 	if err := json.NewDecoder(os.Stdin).Decode(&in); err != nil {

@@ -12,19 +12,29 @@ import (
 
 	"honnef.co/go/tools/gcsizes"
 	st "honnef.co/go/tools/structlayout"
+	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/loader"
 )
 
-var fJSON bool
+var (
+	fJSON    bool
+	fVersion bool
+)
 
 func init() {
 	flag.BoolVar(&fJSON, "json", false, "Format data as JSON")
+	flag.BoolVar(&fVersion, "version", false, "Print version and exit")
 }
 
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
+
+	if fVersion {
+		version.Print()
+		os.Exit(0)
+	}
 
 	if len(flag.Args()) != 2 {
 		flag.Usage()
