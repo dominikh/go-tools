@@ -58,8 +58,11 @@ type Func func(*Job)
 
 // Problem represents a problem in some source code.
 type Problem struct {
-	Position token.Pos // position in source file
-	Text     string    // the prose that describes the problem
+	pos      token.Pos
+	Position token.Position // position in source file
+	Text     string         // the prose that describes the problem
+	Check    string
+	Package  *types.Package
 }
 
 func (p *Problem) String() string {
@@ -79,7 +82,7 @@ type Linter struct {
 }
 
 func (l *Linter) ignore(j *Job, p Problem) bool {
-	tf := j.Program.SSA.Fset.File(p.Position)
+	tf := j.Program.SSA.Fset.File(p.pos)
 	f := j.Program.tokenFileMap[tf]
 	pkg := j.Program.astFileMap[f].Pkg
 
@@ -89,7 +92,7 @@ func (l *Linter) ignore(j *Job, p Problem) bool {
 			if strings.HasSuffix(pkgpath, "_test") {
 				pkgpath = pkgpath[:len(pkgpath)-len("_test")]
 			}
-			name := filepath.Join(pkgpath, filepath.Base(tf.Name()))
+			name := filepath.Join(pkgpath, filepath.Base(p.Position.Filename))
 			if m, _ := filepath.Match(ig.Pattern, name); !m {
 				continue
 			}
@@ -118,7 +121,7 @@ func (ps byPosition) Len() int {
 }
 
 func (ps byPosition) Less(i int, j int) bool {
-	pi, pj := ps.fset.Position(ps.ps[i].Position), ps.fset.Position(ps.ps[j].Position)
+	pi, pj := ps.ps[i].Position, ps.ps[j].Position
 
 	if pi.Filename != pj.Filename {
 		return pi.Filename < pj.Filename
@@ -312,9 +315,17 @@ type Positioner interface {
 }
 
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
+	tf := j.Program.SSA.Fset.File(n.Pos())
+	f := j.Program.tokenFileMap[tf]
+	pkg := j.Program.astFileMap[f].Pkg
+
+	pos := j.Program.SSA.Fset.Position(n.Pos())
 	problem := Problem{
-		Position: n.Pos(),
-		Text:     fmt.Sprintf(format, args...) + fmt.Sprintf(" (%s)", j.check),
+		pos:      n.Pos(),
+		Position: pos,
+		Text:     fmt.Sprintf(format, args...),
+		Check:    j.check,
+		Package:  pkg,
 	}
 	j.problems = append(j.problems, problem)
 	return &j.problems[len(j.problems)-1]

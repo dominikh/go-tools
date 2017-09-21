@@ -101,8 +101,7 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 			for _, in := range ins {
 				ok := false
 				for i, p := range res {
-					pos := lprog.Fset.Position(p.Position)
-					if pos.Line != in.Line || filepath.Base(pos.Filename) != name {
+					if p.Position.Line != in.Line || filepath.Base(p.Position.Filename) != name {
 						continue
 					}
 					if in.Match.MatchString(p.Text) {
@@ -121,11 +120,10 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 			}
 		}
 		for _, p := range res {
-			pos := lprog.Fset.Position(p.Position)
-			name := filepath.Base(pos.Filename)
+			name := filepath.Base(p.Position.Filename)
 			for _, fi := range fis {
 				if name == fi.Name() {
-					t.Errorf("Unexpected problem at %s: %v", pos, p.Text)
+					t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
 					break
 				}
 			}

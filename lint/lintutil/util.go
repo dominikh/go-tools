@@ -143,7 +143,7 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 		os.Exit(0)
 	}
 
-	ps, lprog, err := Lint(c, fs.Args(), &Options{
+	ps, err := Lint(c, fs.Args(), &Options{
 		Tags:      strings.Fields(tags),
 		LintTests: tests,
 		Ignores:   ignore,
@@ -156,8 +156,7 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 	unclean := false
 	for _, p := range ps {
 		unclean = true
-		pos := lprog.Fset.Position(p.Position)
-		fmt.Printf("%v: %s\n", relativePositionString(pos), p.Text)
+		fmt.Printf("%v: %s\n", relativePositionString(p.Position), p.String())
 	}
 	if unclean {
 		os.Exit(1)
@@ -171,15 +170,13 @@ type Options struct {
 	GoVersion int
 }
 
-func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.Program, error) {
-	// TODO(dh): Instead of returning the loader.Program, we should
-	// store token.Position instead of token.Pos in lint.Problem.
+func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
 	ignores, err := parseIgnore(opt.Ignores)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	runner := &runner{
 		checker: c,
@@ -190,7 +187,7 @@ func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.
 	paths := gotool.ImportPaths(pkgs)
 	goFiles, err := runner.resolveRelative(paths)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	ctx := build.Default
 	ctx.BuildTags = runner.tags
@@ -208,9 +205,9 @@ func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, *loader.
 	}
 	lprog, err := conf.Load()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return runner.lint(lprog), lprog, nil
+	return runner.lint(lprog), nil
 }
 
 func shortPath(path string) string {
