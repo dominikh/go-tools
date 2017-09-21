@@ -3,6 +3,7 @@ package main // import "honnef.co/go/tools/cmd/gosimple"
 import (
 	"os"
 
+	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/simple"
 )
@@ -14,5 +15,5 @@ func main() {
 	c := simple.NewChecker()
 	c.CheckGenerated = *gen
 
-	lintutil.ProcessFlagSet(c, fs)
+	lintutil.ProcessFlagSet([]lint.Checker{c}, fs)
 }

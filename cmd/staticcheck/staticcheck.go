@@ -5,6 +5,7 @@ package main // import "honnef.co/go/tools/cmd/staticcheck"
 import (
 	"os"
 
+	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/staticcheck"
 )
@@ -15,5 +16,5 @@ func main() {
 	fs.Parse(os.Args[1:])
 	c := staticcheck.NewChecker()
 	c.CheckGenerated = *gen
-	lintutil.ProcessFlagSet(c, fs)
+	lintutil.ProcessFlagSet([]lint.Checker{c}, fs)
 }

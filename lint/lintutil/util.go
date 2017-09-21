@@ -88,7 +88,7 @@ type runner struct {
 	version int
 }
 
-func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err error) {
+func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
 	if len(importPaths) == 0 {
 		return false, nil
 	}
@@ -101,7 +101,7 @@ func (runner runner) resolveRelative(importPaths []string) (goFiles bool, err er
 		return false, err
 	}
 	ctx := build.Default
-	ctx.BuildTags = runner.tags
+	ctx.BuildTags = tags
 	for i, path := range importPaths {
 		bpkg, err := ctx.Import(path, wd, build.FindOnly)
 		if err != nil {
@@ -174,7 +174,7 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
+func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
@@ -186,7 +186,7 @@ func ProcessFlagSet(c lint.Checker, fs *flag.FlagSet) {
 		os.Exit(0)
 	}
 
-	ps, err := Lint(c, fs.Args(), &Options{
+	ps, err := Lint(cs, fs.Args(), &Options{
 		Tags:      strings.Fields(tags),
 		LintTests: tests,
 		Ignores:   ignore,
@@ -213,7 +213,7 @@ type Options struct {
 	GoVersion int
 }
 
-func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
+func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -221,19 +221,13 @@ func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
 	if err != nil {
 		return nil, err
 	}
-	runner := &runner{
-		checker: c,
-		tags:    opt.Tags,
-		ignores: ignores,
-		version: opt.GoVersion,
-	}
 	paths := gotool.ImportPaths(pkgs)
-	goFiles, err := runner.resolveRelative(paths)
+	goFiles, err := resolveRelative(paths, opt.Tags)
 	if err != nil {
 		return nil, err
 	}
 	ctx := build.Default
-	ctx.BuildTags = runner.tags
+	ctx.BuildTags = opt.Tags
 	conf := &loader.Config{
 		Build:      &ctx,
 		ParserMode: parser.ParseComments,
@@ -250,7 +244,18 @@ func Lint(c lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runner.lint(lprog), nil
+
+	var problems []lint.Problem
+	for _, c := range cs {
+		runner := &runner{
+			checker: c,
+			tags:    opt.Tags,
+			ignores: ignores,
+			version: opt.GoVersion,
+		}
+		problems = append(problems, runner.lint(lprog)...)
+	}
+	return problems, nil
 }
 
 func shortPath(path string) string {
@@ -278,11 +283,11 @@ func relativePositionString(pos token.Position) string {
 	return s
 }
 
-func ProcessArgs(name string, c lint.Checker, args []string) {
+func ProcessArgs(name string, cs []lint.Checker, args []string) {
 	flags := FlagSet(name)
 	flags.Parse(args)
 
-	ProcessFlagSet(c, flags)
+	ProcessFlagSet(cs, flags)
 }
 
 func (runner *runner) lint(lprog *loader.Program) []lint.Problem {

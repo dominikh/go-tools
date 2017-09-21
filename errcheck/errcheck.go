@@ -16,6 +16,8 @@ func NewChecker() *Checker {
 	return &Checker{}
 }
 
+func (*Checker) Name() string { return "errcheck" }
+
 func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
 		"ERR1000": c.CheckErrcheck,
