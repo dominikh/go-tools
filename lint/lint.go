@@ -84,13 +84,15 @@ func (l *Linter) ignore(j *Job, p Problem) bool {
 	pkg := j.Program.astFileMap[f].Pkg
 
 	for _, ig := range l.Ignores {
-		pkgpath := pkg.Path()
-		if strings.HasSuffix(pkgpath, "_test") {
-			pkgpath = pkgpath[:len(pkgpath)-len("_test")]
-		}
-		name := filepath.Join(pkgpath, filepath.Base(tf.Name()))
-		if m, _ := filepath.Match(ig.Pattern, name); !m {
-			continue
+		if ig.Pattern != "*" {
+			pkgpath := pkg.Path()
+			if strings.HasSuffix(pkgpath, "_test") {
+				pkgpath = pkgpath[:len(pkgpath)-len("_test")]
+			}
+			name := filepath.Join(pkgpath, filepath.Base(tf.Name()))
+			if m, _ := filepath.Match(ig.Pattern, name); !m {
+				continue
+			}
 		}
 		for _, c := range ig.Checks {
 			if m, _ := filepath.Match(c, j.check); m {
