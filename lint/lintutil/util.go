@@ -206,7 +206,7 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	case "json":
 		f = JSONOutput{os.Stdout}
 	default:
-		fmt.Fprintf(os.Stderr, "unsupported outut format %q\n", format)
+		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", format)
 		os.Exit(2)
 	}
 
