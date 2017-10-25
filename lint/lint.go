@@ -500,6 +500,8 @@ func IsExample(fn *ssa.Function) bool {
 }
 
 func (j *Job) IsInTest(node Positioner) bool {
+	// FIXME(dh): this doesn't work for global variables with
+	// initializers
 	f := j.Program.SSA.Fset.File(node.Pos())
 	return f != nil && strings.HasSuffix(f.Name(), "_test.go")
 }
@@ -602,9 +604,14 @@ func IsBlank(id ast.Expr) bool {
 	return ok && ident.Name == "_"
 }
 
-func IsZero(expr ast.Expr) bool {
+func IsIntLiteral(expr ast.Expr, literal string) bool {
 	lit, ok := expr.(*ast.BasicLit)
-	return ok && lit.Kind == token.INT && lit.Value == "0"
+	return ok && lit.Kind == token.INT && lit.Value == literal
+}
+
+// Deprecated: use IsIntLiteral instead
+func IsZero(expr ast.Expr) bool {
+	return IsIntLiteral(expr, "0")
 }
 
 func (j *Job) IsNil(expr ast.Expr) bool {
@@ -700,6 +707,25 @@ func IsPointerLike(T types.Type) bool {
 		return T.Kind() == types.UnsafePointer
 	}
 	return false
+}
+
+// Dereference returns a pointer's element type; otherwise it returns
+// T.
+func Dereference(T types.Type) types.Type {
+	if p, ok := T.Underlying().(*types.Pointer); ok {
+		return p.Elem()
+	}
+	return T
+}
+
+// DereferenceR returns a pointer's element type; otherwise it returns
+// T. If the element type is itself a pointer, DereferenceR will be
+// applied recursively.
+func DereferenceR(T types.Type) types.Type {
+	if p, ok := T.Underlying().(*types.Pointer); ok {
+		return DereferenceR(p.Elem())
+	}
+	return T
 }
 
 func (j *Job) IsGoVersion(minor int) bool {

@@ -2515,14 +2515,6 @@ func hasCallTo(block *ssa.BasicBlock, name string) bool {
 	return false
 }
 
-// deref returns a pointer's element type; otherwise it returns typ.
-func deref(typ types.Type) types.Type {
-	if p, ok := typ.Underlying().(*types.Pointer); ok {
-		return p.Elem()
-	}
-	return typ
-}
-
 func (c *Checker) CheckWriterBufferModified(j *lint.Job) {
 	// TODO(dh): this might be a good candidate for taint analysis.
 	// Taint the argument as MUST_NOT_MODIFY, then propagate that
