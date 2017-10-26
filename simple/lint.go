@@ -29,7 +29,8 @@ func NewChecker() *Checker {
 	}
 }
 
-func (*Checker) Name() string { return "gosimple" }
+func (*Checker) Name() string   { return "gosimple" }
+func (*Checker) Prefix() string { return "S" }
 
 func (c *Checker) Init(prog *lint.Program) {
 	c.nodeFns = lint.NodeFns(prog.Packages)

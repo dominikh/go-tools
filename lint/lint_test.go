@@ -7,10 +7,10 @@ import (
 	"honnef.co/go/tools/lint/testutil"
 )
 
-type testChecker struct {
-}
+type testChecker struct{}
 
 func (testChecker) Name() string       { return "stylecheck" }
+func (testChecker) Prefix() string     { return "TEST" }
 func (testChecker) Init(prog *Program) {}
 
 func (testChecker) Funcs() map[string]Func {

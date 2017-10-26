@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
@@ -40,9 +41,11 @@ type Ignore interface {
 }
 
 type LineIgnore struct {
-	File   string
-	Line   int
-	Checks []string
+	File    string
+	Line    int
+	Checks  []string
+	matched bool
+	pos     token.Pos
 }
 
 func (li *LineIgnore) Match(p Problem) bool {
@@ -51,10 +54,19 @@ func (li *LineIgnore) Match(p Problem) bool {
 	}
 	for _, c := range li.Checks {
 		if m, _ := filepath.Match(c, p.Check); m {
+			li.matched = true
 			return true
 		}
 	}
 	return false
+}
+
+func (li *LineIgnore) String() string {
+	matched := "not matched"
+	if li.matched {
+		matched = "matched"
+	}
+	return fmt.Sprintf("%s:%d %s (%s)", li.File, li.Line, strings.Join(li.Checks, ", "), matched)
 }
 
 type GlobIgnore struct {
@@ -117,6 +129,7 @@ func (p *Problem) String() string {
 
 type Checker interface {
 	Name() string
+	Prefix() string
 	Init(*Program)
 	Funcs() map[string]Func
 }
@@ -127,20 +140,31 @@ type Linter struct {
 	Ignores   []Ignore
 	GoVersion int
 
-	automaticIgnores []Ignore
+	automaticIgnores []*LineIgnore
 }
 
 func (l *Linter) ignore(p Problem) bool {
-	for _, ig := range l.Ignores {
-		if ig.Match(p) {
-			return true
-		}
-	}
+	ignored := false
 	for _, ig := range l.automaticIgnores {
+		// We cannot short-circuit these, as we want to record, for
+		// each ignore, whether it matched or not.
+		if ig.Match(p) {
+			ignored = true
+		}
+	}
+	if ignored {
+		// no need to execute other ignores if we've already had a
+		// match.
+		return true
+	}
+	for _, ig := range l.Ignores {
+		// We can short-circuit here, as we aren't tracking any
+		// information.
 		if ig.Match(p) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -209,6 +233,7 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 								File:   pos.Filename,
 								Line:   pos.Line,
 								Checks: checks,
+								pos:    c.Pos(),
 							}
 							l.automaticIgnores = append(l.automaticIgnores, ig)
 						}
@@ -343,6 +368,34 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			if !l.ignore(p) {
 				out = append(out, p)
 			}
+		}
+	}
+
+	for _, ig := range l.automaticIgnores {
+		if ig.matched {
+			continue
+		}
+		for _, c := range ig.Checks {
+			idx := strings.IndexFunc(c, func(r rune) bool {
+				return unicode.IsNumber(r)
+			})
+			if idx == -1 {
+				// malformed check name, backing out
+				continue
+			}
+			if c[:idx] != l.Checker.Prefix() {
+				// not for this checker
+				continue
+			}
+			p := Problem{
+				pos:      ig.pos,
+				Position: lprog.Fset.Position(ig.pos),
+				Text:     "this linter directive didn't match anything; should it be removed?",
+				Check:    "",
+				Checker:  l.Checker.Name(),
+				Package:  nil,
+			}
+			out = append(out, p)
 		}
 	}
 

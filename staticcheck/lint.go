@@ -206,7 +206,8 @@ func NewChecker() *Checker {
 	return &Checker{}
 }
 
-func (*Checker) Name() string { return "staticcheck" }
+func (*Checker) Name() string   { return "staticcheck" }
+func (*Checker) Prefix() string { return "SA" }
 
 func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
