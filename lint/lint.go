@@ -68,7 +68,7 @@ type Problem struct {
 }
 
 func (p *Problem) String() string {
-	return p.Text
+	return fmt.Sprintf("%s (%s)", p.Text, p.Check)
 }
 
 type Checker interface {
