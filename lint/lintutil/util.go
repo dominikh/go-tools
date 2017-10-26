@@ -56,6 +56,7 @@ func (o JSONOutput) Format(p lint.Problem) {
 		Severity string   `json:"severity,omitempty"`
 		Location location `json:"location"`
 		Message  string   `json:"message"`
+		Ignored  bool     `json:"ignored"`
 	}{
 		p.Checker,
 		p.Check,
@@ -66,6 +67,7 @@ func (o JSONOutput) Format(p lint.Problem) {
 			p.Position.Column,
 		},
 		p.Text,
+		p.Ignored,
 	}
 	_ = json.NewEncoder(o.w).Encode(jp)
 }
@@ -82,10 +84,11 @@ func usage(name string, flags *flag.FlagSet) func() {
 }
 
 type runner struct {
-	checker lint.Checker
-	tags    []string
-	ignores []lint.Ignore
-	version int
+	checker       lint.Checker
+	tags          []string
+	ignores       []lint.Ignore
+	version       int
+	returnIgnored bool
 }
 
 func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
@@ -162,6 +165,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
 	flags.Bool("version", false, "Print version and exit")
+	flags.Bool("show-ignored", false, "Don't filter ignored problems")
 	flags.String("f", "text", "Output `format` (valid choices are 'text' and 'json')")
 
 	tags := build.Default.ReleaseTags
@@ -182,6 +186,7 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 	format := fs.Lookup("f").Value.(flag.Getter).Get().(string)
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
+	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
 
 	if printVersion {
 		version.Print()
@@ -189,10 +194,11 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	}
 
 	ps, err := Lint(cs, fs.Args(), &Options{
-		Tags:      strings.Fields(tags),
-		LintTests: tests,
-		Ignores:   ignore,
-		GoVersion: goVersion,
+		Tags:          strings.Fields(tags),
+		LintTests:     tests,
+		Ignores:       ignore,
+		GoVersion:     goVersion,
+		ReturnIgnored: showIgnored,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -219,10 +225,11 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 }
 
 type Options struct {
-	Tags      []string
-	LintTests bool
-	Ignores   string
-	GoVersion int
+	Tags          []string
+	LintTests     bool
+	Ignores       string
+	GoVersion     int
+	ReturnIgnored bool
 }
 
 func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
@@ -260,10 +267,11 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error
 	var problems []lint.Problem
 	for _, c := range cs {
 		runner := &runner{
-			checker: c,
-			tags:    opt.Tags,
-			ignores: ignores,
-			version: opt.GoVersion,
+			checker:       c,
+			tags:          opt.Tags,
+			ignores:       ignores,
+			version:       opt.GoVersion,
+			returnIgnored: opt.ReturnIgnored,
 		}
 		problems = append(problems, runner.lint(lprog)...)
 	}
@@ -304,9 +312,10 @@ func ProcessArgs(name string, cs []lint.Checker, args []string) {
 
 func (runner *runner) lint(lprog *loader.Program) []lint.Problem {
 	l := &lint.Linter{
-		Checker:   runner.checker,
-		Ignores:   runner.ignores,
-		GoVersion: runner.version,
+		Checker:       runner.checker,
+		Ignores:       runner.ignores,
+		GoVersion:     runner.version,
+		ReturnIgnored: runner.returnIgnored,
 	}
 	return l.Lint(lprog)
 }

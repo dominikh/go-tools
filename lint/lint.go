@@ -118,6 +118,7 @@ type Problem struct {
 	Check    string
 	Checker  string
 	Package  *types.Package
+	Ignored  bool
 }
 
 func (p *Problem) String() string {
@@ -136,9 +137,10 @@ type Checker interface {
 
 // A Linter lints Go source code.
 type Linter struct {
-	Checker   Checker
-	Ignores   []Ignore
-	GoVersion int
+	Checker       Checker
+	Ignores       []Ignore
+	GoVersion     int
+	ReturnIgnored bool
 
 	automaticIgnores []*LineIgnore
 }
@@ -365,7 +367,8 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 
 	for _, j := range jobs {
 		for _, p := range j.problems {
-			if !l.ignore(p) {
+			p.Ignored = l.ignore(p)
+			if l.ReturnIgnored || !p.Ignored {
 				out = append(out, p)
 			}
 		}
