@@ -124,7 +124,7 @@ func parseIgnore(s string) ([]lint.Ignore, error) {
 		}
 		path := p[0]
 		checks := strings.Split(p[1], ",")
-		out = append(out, lint.Ignore{Pattern: path, Checks: checks})
+		out = append(out, &lint.GlobIgnore{Pattern: path, Checks: checks})
 	}
 	return out, nil
 }

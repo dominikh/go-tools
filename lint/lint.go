@@ -35,9 +35,50 @@ type Job struct {
 	problems []Problem
 }
 
-type Ignore struct {
+type Ignore interface {
+	Match(p Problem) bool
+}
+
+type LineIgnore struct {
+	File   string
+	Line   int
+	Checks []string
+}
+
+func (li *LineIgnore) Match(p Problem) bool {
+	if p.Position.Filename != li.File || p.Position.Line != li.Line {
+		return false
+	}
+	for _, c := range li.Checks {
+		if m, _ := filepath.Match(c, p.Check); m {
+			return true
+		}
+	}
+	return false
+}
+
+type GlobIgnore struct {
 	Pattern string
 	Checks  []string
+}
+
+func (gi *GlobIgnore) Match(p Problem) bool {
+	if gi.Pattern != "*" {
+		pkgpath := p.Package.Path()
+		if strings.HasSuffix(pkgpath, "_test") {
+			pkgpath = pkgpath[:len(pkgpath)-len("_test")]
+		}
+		name := filepath.Join(pkgpath, filepath.Base(p.Position.Filename))
+		if m, _ := filepath.Match(gi.Pattern, name); !m {
+			return false
+		}
+	}
+	for _, c := range gi.Checks {
+		if m, _ := filepath.Match(c, p.Check); m {
+			return true
+		}
+	}
+	return false
 }
 
 type Program struct {
@@ -68,6 +109,9 @@ type Problem struct {
 }
 
 func (p *Problem) String() string {
+	if p.Check == "" {
+		return p.Text
+	}
 	return fmt.Sprintf("%s (%s)", p.Text, p.Check)
 }
 
@@ -82,28 +126,19 @@ type Linter struct {
 	Checker   Checker
 	Ignores   []Ignore
 	GoVersion int
+
+	automaticIgnores []Ignore
 }
 
-func (l *Linter) ignore(j *Job, p Problem) bool {
-	tf := j.Program.SSA.Fset.File(p.pos)
-	f := j.Program.tokenFileMap[tf]
-	pkg := j.Program.astFileMap[f].Pkg
-
+func (l *Linter) ignore(p Problem) bool {
 	for _, ig := range l.Ignores {
-		if ig.Pattern != "*" {
-			pkgpath := pkg.Path()
-			if strings.HasSuffix(pkgpath, "_test") {
-				pkgpath = pkgpath[:len(pkgpath)-len("_test")]
-			}
-			name := filepath.Join(pkgpath, filepath.Base(p.Position.Filename))
-			if m, _ := filepath.Match(ig.Pattern, name); !m {
-				continue
-			}
+		if ig.Match(p) {
+			return true
 		}
-		for _, c := range ig.Checks {
-			if m, _ := filepath.Match(c, j.check); m {
-				return true
-			}
+	}
+	for _, ig := range l.automaticIgnores {
+		if ig.Match(p) {
+			return true
 		}
 	}
 	return false
@@ -144,6 +179,45 @@ func (ps byPosition) Swap(i int, j int) {
 }
 
 func (l *Linter) Lint(lprog *loader.Program) []Problem {
+	var out []Problem
+
+	l.automaticIgnores = nil
+	for _, pkginfo := range lprog.InitialPackages() {
+		for _, f := range pkginfo.Files {
+			cm := ast.NewCommentMap(lprog.Fset, f, f.Comments)
+			for node, cgs := range cm {
+				for _, cg := range cgs {
+					for _, c := range cg.List {
+						if strings.HasPrefix(c.Text, "//lint:ignore") {
+							fields := strings.Fields(c.Text)
+							if len(fields) < 3 {
+								// FIXME(dh): this causes duplicated warnings when using megacheck
+								p := Problem{
+									pos:      c.Pos(),
+									Position: lprog.Fset.Position(c.Pos()),
+									Text:     "malformed linter directive; missing the required reason field?",
+									Check:    "",
+									Checker:  l.Checker.Name(),
+									Package:  nil,
+								}
+								out = append(out, p)
+								continue
+							}
+							checks := strings.Split(fields[1], ",")
+							pos := lprog.Fset.Position(node.Pos())
+							ig := &LineIgnore{
+								File:   pos.Filename,
+								Line:   pos.Line,
+								Checks: checks,
+							}
+							l.automaticIgnores = append(l.automaticIgnores, ig)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaprog.Build()
 	pkgMap := map[*ssa.Package]*Pkg{}
@@ -264,10 +338,9 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	}
 	wg.Wait()
 
-	var out []Problem
 	for _, j := range jobs {
 		for _, p := range j.problems {
-			if !l.ignore(j, p) {
+			if !l.ignore(p) {
 				out = append(out, p)
 			}
 		}
