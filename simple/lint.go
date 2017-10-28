@@ -70,6 +70,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1029": c.LintRangeStringRunes,
 		"S1030": c.LintBytesBufferConversions,
 		"S1031": c.LintNilCheckAroundRange,
+		"S1032": c.LintSort,
 	}
 }
 
@@ -1760,6 +1761,55 @@ func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
 		switch j.Program.Info.TypeOf(rangeXIdent).(type) {
 		case *types.Slice, *types.Map:
 			j.Errorf(node, "unnecessary nil check around range")
+		}
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintSort(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		if !j.IsCallToAST(node, "sort.Sort") {
+			return true
+		}
+		call := node.(*ast.CallExpr)
+
+		typeconv, ok := call.Args[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if len(typeconv.Args) == 0 {
+			return true
+		}
+
+		sel, ok := typeconv.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if !lint.IsIdent(sel.X, "sort") {
+			return true
+		}
+
+		name := sel.Sel.Name
+		if name != "IntSlice" && name != "Float64Slice" && name != "StringSlice" {
+			return true
+		}
+
+		typ := j.Program.Info.TypeOf(typeconv.Args[0])
+		slice, ok := typ.(*types.Slice)
+		if !ok {
+			return true
+		}
+		typ = slice.Elem()
+
+		if name == "IntSlice" && typ == types.Universe.Lookup("int").Type() {
+			j.Errorf(node, "should use sort.Ints(...) instead of sort.Sort(sort.IntSlice(...))")
+		} else if name == "Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
+			j.Errorf(node, "should use sort.Float64s(...) instead of sort.Sort(sort.Float64Slice(...))")
+		} else if name == "StringSlice" && typ == types.Universe.Lookup("string").Type() {
+			j.Errorf(node, "should use sort.Strings(...) instead of sort.Sort(sort.StringSlice(...))")
 		}
 		return true
 	}

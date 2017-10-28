@@ -1,0 +1,18 @@
+Replace with `sort.Ints(x)`, `sort.Float64s(x)`, `sort.Strings(x)`
+
+The `sort.Ints`, `sort.Float64s` and `sort.Strings` functions are
+easier to read than `sort.Sort(sort.IntSlice(x))`,
+`sort.Sort(sort.Float64Slice(x))` and
+`sort.Sort(sort.StringSlice(x))`.
+
+**Before:**
+
+```
+sort.Sort(sort.StringSlice(x))
+```
+
+**After:**
+
+```
+sort.Strings(x)
+```
