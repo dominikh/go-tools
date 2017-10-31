@@ -341,6 +341,16 @@ func (c *Checker) Init(prog *lint.Program) {
 							m[meth] = msg
 						}
 					}
+
+					if iface, ok := typ.Underlying().(*types.Interface); ok {
+						for i := 0; i < iface.NumExplicitMethods(); i++ {
+							meth := iface.ExplicitMethod(i)
+							msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, meth)
+							if msg != "" {
+								m[meth] = msg
+							}
+						}
+					}
 				}
 				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
 					n := typ.NumFields()

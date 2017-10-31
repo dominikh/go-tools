@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"compress/flate"
+	"database/sql/driver"
 	"net/http"
 	"os"
 	"syscall"
@@ -21,6 +22,9 @@ func fn1(err error) {
 
 	var tr *http.Transport
 	tr.CancelRequest(nil) // MATCH "CancelRequest is deprecated"
+
+	var conn driver.Conn
+	conn.Begin() // MATCH "Begin is deprecated"
 }
 
 // Deprecated: Don't use this.
