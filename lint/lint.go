@@ -70,6 +70,23 @@ func (li *LineIgnore) String() string {
 	return fmt.Sprintf("%s:%d %s (%s)", li.File, li.Line, strings.Join(li.Checks, ", "), matched)
 }
 
+type FileIgnore struct {
+	File   string
+	Checks []string
+}
+
+func (fi *FileIgnore) Match(p Problem) bool {
+	if p.Position.Filename != fi.File {
+		return false
+	}
+	for _, c := range fi.Checks {
+		if m, _ := filepath.Match(c, p.Check); m {
+			return true
+		}
+	}
+	return false
+}
+
 type GlobIgnore struct {
 	Pattern string
 	Checks  []string
@@ -143,7 +160,7 @@ type Linter struct {
 	GoVersion     int
 	ReturnIgnored bool
 
-	automaticIgnores []*LineIgnore
+	automaticIgnores []Ignore
 }
 
 func (l *Linter) ignore(p Problem) bool {
@@ -205,6 +222,15 @@ func (ps byPosition) Swap(i int, j int) {
 	ps.ps[i], ps.ps[j] = ps.ps[j], ps.ps[i]
 }
 
+func parseDirective(s string) (cmd string, args []string) {
+	if !strings.HasPrefix(s, "//lint:") {
+		return "", nil
+	}
+	s = strings.TrimPrefix(s, "//lint:")
+	fields := strings.Split(s, " ")
+	return fields[0], fields[1:]
+}
+
 func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaprog.Build()
@@ -230,7 +256,6 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	}
 
 	var out []Problem
-
 	l.automaticIgnores = nil
 	for _, pkginfo := range lprog.InitialPackages() {
 		for _, f := range pkginfo.Files {
@@ -238,9 +263,13 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			for node, cgs := range cm {
 				for _, cg := range cgs {
 					for _, c := range cg.List {
-						if strings.HasPrefix(c.Text, "//lint:ignore") {
-							fields := strings.Fields(c.Text)
-							if len(fields) < 3 {
+						if !strings.HasPrefix(c.Text, "//lint:") {
+							continue
+						}
+						cmd, args := parseDirective(c.Text)
+						switch cmd {
+						case "ignore", "file-ignore":
+							if len(args) < 2 {
 								// FIXME(dh): this causes duplicated warnings when using megacheck
 								p := Problem{
 									pos:      c.Pos(),
@@ -253,16 +282,28 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 								out = append(out, p)
 								continue
 							}
-							checks := strings.Split(fields[1], ",")
-							pos := prog.DisplayPosition(node.Pos())
-							ig := &LineIgnore{
+						default:
+							// unknown directive, ignore
+							continue
+						}
+						checks := strings.Split(args[0], ",")
+						pos := prog.DisplayPosition(node.Pos())
+						var ig Ignore
+						switch cmd {
+						case "ignore":
+							ig = &LineIgnore{
 								File:   pos.Filename,
 								Line:   pos.Line,
 								Checks: checks,
 								pos:    c.Pos(),
 							}
-							l.automaticIgnores = append(l.automaticIgnores, ig)
+						case "file-ignore":
+							ig = &FileIgnore{
+								File:   pos.Filename,
+								Checks: checks,
+							}
 						}
+						l.automaticIgnores = append(l.automaticIgnores, ig)
 					}
 				}
 			}
@@ -377,6 +418,10 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 	}
 
 	for _, ig := range l.automaticIgnores {
+		ig, ok := ig.(*LineIgnore)
+		if !ok {
+			continue
+		}
 		if ig.matched {
 			continue
 		}
