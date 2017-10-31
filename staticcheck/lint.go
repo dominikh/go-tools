@@ -23,6 +23,7 @@ import (
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/loader"
 )
 
 func validRegexp(call *Call) {
@@ -316,6 +317,13 @@ func (c *Checker) Init(prog *lint.Program) {
 
 	c.nodeFns = lint.NodeFns(prog.Packages)
 
+	deprecateObject := func(m map[types.Object]string, pkginfo *loader.PackageInfo, obj types.Object) {
+		msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, obj)
+		if msg != "" {
+			m[obj] = msg
+		}
+	}
+
 	deprecated := []map[types.Object]string{}
 	wg := &sync.WaitGroup{}
 	for _, pkginfo := range prog.Prog.AllPackages {
@@ -336,19 +344,13 @@ func (c *Checker) Init(prog *lint.Program) {
 				if typ, ok := obj.Type().(*types.Named); ok {
 					for i := 0; i < typ.NumMethods(); i++ {
 						meth := typ.Method(i)
-						msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, meth)
-						if msg != "" {
-							m[meth] = msg
-						}
+						deprecateObject(m, pkginfo, meth)
 					}
 
 					if iface, ok := typ.Underlying().(*types.Interface); ok {
 						for i := 0; i < iface.NumExplicitMethods(); i++ {
 							meth := iface.ExplicitMethod(i)
-							msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, meth)
-							if msg != "" {
-								m[meth] = msg
-							}
+							deprecateObject(m, pkginfo, meth)
 						}
 					}
 				}
@@ -358,10 +360,7 @@ func (c *Checker) Init(prog *lint.Program) {
 						// FIXME(dh): This code will not find deprecated
 						// fields in anonymous structs.
 						field := typ.Field(i)
-						msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, field)
-						if msg != "" {
-							m[field] = msg
-						}
+						deprecateObject(m, pkginfo, field)
 					}
 				}
 			}
