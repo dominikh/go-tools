@@ -2066,7 +2066,7 @@ func (c *Checker) CheckCyclicFinalizer(j *lint.Job) {
 			}
 			for _, b := range mc.Bindings {
 				if b == v {
-					pos := j.Program.SSA.Fset.Position(mc.Fn.Pos())
+					pos := j.Program.DisplayPosition(mc.Fn.Pos())
 					j.Errorf(edge.Site, "the finalizer closes over the object, preventing the finalizer from ever running (at %s)", pos)
 				}
 			}

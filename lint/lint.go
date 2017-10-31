@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/constant"
 	"go/printer"
 	"go/token"
@@ -205,46 +206,6 @@ func (ps byPosition) Swap(i int, j int) {
 }
 
 func (l *Linter) Lint(lprog *loader.Program) []Problem {
-	var out []Problem
-
-	l.automaticIgnores = nil
-	for _, pkginfo := range lprog.InitialPackages() {
-		for _, f := range pkginfo.Files {
-			cm := ast.NewCommentMap(lprog.Fset, f, f.Comments)
-			for node, cgs := range cm {
-				for _, cg := range cgs {
-					for _, c := range cg.List {
-						if strings.HasPrefix(c.Text, "//lint:ignore") {
-							fields := strings.Fields(c.Text)
-							if len(fields) < 3 {
-								// FIXME(dh): this causes duplicated warnings when using megacheck
-								p := Problem{
-									pos:      c.Pos(),
-									Position: lprog.Fset.Position(c.Pos()),
-									Text:     "malformed linter directive; missing the required reason field?",
-									Check:    "",
-									Checker:  l.Checker.Name(),
-									Package:  nil,
-								}
-								out = append(out, p)
-								continue
-							}
-							checks := strings.Split(fields[1], ",")
-							pos := lprog.Fset.Position(node.Pos())
-							ig := &LineIgnore{
-								File:   pos.Filename,
-								Line:   pos.Line,
-								Checks: checks,
-								pos:    c.Pos(),
-							}
-							l.automaticIgnores = append(l.automaticIgnores, ig)
-						}
-					}
-				}
-			}
-		}
-	}
-
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaprog.Build()
 	pkgMap := map[*ssa.Package]*Pkg{}
@@ -267,6 +228,47 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 		tokenFileMap: map[*token.File]*ast.File{},
 		astFileMap:   map[*ast.File]*Pkg{},
 	}
+
+	var out []Problem
+
+	l.automaticIgnores = nil
+	for _, pkginfo := range lprog.InitialPackages() {
+		for _, f := range pkginfo.Files {
+			cm := ast.NewCommentMap(lprog.Fset, f, f.Comments)
+			for node, cgs := range cm {
+				for _, cg := range cgs {
+					for _, c := range cg.List {
+						if strings.HasPrefix(c.Text, "//lint:ignore") {
+							fields := strings.Fields(c.Text)
+							if len(fields) < 3 {
+								// FIXME(dh): this causes duplicated warnings when using megacheck
+								p := Problem{
+									pos:      c.Pos(),
+									Position: prog.DisplayPosition(c.Pos()),
+									Text:     "malformed linter directive; missing the required reason field?",
+									Check:    "",
+									Checker:  l.Checker.Name(),
+									Package:  nil,
+								}
+								out = append(out, p)
+								continue
+							}
+							checks := strings.Split(fields[1], ",")
+							pos := prog.DisplayPosition(node.Pos())
+							ig := &LineIgnore{
+								File:   pos.Filename,
+								Line:   pos.Line,
+								Checks: checks,
+								pos:    c.Pos(),
+							}
+							l.automaticIgnores = append(l.automaticIgnores, ig)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	initial := map[*types.Package]struct{}{}
 	for _, pkg := range pkgs {
 		initial[pkg.Info.Pkg] = struct{}{}
@@ -392,7 +394,7 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 			}
 			p := Problem{
 				pos:      ig.pos,
-				Position: lprog.Fset.Position(ig.pos),
+				Position: prog.DisplayPosition(ig.pos),
 				Text:     "this linter directive didn't match anything; should it be removed?",
 				Check:    "",
 				Checker:  l.Checker.Name(),
@@ -447,12 +449,48 @@ type Positioner interface {
 	Pos() token.Pos
 }
 
+func (prog *Program) DisplayPosition(p token.Pos) token.Position {
+	// The //line compiler directive can be used to change the file
+	// name and line numbers associated with code. This can, for
+	// example, be used by code generation tools. The most prominent
+	// example is 'go tool cgo', which uses //line directives to refer
+	// back to the original source code.
+	//
+	// In the context of our linters, we need to treat these
+	// directives differently depending on context. For cgo files, we
+	// want to honour the directives, so that line numbers are
+	// adjusted correctly. For all other files, we want to ignore the
+	// directives, so that problems are reported at their actual
+	// position and not, for example, a yacc grammar file. This also
+	// affects the ignore mechanism, since it operates on the position
+	// information stored within problems. With this implementation, a
+	// user will ignore foo.go, not foo.y
+
+	// OPT(dh): don't look up package repeatedly
+	adjPos := prog.Prog.Fset.Position(p)
+	bp, err := build.ImportDir(filepath.Dir(adjPos.Filename), 0)
+	if err != nil {
+		// couldn't find the package for some reason (deleted? faulty
+		// file system?)
+		return adjPos
+	}
+	base := filepath.Base(adjPos.Filename)
+	for _, f := range bp.CgoFiles {
+		if f == base {
+			// this is a cgo file, use the adjusted position
+			return adjPos
+		}
+	}
+	// not a cgo file, ignore //line directives
+	return prog.Prog.Fset.PositionFor(p, false)
+}
+
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	tf := j.Program.SSA.Fset.File(n.Pos())
 	f := j.Program.tokenFileMap[tf]
 	pkg := j.Program.astFileMap[f].Pkg
 
-	pos := j.Program.SSA.Fset.Position(n.Pos())
+	pos := j.Program.DisplayPosition(n.Pos())
 	problem := Problem{
 		pos:      n.Pos(),
 		Position: pos,

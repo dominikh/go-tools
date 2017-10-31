@@ -1,5 +1,8 @@
 package pkg
 
+// the line directive should not affect the line ignores
+
+//line random-file:1
 func fn1() {} // MATCH "test problem"
 
 //lint:ignore TEST1000 This should be ignored, because ...
@@ -14,5 +17,5 @@ func fn4() {
 	var _ int
 }
 
-// MATCH:8 "malformed linter directive"
-// MATCH:13 "this linter directive didn't match anything"
+// MATCH:11 "malformed linter directive"
+// MATCH:16 "this linter directive didn't match anything"
