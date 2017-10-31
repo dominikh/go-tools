@@ -1025,7 +1025,9 @@ func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
 	fn := func(node ast.Node) bool {
 		fn1(node)
 		fn2(node)
-		fn3(node)
+		if j.IsGoVersion(4) {
+			fn3(node)
+		}
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
