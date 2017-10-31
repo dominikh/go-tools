@@ -333,6 +333,15 @@ func (c *Checker) Init(prog *lint.Program) {
 				if msg != "" {
 					m[obj] = msg
 				}
+				if typ, ok := obj.Type().(*types.Named); ok {
+					for i := 0; i < typ.NumMethods(); i++ {
+						meth := typ.Method(i)
+						msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, meth)
+						if msg != "" {
+							m[meth] = msg
+						}
+					}
+				}
 				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
 					n := typ.NumFields()
 					for i := 0; i < n; i++ {

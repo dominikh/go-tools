@@ -18,6 +18,9 @@ func fn1(err error) {
 		println()
 	}
 	var _ flate.ReadError // MATCH /No longer returned/
+
+	var tr *http.Transport
+	tr.CancelRequest(nil) // MATCH "CancelRequest is deprecated"
 }
 
 // Deprecated: Don't use this.
