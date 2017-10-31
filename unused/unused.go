@@ -278,6 +278,51 @@ func (c *Checker) Check(lprog *loader.Program) []Unused {
 	return unused
 }
 
+// isNoCopyType reports whether a type represents the NoCopy sentinel
+// type. The NoCopy type is a named struct with no fields and exactly
+// one method `func Lock()` that is empty.
+//
+// FIXME(dh): currently we're not checking that the function body is
+// empty.
+func isNoCopyType(typ types.Type) bool {
+	st, ok := typ.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	if st.NumFields() != 0 {
+		return false
+	}
+
+	named, ok := typ.(*types.Named)
+	if !ok {
+		return false
+	}
+	if named.NumMethods() != 1 {
+		return false
+	}
+	meth := named.Method(0)
+	if meth.Name() != "Lock" {
+		return false
+	}
+	sig := meth.Type().(*types.Signature)
+	if sig.Params().Len() != 0 || sig.Results().Len() != 0 {
+		return false
+	}
+	return true
+}
+
+func (c *Checker) useNoCopyFields(typ types.Type) {
+	if st, ok := typ.Underlying().(*types.Struct); ok {
+		n := st.NumFields()
+		for i := 0; i < n; i++ {
+			field := st.Field(i)
+			if isNoCopyType(field.Type()) {
+				c.graph.markUsedBy(field, typ)
+			}
+		}
+	}
+}
+
 func (c *Checker) useExportedFields(typ types.Type) {
 	if st, ok := typ.Underlying().(*types.Struct); ok {
 		n := st.NumFields()
@@ -488,6 +533,7 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 				interfaces = append(interfaces, obj)
 			}
 		case *types.Struct:
+			c.useNoCopyFields(obj)
 			if pkg.Pkg.Name() != "main" && !c.WholeProgram {
 				c.useExportedFields(obj)
 			}
