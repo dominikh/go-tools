@@ -188,8 +188,12 @@ func (l *Linter) ignore(p Problem) bool {
 	return false
 }
 
+func (prog *Program) File(node Positioner) *ast.File {
+	return prog.tokenFileMap[prog.SSA.Fset.File(node.Pos())]
+}
+
 func (j *Job) File(node Positioner) *ast.File {
-	return j.Program.tokenFileMap[j.Program.SSA.Fset.File(node.Pos())]
+	return j.Program.File(node)
 }
 
 // TODO(dh): switch to sort.Slice when Go 1.9 lands.
@@ -328,9 +332,14 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 
 		ssapkg := ssaprog.Package(pkg.Info.Pkg)
 		for _, f := range pkg.Info.Files {
+			prog.astFileMap[f] = pkgMap[ssapkg]
+		}
+	}
+
+	for _, pkginfo := range lprog.AllPackages {
+		for _, f := range pkginfo.Files {
 			tf := lprog.Fset.File(f.Pos())
 			prog.tokenFileMap[tf] = f
-			prog.astFileMap[f] = pkgMap[ssapkg]
 		}
 	}
 

@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	texttemplate "text/template"
 
 	"honnef.co/go/tools/functions"
@@ -23,7 +22,6 @@ import (
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/loader"
 )
 
 func validRegexp(call *Call) {
@@ -303,6 +301,21 @@ func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
 	return out
 }
 
+func (c *Checker) deprecateObject(m map[types.Object]string, prog *lint.Program, obj types.Object) {
+	if obj.Pkg() == nil {
+		return
+	}
+
+	f := prog.File(obj)
+	if f == nil {
+		return
+	}
+	msg := c.deprecationMessage(f, prog.Prog.Fset, obj)
+	if msg != "" {
+		m[obj] = msg
+	}
+}
+
 func (c *Checker) Init(prog *lint.Program) {
 	c.funcDescs = functions.NewDescriptions(prog.SSA)
 	c.deprecatedObjs = map[types.Object]string{}
@@ -317,91 +330,43 @@ func (c *Checker) Init(prog *lint.Program) {
 
 	c.nodeFns = lint.NodeFns(prog.Packages)
 
-	deprecateObject := func(m map[types.Object]string, pkginfo *loader.PackageInfo, obj types.Object) {
-		msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, obj)
-		if msg != "" {
-			m[obj] = msg
-		}
-	}
-
-	deprecated := []map[types.Object]string{}
-	wg := &sync.WaitGroup{}
-	for _, pkginfo := range prog.Prog.AllPackages {
-		pkginfo := pkginfo
-		scope := pkginfo.Pkg.Scope()
-		names := scope.Names()
-		wg.Add(1)
-
-		m := map[types.Object]string{}
-		deprecated = append(deprecated, m)
-		go func(m map[types.Object]string) {
-			for _, name := range names {
-				obj := scope.Lookup(name)
-				msg := c.deprecationMessage(pkginfo.Files, prog.SSA.Fset, obj)
-				if msg != "" {
-					m[obj] = msg
+	for _, ssapkg := range prog.SSA.AllPackages() {
+		ssapkg := ssapkg
+		for _, member := range ssapkg.Members {
+			obj := member.Object()
+			if obj == nil {
+				continue
+			}
+			c.deprecateObject(c.deprecatedObjs, prog, obj)
+			if typ, ok := obj.Type().(*types.Named); ok {
+				for i := 0; i < typ.NumMethods(); i++ {
+					meth := typ.Method(i)
+					c.deprecateObject(c.deprecatedObjs, prog, meth)
 				}
-				if typ, ok := obj.Type().(*types.Named); ok {
-					for i := 0; i < typ.NumMethods(); i++ {
-						meth := typ.Method(i)
-						deprecateObject(m, pkginfo, meth)
-					}
 
-					if iface, ok := typ.Underlying().(*types.Interface); ok {
-						for i := 0; i < iface.NumExplicitMethods(); i++ {
-							meth := iface.ExplicitMethod(i)
-							deprecateObject(m, pkginfo, meth)
-						}
-					}
-				}
-				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
-					n := typ.NumFields()
-					for i := 0; i < n; i++ {
-						// FIXME(dh): This code will not find deprecated
-						// fields in anonymous structs.
-						field := typ.Field(i)
-						deprecateObject(m, pkginfo, field)
+				if iface, ok := typ.Underlying().(*types.Interface); ok {
+					for i := 0; i < iface.NumExplicitMethods(); i++ {
+						meth := iface.ExplicitMethod(i)
+						c.deprecateObject(c.deprecatedObjs, prog, meth)
 					}
 				}
 			}
-			wg.Done()
-		}(m)
-	}
-	wg.Wait()
-	for _, m := range deprecated {
-		for k, v := range m {
-			c.deprecatedObjs[k] = v
+			if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
+				n := typ.NumFields()
+				for i := 0; i < n; i++ {
+					// FIXME(dh): This code will not find deprecated
+					// fields in anonymous structs.
+					field := typ.Field(i)
+					c.deprecateObject(c.deprecatedObjs, prog, field)
+				}
+			}
 		}
 	}
 }
 
-// TODO(adonovan): make this a method: func (*token.File) Contains(token.Pos)
-func tokenFileContainsPos(f *token.File, pos token.Pos) bool {
-	p := int(pos)
-	base := f.Base()
-	return base <= p && p < base+f.Size()
-}
-
-func pathEnclosingInterval(files []*ast.File, fset *token.FileSet, start, end token.Pos) (path []ast.Node, exact bool) {
-	for _, f := range files {
-		if f.Pos() == token.NoPos {
-			// This can happen if the parser saw
-			// too many errors and bailed out.
-			// (Use parser.AllErrors to prevent that.)
-			continue
-		}
-		if !tokenFileContainsPos(fset.File(f.Pos()), start) {
-			continue
-		}
-		if path, exact := astutil.PathEnclosingInterval(f, start, end); path != nil {
-			return path, exact
-		}
-	}
-	return nil, false
-}
-
-func (c *Checker) deprecationMessage(files []*ast.File, fset *token.FileSet, obj types.Object) (message string) {
-	path, _ := pathEnclosingInterval(files, fset, obj.Pos(), obj.Pos())
+func (c *Checker) deprecationMessage(file *ast.File, fset *token.FileSet, obj types.Object) (message string) {
+	pos := obj.Pos()
+	path, _ := astutil.PathEnclosingInterval(file, pos, pos)
 	if len(path) <= 2 {
 		return ""
 	}
