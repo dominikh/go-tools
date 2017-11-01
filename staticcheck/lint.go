@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	texttemplate "text/template"
 
 	"honnef.co/go/tools/functions"
@@ -317,51 +318,62 @@ func (c *Checker) deprecateObject(m map[types.Object]string, prog *lint.Program,
 }
 
 func (c *Checker) Init(prog *lint.Program) {
-	c.funcDescs = functions.NewDescriptions(prog.SSA)
-	c.deprecatedObjs = map[types.Object]string{}
-	c.nodeFns = map[ast.Node]*ssa.Function{}
-
-	for _, fn := range prog.AllFunctions {
-		if fn.Blocks != nil {
-			applyStdlibKnowledge(fn)
-			ssa.OptimizeBlocks(fn)
-		}
-	}
-
-	c.nodeFns = lint.NodeFns(prog.Packages)
-
-	for _, ssapkg := range prog.SSA.AllPackages() {
-		ssapkg := ssapkg
-		for _, member := range ssapkg.Members {
-			obj := member.Object()
-			if obj == nil {
-				continue
+	wg := &sync.WaitGroup{}
+	wg.Add(3)
+	go func() {
+		c.funcDescs = functions.NewDescriptions(prog.SSA)
+		for _, fn := range prog.AllFunctions {
+			if fn.Blocks != nil {
+				applyStdlibKnowledge(fn)
+				ssa.OptimizeBlocks(fn)
 			}
-			c.deprecateObject(c.deprecatedObjs, prog, obj)
-			if typ, ok := obj.Type().(*types.Named); ok {
-				for i := 0; i < typ.NumMethods(); i++ {
-					meth := typ.Method(i)
-					c.deprecateObject(c.deprecatedObjs, prog, meth)
-				}
+		}
+		wg.Done()
+	}()
 
-				if iface, ok := typ.Underlying().(*types.Interface); ok {
-					for i := 0; i < iface.NumExplicitMethods(); i++ {
-						meth := iface.ExplicitMethod(i)
+	go func() {
+		c.nodeFns = lint.NodeFns(prog.Packages)
+		wg.Done()
+	}()
+
+	go func() {
+		c.deprecatedObjs = map[types.Object]string{}
+		for _, ssapkg := range prog.SSA.AllPackages() {
+			ssapkg := ssapkg
+			for _, member := range ssapkg.Members {
+				obj := member.Object()
+				if obj == nil {
+					continue
+				}
+				c.deprecateObject(c.deprecatedObjs, prog, obj)
+				if typ, ok := obj.Type().(*types.Named); ok {
+					for i := 0; i < typ.NumMethods(); i++ {
+						meth := typ.Method(i)
 						c.deprecateObject(c.deprecatedObjs, prog, meth)
+					}
+
+					if iface, ok := typ.Underlying().(*types.Interface); ok {
+						for i := 0; i < iface.NumExplicitMethods(); i++ {
+							meth := iface.ExplicitMethod(i)
+							c.deprecateObject(c.deprecatedObjs, prog, meth)
+						}
+					}
+				}
+				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
+					n := typ.NumFields()
+					for i := 0; i < n; i++ {
+						// FIXME(dh): This code will not find deprecated
+						// fields in anonymous structs.
+						field := typ.Field(i)
+						c.deprecateObject(c.deprecatedObjs, prog, field)
 					}
 				}
 			}
-			if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
-				n := typ.NumFields()
-				for i := 0; i < n; i++ {
-					// FIXME(dh): This code will not find deprecated
-					// fields in anonymous structs.
-					field := typ.Field(i)
-					c.deprecateObject(c.deprecatedObjs, prog, field)
-				}
-			}
 		}
-	}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
 
 func (c *Checker) deprecationMessage(file *ast.File, fset *token.FileSet, obj types.Object) (message string) {
