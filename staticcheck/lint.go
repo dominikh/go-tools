@@ -2439,7 +2439,7 @@ fnLoop:
 				if callee == nil {
 					continue
 				}
-				if c.funcDescs.Get(callee).Pure {
+				if c.funcDescs.Get(callee).Pure && !c.funcDescs.Get(callee).Stub {
 					j.Errorf(ins, "%s is a pure function but its return value is ignored", callee.Name())
 					continue
 				}
