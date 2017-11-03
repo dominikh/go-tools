@@ -16,6 +16,7 @@ import (
 	"sync"
 	texttemplate "text/template"
 
+	"honnef.co/go/tools/deprecated"
 	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
@@ -2467,12 +2468,25 @@ func (c *Checker) isDeprecated(j *lint.Job, ident *ast.Ident) (bool, string) {
 	return alt != "", alt
 }
 
+func selectorName(j *lint.Job, expr *ast.SelectorExpr) string {
+	sel := j.Program.Info.Selections[expr]
+	if sel == nil {
+		if x, ok := expr.X.(*ast.Ident); ok {
+			return fmt.Sprintf("%s.%s", x.Name, expr.Sel.Name)
+		}
+		panic(fmt.Sprintf("unsupported selector: %v", expr))
+	}
+	return fmt.Sprintf("(%s).%s", sel.Recv(), sel.Obj().Name())
+}
+
 func (c *Checker) CheckDeprecated(j *lint.Job) {
 	fn := func(node ast.Node) bool {
 		sel, ok := node.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
+		// OPT: wouldn't it be cheaper to first check if the selector
+		// is deprecated, before getting the enclosing function?
 		if fn := enclosingFunction(j, sel); fn != nil {
 			if ok, _ := c.isDeprecated(j, fn.Name); ok {
 				// functions that are deprecated may use deprecated
@@ -2491,6 +2505,16 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			return true
 		}
 		if ok, alt := c.isDeprecated(j, sel.Sel); ok {
+			// Look for the first available alternative, not the first
+			// version something was deprecated in. If a function was
+			// deprecated in Go 1.6, an alternative has been available
+			// already in 1.0, and we're targetting 1.2, it still
+			// makes sense to use the alternative from 1.0, to be
+			// future-proof.
+			minVersion := deprecated.Stdlib[selectorName(j, sel)].AlternativeAvailableSince
+			if !j.IsGoVersion(minVersion) {
+				return true
+			}
 			j.Errorf(sel, "%s is deprecated: %s", j.Render(sel), alt)
 			return true
 		}
