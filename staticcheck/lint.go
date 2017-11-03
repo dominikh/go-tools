@@ -2163,6 +2163,11 @@ func (c *Checker) CheckInfiniteRecursion(j *lint.Job) {
 			if edge.Callee != node {
 				continue
 			}
+			if _, ok := edge.Site.(*ssa.Go); ok {
+				// Recursively spawning goroutines doesn't consume
+				// stack space infinitely, so don't flag it.
+				continue
+			}
 
 			block := edge.Site.Block()
 			canReturn := false

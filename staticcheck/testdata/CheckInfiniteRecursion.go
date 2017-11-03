@@ -44,6 +44,10 @@ func fn5(p *int, n int) {
 	}
 }
 
+func fn6() {
+	go fn6()
+}
+
 type T struct {
 	n int
 }
