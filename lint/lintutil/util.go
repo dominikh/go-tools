@@ -273,7 +273,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
 		}
-		problems = append(problems, runner.lint(lprog)...)
+		problems = append(problems, runner.lint(lprog, conf)...)
 	}
 	return problems, nil
 }
@@ -310,12 +310,12 @@ func ProcessArgs(name string, cs []lint.Checker, args []string) {
 	ProcessFlagSet(cs, flags)
 }
 
-func (runner *runner) lint(lprog *loader.Program) []lint.Problem {
+func (runner *runner) lint(lprog *loader.Program, conf *loader.Config) []lint.Problem {
 	l := &lint.Linter{
 		Checker:       runner.checker,
 		Ignores:       runner.ignores,
 		GoVersion:     runner.version,
 		ReturnIgnored: runner.returnIgnored,
 	}
-	return l.Lint(lprog)
+	return l.Lint(lprog, conf)
 }

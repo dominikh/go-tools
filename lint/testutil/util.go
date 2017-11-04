@@ -91,7 +91,7 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 	for version, fis := range files {
 		l := &lint.Linter{Checker: c, GoVersion: version}
 
-		res := l.Lint(lprog)
+		res := l.Lint(lprog, conf)
 		for _, fi := range fis {
 			name := fi.Name()
 			src := sources[name]

@@ -235,16 +235,31 @@ func parseDirective(s string) (cmd string, args []string) {
 	return fields[0], fields[1:]
 }
 
-func (l *Linter) Lint(lprog *loader.Program) []Problem {
+func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaprog.Build()
 	pkgMap := map[*ssa.Package]*Pkg{}
 	var pkgs []*Pkg
 	for _, pkginfo := range lprog.InitialPackages() {
 		ssapkg := ssaprog.Package(pkginfo.Pkg)
+		var bp *build.Package
+		if pkginfo.Pkg.Path() != "unsafe" {
+			path := lprog.Fset.Position(pkginfo.Files[0].Pos()).Filename
+			dir := filepath.Dir(path)
+			var err error
+			ctx := conf.Build
+			if ctx == nil {
+				ctx = &build.Default
+			}
+			bp, err = ctx.ImportDir(dir, 0)
+			if err != nil {
+				// shouldn't happen
+			}
+		}
 		pkg := &Pkg{
-			Package: ssapkg,
-			Info:    pkginfo,
+			Package:  ssapkg,
+			Info:     pkginfo,
+			BuildPkg: bp,
 		}
 		pkgMap[ssapkg] = pkg
 		pkgs = append(pkgs, pkg)
@@ -257,6 +272,35 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 		GoVersion:    l.GoVersion,
 		tokenFileMap: map[*token.File]*ast.File{},
 		astFileMap:   map[*ast.File]*Pkg{},
+	}
+
+	initial := map[*types.Package]struct{}{}
+	for _, pkg := range pkgs {
+		initial[pkg.Info.Pkg] = struct{}{}
+	}
+	for fn := range ssautil.AllFunctions(ssaprog) {
+		if fn.Pkg == nil {
+			continue
+		}
+		prog.AllFunctions = append(prog.AllFunctions, fn)
+		if _, ok := initial[fn.Pkg.Pkg]; ok {
+			prog.InitialFunctions = append(prog.InitialFunctions, fn)
+		}
+	}
+	for _, pkg := range pkgs {
+		prog.Files = append(prog.Files, pkg.Info.Files...)
+
+		ssapkg := ssaprog.Package(pkg.Info.Pkg)
+		for _, f := range pkg.Info.Files {
+			prog.astFileMap[f] = pkgMap[ssapkg]
+		}
+	}
+
+	for _, pkginfo := range lprog.AllPackages {
+		for _, f := range pkginfo.Files {
+			tf := lprog.Fset.File(f.Pos())
+			prog.tokenFileMap[tf] = f
+		}
 	}
 
 	var out []Problem
@@ -311,35 +355,6 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 					}
 				}
 			}
-		}
-	}
-
-	initial := map[*types.Package]struct{}{}
-	for _, pkg := range pkgs {
-		initial[pkg.Info.Pkg] = struct{}{}
-	}
-	for fn := range ssautil.AllFunctions(ssaprog) {
-		if fn.Pkg == nil {
-			continue
-		}
-		prog.AllFunctions = append(prog.AllFunctions, fn)
-		if _, ok := initial[fn.Pkg.Pkg]; ok {
-			prog.InitialFunctions = append(prog.InitialFunctions, fn)
-		}
-	}
-	for _, pkg := range pkgs {
-		prog.Files = append(prog.Files, pkg.Info.Files...)
-
-		ssapkg := ssaprog.Package(pkg.Info.Pkg)
-		for _, f := range pkg.Info.Files {
-			prog.astFileMap[f] = pkgMap[ssapkg]
-		}
-	}
-
-	for _, pkginfo := range lprog.AllPackages {
-		for _, f := range pkginfo.Files {
-			tf := lprog.Fset.File(f.Pos())
-			prog.tokenFileMap[tf] = f
 		}
 	}
 
@@ -465,7 +480,8 @@ func (l *Linter) Lint(lprog *loader.Program) []Problem {
 // Pkg represents a package being linted.
 type Pkg struct {
 	*ssa.Package
-	Info *loader.PackageInfo
+	Info     *loader.PackageInfo
+	BuildPkg *build.Package
 }
 
 type packager interface {
@@ -520,10 +536,10 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 	// information stored within problems. With this implementation, a
 	// user will ignore foo.go, not foo.y
 
-	// OPT(dh): don't look up package repeatedly
+	pkg := prog.astFileMap[prog.tokenFileMap[prog.Prog.Fset.File(p)]]
+	bp := pkg.BuildPkg
 	adjPos := prog.Prog.Fset.Position(p)
-	bp, err := build.ImportDir(filepath.Dir(adjPos.Filename), 0)
-	if err != nil {
+	if bp == nil {
 		// couldn't find the package for some reason (deleted? faulty
 		// file system?)
 		return adjPos
