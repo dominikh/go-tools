@@ -34,6 +34,12 @@ func fn2() {
 	anon := func(x int) {
 		println(x)
 		_ = syscall.StringByteSlice("")
+
+		anon := func(x int) {
+			println(x)
+			_ = syscall.StringByteSlice("")
+		}
+		anon(2)
 	}
 	anon(1)
 }

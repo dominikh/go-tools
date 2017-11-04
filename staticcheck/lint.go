@@ -2448,22 +2448,6 @@ fnLoop:
 	}
 }
 
-func enclosingFunction(j *lint.Job, node ast.Node) *ast.FuncDecl {
-	f := j.File(node)
-	path, _ := astutil.PathEnclosingInterval(f, node.Pos(), node.Pos())
-	for _, e := range path {
-		fn, ok := e.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-		if fn.Name == nil {
-			continue
-		}
-		return fn
-	}
-	return nil
-}
-
 func (c *Checker) isDeprecated(j *lint.Job, ident *ast.Ident) (bool, string) {
 	obj := j.Program.Info.ObjectOf(ident)
 	if obj.Pkg() == nil {
@@ -2484,20 +2468,22 @@ func selectorName(j *lint.Job, expr *ast.SelectorExpr) string {
 	return fmt.Sprintf("(%s).%s", sel.Recv(), sel.Obj().Name())
 }
 
+func (c *Checker) enclosingFunc(sel *ast.SelectorExpr) *ssa.Function {
+	fn := c.nodeFns[sel]
+	if fn == nil {
+		return nil
+	}
+	for fn.Parent() != nil {
+		fn = fn.Parent()
+	}
+	return fn
+}
+
 func (c *Checker) CheckDeprecated(j *lint.Job) {
 	fn := func(node ast.Node) bool {
 		sel, ok := node.(*ast.SelectorExpr)
 		if !ok {
 			return true
-		}
-		// OPT: wouldn't it be cheaper to first check if the selector
-		// is deprecated, before getting the enclosing function?
-		if fn := enclosingFunction(j, sel); fn != nil {
-			if ok, _ := c.isDeprecated(j, fn.Name); ok {
-				// functions that are deprecated may use deprecated
-				// symbols
-				return true
-			}
 		}
 
 		obj := j.Program.Info.ObjectOf(sel.Sel)
@@ -2519,6 +2505,14 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			minVersion := deprecated.Stdlib[selectorName(j, sel)].AlternativeAvailableSince
 			if !j.IsGoVersion(minVersion) {
 				return true
+			}
+
+			if fn := c.enclosingFunc(sel); fn != nil {
+				if _, ok := c.deprecatedObjs[fn.Object()]; ok {
+					// functions that are deprecated may use deprecated
+					// symbols
+					return true
+				}
 			}
 			j.Errorf(sel, "%s is deprecated: %s", j.Render(sel), alt)
 			return true
