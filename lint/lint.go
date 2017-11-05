@@ -243,7 +243,7 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	for _, pkginfo := range lprog.InitialPackages() {
 		ssapkg := ssaprog.Package(pkginfo.Pkg)
 		var bp *build.Package
-		if pkginfo.Pkg.Path() != "unsafe" {
+		if len(pkginfo.Files) != 0 {
 			path := lprog.Fset.Position(pkginfo.Files[0].Pos()).Filename
 			dir := filepath.Dir(path)
 			var err error
