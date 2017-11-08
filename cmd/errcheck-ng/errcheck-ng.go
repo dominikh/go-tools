@@ -4,11 +4,13 @@ import (
 	"os"
 
 	"honnef.co/go/tools/errcheck"
-	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 )
 
 func main() {
-	c := errcheck.NewChecker()
-	lintutil.ProcessArgs("errcheck-ng", []lint.Checker{c}, os.Args[1:])
+	c := lintutil.CheckerConfig{
+		Checker:     errcheck.NewChecker(),
+		ExitNonZero: true,
+	}
+	lintutil.ProcessArgs("errcheck-ng", []lintutil.CheckerConfig{c}, os.Args[1:])
 }

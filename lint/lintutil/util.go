@@ -179,7 +179,12 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
+type CheckerConfig struct {
+	Checker     lint.Checker
+	ExitNonZero bool
+}
+
+func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
@@ -193,7 +198,11 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 		os.Exit(0)
 	}
 
-	ps, err := Lint(cs, fs.Args(), &Options{
+	var cs []lint.Checker
+	for _, conf := range confs {
+		cs = append(cs, conf.Checker)
+	}
+	pss, err := Lint(cs, fs.Args(), &Options{
 		Tags:          strings.Fields(tags),
 		LintTests:     tests,
 		Ignores:       ignore,
@@ -203,6 +212,11 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+
+	var ps []lint.Problem
+	for _, p := range pss {
+		ps = append(ps, p...)
 	}
 
 	var f OutputFormatter
@@ -219,8 +233,10 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	for _, p := range ps {
 		f.Format(p)
 	}
-	if len(ps) != 0 {
-		os.Exit(1)
+	for i, p := range pss {
+		if len(p) != 0 && confs[i].ExitNonZero {
+			os.Exit(1)
+		}
 	}
 }
 
@@ -232,7 +248,7 @@ type Options struct {
 	ReturnIgnored bool
 }
 
-func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error) {
+func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -264,7 +280,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error
 		return nil, err
 	}
 
-	var problems []lint.Problem
+	var problems [][]lint.Problem
 	for _, c := range cs {
 		runner := &runner{
 			checker:       c,
@@ -273,7 +289,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([]lint.Problem, error
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
 		}
-		problems = append(problems, runner.lint(lprog, conf)...)
+		problems = append(problems, runner.lint(lprog, conf))
 	}
 	return problems, nil
 }
@@ -303,7 +319,7 @@ func relativePositionString(pos token.Position) string {
 	return s
 }
 
-func ProcessArgs(name string, cs []lint.Checker, args []string) {
+func ProcessArgs(name string, cs []CheckerConfig, args []string) {
 	flags := FlagSet(name)
 	flags.Parse(args)
 
