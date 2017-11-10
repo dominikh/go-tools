@@ -287,6 +287,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
 		"SA9002": c.CheckNonOctalFileMode,
 		"SA9003": c.CheckEmptyBranch,
+		"SA9004": c.CheckMissingEnumTypesInDeclaration,
 	}
 }
 
@@ -2837,5 +2838,59 @@ func (c *Checker) CheckDuplicateBuildConstraints(job *lint.Job) {
 				}
 			}
 		}
+	}
+}
+
+func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		decl, ok := node.(*ast.GenDecl)
+		if !ok {
+			return true
+		}
+		if !decl.Lparen.IsValid() {
+			// not a parenthesised gendecl
+			//
+			// TODO(dh): do we need this check, considering we require
+			// decl.Specs to contain 2+ elements?
+			return true
+		}
+		if decl.Tok != token.CONST {
+			return true
+		}
+		if len(decl.Specs) < 2 {
+			return true
+		}
+		if decl.Specs[0].(*ast.ValueSpec).Type == nil {
+			// first constant doesn't have a type
+			return true
+		}
+		for i, spec := range decl.Specs {
+			spec := spec.(*ast.ValueSpec)
+			if len(spec.Names) != 1 || len(spec.Values) != 1 {
+				return true
+			}
+			switch v := spec.Values[0].(type) {
+			case *ast.BasicLit:
+			case *ast.UnaryExpr:
+				if _, ok := v.X.(*ast.BasicLit); !ok {
+					return true
+				}
+			default:
+				// if it's not a literal it might be typed, such as
+				// time.Microsecond = 1000 * Nanosecond
+				return true
+			}
+			if i == 0 {
+				continue
+			}
+			if spec.Type != nil {
+				return true
+			}
+		}
+		j.Errorf(decl, "only the first constant has an explicit type")
+		return true
+	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
 	}
 }
