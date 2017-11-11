@@ -1771,52 +1771,101 @@ func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
 	}
 }
 
+func isPermissibleSort(j *lint.Job, node ast.Node) bool {
+	call := node.(*ast.CallExpr)
+	typeconv, ok := call.Args[0].(*ast.CallExpr)
+	if !ok {
+		return true
+	}
+	if len(typeconv.Args) == 0 {
+		return true
+	}
+
+	sel, ok := typeconv.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return true
+	}
+	name := j.SelectorName(sel)
+	switch name {
+	case "sort.IntSlice", "sort.Float64Slice", "sort.StringSlice":
+	default:
+		return true
+	}
+
+	typ := j.Program.Info.TypeOf(typeconv.Args[0])
+	slice, ok := typ.(*types.Slice)
+	if !ok {
+		return true
+	}
+	typ = slice.Elem()
+
+	if name == "sort.IntSlice" && typ == types.Universe.Lookup("int").Type() {
+	} else if name == "sort.Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
+	} else if name == "sort.StringSlice" && typ == types.Universe.Lookup("string").Type() {
+	} else {
+		return true
+	}
+	return false
+}
+
 func (c *Checker) LintSortHelpers(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		if !j.IsCallToAST(node, "sort.Sort") {
-			return true
-		}
-		call := node.(*ast.CallExpr)
-
-		typeconv, ok := call.Args[0].(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if len(typeconv.Args) == 0 {
-			return true
-		}
-
-		sel, ok := typeconv.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		name := j.SelectorName(sel)
-		switch name {
-		case "sort.IntSlice", "sort.Float64Slice", "sort.StringSlice":
+	fnFuncs := func(node ast.Node) bool {
+		var body *ast.BlockStmt
+		switch node := node.(type) {
+		case *ast.FuncLit:
+			body = node.Body
+		case *ast.FuncDecl:
+			body = node.Body
 		default:
 			return true
 		}
-		if !lint.IsIdent(sel.X, "sort") {
+
+		type Error struct {
+			node lint.Positioner
+			msg  string
+		}
+		var errors []Error
+		permissible := false
+		fnSorts := func(node ast.Node) bool {
+			if permissible {
+				return false
+			}
+			if !j.IsCallToAST(node, "sort.Sort") {
+				return true
+			}
+			if isPermissibleSort(j, node) {
+				permissible = true
+				return false
+			}
+			call := node.(*ast.CallExpr)
+			typeconv := call.Args[0].(*ast.CallExpr)
+			sel := typeconv.Fun.(*ast.SelectorExpr)
+			name := j.SelectorName(sel)
+			typ := j.Program.Info.TypeOf(typeconv.Args[0])
+			slice := typ.(*types.Slice)
+			typ = slice.Elem()
+
+			if name == "sort.IntSlice" && typ == types.Universe.Lookup("int").Type() {
+				errors = append(errors, Error{node, "should use sort.Ints(...) instead of sort.Sort(sort.IntSlice(...))"})
+			} else if name == "sort.Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
+				errors = append(errors, Error{node, "should use sort.Float64s(...) instead of sort.Sort(sort.Float64Slice(...))"})
+			} else if name == "sort.StringSlice" && typ == types.Universe.Lookup("string").Type() {
+				errors = append(errors, Error{node, "should use sort.Strings(...) instead of sort.Sort(sort.StringSlice(...))"})
+			}
 			return true
 		}
+		ast.Inspect(body, fnSorts)
 
-		typ := j.Program.Info.TypeOf(typeconv.Args[0])
-		slice, ok := typ.(*types.Slice)
-		if !ok {
-			return true
+		if permissible {
+			return false
 		}
-		typ = slice.Elem()
-
-		if name == "sort.IntSlice" && typ == types.Universe.Lookup("int").Type() {
-			j.Errorf(node, "should use sort.Ints(...) instead of sort.Sort(sort.IntSlice(...))")
-		} else if name == "sort.Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
-			j.Errorf(node, "should use sort.Float64s(...) instead of sort.Sort(sort.Float64Slice(...))")
-		} else if name == "sort.StringSlice" && typ == types.Universe.Lookup("string").Type() {
-			j.Errorf(node, "should use sort.Strings(...) instead of sort.Sort(sort.StringSlice(...))")
+		for _, err := range errors {
+			j.Errorf(err.node, "%s", err.msg)
 		}
-		return true
+		return false
 	}
+
 	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn)
+		ast.Inspect(f, fnFuncs)
 	}
 }
