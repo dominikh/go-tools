@@ -1803,6 +1803,9 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 		default:
 			return true
 		}
+		if body == nil {
+			return true
+		}
 
 		type Error struct {
 			node lint.Positioner
