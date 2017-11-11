@@ -59,3 +59,8 @@ func fn9() {
 		sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
 	}()
 }
+
+func fn10() {
+	var a MyIntSlice
+	sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
+}

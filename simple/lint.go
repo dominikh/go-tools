@@ -1792,19 +1792,6 @@ func isPermissibleSort(j *lint.Job, node ast.Node) bool {
 		return true
 	}
 
-	typ := j.Program.Info.TypeOf(typeconv.Args[0])
-	slice, ok := typ.(*types.Slice)
-	if !ok {
-		return true
-	}
-	typ = slice.Elem()
-
-	if name == "sort.IntSlice" && typ == types.Universe.Lookup("int").Type() {
-	} else if name == "sort.Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
-	} else if name == "sort.StringSlice" && typ == types.Universe.Lookup("string").Type() {
-	} else {
-		return true
-	}
 	return false
 }
 
@@ -1841,15 +1828,13 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 			typeconv := call.Args[0].(*ast.CallExpr)
 			sel := typeconv.Fun.(*ast.SelectorExpr)
 			name := j.SelectorName(sel)
-			typ := j.Program.Info.TypeOf(typeconv.Args[0])
-			slice := typ.(*types.Slice)
-			typ = slice.Elem()
 
-			if name == "sort.IntSlice" && typ == types.Universe.Lookup("int").Type() {
+			switch name {
+			case "sort.IntSlice":
 				errors = append(errors, Error{node, "should use sort.Ints(...) instead of sort.Sort(sort.IntSlice(...))"})
-			} else if name == "sort.Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
+			case "sort.Float64Slice":
 				errors = append(errors, Error{node, "should use sort.Float64s(...) instead of sort.Sort(sort.Float64Slice(...))"})
-			} else if name == "sort.StringSlice" && typ == types.Universe.Lookup("string").Type() {
+			case "sort.StringSlice":
 				errors = append(errors, Error{node, "should use sort.Strings(...) instead of sort.Sort(sort.StringSlice(...))"})
 			}
 			return true
