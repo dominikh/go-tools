@@ -1777,9 +1777,6 @@ func isPermissibleSort(j *lint.Job, node ast.Node) bool {
 	if !ok {
 		return true
 	}
-	if len(typeconv.Args) == 0 {
-		return true
-	}
 
 	sel, ok := typeconv.Fun.(*ast.SelectorExpr)
 	if !ok {
