@@ -1790,12 +1790,13 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !lint.IsIdent(sel.X, "sort") {
+		name := j.SelectorName(sel)
+		switch name {
+		case "sort.IntSlice", "sort.Float64Slice", "sort.StringSlice":
+		default:
 			return true
 		}
-
-		name := sel.Sel.Name
-		if name != "IntSlice" && name != "Float64Slice" && name != "StringSlice" {
+		if !lint.IsIdent(sel.X, "sort") {
 			return true
 		}
 
@@ -1806,11 +1807,11 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 		}
 		typ = slice.Elem()
 
-		if name == "IntSlice" && typ == types.Universe.Lookup("int").Type() {
+		if name == "sort.IntSlice" && typ == types.Universe.Lookup("int").Type() {
 			j.Errorf(node, "should use sort.Ints(...) instead of sort.Sort(sort.IntSlice(...))")
-		} else if name == "Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
+		} else if name == "sort.Float64Slice" && typ == types.Universe.Lookup("float64").Type() {
 			j.Errorf(node, "should use sort.Float64s(...) instead of sort.Sort(sort.Float64Slice(...))")
-		} else if name == "StringSlice" && typ == types.Universe.Lookup("string").Type() {
+		} else if name == "sort.StringSlice" && typ == types.Universe.Lookup("string").Type() {
 			j.Errorf(node, "should use sort.Strings(...) instead of sort.Sort(sort.StringSlice(...))")
 		}
 		return true

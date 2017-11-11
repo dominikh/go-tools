@@ -726,6 +726,17 @@ func (j *Job) IsCallToAnyAST(node ast.Node, names ...string) bool {
 	return false
 }
 
+func (j *Job) SelectorName(expr *ast.SelectorExpr) string {
+	sel := j.Program.Info.Selections[expr]
+	if sel == nil {
+		if x, ok := expr.X.(*ast.Ident); ok {
+			return fmt.Sprintf("%s.%s", x.Name, expr.Sel.Name)
+		}
+		panic(fmt.Sprintf("unsupported selector: %v", expr))
+	}
+	return fmt.Sprintf("(%s).%s", sel.Recv(), sel.Obj().Name())
+}
+
 func CallName(call *ssa.CallCommon) string {
 	if call.IsInvoke() {
 		return ""

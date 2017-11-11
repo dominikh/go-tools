@@ -2458,17 +2458,6 @@ func (c *Checker) isDeprecated(j *lint.Job, ident *ast.Ident) (bool, string) {
 	return alt != "", alt
 }
 
-func selectorName(j *lint.Job, expr *ast.SelectorExpr) string {
-	sel := j.Program.Info.Selections[expr]
-	if sel == nil {
-		if x, ok := expr.X.(*ast.Ident); ok {
-			return fmt.Sprintf("%s.%s", x.Name, expr.Sel.Name)
-		}
-		panic(fmt.Sprintf("unsupported selector: %v", expr))
-	}
-	return fmt.Sprintf("(%s).%s", sel.Recv(), sel.Obj().Name())
-}
-
 func (c *Checker) enclosingFunc(sel *ast.SelectorExpr) *ssa.Function {
 	fn := c.nodeFns[sel]
 	if fn == nil {
@@ -2503,7 +2492,7 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			// already in 1.0, and we're targetting 1.2, it still
 			// makes sense to use the alternative from 1.0, to be
 			// future-proof.
-			minVersion := deprecated.Stdlib[selectorName(j, sel)].AlternativeAvailableSince
+			minVersion := deprecated.Stdlib[j.SelectorName(sel)].AlternativeAvailableSince
 			if !j.IsGoVersion(minVersion) {
 				return true
 			}
