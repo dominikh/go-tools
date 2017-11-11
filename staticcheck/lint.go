@@ -148,10 +148,11 @@ var (
 	}
 
 	checkUnmarshalPointerRules = map[string]CallCheck{
-		"encoding/xml.Unmarshal":          unmarshalPointer("xml.Unmarshal", 1),
-		"(*encoding/xml.Decoder).Decode":  unmarshalPointer("Decode", 0),
-		"encoding/json.Unmarshal":         unmarshalPointer("json.Unmarshal", 1),
-		"(*encoding/json.Decoder).Decode": unmarshalPointer("Decode", 0),
+		"encoding/xml.Unmarshal":                unmarshalPointer("xml.Unmarshal", 1),
+		"(*encoding/xml.Decoder).Decode":        unmarshalPointer("Decode", 0),
+		"(*encoding/xml.Decoder).DecodeElement": unmarshalPointer("DecodeElement", 0),
+		"encoding/json.Unmarshal":               unmarshalPointer("json.Unmarshal", 1),
+		"(*encoding/json.Decoder).Decode":       unmarshalPointer("Decode", 0),
 	}
 
 	checkUnbufferedSignalChanRules = map[string]CallCheck{
