@@ -1,6 +1,9 @@
 package pkg
 
-import "sync"
+import (
+	"sync"
+	"unsafe"
+)
 
 type T1 struct {
 	x int
@@ -26,4 +29,10 @@ func fn() {
 
 	var i interface{}
 	p.Put(i)
+
+	var up unsafe.Pointer
+	p.Put(up)
+
+	var basic int
+	p.Put(basic) // MATCH /argument should be pointer-like/
 }
