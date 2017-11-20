@@ -693,9 +693,11 @@ func Preamble(f *ast.File) string {
 }
 
 func IsPointerLike(T types.Type) bool {
-	switch T.Underlying().(type) {
+	switch T := T.Underlying().(type) {
 	case *types.Interface, *types.Chan, *types.Map, *types.Pointer:
 		return true
+	case *types.Basic:
+		return T.Kind() == types.UnsafePointer
 	}
 	return false
 }
