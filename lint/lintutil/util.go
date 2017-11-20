@@ -15,6 +15,7 @@ import (
 	"go/build"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"io"
 	"os"
 	"path/filepath"
@@ -263,10 +264,21 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 	}
 	ctx := build.Default
 	ctx.BuildTags = opt.Tags
+	hadError := false
 	conf := &loader.Config{
 		Build:      &ctx,
 		ParserMode: parser.ParseComments,
 		ImportPkgs: map[string]bool{},
+		TypeChecker: types.Config{
+			Error: func(err error) {
+				// Only print the first error found
+				if hadError {
+					return
+				}
+				hadError = true
+				fmt.Fprintln(os.Stderr, err)
+			},
+		},
 	}
 	if goFiles {
 		conf.CreateFromFilenames("adhoc", paths...)
