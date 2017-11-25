@@ -18,7 +18,7 @@ func fn1(err error) {
 	if err == http.ErrWriteAfterFlush { // MATCH /ErrWriteAfterFlush is no longer used/
 		println()
 	}
-	var _ flate.ReadError // MATCH /No longer returned/
+	var _ flate.ReadError
 
 	var tr *http.Transport
 	tr.CancelRequest(nil)

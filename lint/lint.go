@@ -732,7 +732,12 @@ func (j *Job) SelectorName(expr *ast.SelectorExpr) string {
 	sel := j.Program.Info.Selections[expr]
 	if sel == nil {
 		if x, ok := expr.X.(*ast.Ident); ok {
-			return fmt.Sprintf("%s.%s", x.Name, expr.Sel.Name)
+			pkg, ok := j.Program.Info.ObjectOf(x).(*types.PkgName)
+			if !ok {
+				// This shouldn't happen
+				return fmt.Sprintf("%s.%s", x.Name, expr.Sel.Name)
+			}
+			return fmt.Sprintf("%s.%s", pkg.Imported().Path(), expr.Sel.Name)
 		}
 		panic(fmt.Sprintf("unsupported selector: %v", expr))
 	}
