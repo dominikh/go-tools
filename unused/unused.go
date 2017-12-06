@@ -404,7 +404,8 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 			}
 		}
 
-		switch obj := obj.(type) {
+		uncastObj := obj
+		switch objType := obj.(type) {
 		case *types.Var, *types.Const, *types.Func, *types.TypeName:
 			if obj.Exported() {
 				// Exported variables and constants use their types,
@@ -415,7 +416,21 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 				// irrelevant/redundant.
 				c.graph.markUsedBy(obj.Type(), obj)
 			}
-			if obj.Name() == "_" {
+
+			// Whitelist some functions that are probably useful
+			isWhitelistedFunction := false
+			switch uncastObj.(type) {
+			case *types.Func:
+				isWhitelistedFunction = (
+					// Gocheck uses reflection to find these.
+					strings.Contains(obj.Name(), "SetUpSuite") ||
+					strings.Contains(obj.Name(), "SetUpTest") ||
+					strings.Contains(obj.Name(), "TearDownTest") ||
+					strings.Contains(obj.Name(), "TearDownSuite"))
+			default:
+			}
+
+			if obj.Name() == "_" || isWhitelistedFunction {
 				node := c.graph.getNode(obj)
 				node.quiet = true
 				scope := c.topmostScope(pkg.Pkg.Scope().Innermost(obj.Pos()), pkg.Pkg)
