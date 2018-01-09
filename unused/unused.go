@@ -318,6 +318,7 @@ func (c *Checker) useNoCopyFields(typ types.Type) {
 			field := st.Field(i)
 			if isNoCopyType(field.Type()) {
 				c.graph.markUsedBy(field, typ)
+				c.graph.markUsedBy(field.Type().(*types.Named).Method(0), field.Type())
 			}
 		}
 	}
