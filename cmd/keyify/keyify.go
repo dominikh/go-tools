@@ -102,13 +102,16 @@ func main() {
 	}
 	var tf *token.File
 	var af *ast.File
-	pkg := lprog.InitialPackages()[0]
-	for _, ff := range pkg.Files {
-		file := lprog.Fset.File(ff.Pos())
-		if file.Name() == name {
-			af = ff
-			tf = file
-			break
+	var pkg *loader.PackageInfo
+outer:
+	for _, pkg = range lprog.InitialPackages() {
+		for _, ff := range pkg.Files {
+			file := lprog.Fset.File(ff.Pos())
+			if file.Name() == name {
+				af = ff
+				tf = file
+				break outer
+			}
 		}
 	}
 	tstart, tend, err := fileOffsetToPos(tf, start, start)
