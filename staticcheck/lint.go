@@ -251,7 +251,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA4002": c.CheckDiffSizeComparison,
 		"SA4003": c.CheckUnsignedComparison,
 		"SA4004": c.CheckIneffectiveLoop,
-		"SA4005": c.CheckIneffectiveFieldAssignments,
+		"SA4005": nil,
 		"SA4006": c.CheckUnreadVariableValues,
 		// "SA4007": c.CheckPredeterminedBooleanExprs,
 		"SA4007": nil,
@@ -1258,114 +1258,6 @@ func (c *Checker) CheckBenchmarkN(j *lint.Job) {
 	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) CheckIneffectiveFieldAssignments(j *lint.Job) {
-	for _, ssafn := range j.Program.InitialFunctions {
-		// fset := j.Program.SSA.Fset
-		// if fset.File(f.File.Pos()) != fset.File(ssafn.Pos()) {
-		// 	continue
-		// }
-		if ssafn.Signature.Recv() == nil {
-			continue
-		}
-
-		if len(ssafn.Blocks) == 0 {
-			// External function
-			continue
-		}
-
-		reads := map[*ssa.BasicBlock]map[ssa.Value]bool{}
-		writes := map[*ssa.BasicBlock]map[ssa.Value]bool{}
-
-		recv := ssafn.Params[0]
-		if _, ok := recv.Type().Underlying().(*types.Struct); !ok {
-			continue
-		}
-		recvPtrs := map[ssa.Value]bool{
-			recv: true,
-		}
-		if len(ssafn.Locals) == 0 || ssafn.Locals[0].Heap {
-			continue
-		}
-		blocks := ssafn.DomPreorder()
-		for _, block := range blocks {
-			if writes[block] == nil {
-				writes[block] = map[ssa.Value]bool{}
-			}
-			if reads[block] == nil {
-				reads[block] = map[ssa.Value]bool{}
-			}
-
-			for _, ins := range block.Instrs {
-				switch ins := ins.(type) {
-				case *ssa.Store:
-					if recvPtrs[ins.Val] {
-						recvPtrs[ins.Addr] = true
-					}
-					fa, ok := ins.Addr.(*ssa.FieldAddr)
-					if !ok {
-						continue
-					}
-					if !recvPtrs[fa.X] {
-						continue
-					}
-					writes[block][fa] = true
-				case *ssa.UnOp:
-					if ins.Op != token.MUL {
-						continue
-					}
-					if recvPtrs[ins.X] {
-						reads[block][ins] = true
-						continue
-					}
-					fa, ok := ins.X.(*ssa.FieldAddr)
-					if !ok {
-						continue
-					}
-					if !recvPtrs[fa.X] {
-						continue
-					}
-					reads[block][fa] = true
-				}
-			}
-		}
-
-		for block, writes := range writes {
-			seen := map[*ssa.BasicBlock]bool{}
-			var hasRead func(block *ssa.BasicBlock, write *ssa.FieldAddr) bool
-			hasRead = func(block *ssa.BasicBlock, write *ssa.FieldAddr) bool {
-				seen[block] = true
-				for read := range reads[block] {
-					switch ins := read.(type) {
-					case *ssa.FieldAddr:
-						if ins.Field == write.Field && read.Pos() > write.Pos() {
-							return true
-						}
-					case *ssa.UnOp:
-						if ins.Pos() >= write.Pos() {
-							return true
-						}
-					}
-				}
-				for _, succ := range block.Succs {
-					if !seen[succ] {
-						if hasRead(succ, write) {
-							return true
-						}
-					}
-				}
-				return false
-			}
-			for write := range writes {
-				fa := write.(*ssa.FieldAddr)
-				if !hasRead(block, fa) {
-					name := recv.Type().Underlying().(*types.Struct).Field(fa.Field).Name()
-					j.Errorf(fa, "ineffective assignment to field %s", name)
-				}
-			}
-		}
 	}
 }
 
