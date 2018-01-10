@@ -114,6 +114,9 @@ outer:
 			}
 		}
 	}
+	if tf == nil {
+		log.Fatalf("couldn't find file %s", name)
+	}
 	tstart, tend, err := fileOffsetToPos(tf, start, start)
 	if err != nil {
 		log.Fatal(err)
