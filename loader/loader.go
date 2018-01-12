@@ -36,6 +36,9 @@ type Program struct {
 	Statistics Statistics
 
 	unsafe *Package
+
+	bpkgsMu sync.Mutex
+	bpkgs   map[bpkgKey]*bpkg
 }
 
 type Package struct {
@@ -53,6 +56,7 @@ func (prog *Program) Init() {
 		Pkg: types.Unsafe,
 		SSA: prog.SSA.CreatePackage(types.Unsafe, nil, nil, true),
 	}
+	prog.bpkgs = map[bpkgKey]*bpkg{}
 }
 
 func (prog *Program) parsePackage(pkg *Package) error {
@@ -83,6 +87,35 @@ func (prog *Program) parsePackage(pkg *Package) error {
 	return nil
 }
 
+type bpkgKey struct {
+	path string
+	dir  string
+}
+
+type bpkg struct {
+	bp    *build.Package
+	err   error
+	ready chan struct{} // closed to broadcast readiness
+}
+
+func (prog *Program) findPackage(path, dir string) (*build.Package, error) {
+	key := bpkgKey{path, dir}
+	prog.bpkgsMu.Lock()
+	v, ok := prog.bpkgs[key]
+	if ok {
+		prog.bpkgsMu.Unlock()
+		<-v.ready
+	} else {
+		v = &bpkg{ready: make(chan struct{})}
+		prog.bpkgs[key] = v
+		prog.bpkgsMu.Unlock()
+
+		v.bp, v.err = prog.Build.Import(path, dir, 0)
+		close(v.ready)
+	}
+	return v.bp, v.err
+}
+
 func (prog *Program) Import(path string, cwd string) (*Package, error) {
 	if path == "unsafe" {
 		return prog.unsafe, nil
@@ -101,7 +134,7 @@ func (prog *Program) Import(path string, cwd string) (*Package, error) {
 	}
 	var err error
 	t := time.Now()
-	pkg.Bpkg, err = prog.Build.Import(path, cwd, 0)
+	pkg.Bpkg, err = prog.findPackage(path, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +143,11 @@ func (prog *Program) Import(path string, cwd string) (*Package, error) {
 		return c, nil
 	}
 	prog.Statistics.Finding += time.Since(t)
+
+	for _, imp := range pkg.Bpkg.Imports {
+		// prefetch build.Packages of dependencies
+		go prog.findPackage(imp, pkg.Bpkg.Dir)
+	}
 
 	t = time.Now()
 	if err := prog.parsePackage(&pkg); err != nil {
