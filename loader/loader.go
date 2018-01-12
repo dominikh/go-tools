@@ -38,7 +38,7 @@ type Program struct {
 	unsafe *Package
 
 	bpkgsMu sync.Mutex
-	bpkgs   map[bpkgKey]*bpkg
+	bpkgs   map[string]*bpkg
 }
 
 type Package struct {
@@ -56,7 +56,7 @@ func (prog *Program) Init() {
 		Pkg: types.Unsafe,
 		SSA: prog.SSA.CreatePackage(types.Unsafe, nil, nil, true),
 	}
-	prog.bpkgs = map[bpkgKey]*bpkg{}
+	prog.bpkgs = map[string]*bpkg{}
 }
 
 func (prog *Program) parsePackage(pkg *Package) error {
@@ -87,11 +87,6 @@ func (prog *Program) parsePackage(pkg *Package) error {
 	return nil
 }
 
-type bpkgKey struct {
-	path string
-	dir  string
-}
-
 type bpkg struct {
 	bp    *build.Package
 	err   error
@@ -99,15 +94,18 @@ type bpkg struct {
 }
 
 func (prog *Program) findPackage(path, dir string) (*build.Package, error) {
-	key := bpkgKey{path, dir}
+	bp, err := prog.Build.Import(path, dir, build.FindOnly)
+	if err != nil {
+		return bp, err
+	}
 	prog.bpkgsMu.Lock()
-	v, ok := prog.bpkgs[key]
+	v, ok := prog.bpkgs[bp.ImportPath]
 	if ok {
 		prog.bpkgsMu.Unlock()
 		<-v.ready
 	} else {
 		v = &bpkg{ready: make(chan struct{})}
-		prog.bpkgs[key] = v
+		prog.bpkgs[bp.ImportPath] = v
 		prog.bpkgsMu.Unlock()
 
 		v.bp, v.err = prog.Build.Import(path, dir, 0)
