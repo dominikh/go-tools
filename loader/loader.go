@@ -117,6 +117,17 @@ func (prog *Program) findPackage(path, dir string) (*build.Package, error) {
 }
 
 func (prog *Program) Import(path string, cwd string) (*Package, error) {
+	pkg, err := prog.load(path, cwd)
+	if err != nil {
+		return nil, err
+	}
+	t := time.Now()
+	prog.SSA.Build()
+	prog.Statistics.SSA += time.Since(t)
+	return pkg, nil
+}
+
+func (prog *Program) load(path string, cwd string) (*Package, error) {
 	if path == "unsafe" {
 		return prog.unsafe, nil
 	}
@@ -162,7 +173,6 @@ func (prog *Program) Import(path string, cwd string) (*Package, error) {
 
 	t = time.Now()
 	pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, true)
-	pkg.SSA.Build()
 	prog.Statistics.SSA += time.Since(t)
 
 	prog.Packages[pkg.Bpkg.ImportPath] = &pkg
@@ -178,7 +188,7 @@ func (imp importer) Import(path string) (*types.Package, error) {
 }
 
 func (imp importer) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
-	pkg, err := imp.prog.Import(path, dir)
+	pkg, err := imp.prog.load(path, dir)
 	if err != nil {
 		return nil, err
 	}
