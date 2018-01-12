@@ -9,6 +9,7 @@ import (
 	"go/types"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"honnef.co/go/tools/ssa"
@@ -59,44 +60,30 @@ func (prog *Program) Init() {
 	prog.bpkgs = map[string]*bpkg{}
 }
 
-func (prog *Program) parsePackage(pkg *Package) error {
-	wg := sync.WaitGroup{}
-	pkg.Files = make([]*ast.File, len(pkg.Bpkg.GoFiles))
-	wg.Add(len(pkg.Bpkg.GoFiles))
-	errch := make(chan error, 1)
-	for i, name := range pkg.Bpkg.GoFiles {
-		go func(i int, name string) {
-			path := filepath.Join(pkg.Bpkg.Dir, name)
-			f, err := parser.ParseFile(prog.Fset, path, nil, parser.ParseComments)
-			if err != nil {
-				select {
-				case errch <- err:
-				default:
-				}
-			}
-			pkg.Files[i] = f
-			wg.Done()
-		}(i, name)
+func (prog *Program) parsePackage(bpkg *build.Package) ([]*ast.File, error) {
+	files := make([]*ast.File, len(bpkg.GoFiles))
+	for i, name := range bpkg.GoFiles {
+		path := filepath.Join(bpkg.Dir, name)
+		f, err := parser.ParseFile(prog.Fset, path, nil, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		files[i] = f
 	}
-	wg.Wait()
-	select {
-	case err := <-errch:
-		return err
-	default:
-	}
-	return nil
+	return files, nil
 }
 
 type bpkg struct {
 	bp    *build.Package
+	files []*ast.File
 	err   error
 	ready chan struct{} // closed to broadcast readiness
 }
 
-func (prog *Program) findPackage(path, dir string) (*build.Package, error) {
+func (prog *Program) findPackage(path, dir string) (*build.Package, []*ast.File, error) {
 	bp, err := prog.Build.Import(path, dir, build.FindOnly)
 	if err != nil {
-		return bp, err
+		return bp, nil, err
 	}
 	prog.bpkgsMu.Lock()
 	v, ok := prog.bpkgs[bp.ImportPath]
@@ -109,9 +96,15 @@ func (prog *Program) findPackage(path, dir string) (*build.Package, error) {
 		prog.bpkgsMu.Unlock()
 
 		v.bp, v.err = prog.Build.Import(path, dir, 0)
+		if v.err == nil {
+			t := time.Now()
+			v.files, v.err = prog.parsePackage(v.bp)
+			d := time.Since(t)
+			atomic.AddInt64((*int64)(&prog.Statistics.Parsing), int64(d))
+		}
 		close(v.ready)
 	}
-	return v.bp, v.err
+	return v.bp, v.files, v.err
 }
 
 func (prog *Program) Import(path string, cwd string) (*Package, error) {
@@ -143,7 +136,7 @@ func (prog *Program) load(path string, cwd string) (*Package, error) {
 	}
 	var err error
 	t := time.Now()
-	pkg.Bpkg, err = prog.findPackage(path, cwd)
+	pkg.Bpkg, pkg.Files, err = prog.findPackage(path, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -157,12 +150,6 @@ func (prog *Program) load(path string, cwd string) (*Package, error) {
 		// prefetch build.Packages of dependencies
 		go prog.findPackage(imp, pkg.Bpkg.Dir)
 	}
-
-	t = time.Now()
-	if err := prog.parsePackage(&pkg); err != nil {
-		return nil, err
-	}
-	prog.Statistics.Parsing += time.Since(t)
 
 	pkg.Pkg, err = prog.Config.Check(pkg.Bpkg.ImportPath, prog.Fset, pkg.Files, &pkg.Info)
 	if err != nil {
