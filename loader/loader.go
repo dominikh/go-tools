@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"honnef.co/go/tools/ssa"
@@ -54,6 +55,34 @@ func (prog *Program) Init() {
 	}
 }
 
+func (prog *Program) parsePackage(pkg *Package) error {
+	wg := sync.WaitGroup{}
+	pkg.Files = make([]*ast.File, len(pkg.Bpkg.GoFiles))
+	wg.Add(len(pkg.Bpkg.GoFiles))
+	errch := make(chan error, 1)
+	for i, name := range pkg.Bpkg.GoFiles {
+		go func(i int, name string) {
+			path := filepath.Join(pkg.Bpkg.Dir, name)
+			f, err := parser.ParseFile(prog.Fset, path, nil, parser.ParseComments)
+			if err != nil {
+				select {
+				case errch <- err:
+				default:
+				}
+			}
+			pkg.Files[i] = f
+			wg.Done()
+		}(i, name)
+	}
+	wg.Wait()
+	select {
+	case err := <-errch:
+		return err
+	default:
+	}
+	return nil
+}
+
 func (prog *Program) Import(path string, cwd string) (*Package, error) {
 	if path == "unsafe" {
 		return prog.unsafe, nil
@@ -83,13 +112,8 @@ func (prog *Program) Import(path string, cwd string) (*Package, error) {
 	prog.Statistics.Finding += time.Since(t)
 
 	t = time.Now()
-	for _, name := range pkg.Bpkg.GoFiles {
-		path := filepath.Join(pkg.Bpkg.Dir, name)
-		f, err := parser.ParseFile(prog.Fset, path, nil, parser.ParseComments)
-		if err != nil {
-			return nil, err
-		}
-		pkg.Files = append(pkg.Files, f)
+	if err := prog.parsePackage(&pkg); err != nil {
+		return nil, err
 	}
 	prog.Statistics.Parsing += time.Since(t)
 
