@@ -261,7 +261,7 @@ func (c *Checker) Check(prog *lint.Program) []Unused {
 			continue
 		}
 		generated := false
-		for _, file := range c.prog.Prog.Packages[obj.Pkg().Path()].Files {
+		for _, file := range c.prog.Prog.PackageFromTypesPackage(obj.Pkg()).Files {
 			if c.prog.Prog.Fset.Position(file.Pos()).Filename != pos.Filename {
 				continue
 			}

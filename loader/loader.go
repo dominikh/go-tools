@@ -30,6 +30,12 @@ type Program struct {
 
 	TokenFileMap map[*token.File]*ast.File
 	ASTFileMap   map[*ast.File]*Package
+
+	typesPackages map[*types.Package]*Package
+}
+
+func (prog *Program) PackageFromTypesPackage(tpkg *types.Package) *Package {
+	return prog.typesPackages[tpkg]
 }
 
 func NewProgram() *Program {
@@ -47,9 +53,10 @@ func NewProgram() *Program {
 			Pkg: types.Unsafe,
 			SSA: ssaprog.CreatePackage(types.Unsafe, nil, nil, true),
 		},
-		bpkgs:        map[string]*bpkg{},
-		TokenFileMap: map[*token.File]*ast.File{},
-		ASTFileMap:   map[*ast.File]*Package{},
+		bpkgs:         map[string]*bpkg{},
+		TokenFileMap:  map[*token.File]*ast.File{},
+		ASTFileMap:    map[*ast.File]*Package{},
+		typesPackages: map[*types.Package]*Package{},
 	}
 	prog.Config.Importer = importer{prog}
 	return prog
@@ -192,6 +199,7 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 		Pkg:   types.NewPackage(pkgPath, ""),
 		Files: files,
 	}
+	prog.typesPackages[pkg.Pkg] = pkg
 
 	c := types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
 	if err := c.Files(files); err != nil {
@@ -242,6 +250,7 @@ func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, error) {
 		Pkg:   types.NewPackage(pkgPath, ""),
 		Files: bpkg.files,
 	}
+	prog.typesPackages[pkg.Pkg] = pkg
 
 	c := types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
 	if err := c.Files(bpkg.files); err != nil {
