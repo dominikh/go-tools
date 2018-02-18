@@ -21,8 +21,7 @@ import (
 	"testing"
 
 	"honnef.co/go/tools/lint"
-
-	"golang.org/x/tools/go/loader"
+	"honnef.co/go/tools/loader"
 )
 
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
@@ -63,10 +62,9 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 		files[v] = append(files[v], fi)
 	}
 
-	conf := &loader.Config{
-		ParserMode: parser.ParseComments,
-	}
+	lprog := loader.NewProgram()
 	sources := map[string][]byte{}
+	var pkgs []*loader.Package
 	for _, fi := range fis {
 		filename := path.Join(baseDir, fi.Name())
 		src, err := ioutil.ReadFile(filename)
@@ -74,24 +72,24 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 			t.Errorf("Failed reading %s: %v", fi.Name(), err)
 			continue
 		}
-		f, err := conf.ParseFile(filename, src)
+		f, err := parser.ParseFile(lprog.Fset, filename, src, parser.ParseComments)
 		if err != nil {
 			t.Errorf("error parsing %s: %s", filename, err)
 			continue
 		}
 		sources[fi.Name()] = src
-		conf.CreateFromFiles(fi.Name(), f)
-	}
-
-	lprog, err := conf.Load()
-	if err != nil {
-		t.Fatalf("error loading program: %s", err)
+		pkg, err := lprog.CreateFromFiles(fi.Name(), f)
+		if err != nil {
+			t.Errorf("error loading %s: %s", filename, err)
+			continue
+		}
+		pkgs = append(pkgs, pkg)
 	}
 
 	for version, fis := range files {
 		l := &lint.Linter{Checker: c, GoVersion: version}
 
-		res := l.Lint(lprog, conf)
+		res := l.Lint(lprog, pkgs)
 		for _, fi := range fis {
 			name := fi.Name()
 			src := sources[name]

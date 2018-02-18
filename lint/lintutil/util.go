@@ -12,10 +12,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/build"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,10 +23,10 @@ import (
 	"strings"
 
 	"honnef.co/go/tools/lint"
+	"honnef.co/go/tools/loader"
 	"honnef.co/go/tools/version"
 
 	"github.com/kisielk/gotool"
-	"golang.org/x/tools/go/loader"
 )
 
 type OutputFormatter interface {
@@ -249,7 +249,7 @@ type Options struct {
 	ReturnIgnored bool
 }
 
-func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, error) {
+func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -257,39 +257,40 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 	if err != nil {
 		return nil, err
 	}
-	paths := gotool.ImportPaths(pkgs)
+	paths := gotool.ImportPaths(args)
 	goFiles, err := resolveRelative(paths, opt.Tags)
 	if err != nil {
 		return nil, err
 	}
 	ctx := build.Default
 	ctx.BuildTags = opt.Tags
-	hadError := false
-	conf := &loader.Config{
-		Build:      &ctx,
-		ParserMode: parser.ParseComments,
-		ImportPkgs: map[string]bool{},
-		TypeChecker: types.Config{
-			Error: func(err error) {
-				// Only print the first error found
-				if hadError {
-					return
-				}
-				hadError = true
-				fmt.Fprintln(os.Stderr, err)
-			},
-		},
-	}
+
+	lprog := loader.NewProgram()
+
+	var pkgs []*loader.Package
 	if goFiles {
-		conf.CreateFromFilenames("adhoc", paths...)
+		var files []*ast.File
+		for _, path := range paths {
+			f, err := parser.ParseFile(lprog.Fset, path, nil, parser.ParseComments)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, f)
+		}
+		pkg, err := lprog.CreateFromFiles("adhoc", files...)
+		if err != nil {
+			return nil, err
+		}
+		pkgs = append(pkgs, pkg)
 	} else {
 		for _, path := range paths {
-			conf.ImportPkgs[path] = opt.LintTests
+			// XXX don't respect vendoring for command-line arguments
+			pkg, err := lprog.Import(path, ".", opt.LintTests)
+			if err != nil {
+				return nil, err
+			}
+			pkgs = append(pkgs, pkg)
 		}
-	}
-	lprog, err := conf.Load()
-	if err != nil {
-		return nil, err
 	}
 
 	var problems [][]lint.Problem
@@ -301,7 +302,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
 		}
-		problems = append(problems, runner.lint(lprog, conf))
+		problems = append(problems, runner.lint(lprog, pkgs))
 	}
 	return problems, nil
 }
@@ -338,12 +339,12 @@ func ProcessArgs(name string, cs []CheckerConfig, args []string) {
 	ProcessFlagSet(cs, flags)
 }
 
-func (runner *runner) lint(lprog *loader.Program, conf *loader.Config) []lint.Problem {
+func (runner *runner) lint(lprog *loader.Program, pkgs []*loader.Package) []lint.Problem {
 	l := &lint.Linter{
 		Checker:       runner.checker,
 		Ignores:       runner.ignores,
 		GoVersion:     runner.version,
 		ReturnIgnored: runner.returnIgnored,
 	}
-	return l.Lint(lprog, conf)
+	return l.Lint(lprog, pkgs)
 }
