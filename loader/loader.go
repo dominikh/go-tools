@@ -35,9 +35,11 @@ type Program struct {
 func NewProgram() *Program {
 	fset := token.NewFileSet()
 	ssaprog := ssa.NewProgram(fset, ssa.GlobalDebug)
+	b := build.Default
+	b.CgoEnabled = false
 	prog := &Program{
 		Fset:     fset,
-		Build:    &build.Default,
+		Build:    &b,
 		Config:   &types.Config{},
 		SSA:      ssaprog,
 		Packages: map[string]*Package{},
