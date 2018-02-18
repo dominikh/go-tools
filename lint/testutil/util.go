@@ -12,8 +12,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/ioutil"
-	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -28,9 +26,9 @@ var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this
 
 func TestAll(t *testing.T, c lint.Checker, dir string) {
 	baseDir := filepath.Join("testdata", dir)
-	fis, err := ioutil.ReadDir(baseDir)
+	fis, err := filepath.Glob(filepath.Join(baseDir, "*.go"))
 	if err != nil {
-		t.Fatalf("ioutil.ReadDir: %v", err)
+		t.Fatalf("filepath.Glob: %v", err)
 	}
 	if len(fis) == 0 {
 		t.Fatalf("no files in %v", baseDir)
@@ -40,15 +38,15 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
 	}
 
-	files := map[int][]os.FileInfo{}
+	files := map[int][]string{}
 	for _, fi := range fis {
-		if !rx.MatchString(fi.Name()) {
+		if !rx.MatchString(fi) {
 			continue
 		}
-		if !strings.HasSuffix(fi.Name(), ".go") {
+		if !strings.HasSuffix(fi, ".go") {
 			continue
 		}
-		parts := strings.Split(fi.Name(), "_")
+		parts := strings.Split(fi, "_")
 		v := 0
 		if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "go1") {
 			var err error
@@ -56,7 +54,7 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 			s = s[:len(s)-len(".go")]
 			v, err = strconv.Atoi(s)
 			if err != nil {
-				t.Fatalf("cannot process file name %q: %s", fi.Name(), err)
+				t.Fatalf("cannot process file name %q: %s", fi, err)
 			}
 		}
 		files[v] = append(files[v], fi)
@@ -66,21 +64,20 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 	sources := map[string][]byte{}
 	var pkgs []*loader.Package
 	for _, fi := range fis {
-		filename := path.Join(baseDir, fi.Name())
-		src, err := ioutil.ReadFile(filename)
+		src, err := ioutil.ReadFile(fi)
 		if err != nil {
-			t.Errorf("Failed reading %s: %v", fi.Name(), err)
+			t.Errorf("Failed reading %s: %v", fi, err)
 			continue
 		}
-		f, err := parser.ParseFile(lprog.Fset, filename, src, parser.ParseComments)
+		f, err := parser.ParseFile(lprog.Fset, fi, src, parser.ParseComments)
 		if err != nil {
-			t.Errorf("error parsing %s: %s", filename, err)
+			t.Errorf("error parsing %s: %s", fi, err)
 			continue
 		}
-		sources[fi.Name()] = src
-		pkg, err := lprog.CreateFromFiles(fi.Name(), f)
+		sources[fi] = src
+		pkg, err := lprog.CreateFromFiles(fi, f)
 		if err != nil {
-			t.Errorf("error loading %s: %s", filename, err)
+			t.Errorf("error loading %s: %s", fi, err)
 			continue
 		}
 		pkgs = append(pkgs, pkg)
@@ -91,15 +88,14 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 
 		res := l.Lint(lprog, pkgs)
 		for _, fi := range fis {
-			name := fi.Name()
-			src := sources[name]
+			src := sources[fi]
 
-			ins := parseInstructions(t, name, src)
+			ins := parseInstructions(t, fi, src)
 
 			for _, in := range ins {
 				ok := false
 				for i, p := range res {
-					if p.Position.Line != in.Line || filepath.Base(p.Position.Filename) != name {
+					if p.Position.Line != in.Line || p.Position.Filename != fi {
 						continue
 					}
 					if in.Match.MatchString(p.Text) {
@@ -113,14 +109,13 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 					}
 				}
 				if !ok {
-					t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
+					t.Errorf("Lint failed at %s:%d; /%v/ did not match", fi, in.Line, in.Match)
 				}
 			}
 		}
 		for _, p := range res {
-			name := filepath.Base(p.Position.Filename)
 			for _, fi := range fis {
-				if name == fi.Name() {
+				if p.Position.Filename == fi {
 					t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
 					break
 				}
