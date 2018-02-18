@@ -198,7 +198,7 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 		return nil, err
 	}
 	pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, true)
-	pkg.SSA.Build()
+	prog.SSA.Build()
 	// prog.Packages[bpkg.bp.ImportPath] = pkg
 
 	for _, f := range pkg.Files {
