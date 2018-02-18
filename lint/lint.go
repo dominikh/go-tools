@@ -485,11 +485,12 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 
 	pkg := prog.Prog.ASTFileMap[prog.Prog.TokenFileMap[prog.Prog.Fset.File(p)]]
 	bp := pkg.Bpkg
-	adjPos := prog.Prog.Fset.Position(p)
+	pos := prog.Prog.Fset.PositionFor(p, false)
+	adjPos := prog.Prog.Fset.PositionFor(p, true)
 	if bp == nil {
 		// couldn't find the package for some reason (deleted? faulty
 		// file system?)
-		return adjPos
+		return pos
 	}
 	base := filepath.Base(adjPos.Filename)
 	for _, f := range bp.CgoFiles {
@@ -499,7 +500,7 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 		}
 	}
 	// not a cgo file, ignore //line directives
-	return prog.Prog.Fset.PositionFor(p, false)
+	return pos
 }
 
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
