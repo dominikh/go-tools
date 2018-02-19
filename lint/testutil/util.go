@@ -114,11 +114,14 @@ func testPackages(t *testing.T, c lint.Checker, dir string) {
 	var files []string
 	sources := map[string][]byte{}
 	for _, fi := range fis {
-		pkg, err := lprog.Import(fi.Name(), ".")
+		pkg, xpkg, err := lprog.Import(fi.Name(), ".")
 		if err != nil {
 			t.Fatalf("couldn't import %s: %s", fi.Name(), err)
 		}
 		pkgs = append(pkgs, pkg)
+		if xpkg != nil {
+			pkgs = append(pkgs, xpkg)
+		}
 
 		groups := [][]string{
 			pkg.Bpkg.GoFiles,

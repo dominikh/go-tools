@@ -21,7 +21,7 @@ type Program struct {
 	Config *types.Config
 	SSA    *ssa.Program
 
-	packages    map[string]*Package
+	packages    map[string][2]*Package
 	AllPackages []*Package
 
 	unsafe *Package
@@ -49,7 +49,7 @@ func NewProgram() *Program {
 		Build:    &b,
 		Config:   &types.Config{},
 		SSA:      ssaprog,
-		packages: map[string]*Package{},
+		packages: map[string][2]*Package{},
 		unsafe: &Package{
 			Pkg: types.Unsafe,
 			SSA: ssaprog.CreatePackage(types.Unsafe, nil, nil, true),
@@ -69,6 +69,7 @@ type Package struct {
 	SSA   *ssa.Package
 	Files []*ast.File
 	types.Info
+	Importable bool
 
 	bpkg    *bpkg
 	checker *types.Checker
@@ -152,15 +153,15 @@ func (prog *Program) findPackage(path, dir string) (*bpkg, error) {
 	return v, v.err
 }
 
-func (prog *Program) Import(path string, cwd string) (*Package, error) {
-	pkg, err := prog.load(path, cwd)
+func (prog *Program) Import(path string, cwd string) (*Package, *Package, error) {
+	pkg, xpkg, err := prog.load(path, cwd)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := prog.augment(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return pkg, nil
+	return pkg, xpkg, nil
 }
 
 func (prog *Program) augment() error {
@@ -185,21 +186,58 @@ func (prog *Program) augment() error {
 	for augmented := true; augmented; {
 		augmented = false
 		for _, pkg := range prog.AllPackages {
+			// Haven't build SSA form yet
 			if pkg.SSA == nil {
 				augmented = true
-				// Haven't build SSA form yet
+				// package hasn't been augmented with tests yet
 				if pkg.bpkg != nil && pkg.checker != nil {
-					// package hasn't been augmented with tests yet
 					pkg.Files = append(pkg.Files, pkg.bpkg.testFiles...)
 					if err := pkg.checker.Files(pkg.bpkg.testFiles); err != nil {
 						return err
 					}
+
+					// build XTests package. This has to be done after
+					// the main package has been augmented, because
+					// external tests get access to identifiers
+					// declared in normal tests. SSA form will be
+					// built on the next iteration of the outer loop.
+					if len(pkg.bpkg.xtestFiles) > 0 {
+						bpkg := pkg.bpkg
+						pkgPath := bpkg.bp.ImportPath
+						xpkg := &Package{
+							Info: types.Info{
+								Types:      map[ast.Expr]types.TypeAndValue{},
+								Defs:       map[*ast.Ident]types.Object{},
+								Uses:       map[*ast.Ident]types.Object{},
+								Implicits:  map[ast.Node]types.Object{},
+								Selections: map[*ast.SelectorExpr]*types.Selection{},
+								Scopes:     map[ast.Node]*types.Scope{},
+								InitOrder:  []*types.Initializer{},
+							},
+							Bpkg:  bpkg.bp,
+							Pkg:   types.NewPackage(pkgPath+"_test", ""),
+							Files: bpkg.xtestFiles,
+							bpkg:  bpkg,
+						}
+						prog.typesPackages[xpkg.Pkg] = xpkg
+						xpkg.checker = types.NewChecker(prog.Config, prog.Fset, xpkg.Pkg, &xpkg.Info)
+						if err := xpkg.checker.Files(bpkg.xtestFiles); err != nil {
+							return err
+						}
+						// Re-register packages, this time with the type-checked xpkg
+						prog.packages[bpkg.bp.ImportPath] = [2]*Package{pkg, xpkg}
+						// XTests shouldn't be augmented by test files
+						xpkg.checker = nil
+						xpkg.bpkg = nil
+						prog.AllPackages = append(prog.AllPackages, xpkg)
+					}
+
+					// Package has been fully augmented now.
 					pkg.checker = nil
 					pkg.bpkg = nil
 				}
-				// XXX don't set importable for external tests or for
-				// packages created from files
-				pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, true)
+
+				pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, pkg.Importable)
 				for _, f := range pkg.Files {
 					tf := prog.Fset.File(f.Pos())
 					prog.TokenFileMap[tf] = f
@@ -249,11 +287,9 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 	return pkg, nil
 }
 
-func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, error) {
-	// XXX external tests
-	// XXX is this handling vendoring correctly?
+func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, *Package, error) {
 	if c, ok := prog.packages[bpkg.bp.ImportPath]; ok {
-		return c, nil
+		return c[0], c[1], nil
 	}
 
 	// prefetch build.Packages of dependencies
@@ -278,32 +314,33 @@ func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, error) {
 			Scopes:     map[ast.Node]*types.Scope{},
 			InitOrder:  []*types.Initializer{},
 		},
-		Bpkg:  bpkg.bp,
-		Pkg:   types.NewPackage(pkgPath, ""),
-		Files: make([]*ast.File, 0, len(bpkg.files)+len(bpkg.testFiles)),
-		bpkg:  bpkg,
+		Bpkg:       bpkg.bp,
+		Pkg:        types.NewPackage(pkgPath, ""),
+		Files:      make([]*ast.File, 0, len(bpkg.files)+len(bpkg.testFiles)),
+		bpkg:       bpkg,
+		Importable: true,
 	}
 	pkg.Files = append(pkg.Files, bpkg.files...)
 	prog.typesPackages[pkg.Pkg] = pkg
-
 	pkg.checker = types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
 	if err := pkg.checker.Files(bpkg.files); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	prog.packages[bpkg.bp.ImportPath] = pkg
+	prog.packages[bpkg.bp.ImportPath] = [2]*Package{pkg, nil}
+
 	prog.AllPackages = append(prog.AllPackages, pkg)
 
-	return pkg, nil
+	return pkg, nil, nil
 }
 
-func (prog *Program) load(path string, cwd string) (*Package, error) {
+func (prog *Program) load(path string, cwd string) (*Package, *Package, error) {
 	if path == "unsafe" {
-		return prog.unsafe, nil
+		return prog.unsafe, nil, nil
 	}
 
 	bpkg, err := prog.findPackage(path, cwd)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	return prog.createFromBpkg(bpkg)
 }
@@ -317,7 +354,7 @@ func (imp importer) Import(path string) (*types.Package, error) {
 }
 
 func (imp importer) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
-	pkg, err := imp.prog.load(path, dir)
+	pkg, _, err := imp.prog.load(path, dir)
 	if err != nil {
 		return nil, err
 	}
