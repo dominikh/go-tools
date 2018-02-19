@@ -21,7 +21,8 @@ type Program struct {
 	Config *types.Config
 	SSA    *ssa.Program
 
-	Packages map[string]*Package
+	packages    map[string]*Package
+	AllPackages []*Package
 
 	unsafe *Package
 
@@ -48,7 +49,7 @@ func NewProgram() *Program {
 		Build:    &b,
 		Config:   &types.Config{},
 		SSA:      ssaprog,
-		Packages: map[string]*Package{},
+		packages: map[string]*Package{},
 		unsafe: &Package{
 			Pkg: types.Unsafe,
 			SSA: ssaprog.CreatePackage(types.Unsafe, nil, nil, true),
@@ -69,7 +70,8 @@ type Package struct {
 	Files []*ast.File
 	types.Info
 
-	augmented bool
+	bpkg    *bpkg
+	checker *types.Checker
 }
 
 func (pkg *Package) String() string {
@@ -150,22 +152,64 @@ func (prog *Program) findPackage(path, dir string) (*bpkg, error) {
 	return v, v.err
 }
 
-func (prog *Program) Import(path string, cwd string, tests bool) (*Package, error) {
+func (prog *Program) Import(path string, cwd string) (*Package, error) {
 	pkg, err := prog.load(path, cwd)
 	if err != nil {
 		return nil, err
 	}
-	if tests && !pkg.augmented {
-		// XXX augment import with tests
-		//
-		// XXX what to do about SSA? if the package was already
-		// imported without tests, SSA building will have already
-		// finished.
-		//
-		// XXX also need to add test files to pkg.Files
+	if err := prog.augment(); err != nil {
+		return nil, err
+	}
+	return pkg, nil
+}
+
+func (prog *Program) augment() error {
+	// When importing a package, we can't immediately type-check its
+	// tests, as this may lead to circular dependencies, because
+	// unlike the Go compiler, we augment _all_ imported packages with
+	// their tests. In order to avoid an infinite loop, we must first
+	// type-check all dependencies without their tests, before
+	// augmenting them.
+	//
+	// This also means that we must delay SSA building of all packages
+	// until they have been augmented by their tests.
+	//
+	// The simplest solution is to, upon every user-initiated package
+	// import, find all packages that haven't been augmented yet and
+	// finish the work. Since this may import even more packages, we
+	// have to loop until no more packages are left.
+	//
+	// OPT(dh): an optimization would maintain an explicit work list,
+	// instead of looping over all packages repeatedly, which is
+	// quadratic in complexity.
+	for augmented := true; augmented; {
+		augmented = false
+		for _, pkg := range prog.AllPackages {
+			if pkg.SSA == nil {
+				augmented = true
+				// Haven't build SSA form yet
+				if pkg.bpkg != nil && pkg.checker != nil {
+					// package hasn't been augmented with tests yet
+					pkg.Files = append(pkg.Files, pkg.bpkg.testFiles...)
+					if err := pkg.checker.Files(pkg.bpkg.testFiles); err != nil {
+						return err
+					}
+					pkg.checker = nil
+					pkg.bpkg = nil
+				}
+				// XXX don't set importable for external tests or for
+				// packages created from files
+				pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, true)
+				for _, f := range pkg.Files {
+					tf := prog.Fset.File(f.Pos())
+					prog.TokenFileMap[tf] = f
+					prog.ASTFileMap[f] = pkg
+				}
+			}
+		}
 	}
 	prog.SSA.Build()
-	return pkg, nil
+	return nil
 }
 
 func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package, error) {
@@ -175,14 +219,6 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 			go prog.findPackage(imp.Path.Value, "")
 		}
 	}
-	// if tests {
-	// 	for _, imp := range bpkg.bp.TestImports {
-	// 		go prog.findPackage(imp, bpkg.bp.Dir)
-	// 	}
-	// 	for _, imp := range bpkg.bp.XTestImports {
-	// 		go prog.findPackage(imp, bpkg.bp.Dir)
-	// 	}
-	// }
 
 	pkgPath := path
 	pkg := &Package{
@@ -205,20 +241,18 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 	if err := c.Files(files); err != nil {
 		return nil, err
 	}
-	pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, true)
-	prog.SSA.Build()
-	// prog.Packages[bpkg.bp.ImportPath] = pkg
+	prog.AllPackages = append(prog.AllPackages, pkg)
 
-	for _, f := range pkg.Files {
-		tf := prog.Fset.File(f.Pos())
-		prog.TokenFileMap[tf] = f
-		prog.ASTFileMap[f] = pkg
+	if err := prog.augment(); err != nil {
+		return nil, err
 	}
 	return pkg, nil
 }
 
 func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, error) {
-	if c, ok := prog.Packages[bpkg.bp.ImportPath]; ok {
+	// XXX external tests
+	// XXX is this handling vendoring correctly?
+	if c, ok := prog.packages[bpkg.bp.ImportPath]; ok {
 		return c, nil
 	}
 
@@ -226,13 +260,11 @@ func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, error) {
 	for _, imp := range bpkg.bp.Imports {
 		go prog.findPackage(imp, bpkg.bp.Dir)
 	}
-	// if tests {
-	// 	for _, imp := range bpkg.bp.TestImports {
-	// 		go prog.findPackage(imp, bpkg.bp.Dir)
-	// 	}
-	// 	for _, imp := range bpkg.bp.XTestImports {
-	// 		go prog.findPackage(imp, bpkg.bp.Dir)
-	// 	}
+	for _, imp := range bpkg.bp.TestImports {
+		go prog.findPackage(imp, bpkg.bp.Dir)
+	}
+	// for _, imp := range bpkg.bp.XTestImports {
+	// 	go prog.findPackage(imp, bpkg.bp.Dir)
 	// }
 
 	pkgPath := bpkg.bp.ImportPath
@@ -248,22 +280,19 @@ func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, error) {
 		},
 		Bpkg:  bpkg.bp,
 		Pkg:   types.NewPackage(pkgPath, ""),
-		Files: bpkg.files,
+		Files: make([]*ast.File, 0, len(bpkg.files)+len(bpkg.testFiles)),
+		bpkg:  bpkg,
 	}
+	pkg.Files = append(pkg.Files, bpkg.files...)
 	prog.typesPackages[pkg.Pkg] = pkg
 
-	c := types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
-	if err := c.Files(bpkg.files); err != nil {
+	pkg.checker = types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
+	if err := pkg.checker.Files(bpkg.files); err != nil {
 		return nil, err
 	}
-	pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, true)
-	prog.Packages[bpkg.bp.ImportPath] = pkg
+	prog.packages[bpkg.bp.ImportPath] = pkg
+	prog.AllPackages = append(prog.AllPackages, pkg)
 
-	for _, f := range pkg.Files {
-		tf := prog.Fset.File(f.Pos())
-		prog.TokenFileMap[tf] = f
-		prog.ASTFileMap[f] = pkg
-	}
 	return pkg, nil
 }
 

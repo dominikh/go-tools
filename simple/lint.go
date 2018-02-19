@@ -1533,7 +1533,7 @@ func (c *Checker) Implements(j *lint.Job, typ types.Type, iface string) bool {
 	} else {
 		pkgName := iface[:idx]
 		// FIXME(dh): we aren't taking vendoring into consideration
-		pkg := j.Program.Prog.Packages[pkgName]
+		pkg, _ := j.Program.Prog.Import(pkgName, ".")
 		if pkg == nil {
 			return false
 		}

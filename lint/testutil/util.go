@@ -114,7 +114,7 @@ func testPackages(t *testing.T, c lint.Checker, dir string) {
 	var files []string
 	sources := map[string][]byte{}
 	for _, fi := range fis {
-		pkg, err := lprog.Import(fi.Name(), ".", true)
+		pkg, err := lprog.Import(fi.Name(), ".")
 		if err != nil {
 			t.Fatalf("couldn't import %s: %s", fi.Name(), err)
 		}

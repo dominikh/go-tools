@@ -493,9 +493,7 @@ func (c *Checker) findExportedInterfaces() {
 	c.interfaces = []*types.Interface{types.Universe.Lookup("error").Type().(*types.Named).Underlying().(*types.Interface)}
 	var pkgs []*loader.Package
 	if c.WholeProgram {
-		for _, pkg := range c.prog.Prog.Packages {
-			pkgs = append(pkgs, pkg)
-		}
+		pkgs = c.prog.Prog.AllPackages
 	} else {
 		pkgs = c.prog.InitialPackages
 	}
