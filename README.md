@@ -9,6 +9,14 @@ working with Go code, including linters and static analysis.
 consider purchasing
 [commercial support](https://staticcheck.io/pricing).**
 
+## Installation
+
+This project uses a vanity URL for it's packages. To install the tools using `go get` you can **NOT** use the GitHub URL, but instead have to use the vanity URL.
+
+```
+$ go get -u honnef.co/go/tools/...
+```
+
 ## Tools
 
 All of the following tools can be found in the cmd/ directory. Each
