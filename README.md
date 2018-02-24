@@ -9,6 +9,15 @@ working with Go code, including linters and static analysis.
 consider purchasing
 [commercial support](https://staticcheck.io/pricing).**
 
+## Installation
+
+To install or update all tools run
+```
+go get -u honnef.co/go/tools/...
+```
+
+Alternatively, see individual tool pages below.
+
 ## Tools
 
 All of the following tools can be found in the cmd/ directory. Each
