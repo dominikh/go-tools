@@ -159,6 +159,7 @@ type Linter struct {
 	Ignores       []Ignore
 	GoVersion     int
 	ReturnIgnored bool
+	SingleFile    string
 
 	automaticIgnores []Ignore
 }
@@ -282,16 +283,21 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 		if fn.Pkg == nil {
 			continue
 		}
+		if l.SingleFile != "" && lprog.Fset.Position(fn.Pos()).Filename != l.SingleFile {
+			continue
+		}
 		prog.AllFunctions = append(prog.AllFunctions, fn)
 		if _, ok := initial[fn.Pkg.Pkg]; ok {
 			prog.InitialFunctions = append(prog.InitialFunctions, fn)
 		}
 	}
 	for _, pkg := range pkgs {
-		prog.Files = append(prog.Files, pkg.Info.Files...)
-
 		ssapkg := ssaprog.Package(pkg.Info.Pkg)
 		for _, f := range pkg.Info.Files {
+			if l.SingleFile != "" && lprog.Fset.Position(f.Pos()).Filename != l.SingleFile {
+				continue
+			}
+			prog.Files = append(prog.Files, f)
 			prog.astFileMap[f] = pkgMap[ssapkg]
 		}
 	}
@@ -299,6 +305,9 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	for _, pkginfo := range lprog.AllPackages {
 		for _, f := range pkginfo.Files {
 			tf := lprog.Fset.File(f.Pos())
+			if l.SingleFile != "" && lprog.Fset.Position(f.Pos()).Filename != l.SingleFile {
+				continue
+			}
 			prog.tokenFileMap[tf] = f
 		}
 	}
@@ -307,6 +316,9 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	l.automaticIgnores = nil
 	for _, pkginfo := range lprog.InitialPackages() {
 		for _, f := range pkginfo.Files {
+			if l.SingleFile != "" && lprog.Fset.Position(f.Pos()).Filename != l.SingleFile {
+				continue
+			}
 			cm := ast.NewCommentMap(lprog.Fset, f, f.Comments)
 			for node, cgs := range cm {
 				for _, cg := range cgs {
@@ -558,7 +570,12 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	tf := j.Program.SSA.Fset.File(n.Pos())
 	f := j.Program.tokenFileMap[tf]
-	pkg := j.Program.astFileMap[f].Pkg
+	var pkg *types.Package
+	if apkg, ok := j.Program.astFileMap[f]; ok {
+		pkg = apkg.Pkg
+	} else {
+		return nil
+	}
 
 	pos := j.Program.DisplayPosition(n.Pos())
 	problem := Problem{
