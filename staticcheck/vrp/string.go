@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"go/types"
 
-	"honnef.co/go/tools/ssa"
+	"github.com/cabify/go-tools/ssa"
 )
 
 type StringInterval struct {

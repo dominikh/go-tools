@@ -32,7 +32,7 @@ in the call graph; they are treated like built-in operators of the
 language.
 
 */
-package callgraph // import "honnef.co/go/tools/callgraph"
+package callgraph
 
 // TODO(adonovan): add a function to eliminate wrappers from the
 // callgraph, preserving topology.
@@ -43,7 +43,7 @@ import (
 	"fmt"
 	"go/token"
 
-	"honnef.co/go/tools/ssa"
+	"github.com/cabify/go-tools/ssa"
 )
 
 // A Graph represents a call graph.

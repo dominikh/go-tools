@@ -4,7 +4,7 @@
 
 // Package gcsizes provides a types.Sizes implementation that adheres
 // to the rules used by the gc compiler.
-package gcsizes // import "honnef.co/go/tools/gcsizes"
+package gcsizes
 
 import (
 	"go/build"

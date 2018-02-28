@@ -1,4 +1,8 @@
-# honnef.co/go/tools
+# honnef.co/go/tools fork with github.com imports
+
+`github.com/cabify/go-tools` is a fork of [github.com/dominikh/go-tools](https://github.com/dominikh/go-tools) rewriting
+import paths to use github.com domain instead of honnef.co custom one which is 
+frequently down and therefore unsuitable for using in automated builds.
 
 `honnef.co/go/tools/...` is a collection of tools and libraries for
 working with Go code, including linters and static analysis.

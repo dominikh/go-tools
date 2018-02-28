@@ -40,7 +40,7 @@
 // cmd/callgraph tool on its own source takes ~2.1s for RTA and ~5.4s
 // for points-to analysis.
 //
-package rta // import "honnef.co/go/tools/callgraph/rta"
+package rta
 
 // TODO(adonovan): test it by connecting it to the interpreter and
 // replacing all "unreachable" functions by a special intrinsic, and
@@ -50,8 +50,8 @@ import (
 	"fmt"
 	"go/types"
 
-	"honnef.co/go/tools/callgraph"
-	"honnef.co/go/tools/ssa"
+	"github.com/cabify/go-tools/callgraph"
+	"github.com/cabify/go-tools/ssa"
 	"golang.org/x/tools/go/types/typeutil"
 )
 
