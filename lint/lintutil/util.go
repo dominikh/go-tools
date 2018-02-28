@@ -17,6 +17,7 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -90,30 +91,59 @@ type runner struct {
 	ignores       []lint.Ignore
 	version       int
 	returnIgnored bool
+	singleFile    string
 }
 
-func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
+func resolveRelative(importPaths []string, opt *Options) (goFiles bool, importFiles []string, err error) {
 	if len(importPaths) == 0 {
-		return false, nil
+		return false, nil, nil
 	}
 	if strings.HasSuffix(importPaths[0], ".go") {
 		// User is specifying a package in terms of .go files, don't resolve
-		return true, nil
+		return true, nil, nil
+	}
+	if opt.SingleFile != "" {
+		// User specifying linting a single file. We'll need to build up the package
+		dir := filepath.Dir(opt.SingleFile)
+		if dir == "" {
+			dir = "."
+		}
+		files, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return false, nil, fmt.Errorf("Error reading dir '%s'. Reason: %s", dir, err)
+		}
+		importFiles = append(importFiles, opt.SingleFile)
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			if !strings.HasSuffix(file.Name(), ".go") {
+				continue
+			}
+			if strings.HasSuffix(file.Name(), "_test.go") && !opt.LintTests {
+				continue
+			}
+			fileName := filepath.Join(dir, file.Name())
+			if fileName != opt.SingleFile {
+				importFiles = append(importFiles, filepath.Join(dir, file.Name()))
+			}
+		}
+		return true, importFiles, nil
 	}
 	wd, err := os.Getwd()
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	ctx := build.Default
-	ctx.BuildTags = tags
+	ctx.BuildTags = opt.Tags
 	for i, path := range importPaths {
 		bpkg, err := ctx.Import(path, wd, build.FindOnly)
 		if err != nil {
-			return false, fmt.Errorf("can't load package %q: %v", path, err)
+			return false, nil, fmt.Errorf("can't load package %q: %v", path, err)
 		}
 		importPaths[i] = bpkg.ImportPath
 	}
-	return false, nil
+	return false, nil, nil
 }
 
 func parseIgnore(s string) ([]lint.Ignore, error) {
@@ -168,6 +198,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("version", false, "Print version and exit")
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
 	flags.String("f", "text", "Output `format` (valid choices are 'text' and 'json')")
+	flags.String("single-file", "", "Only check a single file")
 
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
@@ -191,12 +222,22 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 	format := fs.Lookup("f").Value.(flag.Getter).Get().(string)
+	singleFile := fs.Lookup("single-file").Value.(flag.Getter).Get().(string)
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
 
 	if printVersion {
 		version.Print()
 		os.Exit(0)
+	}
+
+	var err error
+	if singleFile != "" {
+		singleFile, err = filepath.Abs(singleFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, fmt.Sprintf("Couldn't get absolute path of single-file. %s", err))
+			os.Exit(1)
+		}
 	}
 
 	var cs []lint.Checker
@@ -209,6 +250,7 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 		Ignores:       ignore,
 		GoVersion:     goVersion,
 		ReturnIgnored: showIgnored,
+		SingleFile:    singleFile,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -247,6 +289,7 @@ type Options struct {
 	Ignores       string
 	GoVersion     int
 	ReturnIgnored bool
+	SingleFile    string
 }
 
 func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, error) {
@@ -258,10 +301,14 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 		return nil, err
 	}
 	paths := gotool.ImportPaths(pkgs)
-	goFiles, err := resolveRelative(paths, opt.Tags)
+	goFiles, importFiles, err := resolveRelative(paths, opt)
 	if err != nil {
 		return nil, err
 	}
+	if len(importFiles) > 0 {
+		paths = importFiles
+	}
+
 	ctx := build.Default
 	ctx.BuildTags = opt.Tags
 	hadError := false
@@ -300,6 +347,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 			ignores:       ignores,
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
+			singleFile:    opt.SingleFile,
 		}
 		problems = append(problems, runner.lint(lprog, conf))
 	}
@@ -344,6 +392,7 @@ func (runner *runner) lint(lprog *loader.Program, conf *loader.Config) []lint.Pr
 		Ignores:       runner.ignores,
 		GoVersion:     runner.version,
 		ReturnIgnored: runner.returnIgnored,
+		SingleFile:    runner.singleFile,
 	}
 	return l.Lint(lprog, conf)
 }
