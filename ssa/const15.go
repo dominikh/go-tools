@@ -117,7 +117,7 @@ func (c *Const) IsNil() bool {
 	return c.Value == nil
 }
 
-// TODO(adonovan): move everything below into honnef.co/go/tools/ssa/interp.
+// TODO(adonovan): move everything below into github.com/cabify/go-tools/ssa/interp.
 
 // Int64 returns the numeric value of this constant truncated to fit
 // a signed 64-bit integer.

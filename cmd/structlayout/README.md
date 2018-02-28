@@ -27,9 +27,9 @@ go get github.com/ajstarks/svgo/structlayout-svg
 ## Installation
 
 ```
-go get honnef.co/go/tools/cmd/structlayout
-go get honnef.co/go/tools/cmd/structlayout-pretty
-go get honnef.co/go/tools/cmd/structlayout-optimize
+go get github.com/cabify/go-tools/cmd/structlayout
+go get github.com/cabify/go-tools/cmd/structlayout-pretty
+go get github.com/cabify/go-tools/cmd/structlayout-optimize
 ```
 
 ## Examples

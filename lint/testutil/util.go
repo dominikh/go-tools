@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://developers.google.com/open-source/licenses/bsd.
 
-package testutil // import "honnef.co/go/tools/lint/testutil"
+package testutil
 
 import (
 	"flag"
@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"honnef.co/go/tools/lint"
+	"github.com/cabify/go-tools/lint"
 
 	"golang.org/x/tools/go/loader"
 )

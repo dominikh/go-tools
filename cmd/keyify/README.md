@@ -5,7 +5,7 @@ ones (`T{A: 1, B: 2, C: 3}`)
 
 Keyify requires Go 1.6 or later.
 
-    go get honnef.co/go/tools/cmd/keyify
+    go get github.com/cabify/go-tools/cmd/keyify
 
 ## Usage
 
@@ -25,7 +25,7 @@ For a description of all available flags, see `keyify -help`.
 For Emacs integration, add the following to your `.emacs` file:
 
 ```
-(add-to-list 'load-path "/your/gopath/src/honnef.co/go/tools/cmd/keyify)
+(add-to-list 'load-path "/your/gopath/src/github.com/cabify/go-tools/cmd/keyify)
 (eval-after-load 'go-mode
   (lambda ()
     (require 'go-keyify)))

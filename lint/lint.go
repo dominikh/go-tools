@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // Package lint provides the foundation for tools like gosimple.
-package lint // import "honnef.co/go/tools/lint"
+package lint
 
 import (
 	"bytes"
@@ -25,8 +25,8 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
-	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssa/ssautil"
+	"github.com/cabify/go-tools/ssa"
+	"github.com/cabify/go-tools/ssa/ssautil"
 )
 
 type Job struct {

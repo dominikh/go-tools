@@ -26,7 +26,7 @@ import (
 	"go/token"
 	"go/types"
 
-	"honnef.co/go/tools/ssa"
+	"github.com/cabify/go-tools/ssa"
 )
 
 // A ConstCase represents a single constant comparison.

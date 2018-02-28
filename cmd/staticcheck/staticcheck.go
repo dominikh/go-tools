@@ -1,12 +1,12 @@
 // staticcheck detects a myriad of bugs and inefficiencies in your
 // code.
-package main // import "honnef.co/go/tools/cmd/staticcheck"
+package main
 
 import (
 	"os"
 
-	"honnef.co/go/tools/lint/lintutil"
-	"honnef.co/go/tools/staticcheck"
+	"github.com/cabify/go-tools/lint/lintutil"
+	"github.com/cabify/go-tools/staticcheck"
 )
 
 func main() {

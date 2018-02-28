@@ -11,10 +11,10 @@ import (
 	"sort"
 	"testing"
 
-	"honnef.co/go/tools/callgraph"
-	"honnef.co/go/tools/callgraph/static"
+	"github.com/cabify/go-tools/callgraph"
+	"github.com/cabify/go-tools/callgraph/static"
 	"golang.org/x/tools/go/loader"
-	"honnef.co/go/tools/ssa/ssautil"
+	"github.com/cabify/go-tools/ssa/ssautil"
 )
 
 const input = `package P
