@@ -15,7 +15,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"honnef.co/go/tools/version"
 
@@ -30,7 +29,6 @@ var (
 	fJSON      bool
 	fMinify    bool
 	fModified  bool
-	fTags      string
 	fVersion   bool
 )
 
@@ -40,7 +38,7 @@ func init() {
 	flag.BoolVar(&fJSON, "json", false, "print new struct initializer as JSON")
 	flag.BoolVar(&fMinify, "m", false, "omit fields that are set to their zero value")
 	flag.BoolVar(&fModified, "modified", false, "read an archive of modified files from standard input")
-	flag.StringVar(&fTags, "tags", "", "build tags")
+	flag.Var((*buildutil.TagsFlag)(&build.Default.BuildTags), "tags", buildutil.TagsFlagDoc)
 	flag.BoolVar(&fVersion, "version", false, "Print version and exit")
 }
 
@@ -81,7 +79,6 @@ func main() {
 		log.Fatal(err)
 	}
 	ctx := &build.Default
-	ctx.BuildTags = strings.Split(fTags, " ")
 	if fModified {
 		overlay, err := buildutil.ParseOverlayArchive(os.Stdin)
 		if err != nil {
