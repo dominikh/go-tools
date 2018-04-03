@@ -51,7 +51,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"S1010": c.LintSlicing,
 		"S1011": c.LintLoopAppend,
 		"S1012": c.LintTimeSince,
-		"S1013": c.LintSimplerReturn,
+		"S1013": nil,
 		"S1014": nil,
 		"S1015": nil,
 		"S1016": c.LintSimplerStructConversion,
@@ -836,125 +836,6 @@ func (c *Checker) LintTimeUntil(j *lint.Job) {
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
 		ast.Inspect(f, fn)
-	}
-}
-
-func (c *Checker) LintSimplerReturn(j *lint.Job) {
-	fn1 := func(node ast.Node) bool {
-		var ret *ast.FieldList
-		switch x := node.(type) {
-		case *ast.FuncDecl:
-			ret = x.Type.Results
-		case *ast.FuncLit:
-			ret = x.Type.Results
-		default:
-			return true
-		}
-		if ret == nil {
-			return true
-		}
-
-		fn2 := func(node ast.Node) bool {
-			block, ok := node.(*ast.BlockStmt)
-			if !ok {
-				return true
-			}
-			if len(block.List) < 2 {
-				return true
-			}
-
-		outer:
-			for i, stmt := range block.List {
-				if i == len(block.List)-1 {
-					break
-				}
-				if i > 0 {
-					// don't flag an if in a series of ifs
-					if _, ok := block.List[i-1].(*ast.IfStmt); ok {
-						continue
-					}
-				}
-
-				// if <id1> != nil
-				ifs, ok := stmt.(*ast.IfStmt)
-				if !ok || len(ifs.Body.List) != 1 || ifs.Else != nil {
-					continue
-				}
-				expr, ok := ifs.Cond.(*ast.BinaryExpr)
-				if !ok || expr.Op != token.NEQ || !j.IsNil(expr.Y) {
-					continue
-				}
-				id1, ok := expr.X.(*ast.Ident)
-				if !ok {
-					continue
-				}
-
-				// return ..., <id1>
-				ret1, ok := ifs.Body.List[0].(*ast.ReturnStmt)
-				if !ok || len(ret1.Results) == 0 {
-					continue
-				}
-				var results1 []types.Object
-				for _, res := range ret1.Results {
-					ident, ok := res.(*ast.Ident)
-					if !ok {
-						continue outer
-					}
-					results1 = append(results1, j.Program.Info.ObjectOf(ident))
-				}
-				if results1[len(results1)-1] != j.Program.Info.ObjectOf(id1) {
-					continue
-				}
-
-				// return ..., [<id1> | nil]
-				ret2, ok := block.List[i+1].(*ast.ReturnStmt)
-				if !ok || len(ret2.Results) == 0 {
-					continue
-				}
-				var results2 []types.Object
-				for _, res := range ret2.Results {
-					ident, ok := res.(*ast.Ident)
-					if !ok {
-						continue outer
-					}
-					results2 = append(results2, j.Program.Info.ObjectOf(ident))
-				}
-				_, isNil := results2[len(results2)-1].(*types.Nil)
-				if results2[len(results2)-1] != j.Program.Info.ObjectOf(id1) &&
-					!isNil {
-					continue
-				}
-				for i, v := range results1[:len(results1)-1] {
-					if v != results2[i] {
-						continue outer
-					}
-				}
-
-				id1Obj := j.Program.Info.ObjectOf(id1)
-				if id1Obj == nil {
-					continue
-				}
-				_, idIface := id1Obj.Type().Underlying().(*types.Interface)
-				_, retIface := j.Program.Info.TypeOf(ret.List[len(ret.List)-1].Type).Underlying().(*types.Interface)
-
-				if retIface && !idIface {
-					// When the return value is an interface, but the
-					// identifier is not, an explicit check for nil is
-					// required to return an untyped nil.
-					continue
-				}
-
-				j.Errorf(ifs, "'if %s != nil { return %s }; return %s' can be simplified to 'return %s'",
-					j.Render(expr.X), j.RenderArgs(ret1.Results),
-					j.RenderArgs(ret2.Results), j.RenderArgs(ret1.Results))
-			}
-			return true
-		}
-		ast.Inspect(node, fn2)
-		return true
-	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn1)
 	}
 }
 
