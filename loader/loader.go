@@ -39,13 +39,12 @@ func (prog *Program) PackageFromTypesPackage(tpkg *types.Package) *Package {
 	return prog.typesPackages[tpkg]
 }
 
-func NewProgram() *Program {
+func NewProgram(ctx *build.Context) *Program {
 	fset := token.NewFileSet()
 	ssaprog := ssa.NewProgram(fset, ssa.GlobalDebug)
-	b := build.Default
 	prog := &Program{
 		Fset:     fset,
-		Build:    &b,
+		Build:    ctx,
 		Config:   &types.Config{},
 		SSA:      ssaprog,
 		packages: map[string][2]*Package{},

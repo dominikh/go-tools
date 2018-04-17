@@ -267,8 +267,7 @@ func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, err
 		return nil, err
 	}
 
-	lprog := loader.NewProgram()
-	// XXX pass build context to lprog, set tags
+	lprog := loader.NewProgram(&ctx)
 
 	var pkgs []*loader.Package
 	if goFiles {

@@ -67,7 +67,7 @@ func testFiles(t *testing.T, c lint.Checker, dir string) {
 		files[v] = append(files[v], fi)
 	}
 
-	lprog := loader.NewProgram()
+	lprog := loader.NewProgram(&build.Default)
 	sources := map[string][]byte{}
 	var pkgs []*loader.Package
 	for _, fi := range fis {
@@ -108,8 +108,7 @@ func testPackages(t *testing.T, c lint.Checker, dir string) {
 		t.Fatal("couldn't get test packages:", err)
 	}
 
-	lprog := loader.NewProgram()
-	lprog.Build = &ctx
+	lprog := loader.NewProgram(&ctx)
 	var pkgs []*loader.Package
 	var files []string
 	sources := map[string][]byte{}
