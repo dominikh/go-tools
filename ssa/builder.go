@@ -58,7 +58,7 @@ var (
 	tString     = types.Typ[types.String]
 	tUntypedNil = types.Typ[types.UntypedNil]
 	tRangeIter  = &opaqueType{nil, "iter"} // the type of all "range" iterators
-	tEface      = new(types.Interface)
+	tEface      = types.NewInterface(nil, nil).Complete()
 
 	// SSA Value constants.
 	vZero = intConst(0)
@@ -154,7 +154,7 @@ func (b *builder) logicalBinop(fn *Function, e *ast.BinaryExpr) Value {
 
 	// All edges from e.X to done carry the short-circuit value.
 	var edges []Value
-	for _ = range done.Preds {
+	for range done.Preds {
 		edges = append(edges, short)
 	}
 
@@ -970,9 +970,9 @@ func (b *builder) setCall(fn *Function, e *ast.CallExpr, c *CallCommon) {
 }
 
 // assignOp emits to fn code to perform loc += incr or loc -= incr.
-func (b *builder) assignOp(fn *Function, loc lvalue, incr Value, op token.Token, pos token.Pos) {
+func (b *builder) assignOp(fn *Function, loc lvalue, incr Value, op token.Token) {
 	oldv := loc.load(fn)
-	loc.store(fn, emitArith(fn, op, oldv, emitConv(fn, incr, oldv.Type()), loc.typ(), pos))
+	loc.store(fn, emitArith(fn, op, oldv, emitConv(fn, incr, oldv.Type()), loc.typ(), token.NoPos))
 }
 
 // localValueSpec emits to fn code to define all of the vars in the
@@ -1998,7 +1998,7 @@ start:
 			op = token.SUB
 		}
 		loc := b.addr(fn, s.X, false)
-		b.assignOp(fn, loc, NewConst(exact.MakeInt64(1), loc.typ()), op, s.Pos())
+		b.assignOp(fn, loc, NewConst(exact.MakeInt64(1), loc.typ()), op)
 
 	case *ast.AssignStmt:
 		switch s.Tok {
@@ -2007,7 +2007,7 @@ start:
 
 		default: // +=, etc.
 			op := s.Tok + token.ADD - token.ADD_ASSIGN
-			b.assignOp(fn, b.addr(fn, s.Lhs[0], false), b.expr(fn, s.Rhs[0]), op, s.Pos())
+			b.assignOp(fn, b.addr(fn, s.Lhs[0], false), b.expr(fn, s.Rhs[0]), op)
 		}
 
 	case *ast.GoStmt:
@@ -2262,10 +2262,6 @@ func (p *Package) Build() { p.buildOnce.Do(p.build) }
 func (p *Package) build() {
 	if p.info == nil {
 		return // synthetic package, e.g. "testmain"
-	}
-	if p.files == nil {
-		p.info = nil
-		return // package loaded from export data
 	}
 
 	// Ensure we have runtime type info for all exported members.
