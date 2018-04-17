@@ -92,7 +92,7 @@ type runner struct {
 	returnIgnored bool
 }
 
-func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
+func resolveRelative(importPaths []string, ctx build.Context) (goFiles bool, err error) {
 	if len(importPaths) == 0 {
 		return false, nil
 	}
@@ -104,8 +104,6 @@ func resolveRelative(importPaths []string, tags []string) (goFiles bool, err err
 	if err != nil {
 		return false, err
 	}
-	ctx := build.Default
-	ctx.BuildTags = tags
 	for i, path := range importPaths {
 		bpkg, err := ctx.Import(path, wd, build.FindOnly)
 		if err != nil {
@@ -257,13 +255,18 @@ func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, err
 	if err != nil {
 		return nil, err
 	}
-	paths := gotool.ImportPaths(args)
-	goFiles, err := resolveRelative(paths, opt.Tags)
+	ctx := build.Default
+	ctx.BuildTags = opt.Tags
+	ctx.CgoEnabled = false
+
+	gctx := gotool.Context{
+		BuildContext: ctx,
+	}
+	paths := gctx.ImportPaths(args)
+	goFiles, err := resolveRelative(paths, ctx)
 	if err != nil {
 		return nil, err
 	}
-	ctx := build.Default
-	ctx.BuildTags = opt.Tags
 
 	lprog := loader.NewProgram()
 
