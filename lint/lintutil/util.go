@@ -257,7 +257,6 @@ func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, err
 	}
 	ctx := build.Default
 	ctx.BuildTags = opt.Tags
-	ctx.CgoEnabled = false
 
 	gctx := gotool.Context{
 		BuildContext: ctx,
@@ -269,6 +268,7 @@ func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, err
 	}
 
 	lprog := loader.NewProgram()
+	// XXX pass build context to lprog, set tags
 
 	var pkgs []*loader.Package
 	if goFiles {

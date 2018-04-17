@@ -43,7 +43,6 @@ func NewProgram() *Program {
 	fset := token.NewFileSet()
 	ssaprog := ssa.NewProgram(fset, ssa.GlobalDebug)
 	b := build.Default
-	b.CgoEnabled = false
 	prog := &Program{
 		Fset:     fset,
 		Build:    &b,
@@ -106,6 +105,15 @@ func (prog *Program) parsePackage(bpkg *build.Package, which int) ([]*ast.File, 
 		}
 		files[i] = f
 	}
+
+	if which == goFiles && bpkg.CgoFiles != nil {
+		cgoFiles, err := processCgoFiles(bpkg, prog.Fset, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, cgoFiles...)
+	}
+
 	return files, nil
 }
 
