@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
-	"go/parser"
 	"go/token"
 	"go/types"
-	"path/filepath"
 	"sync"
 
 	"honnef.co/go/tools/ssa"
@@ -26,8 +24,8 @@ type Program struct {
 
 	unsafe *Package
 
-	bpkgsMu sync.Mutex
-	bpkgs   map[string]*bpkg
+	bpkgsMu       sync.Mutex
+	buildPackages map[string]*BuildPackage
 
 	TokenFileMap map[*token.File]*ast.File
 	ASTFileMap   map[*ast.File]*Package
@@ -52,7 +50,7 @@ func NewProgram(ctx *build.Context) *Program {
 			Pkg: types.Unsafe,
 			SSA: ssaprog.CreatePackage(types.Unsafe, nil, nil, true),
 		},
-		bpkgs:         map[string]*bpkg{},
+		buildPackages: map[string]*BuildPackage{},
 		TokenFileMap:  map[*token.File]*ast.File{},
 		ASTFileMap:    map[*ast.File]*Package{},
 		typesPackages: map[*types.Package]*Package{},
@@ -61,15 +59,24 @@ func NewProgram(ctx *build.Context) *Program {
 	return prog
 }
 
+type BuildPackage struct {
+	Bpkg       *build.Package
+	GoFiles    []*ast.File
+	TestFiles  []*ast.File
+	XTestFiles []*ast.File
+
+	ready chan struct{}
+	err   error
+}
+
 type Package struct {
 	Pkg   *types.Package
-	Bpkg  *build.Package
+	Bpkg  *BuildPackage
 	SSA   *ssa.Package
 	Files []*ast.File
 	types.Info
 	Importable bool
 
-	bpkg    *bpkg
 	checker *types.Checker
 }
 
@@ -83,92 +90,20 @@ const (
 	xtestFiles
 )
 
-func (prog *Program) parsePackage(bpkg *build.Package, which int) ([]*ast.File, error) {
-	var in []string
-	switch which {
-	case goFiles:
-		in = bpkg.GoFiles
-	case testFiles:
-		in = bpkg.TestGoFiles
-	case xtestFiles:
-		in = bpkg.XTestGoFiles
-	default:
-		panic(fmt.Sprintf("invalid value for which: %d", which))
-	}
-	files := make([]*ast.File, len(in))
-	for i, name := range in {
-		path := filepath.Join(bpkg.Dir, name)
-		f, err := parser.ParseFile(prog.Fset, path, nil, parser.ParseComments)
-		if err != nil {
-			return nil, err
-		}
-		files[i] = f
-	}
-
-	if which == goFiles && bpkg.CgoFiles != nil {
-		cgoFiles, err := processCgoFiles(bpkg, prog.Fset, parser.ParseComments)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, cgoFiles...)
-	}
-
-	return files, nil
-}
-
-type bpkg struct {
-	bp         *build.Package
-	files      []*ast.File
-	testFiles  []*ast.File
-	xtestFiles []*ast.File
-	err        error
-	ready      chan struct{} // closed to broadcast readiness
-}
-
-func (prog *Program) findPackage(path, dir string) (*bpkg, error) {
-	bp, err := prog.Build.Import(path, dir, build.FindOnly)
-	if err != nil {
-		return nil, err
-	}
-	prog.bpkgsMu.Lock()
-	v, ok := prog.bpkgs[bp.ImportPath]
-	if ok {
-		prog.bpkgsMu.Unlock()
-		<-v.ready
-	} else {
-		v = &bpkg{ready: make(chan struct{})}
-		defer close(v.ready)
-		prog.bpkgs[bp.ImportPath] = v
-		prog.bpkgsMu.Unlock()
-
-		v.bp, v.err = prog.Build.Import(path, dir, 0)
-		if v.err == nil {
-			v.files, v.err = prog.parsePackage(v.bp, goFiles)
-			if v.err != nil {
-				return v, v.err
-			}
-			v.testFiles, v.err = prog.parsePackage(v.bp, testFiles)
-			if v.err != nil {
-				return v, v.err
-			}
-			v.xtestFiles, v.err = prog.parsePackage(v.bp, xtestFiles)
-			if v.err != nil {
-				return v, v.err
-			}
-		}
-	}
-	return v, v.err
-}
-
 func (prog *Program) Import(path string, cwd string) (*Package, *Package, error) {
-	pkg, xpkg, err := prog.load(path, cwd)
+	bpkg, err := prog.importBuildPackageTree(path, cwd, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	_, _, err = prog.load(bpkg)
 	if err != nil {
 		return nil, nil, err
 	}
 	if err := prog.augment(); err != nil {
 		return nil, nil, err
 	}
-	return pkg, xpkg, nil
+	return prog.load(bpkg)
 }
 
 func (prog *Program) augment() error {
@@ -197,9 +132,9 @@ func (prog *Program) augment() error {
 			if pkg.SSA == nil {
 				augmented = true
 				// package hasn't been augmented with tests yet
-				if pkg.bpkg != nil && pkg.checker != nil {
-					pkg.Files = append(pkg.Files, pkg.bpkg.testFiles...)
-					if err := pkg.checker.Files(pkg.bpkg.testFiles); err != nil {
+				if pkg.checker != nil {
+					pkg.Files = append(pkg.Files, pkg.Bpkg.TestFiles...)
+					if err := pkg.checker.Files(pkg.Bpkg.TestFiles); err != nil {
 						return err
 					}
 
@@ -208,9 +143,9 @@ func (prog *Program) augment() error {
 					// external tests get access to identifiers
 					// declared in normal tests. SSA form will be
 					// built on the next iteration of the outer loop.
-					if len(pkg.bpkg.xtestFiles) > 0 {
-						bpkg := pkg.bpkg
-						pkgPath := bpkg.bp.ImportPath
+					if len(pkg.Bpkg.XTestFiles) > 0 {
+						bpkg := pkg.Bpkg
+						pkgPath := bpkg.Bpkg.ImportPath
 						xpkg := &Package{
 							Info: types.Info{
 								Types:      map[ast.Expr]types.TypeAndValue{},
@@ -221,27 +156,24 @@ func (prog *Program) augment() error {
 								Scopes:     map[ast.Node]*types.Scope{},
 								InitOrder:  []*types.Initializer{},
 							},
-							Bpkg:  bpkg.bp,
+							Bpkg:  bpkg,
 							Pkg:   types.NewPackage(pkgPath+"_test", ""),
-							Files: bpkg.xtestFiles,
-							bpkg:  bpkg,
+							Files: bpkg.XTestFiles,
 						}
 						prog.typesPackages[xpkg.Pkg] = xpkg
 						xpkg.checker = types.NewChecker(prog.Config, prog.Fset, xpkg.Pkg, &xpkg.Info)
-						if err := xpkg.checker.Files(bpkg.xtestFiles); err != nil {
+						if err := xpkg.checker.Files(bpkg.XTestFiles); err != nil {
 							return err
 						}
 						// Re-register packages, this time with the type-checked xpkg
-						prog.packages[bpkg.bp.ImportPath] = [2]*Package{pkg, xpkg}
+						prog.packages[bpkg.Bpkg.ImportPath] = [2]*Package{pkg, xpkg}
 						// XTests shouldn't be augmented by test files
 						xpkg.checker = nil
-						xpkg.bpkg = nil
 						prog.AllPackages = append(prog.AllPackages, xpkg)
 					}
 
 					// Package has been fully augmented now.
 					pkg.checker = nil
-					pkg.bpkg = nil
 				}
 
 				pkg.SSA = prog.SSA.CreatePackage(pkg.Pkg, pkg.Files, &pkg.Info, pkg.Importable)
@@ -261,7 +193,12 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 	// prefetch build.Packages of dependencies
 	for _, f := range files {
 		for _, imp := range f.Imports {
-			go prog.findPackage(imp.Path.Value, "")
+			v := imp.Path.Value
+			v = v[1 : len(v)-1]
+			_, err := prog.importBuildPackageTree(v, "", nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -294,23 +231,12 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 	return pkg, nil
 }
 
-func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, *Package, error) {
-	if c, ok := prog.packages[bpkg.bp.ImportPath]; ok {
+func (prog *Program) createFromBpkg(bpkg *BuildPackage) (*Package, *Package, error) {
+	if c, ok := prog.packages[bpkg.Bpkg.ImportPath]; ok {
 		return c[0], c[1], nil
 	}
 
-	// prefetch build.Packages of dependencies
-	for _, imp := range bpkg.bp.Imports {
-		go prog.findPackage(imp, bpkg.bp.Dir)
-	}
-	for _, imp := range bpkg.bp.TestImports {
-		go prog.findPackage(imp, bpkg.bp.Dir)
-	}
-	// for _, imp := range bpkg.bp.XTestImports {
-	// 	go prog.findPackage(imp, bpkg.bp.Dir)
-	// }
-
-	pkgPath := bpkg.bp.ImportPath
+	pkgPath := bpkg.Bpkg.ImportPath
 	pkg := &Package{
 		Info: types.Info{
 			Types:      map[ast.Expr]types.TypeAndValue{},
@@ -321,35 +247,29 @@ func (prog *Program) createFromBpkg(bpkg *bpkg) (*Package, *Package, error) {
 			Scopes:     map[ast.Node]*types.Scope{},
 			InitOrder:  []*types.Initializer{},
 		},
-		Bpkg:       bpkg.bp,
+		Files:      make([]*ast.File, 0, len(bpkg.GoFiles)+len(bpkg.TestFiles)),
+		Bpkg:       bpkg,
 		Pkg:        types.NewPackage(pkgPath, ""),
-		Files:      make([]*ast.File, 0, len(bpkg.files)+len(bpkg.testFiles)),
-		bpkg:       bpkg,
 		Importable: true,
 	}
-	pkg.Files = append(pkg.Files, bpkg.files...)
+	pkg.Files = append(pkg.Files, bpkg.GoFiles...)
 	prog.typesPackages[pkg.Pkg] = pkg
 	pkg.checker = types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
-	if err := pkg.checker.Files(bpkg.files); err != nil {
+	if err := pkg.checker.Files(bpkg.GoFiles); err != nil {
 		return nil, nil, err
 	}
-	prog.packages[bpkg.bp.ImportPath] = [2]*Package{pkg, nil}
 
+	prog.packages[bpkg.Bpkg.ImportPath] = [2]*Package{pkg, nil}
 	prog.AllPackages = append(prog.AllPackages, pkg)
-
 	return pkg, nil, nil
 }
 
-func (prog *Program) load(path string, cwd string) (*Package, *Package, error) {
-	if path == "unsafe" {
+func (prog *Program) load(pkg *BuildPackage) (*Package, *Package, error) {
+	if pkg.Bpkg.ImportPath == "unsafe" {
 		return prog.unsafe, nil, nil
 	}
 
-	bpkg, err := prog.findPackage(path, cwd)
-	if err != nil {
-		return nil, nil, err
-	}
-	return prog.createFromBpkg(bpkg)
+	return prog.createFromBpkg(pkg)
 }
 
 type importer struct {
@@ -361,7 +281,14 @@ func (imp importer) Import(path string) (*types.Package, error) {
 }
 
 func (imp importer) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
-	pkg, _, err := imp.prog.load(path, dir)
+	bpkg, cached, err := imp.prog.importBuildPackage(path, dir)
+	if err != nil {
+		return nil, err
+	}
+	if !cached {
+		panic(fmt.Sprintf("internal error: BuildPackage for (%q, %q) wasn't loaded yet", path, dir))
+	}
+	pkg, _, err := imp.prog.load(bpkg)
 	if err != nil {
 		return nil, err
 	}

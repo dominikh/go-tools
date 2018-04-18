@@ -493,7 +493,7 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 		return pos
 	}
 	base := filepath.Base(adjPos.Filename)
-	for _, f := range bp.CgoFiles {
+	for _, f := range bp.Bpkg.CgoFiles {
 		if f == base {
 			// this is a cgo file, use the adjusted position
 			return adjPos

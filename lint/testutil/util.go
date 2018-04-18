@@ -73,19 +73,16 @@ func testFiles(t *testing.T, c lint.Checker, dir string) {
 	for _, fi := range fis {
 		src, err := ioutil.ReadFile(fi)
 		if err != nil {
-			t.Errorf("Failed reading %s: %v", fi, err)
-			continue
+			t.Fatalf("Failed reading %s: %v", fi, err)
 		}
 		f, err := parser.ParseFile(lprog.Fset, fi, src, parser.ParseComments)
 		if err != nil {
-			t.Errorf("error parsing %s: %s", fi, err)
-			continue
+			t.Fatalf("error parsing %s: %s", fi, err)
 		}
 		sources[fi] = src
 		pkg, err := lprog.CreateFromFiles(fi, f)
 		if err != nil {
-			t.Errorf("error loading %s: %s", fi, err)
-			continue
+			t.Fatalf("error loading %s: %s", fi, err)
 		}
 		pkgs = append(pkgs, pkg)
 	}
@@ -123,14 +120,14 @@ func testPackages(t *testing.T, c lint.Checker, dir string) {
 		}
 
 		groups := [][]string{
-			pkg.Bpkg.GoFiles,
-			pkg.Bpkg.CgoFiles,
-			pkg.Bpkg.TestGoFiles,
-			pkg.Bpkg.XTestGoFiles,
+			pkg.Bpkg.Bpkg.GoFiles,
+			pkg.Bpkg.Bpkg.CgoFiles,
+			pkg.Bpkg.Bpkg.TestGoFiles,
+			pkg.Bpkg.Bpkg.XTestGoFiles,
 		}
 		for _, group := range groups {
 			for _, f := range group {
-				p := filepath.Join(pkg.Bpkg.Dir, f)
+				p := filepath.Join(pkg.Bpkg.Bpkg.Dir, f)
 				b, err := ioutil.ReadFile(p)
 				if err != nil {
 					t.Fatal("couldn't load test package:", err)
