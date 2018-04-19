@@ -113,13 +113,12 @@ func (prog *Program) importBuildPackage(path, srcDir string) (lpkg *BuildPackage
 }
 
 func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string) (*BuildPackage, error) {
-	bpkg, err := prog.Build.Import(path, srcDir, build.FindOnly)
+	lpkg, cached, err := prog.importBuildPackage(path, srcDir)
 	if err != nil {
 		return nil, err
 	}
-
 	for i, s := range stack {
-		if s == bpkg.ImportPath {
+		if s == lpkg.Bpkg.ImportPath {
 			s := ""
 			s += fmt.Sprintln("package", stack[i])
 			for _, s := range stack[i+1:] {
@@ -129,14 +128,10 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 			return nil, errors.New("import loop:\n" + s)
 		}
 	}
-
-	lpkg, cached, err := prog.importBuildPackage(path, srcDir)
-	if err != nil {
-		return nil, err
-	}
 	if cached {
 		return lpkg, lpkg.err
 	}
+
 	root := lpkg.Bpkg
 	stack = append(stack, root.ImportPath)
 
@@ -212,7 +207,7 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 	default:
 	}
 
-	if len(root.CgoFiles) != 0 && path != "runtime/cgo" {
+	if len(root.CgoFiles) != 0 && root.ImportPath != "runtime/cgo" {
 		// For CgoFiles, we only process the imports that the user
 		// provided. Cgo preprocessing, however, adds its own imports
 		// that we have to handle specially.
