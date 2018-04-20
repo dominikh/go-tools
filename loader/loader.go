@@ -19,6 +19,7 @@ type Program struct {
 	Config *types.Config
 	SSA    *ssa.Program
 
+	pkgsMu      sync.Mutex
 	packages    map[string][2]*Package
 	AllPackages []*Package
 
@@ -78,6 +79,8 @@ type Package struct {
 	Importable bool
 
 	checker *types.Checker
+	ready   chan struct{}
+	err     error
 }
 
 func (pkg *Package) String() string {
@@ -96,9 +99,12 @@ func (prog *Program) Import(path string, cwd string) (*Package, *Package, error)
 		return nil, nil, err
 	}
 
-	_, _, err = prog.load(bpkg)
-	if err != nil {
-		return nil, nil, err
+	for _, bp := range prog.buildPackages {
+		go prog.load(bp)
+	}
+	// wait for completion
+	for _, bp := range prog.buildPackages {
+		prog.load(bp)
 	}
 	if err := prog.augment(); err != nil {
 		return nil, nil, err
@@ -232,36 +238,41 @@ func (prog *Program) CreateFromFiles(path string, files ...*ast.File) (*Package,
 }
 
 func (prog *Program) createFromBpkg(bpkg *BuildPackage) (*Package, *Package, error) {
-	if c, ok := prog.packages[bpkg.Bpkg.ImportPath]; ok {
-		return c[0], c[1], nil
-	}
+	prog.pkgsMu.Lock()
+	pkgs, ok := prog.packages[bpkg.Bpkg.ImportPath]
+	if ok {
+		prog.pkgsMu.Unlock()
+		<-pkgs[0].ready
+	} else {
+		pkgs[0] = &Package{
+			Info: types.Info{
+				Types:      map[ast.Expr]types.TypeAndValue{},
+				Defs:       map[*ast.Ident]types.Object{},
+				Uses:       map[*ast.Ident]types.Object{},
+				Implicits:  map[ast.Node]types.Object{},
+				Selections: map[*ast.SelectorExpr]*types.Selection{},
+				Scopes:     map[ast.Node]*types.Scope{},
+				InitOrder:  []*types.Initializer{},
+			},
+			Files:      make([]*ast.File, 0, len(bpkg.GoFiles)+len(bpkg.TestFiles)),
+			Bpkg:       bpkg,
+			Pkg:        types.NewPackage(bpkg.Bpkg.ImportPath, ""),
+			Importable: true,
+			ready:      make(chan struct{}),
+		}
+		defer close(pkgs[0].ready)
+		prog.packages[bpkg.Bpkg.ImportPath] = pkgs
+		prog.AllPackages = append(prog.AllPackages, pkgs[0])
+		prog.typesPackages[pkgs[0].Pkg] = pkgs[0]
+		prog.pkgsMu.Unlock()
 
-	pkgPath := bpkg.Bpkg.ImportPath
-	pkg := &Package{
-		Info: types.Info{
-			Types:      map[ast.Expr]types.TypeAndValue{},
-			Defs:       map[*ast.Ident]types.Object{},
-			Uses:       map[*ast.Ident]types.Object{},
-			Implicits:  map[ast.Node]types.Object{},
-			Selections: map[*ast.SelectorExpr]*types.Selection{},
-			Scopes:     map[ast.Node]*types.Scope{},
-			InitOrder:  []*types.Initializer{},
-		},
-		Files:      make([]*ast.File, 0, len(bpkg.GoFiles)+len(bpkg.TestFiles)),
-		Bpkg:       bpkg,
-		Pkg:        types.NewPackage(pkgPath, ""),
-		Importable: true,
+		pkgs[0].Files = append(pkgs[0].Files, bpkg.GoFiles...)
+		pkgs[0].checker = types.NewChecker(prog.Config, prog.Fset, pkgs[0].Pkg, &pkgs[0].Info)
+		if pkgs[0].err = pkgs[0].checker.Files(bpkg.GoFiles); pkgs[0].err != nil {
+			return nil, nil, pkgs[0].err
+		}
 	}
-	pkg.Files = append(pkg.Files, bpkg.GoFiles...)
-	prog.typesPackages[pkg.Pkg] = pkg
-	pkg.checker = types.NewChecker(prog.Config, prog.Fset, pkg.Pkg, &pkg.Info)
-	if err := pkg.checker.Files(bpkg.GoFiles); err != nil {
-		return nil, nil, err
-	}
-
-	prog.packages[bpkg.Bpkg.ImportPath] = [2]*Package{pkg, nil}
-	prog.AllPackages = append(prog.AllPackages, pkg)
-	return pkg, nil, nil
+	return pkgs[0], pkgs[1], pkgs[0].err
 }
 
 func (prog *Program) load(pkg *BuildPackage) (*Package, *Package, error) {
