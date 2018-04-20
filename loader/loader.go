@@ -99,13 +99,15 @@ func (prog *Program) Import(path string, cwd string) (*Package, *Package, error)
 		return nil, nil, err
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(len(prog.buildPackages))
 	for _, bp := range prog.buildPackages {
-		go prog.load(bp)
+		go func(bp *BuildPackage) {
+			prog.load(bp)
+			wg.Done()
+		}(bp)
 	}
-	// wait for completion
-	for _, bp := range prog.buildPackages {
-		prog.load(bp)
-	}
+	wg.Wait()
 	if err := prog.augment(); err != nil {
 		return nil, nil, err
 	}

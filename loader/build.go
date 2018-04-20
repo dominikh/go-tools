@@ -128,6 +128,8 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 			return nil, errors.New("import loop:\n" + s)
 		}
 	}
+	// Returning early isn't just an optimization, but also necessary
+	// to break import cycles caused by tests.
 	if cached {
 		return lpkg, lpkg.err
 	}
