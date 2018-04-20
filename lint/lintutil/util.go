@@ -285,6 +285,11 @@ func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, err
 		}
 		pkgs = append(pkgs, pkg)
 	} else {
+		// We could further parallelize this by calling many
+		// lprog.Import in parallel. This will, however, not
+		// noticeably improve performance, because trees of packages
+		// have few leaves. We won't get much more parallelism than
+		// we're already getting in the loader itself.
 		for _, path := range paths {
 			// XXX don't respect vendoring for command-line arguments
 			pkg, xpkg, err := lprog.Import(path, ".")
