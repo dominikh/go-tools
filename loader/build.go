@@ -10,6 +10,26 @@ import (
 	"sync"
 )
 
+type errChan chan error
+
+func newErrChan() errChan { return make(errChan, 1) }
+
+func (ch errChan) send(err error) {
+	select {
+	case ch <- err:
+	default:
+	}
+}
+
+func (ch errChan) recv() error {
+	select {
+	case err := <-ch:
+		return err
+	default:
+		return nil
+	}
+}
+
 func (prog *Program) parsePackage(bpkg *build.Package, which int) ([]*ast.File, error) {
 	var in []string
 	switch which {
@@ -30,7 +50,7 @@ func (prog *Program) parsePackage(bpkg *build.Package, which int) ([]*ast.File, 
 	}
 
 	files := make([]*ast.File, len(in))
-	errCh := make(chan error, 1)
+	errCh := newErrChan()
 	wg := sync.WaitGroup{}
 	wg.Add(len(in))
 	for i, name := range in {
@@ -40,20 +60,15 @@ func (prog *Program) parsePackage(bpkg *build.Package, which int) ([]*ast.File, 
 			path := filepath.Join(bpkg.Dir, name)
 			f, err := parser.ParseFile(prog.Fset, path, nil, parser.ParseComments)
 			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
+				errCh.send(err)
 				return
 			}
 			files[i] = f
 		}()
 	}
 	wg.Wait()
-	select {
-	case err := <-errCh:
+	if err := errCh.recv(); err != nil {
 		return nil, err
-	default:
 	}
 
 	if which == goFiles && bpkg.CgoFiles != nil {
@@ -142,7 +157,7 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 	wg.Add(len(root.XTestImports))
 	wg.Add(len(root.TestImports))
 
-	errCh := make(chan error, 1)
+	errCh := newErrChan()
 	for _, imp := range root.Imports {
 		if imp == "C" {
 			wg.Done()
@@ -151,10 +166,7 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 		go func(imp string) {
 			_, err := prog.importBuildPackageTree(imp, root.Dir, stack[0:len(stack):len(stack)])
 			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
+				errCh.send(err)
 			}
 			wg.Done()
 		}(imp)
@@ -173,10 +185,7 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 			// words, tests break dependency chains.
 			_, err := prog.importBuildPackageTree(imp, root.Dir, stack[len(stack)-1:len(stack):len(stack)])
 			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
+				errCh.send(err)
 			}
 			wg.Done()
 		}(imp)
@@ -191,10 +200,7 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 			// independent, unimportable package.
 			_, err := prog.importBuildPackageTree(imp, root.Dir, nil)
 			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
+				errCh.send(err)
 			}
 			wg.Done()
 		}(imp)
@@ -202,11 +208,9 @@ func (prog *Program) importBuildPackageTree(path, srcDir string, stack []string)
 
 	wg.Wait()
 
-	select {
-	case err := <-errCh:
+	if err := errCh.recv(); err != nil {
 		lpkg.err = err
 		return nil, err
-	default:
 	}
 
 	if len(root.CgoFiles) != 0 && root.ImportPath != "runtime/cgo" {
