@@ -403,5 +403,4 @@ func copyExpr(expr ast.Expr, line token.Pos) ast.Expr {
 	default:
 		panic(fmt.Sprintf("shouldn't happen: unknown ast.Expr of type %T", expr))
 	}
-	return nil
 }

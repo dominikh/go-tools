@@ -588,7 +588,7 @@ func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
 			return true
 		}
 		if n == 0 || n > 120 {
-			// time.Sleep(0) is a seldomly used pattern in concurrency
+			// time.Sleep(0) is a seldom used pattern in concurrency
 			// tests. >120 might be intentional. 120 was chosen
 			// because the user could've meant 2 minutes.
 			return true
@@ -2382,7 +2382,7 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			// Look for the first available alternative, not the first
 			// version something was deprecated in. If a function was
 			// deprecated in Go 1.6, an alternative has been available
-			// already in 1.0, and we're targetting 1.2, it still
+			// already in 1.0, and we're targeting 1.2, it still
 			// makes sense to use the alternative from 1.0, to be
 			// future-proof.
 			minVersion := deprecated.Stdlib[j.SelectorName(sel)].AlternativeAvailableSince
