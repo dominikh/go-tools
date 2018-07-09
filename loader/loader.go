@@ -138,6 +138,9 @@ func (prog *Program) augment() error {
 	for augmented := true; augmented; {
 		augmented = false
 		for _, pkg := range prog.AllPackages {
+			if pkg.err != nil {
+				continue
+			}
 			// Haven't build SSA form yet
 			if pkg.SSA == nil {
 				augmented = true
