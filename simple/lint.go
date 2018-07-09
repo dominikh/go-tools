@@ -33,7 +33,7 @@ func (*Checker) Name() string   { return "gosimple" }
 func (*Checker) Prefix() string { return "S" }
 
 func (c *Checker) Init(prog *lint.Program) {
-	c.nodeFns = lint.NodeFns(prog.Packages)
+	c.nodeFns = lint.NodeFns(prog.InitialPackages)
 }
 
 func (c *Checker) Funcs() map[string]lint.Func {
@@ -1532,7 +1532,8 @@ func (c *Checker) Implements(j *lint.Job, typ types.Type, iface string) bool {
 		ifaceName = iface
 	} else {
 		pkgName := iface[:idx]
-		pkg := j.Program.Prog.Package(pkgName)
+		// FIXME(dh): we aren't taking vendoring into consideration
+		pkg, _, _ := j.Program.Prog.Import(pkgName, ".")
 		if pkg == nil {
 			return false
 		}

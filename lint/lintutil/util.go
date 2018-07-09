@@ -12,10 +12,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/build"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,10 +23,10 @@ import (
 	"strings"
 
 	"honnef.co/go/tools/lint"
+	"honnef.co/go/tools/loader"
 	"honnef.co/go/tools/version"
 
 	"github.com/kisielk/gotool"
-	"golang.org/x/tools/go/loader"
 )
 
 type OutputFormatter interface {
@@ -92,7 +92,7 @@ type runner struct {
 	returnIgnored bool
 }
 
-func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
+func resolveRelative(importPaths []string, ctx build.Context) (goFiles bool, err error) {
 	if len(importPaths) == 0 {
 		return false, nil
 	}
@@ -104,8 +104,6 @@ func resolveRelative(importPaths []string, tags []string) (goFiles bool, err err
 	if err != nil {
 		return false, err
 	}
-	ctx := build.Default
-	ctx.BuildTags = tags
 	for i, path := range importPaths {
 		bpkg, err := ctx.Import(path, wd, build.FindOnly)
 		if err != nil {
@@ -249,7 +247,7 @@ type Options struct {
 	ReturnIgnored bool
 }
 
-func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, error) {
+func Lint(cs []lint.Checker, args []string, opt *Options) ([][]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -257,39 +255,52 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 	if err != nil {
 		return nil, err
 	}
-	paths := gotool.ImportPaths(pkgs)
-	goFiles, err := resolveRelative(paths, opt.Tags)
-	if err != nil {
-		return nil, err
-	}
 	ctx := build.Default
 	ctx.BuildTags = opt.Tags
-	hadError := false
-	conf := &loader.Config{
-		Build:      &ctx,
-		ParserMode: parser.ParseComments,
-		ImportPkgs: map[string]bool{},
-		TypeChecker: types.Config{
-			Error: func(err error) {
-				// Only print the first error found
-				if hadError {
-					return
-				}
-				hadError = true
-				fmt.Fprintln(os.Stderr, err)
-			},
-		},
+
+	gctx := gotool.Context{
+		BuildContext: ctx,
 	}
-	if goFiles {
-		conf.CreateFromFilenames("adhoc", paths...)
-	} else {
-		for _, path := range paths {
-			conf.ImportPkgs[path] = opt.LintTests
-		}
-	}
-	lprog, err := conf.Load()
+	paths := gctx.ImportPaths(args)
+	goFiles, err := resolveRelative(paths, ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	lprog := loader.NewProgram(&ctx)
+
+	var pkgs []*loader.Package
+	if goFiles {
+		var files []*ast.File
+		for _, path := range paths {
+			f, err := parser.ParseFile(lprog.Fset, path, nil, parser.ParseComments)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, f)
+		}
+		pkg, err := lprog.CreateFromFiles("adhoc", files...)
+		if err != nil {
+			return nil, err
+		}
+		pkgs = append(pkgs, pkg)
+	} else {
+		// We could further parallelize this by calling many
+		// lprog.Import in parallel. This will, however, not
+		// noticeably improve performance, because trees of packages
+		// have few leaves. We won't get much more parallelism than
+		// we're already getting in the loader itself.
+		for _, path := range paths {
+			// XXX don't respect vendoring for command-line arguments
+			pkg, xpkg, err := lprog.Import(path, ".")
+			if err != nil {
+				return nil, err
+			}
+			pkgs = append(pkgs, pkg)
+			if xpkg != nil {
+				pkgs = append(pkgs, xpkg)
+			}
+		}
 	}
 
 	var problems [][]lint.Problem
@@ -301,7 +312,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
 		}
-		problems = append(problems, runner.lint(lprog, conf))
+		problems = append(problems, runner.lint(lprog, pkgs))
 	}
 	return problems, nil
 }
@@ -338,12 +349,12 @@ func ProcessArgs(name string, cs []CheckerConfig, args []string) {
 	ProcessFlagSet(cs, flags)
 }
 
-func (runner *runner) lint(lprog *loader.Program, conf *loader.Config) []lint.Problem {
+func (runner *runner) lint(lprog *loader.Program, pkgs []*loader.Package) []lint.Problem {
 	l := &lint.Linter{
 		Checker:       runner.checker,
 		Ignores:       runner.ignores,
 		GoVersion:     runner.version,
 		ReturnIgnored: runner.returnIgnored,
 	}
-	return l.Lint(lprog, conf)
+	return l.Lint(lprog, pkgs)
 }

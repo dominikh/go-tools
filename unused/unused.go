@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"honnef.co/go/tools/lint"
+	"honnef.co/go/tools/loader"
 
-	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/types/typeutil"
 )
 
@@ -56,7 +56,7 @@ func typString(obj types.Object) string {
 }
 
 func (l *LintChecker) Lint(j *lint.Job) {
-	unused := l.c.Check(j.Program.Prog)
+	unused := l.c.Check(j.Program)
 	for _, u := range unused {
 		name := u.Obj.Name()
 		if sig, ok := u.Obj.Type().(*types.Signature); ok && sig.Recv() != nil {
@@ -157,7 +157,7 @@ type Checker struct {
 	graph *graph
 
 	msCache      typeutil.MethodSetCache
-	lprog        *loader.Program
+	prog         *lint.Program
 	topmostCache map[*types.Scope]*types.Scope
 	interfaces   []*types.Interface
 }
@@ -198,13 +198,13 @@ func (e Error) Error() string {
 	return fmt.Sprintf("errors in %d packages", len(e.Errors))
 }
 
-func (c *Checker) Check(lprog *loader.Program) []Unused {
+func (c *Checker) Check(prog *lint.Program) []Unused {
 	var unused []Unused
-	c.lprog = lprog
+	c.prog = prog
 	if c.WholeProgram {
 		c.findExportedInterfaces()
 	}
-	for _, pkg := range c.lprog.InitialPackages() {
+	for _, pkg := range prog.InitialPackages {
 		c.processDefs(pkg)
 		c.processUses(pkg)
 		c.processTypes(pkg)
@@ -245,7 +245,7 @@ func (c *Checker) Check(lprog *loader.Program) []Unused {
 		}
 		found := false
 		if !false {
-			for _, pkg := range c.lprog.InitialPackages() {
+			for _, pkg := range prog.InitialPackages {
 				if pkg.Pkg == obj.Pkg() {
 					found = true
 					break
@@ -256,13 +256,13 @@ func (c *Checker) Check(lprog *loader.Program) []Unused {
 			continue
 		}
 
-		pos := c.lprog.Fset.Position(obj.Pos())
+		pos := c.prog.Prog.Fset.Position(obj.Pos())
 		if pos.Filename == "" || filepath.Base(pos.Filename) == "C" {
 			continue
 		}
 		generated := false
-		for _, file := range c.lprog.Package(obj.Pkg().Path()).Files {
-			if c.lprog.Fset.Position(file.Pos()).Filename != pos.Filename {
+		for _, file := range c.prog.Prog.PackageFromTypesPackage(obj.Pkg()).Files {
+			if c.prog.Prog.Fset.Position(file.Pos()).Filename != pos.Filename {
 				continue
 			}
 			if len(file.Comments) > 0 {
@@ -369,7 +369,7 @@ func (c *Checker) useExportedMethods(typ types.Type) {
 	}
 }
 
-func (c *Checker) processDefs(pkg *loader.PackageInfo) {
+func (c *Checker) processDefs(pkg *loader.Package) {
 	for _, obj := range pkg.Defs {
 		if obj == nil {
 			continue
@@ -470,7 +470,7 @@ func (c *Checker) processDefs(pkg *loader.PackageInfo) {
 	}
 }
 
-func (c *Checker) processUses(pkg *loader.PackageInfo) {
+func (c *Checker) processUses(pkg *loader.Package) {
 	for ident, usedObj := range pkg.Uses {
 		if _, ok := usedObj.(*types.PkgName); ok {
 			continue
@@ -491,13 +491,11 @@ func (c *Checker) processUses(pkg *loader.PackageInfo) {
 
 func (c *Checker) findExportedInterfaces() {
 	c.interfaces = []*types.Interface{types.Universe.Lookup("error").Type().(*types.Named).Underlying().(*types.Interface)}
-	var pkgs []*loader.PackageInfo
+	var pkgs []*loader.Package
 	if c.WholeProgram {
-		for _, pkg := range c.lprog.AllPackages {
-			pkgs = append(pkgs, pkg)
-		}
+		pkgs = c.prog.Prog.AllPackages
 	} else {
-		pkgs = c.lprog.InitialPackages()
+		pkgs = c.prog.InitialPackages
 	}
 
 	for _, pkg := range pkgs {
@@ -514,7 +512,7 @@ func (c *Checker) findExportedInterfaces() {
 	}
 }
 
-func (c *Checker) processTypes(pkg *loader.PackageInfo) {
+func (c *Checker) processTypes(pkg *loader.Package) {
 	named := map[*types.Named]*types.Pointer{}
 	var interfaces []*types.Interface
 	for _, tv := range pkg.Types {
@@ -590,7 +588,7 @@ func (c *Checker) processTypes(pkg *loader.PackageInfo) {
 	}
 }
 
-func (c *Checker) processSelections(pkg *loader.PackageInfo) {
+func (c *Checker) processSelections(pkg *loader.Package) {
 	fn := func(expr *ast.SelectorExpr, sel *types.Selection, offset int) {
 		scope := pkg.Pkg.Scope().Innermost(expr.Pos())
 		c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Pkg))
@@ -624,7 +622,7 @@ func dereferenceType(typ types.Type) types.Type {
 }
 
 // processConversion marks fields as used if they're part of a type conversion.
-func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
+func (c *Checker) processConversion(pkg *loader.Package, node ast.Node) {
 	if node, ok := node.(*ast.CallExpr); ok {
 		callTyp := pkg.TypeOf(node.Fun)
 		var typDst *types.Struct
@@ -682,7 +680,7 @@ func (c *Checker) processConversion(pkg *loader.PackageInfo, node ast.Node) {
 
 // processCompositeLiteral marks fields as used if the struct is used
 // in a composite literal.
-func (c *Checker) processCompositeLiteral(pkg *loader.PackageInfo, node ast.Node) {
+func (c *Checker) processCompositeLiteral(pkg *loader.Package, node ast.Node) {
 	// XXX how does this actually work? wouldn't it match t{}?
 	if node, ok := node.(*ast.CompositeLit); ok {
 		typ := pkg.TypeOf(node)
@@ -701,7 +699,7 @@ func (c *Checker) processCompositeLiteral(pkg *loader.PackageInfo, node ast.Node
 
 // processCgoExported marks functions as used if they're being
 // exported to cgo.
-func (c *Checker) processCgoExported(pkg *loader.PackageInfo, node ast.Node) {
+func (c *Checker) processCgoExported(pkg *loader.Package, node ast.Node) {
 	if node, ok := node.(*ast.FuncDecl); ok {
 		if node.Doc == nil {
 			return
@@ -716,7 +714,7 @@ func (c *Checker) processCgoExported(pkg *loader.PackageInfo, node ast.Node) {
 	}
 }
 
-func (c *Checker) processVariableDeclaration(pkg *loader.PackageInfo, node ast.Node) {
+func (c *Checker) processVariableDeclaration(pkg *loader.Package, node ast.Node) {
 	if decl, ok := node.(*ast.GenDecl); ok {
 		for _, spec := range decl.Specs {
 			spec, ok := spec.(*ast.ValueSpec)
@@ -744,7 +742,7 @@ func (c *Checker) processVariableDeclaration(pkg *loader.PackageInfo, node ast.N
 	}
 }
 
-func (c *Checker) processArrayConstants(pkg *loader.PackageInfo, node ast.Node) {
+func (c *Checker) processArrayConstants(pkg *loader.Package, node ast.Node) {
 	if decl, ok := node.(*ast.ArrayType); ok {
 		ident, ok := decl.Len.(*ast.Ident)
 		if !ok {
@@ -754,7 +752,7 @@ func (c *Checker) processArrayConstants(pkg *loader.PackageInfo, node ast.Node) 
 	}
 }
 
-func (c *Checker) processKnownReflectMethodCallers(pkg *loader.PackageInfo, node ast.Node) {
+func (c *Checker) processKnownReflectMethodCallers(pkg *loader.Package, node ast.Node) {
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return
@@ -797,7 +795,7 @@ func (c *Checker) processKnownReflectMethodCallers(pkg *loader.PackageInfo, node
 	}
 }
 
-func (c *Checker) processAST(pkg *loader.PackageInfo) {
+func (c *Checker) processAST(pkg *loader.Package) {
 	fn := func(node ast.Node) bool {
 		c.processConversion(pkg, node)
 		c.processKnownReflectMethodCallers(pkg, node)
@@ -913,7 +911,7 @@ func (c *Checker) isRoot(obj types.Object) bool {
 		return true
 	}
 	if obj.Exported() {
-		f := c.lprog.Fset.Position(obj.Pos()).Filename
+		f := c.prog.Prog.Fset.Position(obj.Pos()).Filename
 		if strings.HasSuffix(f, "_test.go") {
 			return strings.HasPrefix(obj.Name(), "Test") ||
 				strings.HasPrefix(obj.Name(), "Benchmark") ||

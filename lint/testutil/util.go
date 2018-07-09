@@ -9,11 +9,11 @@ package testutil // import "honnef.co/go/tools/lint/testutil"
 import (
 	"flag"
 	"fmt"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -21,17 +21,21 @@ import (
 	"testing"
 
 	"honnef.co/go/tools/lint"
-
-	"golang.org/x/tools/go/loader"
+	"honnef.co/go/tools/loader"
 )
 
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
 
 func TestAll(t *testing.T, c lint.Checker, dir string) {
+	testFiles(t, c, dir)
+	testPackages(t, c, dir)
+}
+
+func testFiles(t *testing.T, c lint.Checker, dir string) {
 	baseDir := filepath.Join("testdata", dir)
-	fis, err := ioutil.ReadDir(baseDir)
+	fis, err := filepath.Glob(filepath.Join(baseDir, "*.go"))
 	if err != nil {
-		t.Fatalf("ioutil.ReadDir: %v", err)
+		t.Fatalf("filepath.Glob: %v", err)
 	}
 	if len(fis) == 0 {
 		t.Fatalf("no files in %v", baseDir)
@@ -41,15 +45,15 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
 	}
 
-	files := map[int][]os.FileInfo{}
+	files := map[int][]string{}
 	for _, fi := range fis {
-		if !rx.MatchString(fi.Name()) {
+		if !rx.MatchString(fi) {
 			continue
 		}
-		if !strings.HasSuffix(fi.Name(), ".go") {
+		if !strings.HasSuffix(fi, ".go") {
 			continue
 		}
-		parts := strings.Split(fi.Name(), "_")
+		parts := strings.Split(fi, "_")
 		v := 0
 		if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "go1") {
 			var err error
@@ -57,75 +61,130 @@ func TestAll(t *testing.T, c lint.Checker, dir string) {
 			s = s[:len(s)-len(".go")]
 			v, err = strconv.Atoi(s)
 			if err != nil {
-				t.Fatalf("cannot process file name %q: %s", fi.Name(), err)
+				t.Fatalf("cannot process file name %q: %s", fi, err)
 			}
 		}
 		files[v] = append(files[v], fi)
 	}
 
-	conf := &loader.Config{
-		ParserMode: parser.ParseComments,
-	}
+	lprog := loader.NewProgram(&build.Default)
 	sources := map[string][]byte{}
+	var pkgs []*loader.Package
 	for _, fi := range fis {
-		filename := path.Join(baseDir, fi.Name())
-		src, err := ioutil.ReadFile(filename)
+		src, err := ioutil.ReadFile(fi)
 		if err != nil {
-			t.Errorf("Failed reading %s: %v", fi.Name(), err)
-			continue
+			t.Fatalf("Failed reading %s: %v", fi, err)
 		}
-		f, err := conf.ParseFile(filename, src)
+		f, err := parser.ParseFile(lprog.Fset, fi, src, parser.ParseComments)
 		if err != nil {
-			t.Errorf("error parsing %s: %s", filename, err)
-			continue
+			t.Fatalf("error parsing %s: %s", fi, err)
 		}
-		sources[fi.Name()] = src
-		conf.CreateFromFiles(fi.Name(), f)
-	}
-
-	lprog, err := conf.Load()
-	if err != nil {
-		t.Fatalf("error loading program: %s", err)
+		sources[fi] = src
+		pkg, err := lprog.CreateFromFiles(fi, f)
+		if err != nil {
+			t.Fatalf("error loading %s: %s", fi, err)
+		}
+		pkgs = append(pkgs, pkg)
 	}
 
 	for version, fis := range files {
-		l := &lint.Linter{Checker: c, GoVersion: version}
+		lintGoVersion(t, c, version, lprog, pkgs, fis, sources)
+	}
+}
 
-		res := l.Lint(lprog, conf)
-		for _, fi := range fis {
-			name := fi.Name()
-			src := sources[name]
+func testPackages(t *testing.T, c lint.Checker, dir string) {
+	ctx := build.Default
+	ctx.GOPATH = filepath.Join("testdata", dir)
+	ctx.CgoEnabled = false
+	fis, err := ioutil.ReadDir(filepath.Join(ctx.GOPATH, "src"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			// no packages to test
+			return
+		}
+		t.Fatal("couldn't get test packages:", err)
+	}
 
-			ins := parseInstructions(t, name, src)
+	lprog := loader.NewProgram(&ctx)
+	var pkgs []*loader.Package
+	var files []string
+	sources := map[string][]byte{}
+	for _, fi := range fis {
+		pkg, xpkg, err := lprog.Import(fi.Name(), ".")
+		if err != nil {
+			t.Fatalf("couldn't import %s: %s", fi.Name(), err)
+		}
+		pkgs = append(pkgs, pkg)
+		if xpkg != nil {
+			pkgs = append(pkgs, xpkg)
+		}
 
-			for _, in := range ins {
-				ok := false
-				for i, p := range res {
-					if p.Position.Line != in.Line || filepath.Base(p.Position.Filename) != name {
-						continue
-					}
-					if in.Match.MatchString(p.Text) {
-						// remove this problem from ps
-						copy(res[i:], res[i+1:])
-						res = res[:len(res)-1]
-
-						//t.Logf("/%v/ matched at %s:%d", in.Match, fi.Name(), in.Line)
-						ok = true
-						break
-					}
+		groups := [][]string{
+			pkg.Bpkg.Bpkg.GoFiles,
+			pkg.Bpkg.Bpkg.CgoFiles,
+			pkg.Bpkg.Bpkg.TestGoFiles,
+			pkg.Bpkg.Bpkg.XTestGoFiles,
+		}
+		for _, group := range groups {
+			for _, f := range group {
+				p := filepath.Join(pkg.Bpkg.Bpkg.Dir, f)
+				b, err := ioutil.ReadFile(p)
+				if err != nil {
+					t.Fatal("couldn't load test package:", err)
 				}
-				if !ok {
-					t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
-				}
+				path := filepath.Join(ctx.GOPATH, "src", fi.Name(), f)
+				sources[path] = b
+				files = append(files, path)
 			}
 		}
-		for _, p := range res {
-			name := filepath.Base(p.Position.Filename)
-			for _, fi := range fis {
-				if name == fi.Name() {
-					t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
+
+	}
+
+	// TODO(dh): support setting GoVersion
+	lintGoVersion(t, c, 0, lprog, pkgs, files, sources)
+}
+
+func lintGoVersion(
+	t *testing.T,
+	c lint.Checker,
+	version int,
+	lprog *loader.Program,
+	pkgs []*loader.Package,
+	files []string,
+	sources map[string][]byte,
+) {
+	l := &lint.Linter{Checker: c, GoVersion: version}
+	res := l.Lint(lprog, pkgs)
+	for _, fi := range files {
+		src := sources[fi]
+
+		ins := parseInstructions(t, fi, src)
+
+		for _, in := range ins {
+			ok := false
+			for i, p := range res {
+				if p.Position.Line != in.Line || p.Position.Filename != fi {
+					continue
+				}
+				if in.Match.MatchString(p.Text) {
+					// remove this problem from ps
+					copy(res[i:], res[i+1:])
+					res = res[:len(res)-1]
+
+					ok = true
 					break
 				}
+			}
+			if !ok {
+				t.Errorf("Lint failed at %s:%d; /%v/ did not match", fi, in.Line, in.Match)
+			}
+		}
+	}
+	for _, p := range res {
+		for _, fi := range files {
+			if p.Position.Filename == fi {
+				t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
+				break
 			}
 		}
 	}

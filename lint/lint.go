@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/constant"
 	"go/printer"
 	"go/token"
@@ -23,10 +22,11 @@ import (
 	"sync"
 	"unicode"
 
-	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/loader"
+	"honnef.co/go/tools/loader"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssa/ssautil"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 type Job struct {
@@ -112,18 +112,13 @@ func (gi *GlobIgnore) Match(p Problem) bool {
 }
 
 type Program struct {
-	SSA  *ssa.Program
-	Prog *loader.Program
-	// TODO(dh): Rename to InitialPackages?
-	Packages         []*Pkg
+	Prog             *loader.Program
+	InitialPackages  []*loader.Package
 	InitialFunctions []*ssa.Function
 	AllFunctions     []*ssa.Function
 	Files            []*ast.File
 	Info             *types.Info
 	GoVersion        int
-
-	tokenFileMap map[*token.File]*ast.File
-	astFileMap   map[*ast.File]*Pkg
 }
 
 type Func func(*Job)
@@ -189,7 +184,7 @@ func (l *Linter) ignore(p Problem) bool {
 }
 
 func (prog *Program) File(node Positioner) *ast.File {
-	return prog.tokenFileMap[prog.SSA.Fset.File(node.Pos())]
+	return prog.Prog.TokenFileMap[prog.Prog.SSA.Fset.File(node.Pos())]
 }
 
 func (j *Job) File(node Positioner) *ast.File {
@@ -235,50 +230,19 @@ func parseDirective(s string) (cmd string, args []string) {
 	return fields[0], fields[1:]
 }
 
-func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
-	ssaprog := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
-	ssaprog.Build()
-	pkgMap := map[*ssa.Package]*Pkg{}
-	var pkgs []*Pkg
-	for _, pkginfo := range lprog.InitialPackages() {
-		ssapkg := ssaprog.Package(pkginfo.Pkg)
-		var bp *build.Package
-		if len(pkginfo.Files) != 0 {
-			path := lprog.Fset.Position(pkginfo.Files[0].Pos()).Filename
-			dir := filepath.Dir(path)
-			var err error
-			ctx := conf.Build
-			if ctx == nil {
-				ctx = &build.Default
-			}
-			bp, err = ctx.ImportDir(dir, 0)
-			if err != nil {
-				// shouldn't happen
-			}
-		}
-		pkg := &Pkg{
-			Package:  ssapkg,
-			Info:     pkginfo,
-			BuildPkg: bp,
-		}
-		pkgMap[ssapkg] = pkg
-		pkgs = append(pkgs, pkg)
-	}
+func (l *Linter) Lint(lprog *loader.Program, pkgs []*loader.Package) []Problem {
 	prog := &Program{
-		SSA:          ssaprog,
-		Prog:         lprog,
-		Packages:     pkgs,
-		Info:         &types.Info{},
-		GoVersion:    l.GoVersion,
-		tokenFileMap: map[*token.File]*ast.File{},
-		astFileMap:   map[*ast.File]*Pkg{},
+		Prog:            lprog,
+		InitialPackages: pkgs,
+		Info:            &types.Info{},
+		GoVersion:       l.GoVersion,
 	}
 
 	initial := map[*types.Package]struct{}{}
 	for _, pkg := range pkgs {
-		initial[pkg.Info.Pkg] = struct{}{}
+		initial[pkg.Pkg] = struct{}{}
 	}
-	for fn := range ssautil.AllFunctions(ssaprog) {
+	for fn := range ssautil.AllFunctions(prog.Prog.SSA) {
 		if fn.Pkg == nil {
 			continue
 		}
@@ -288,25 +252,13 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 		}
 	}
 	for _, pkg := range pkgs {
-		prog.Files = append(prog.Files, pkg.Info.Files...)
-
-		ssapkg := ssaprog.Package(pkg.Info.Pkg)
-		for _, f := range pkg.Info.Files {
-			prog.astFileMap[f] = pkgMap[ssapkg]
-		}
-	}
-
-	for _, pkginfo := range lprog.AllPackages {
-		for _, f := range pkginfo.Files {
-			tf := lprog.Fset.File(f.Pos())
-			prog.tokenFileMap[tf] = f
-		}
+		prog.Files = append(prog.Files, pkg.Files...)
 	}
 
 	var out []Problem
 	l.automaticIgnores = nil
-	for _, pkginfo := range lprog.InitialPackages() {
-		for _, f := range pkginfo.Files {
+	for _, pkg := range pkgs {
+		for _, f := range pkg.Files {
 			cm := ast.NewCommentMap(lprog.Fset, f, f.Comments)
 			for node, cgs := range cm {
 				for _, cg := range cgs {
@@ -367,12 +319,12 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 		scopes     int
 	}{}
 	for _, pkg := range pkgs {
-		sizes.types += len(pkg.Info.Info.Types)
-		sizes.defs += len(pkg.Info.Info.Defs)
-		sizes.uses += len(pkg.Info.Info.Uses)
-		sizes.implicits += len(pkg.Info.Info.Implicits)
-		sizes.selections += len(pkg.Info.Info.Selections)
-		sizes.scopes += len(pkg.Info.Info.Scopes)
+		sizes.types += len(pkg.Info.Types)
+		sizes.defs += len(pkg.Info.Defs)
+		sizes.uses += len(pkg.Info.Uses)
+		sizes.implicits += len(pkg.Info.Implicits)
+		sizes.selections += len(pkg.Info.Selections)
+		sizes.scopes += len(pkg.Info.Scopes)
 	}
 	prog.Info.Types = make(map[ast.Expr]types.TypeAndValue, sizes.types)
 	prog.Info.Defs = make(map[*ast.Ident]types.Object, sizes.defs)
@@ -381,22 +333,22 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	prog.Info.Selections = make(map[*ast.SelectorExpr]*types.Selection, sizes.selections)
 	prog.Info.Scopes = make(map[ast.Node]*types.Scope, sizes.scopes)
 	for _, pkg := range pkgs {
-		for k, v := range pkg.Info.Info.Types {
+		for k, v := range pkg.Info.Types {
 			prog.Info.Types[k] = v
 		}
-		for k, v := range pkg.Info.Info.Defs {
+		for k, v := range pkg.Info.Defs {
 			prog.Info.Defs[k] = v
 		}
-		for k, v := range pkg.Info.Info.Uses {
+		for k, v := range pkg.Info.Uses {
 			prog.Info.Uses[k] = v
 		}
-		for k, v := range pkg.Info.Info.Implicits {
+		for k, v := range pkg.Info.Implicits {
 			prog.Info.Implicits[k] = v
 		}
-		for k, v := range pkg.Info.Info.Selections {
+		for k, v := range pkg.Info.Selections {
 			prog.Info.Selections[k] = v
 		}
-		for k, v := range pkg.Info.Info.Scopes {
+		for k, v := range pkg.Info.Scopes {
 			prog.Info.Scopes[k] = v
 		}
 	}
@@ -477,13 +429,6 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	return out
 }
 
-// Pkg represents a package being linted.
-type Pkg struct {
-	*ssa.Package
-	Info     *loader.PackageInfo
-	BuildPkg *build.Package
-}
-
 type packager interface {
 	Package() *ssa.Package
 }
@@ -500,7 +445,9 @@ func IsExample(fn *ssa.Function) bool {
 }
 
 func (j *Job) IsInTest(node Positioner) bool {
-	f := j.Program.SSA.Fset.File(node.Pos())
+	// FIXME(dh): this doesn't work for global variables with
+	// initializers
+	f := j.Program.Prog.Fset.File(node.Pos())
 	return f != nil && strings.HasSuffix(f.Name(), "_test.go")
 }
 
@@ -536,29 +483,30 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 	// information stored within problems. With this implementation, a
 	// user will ignore foo.go, not foo.y
 
-	pkg := prog.astFileMap[prog.tokenFileMap[prog.Prog.Fset.File(p)]]
-	bp := pkg.BuildPkg
-	adjPos := prog.Prog.Fset.Position(p)
+	pkg := prog.Prog.ASTFileMap[prog.Prog.TokenFileMap[prog.Prog.Fset.File(p)]]
+	bp := pkg.Bpkg
+	pos := prog.Prog.Fset.PositionFor(p, false)
+	adjPos := prog.Prog.Fset.PositionFor(p, true)
 	if bp == nil {
 		// couldn't find the package for some reason (deleted? faulty
 		// file system?)
-		return adjPos
+		return pos
 	}
 	base := filepath.Base(adjPos.Filename)
-	for _, f := range bp.CgoFiles {
+	for _, f := range bp.Bpkg.CgoFiles {
 		if f == base {
 			// this is a cgo file, use the adjusted position
 			return adjPos
 		}
 	}
 	// not a cgo file, ignore //line directives
-	return prog.Prog.Fset.PositionFor(p, false)
+	return pos
 }
 
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
-	tf := j.Program.SSA.Fset.File(n.Pos())
-	f := j.Program.tokenFileMap[tf]
-	pkg := j.Program.astFileMap[f].Pkg
+	tf := j.Program.Prog.Fset.File(n.Pos())
+	f := j.Program.Prog.TokenFileMap[tf]
+	pkg := j.Program.Prog.ASTFileMap[f].Pkg
 
 	pos := j.Program.DisplayPosition(n.Pos())
 	problem := Problem{
@@ -574,7 +522,7 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 }
 
 func (j *Job) Render(x interface{}) string {
-	fset := j.Program.SSA.Fset
+	fset := j.Program.Prog.Fset
 	var buf bytes.Buffer
 	if err := printer.Fprint(&buf, fset, x); err != nil {
 		panic(err)
@@ -662,9 +610,9 @@ func (j *Job) ExprToString(expr ast.Expr) (string, bool) {
 	return constant.StringVal(val), true
 }
 
-func (j *Job) NodePackage(node Positioner) *Pkg {
+func (j *Job) NodePackage(node Positioner) *loader.Package {
 	f := j.File(node)
-	return j.Program.astFileMap[f]
+	return j.Program.Prog.ASTFileMap[f]
 }
 
 func IsGenerated(f *ast.File) bool {
@@ -775,7 +723,7 @@ func FilterDebug(instr []ssa.Instruction) []ssa.Instruction {
 	return out
 }
 
-func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
+func NodeFns(pkgs []*loader.Package) map[ast.Node]*ssa.Function {
 	out := map[ast.Node]*ssa.Function{}
 
 	wg := &sync.WaitGroup{}
@@ -785,7 +733,7 @@ func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
 		wg.Add(1)
 		go func() {
 			m := map[ast.Node]*ssa.Function{}
-			for _, f := range pkg.Info.Files {
+			for _, f := range pkg.Files {
 				ast.Walk(&globalVisitor{m, pkg, f}, f)
 			}
 			chNodeFns <- m
@@ -808,14 +756,14 @@ func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
 
 type globalVisitor struct {
 	m   map[ast.Node]*ssa.Function
-	pkg *Pkg
+	pkg *loader.Package
 	f   *ast.File
 }
 
 func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.CallExpr:
-		v.m[node] = v.pkg.Func("init")
+		v.m[node] = v.pkg.SSA.Func("init")
 		return v
 	case *ast.FuncDecl, *ast.FuncLit:
 		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
@@ -828,24 +776,22 @@ func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
 type fnVisitor struct {
 	m     map[ast.Node]*ssa.Function
 	f     *ast.File
-	pkg   *Pkg
+	pkg   *loader.Package
 	ssafn *ssa.Function
 }
 
 func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
 	switch node := node.(type) {
 	case *ast.FuncDecl:
-		var ssafn *ssa.Function
-		ssafn = v.pkg.Prog.FuncValue(v.pkg.Info.ObjectOf(node.Name).(*types.Func))
+		ssafn := v.pkg.SSA.Prog.FuncValue(v.pkg.ObjectOf(node.Name).(*types.Func))
 		v.m[node] = ssafn
 		if ssafn == nil {
 			return nil
 		}
 		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
 	case *ast.FuncLit:
-		var ssafn *ssa.Function
 		path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
-		ssafn = ssa.EnclosingFunction(v.pkg.Package, path)
+		ssafn := ssa.EnclosingFunction(v.pkg.SSA, path)
 		v.m[node] = ssafn
 		if ssafn == nil {
 			return nil
