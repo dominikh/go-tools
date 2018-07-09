@@ -42,9 +42,11 @@ func NewProgram(ctx *build.Context) *Program {
 	fset := token.NewFileSet()
 	ssaprog := ssa.NewProgram(fset, ssa.GlobalDebug)
 	prog := &Program{
-		Fset:     fset,
-		Build:    ctx,
-		Config:   &types.Config{},
+		Fset:  fset,
+		Build: ctx,
+		Config: &types.Config{
+			Sizes: types.SizesFor(ctx.Compiler, ctx.GOARCH),
+		},
 		SSA:      ssaprog,
 		packages: map[string][2]*Package{},
 		unsafe: &Package{
