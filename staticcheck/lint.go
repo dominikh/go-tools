@@ -324,7 +324,7 @@ func (c *Checker) Init(prog *lint.Program) {
 	wg := &sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
-		c.funcDescs = functions.NewDescriptions(prog.Prog.SSA)
+		c.funcDescs = functions.NewDescriptions(prog.SSA)
 		for _, fn := range prog.AllFunctions {
 			if fn.Blocks != nil {
 				applyStdlibKnowledge(fn)
@@ -335,13 +335,13 @@ func (c *Checker) Init(prog *lint.Program) {
 	}()
 
 	go func() {
-		c.nodeFns = lint.NodeFns(prog.InitialPackages)
+		c.nodeFns = lint.NodeFns(prog.Packages)
 		wg.Done()
 	}()
 
 	go func() {
 		c.deprecatedObjs = map[types.Object]string{}
-		for _, ssapkg := range prog.Prog.SSA.AllPackages() {
+		for _, ssapkg := range prog.SSA.AllPackages() {
 			ssapkg := ssapkg
 			for _, member := range ssapkg.Members {
 				obj := member.Object()
@@ -2587,7 +2587,7 @@ func (c *Checker) CheckEmptyBranch(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		ssafn, ok := c.nodeFns[node]
+		ssafn := c.nodeFns[node]
 		if lint.IsExample(ssafn) {
 			return true
 		}

@@ -26,7 +26,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 }
 
 func (c *Checker) Init(prog *lint.Program) {
-	c.funcDescs = functions.NewDescriptions(prog.Prog.SSA)
+	c.funcDescs = functions.NewDescriptions(prog.SSA)
 }
 
 func (c *Checker) CheckErrcheck(j *lint.Job) {
@@ -80,7 +80,7 @@ func (c *Checker) CheckErrcheck(j *lint.Job) {
 								// variable names, clean this up
 								fn, _ := ms.Lookup(nil, ssacall.Common().Method.Name()).Obj().(*types.Func)
 								if fn != nil {
-									ssafn := j.Program.Prog.SSA.FuncValue(fn)
+									ssafn := j.Program.SSA.FuncValue(fn)
 									if ssafn != nil {
 										if c.funcDescs.Get(ssafn).NilError {
 											continue
