@@ -110,6 +110,12 @@ func (c *Checker) CheckDotImports(j *lint.Job) {
 }
 
 func (c *Checker) CheckIncDec(j *lint.Job) {
+	// TODO(dh): this can be noisy for function bodies that look like this:
+	// 	x += 3
+	// 	...
+	// 	x += 2
+	// 	...
+	// 	x += 1
 	fn := func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok || (assign.Tok != token.ADD_ASSIGN && assign.Tok != token.SUB_ASSIGN) {
@@ -227,6 +233,8 @@ func (c *Checker) CheckReceiverNames(j *lint.Job) {
 }
 
 func (c *Checker) CheckContextFirstArg(j *lint.Job) {
+	// TODO(dh): this check doesn't apply to test helpers. Example from the stdlib:
+	// 	func helperCommandContext(t *testing.T, ctx context.Context, s ...string) (cmd *exec.Cmd) {
 fnLoop:
 	for _, fn := range j.Program.InitialFunctions {
 		if fn.Synthetic != "" || fn.Parent() != nil {
@@ -305,7 +313,16 @@ func (c *Checker) CheckErrorStrings(j *lint.Job) {
 					// capitals, making it unlikely to be an
 					// initialism or multi-word function name.
 					//
-					// It could still be a single-word function name, though.
+					// It could still be a single-word function name
+					// or a proper noun, though.
+					//
+					// TODO(dh): example from the stdlib that we incorrectly flag:
+					// 	func (w *pooledFlateWriter) Write(p []byte) (n int, err error) {
+					// 		...
+					// 		return 0, errors.New("Write after Close")
+					// 		...
+					// 	}
+
 					j.Errorf(call, "error strings should not be capitalized")
 				}
 			}
