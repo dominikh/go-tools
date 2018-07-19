@@ -76,7 +76,13 @@ func (c *Checker) CheckPackageComment(j *lint.Job) {
 			}
 			if f.Doc != nil && len(f.Doc.List) > 0 {
 				hasDocs = true
-				// XXX check that comment is well-formed
+				if f.Name.Name != "main" {
+					prefix := "Package " + f.Name.Name + " "
+					if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
+						j.Errorf(f.Doc, `package comment should be of the form "%s..."`, prefix)
+					}
+				}
+				f.Doc.Text()
 			}
 		}
 
