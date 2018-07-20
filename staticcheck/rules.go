@@ -294,7 +294,7 @@ func ValidHostPort(v Value) bool {
 // ConvertedFrom reports whether value v was converted from type typ.
 func ConvertedFrom(v Value, typ string) bool {
 	change, ok := v.Value.(*ssa.ChangeType)
-	return ok && types.TypeString(change.X.Type(), nil) == typ
+	return ok && lint.IsType(change.X.Type(), typ)
 }
 
 func UniqueStringCutset(v Value) bool {

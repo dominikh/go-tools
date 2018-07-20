@@ -495,7 +495,8 @@ func applyStdlibKnowledge(fn *ssa.Function) {
 }
 
 func hasType(j *lint.Job, expr ast.Expr, name string) bool {
-	return types.TypeString(j.Program.Info.TypeOf(expr), nil) == name
+	T := j.Program.Info.TypeOf(expr)
+	return lint.IsType(T, name)
 }
 
 func (c *Checker) CheckUntrappableSignal(j *lint.Job) {
@@ -1755,7 +1756,7 @@ func (c *Checker) CheckNilContext(j *lint.Job) {
 		if sig.Params().Len() == 0 {
 			return true
 		}
-		if types.TypeString(sig.Params().At(0).Type(), nil) != "context.Context" {
+		if !lint.IsType(sig.Params().At(0).Type(), "context.Context") {
 			return true
 		}
 		j.Errorf(call.Args[0],
@@ -1910,7 +1911,7 @@ func (c *Checker) CheckConcurrentTesting(j *lint.Job) {
 						if recv == nil {
 							continue
 						}
-						if types.TypeString(recv.Type(), nil) != "*testing.common" {
+						if !lint.IsType(recv.Type(), "*testing.common") {
 							continue
 						}
 						fn, ok := call.Call.StaticCallee().Object().(*types.Func)
@@ -2274,7 +2275,7 @@ func (c *Checker) CheckNonOctalFileMode(j *lint.Job) {
 		var args []int
 		for i := 0; i < n; i++ {
 			typ := sig.Params().At(i).Type()
-			if types.TypeString(typ, nil) == "os.FileMode" {
+			if lint.IsType(typ, "os.FileMode") {
 				args = append(args, i)
 			}
 		}
@@ -2310,7 +2311,7 @@ fnLoop:
 			params := ssafn.Signature.Params()
 			for i := 0; i < params.Len(); i++ {
 				param := params.At(i)
-				if types.TypeString(param.Type(), nil) == "*testing.B" {
+				if lint.IsType(param.Type(), "*testing.B") {
 					// Ignore discarded pure functions in code related
 					// to benchmarks. Instead of matching BenchmarkFoo
 					// functions, we match any function accepting a
@@ -2535,7 +2536,7 @@ func (c *Checker) CheckWriterBufferModified(j *lint.Job) {
 		if basic, ok := sig.Results().At(0).Type().(*types.Basic); !ok || basic.Kind() != types.Int {
 			continue
 		}
-		if named, ok := sig.Results().At(1).Type().(*types.Named); !ok || types.TypeString(named, nil) != "error" {
+		if named, ok := sig.Results().At(1).Type().(*types.Named); !ok || !lint.IsType(named, "error") {
 			continue
 		}
 

@@ -791,6 +791,10 @@ func IsCallTo(call *ssa.CallCommon, name string) bool {
 	return CallName(call) == name
 }
 
+func IsType(T types.Type, name string) bool {
+	return types.TypeString(T, nil) == name
+}
+
 func FilterDebug(instr []ssa.Instruction) []ssa.Instruction {
 	var out []ssa.Instruction
 	for _, ins := range instr {

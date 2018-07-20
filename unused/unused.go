@@ -763,7 +763,7 @@ func (c *Checker) processKnownReflectMethodCallers(pkg *loader.PackageInfo, node
 	if !ok {
 		return
 	}
-	if types.TypeString(pkg.TypeOf(sel.X), nil) != "*net/rpc.Server" {
+	if !lint.IsType(pkg.TypeOf(sel.X), "*net/rpc.Server") {
 		x, ok := sel.X.(*ast.Ident)
 		if !ok {
 			return
