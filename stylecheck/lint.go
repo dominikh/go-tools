@@ -57,6 +57,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"ST1008": c.CheckErrorReturn,
 		"ST1009": c.CheckUnexportedReturn,
 		"ST1010": c.CheckContextFirstArg,
+		"ST1011": c.CheckTimeNames,
 	}
 }
 
@@ -328,5 +329,43 @@ func (c *Checker) CheckErrorStrings(j *lint.Job) {
 				}
 			}
 		}
+	}
+}
+
+func (c *Checker) CheckTimeNames(j *lint.Job) {
+	suffixes := []string{
+		"Sec", "Secs", "Seconds",
+		"Msec", "Msecs",
+		"Milli", "Millis", "Milliseconds",
+		"Usec", "Usecs", "Microseconds",
+		"MS", "Ms",
+	}
+	fn := func(T types.Type, names []*ast.Ident) {
+		if !IsType(T, "time.Duration") && !IsType(T, "*time.Duration") {
+			return
+		}
+		for _, name := range names {
+			for _, suffix := range suffixes {
+				if strings.HasSuffix(name.Name, suffix) {
+					j.Errorf(name, "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
+					break
+				}
+			}
+		}
+	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, func(node ast.Node) bool {
+			switch node := node.(type) {
+			case *ast.ValueSpec:
+				T := j.Program.Info.TypeOf(node.Type)
+				fn(T, node.Names)
+			case *ast.FieldList:
+				for _, field := range node.List {
+					T := j.Program.Info.TypeOf(field.Type)
+					fn(T, field.Names)
+				}
+			}
+			return true
+		})
 	}
 }
