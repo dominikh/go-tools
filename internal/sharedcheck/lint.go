@@ -5,13 +5,14 @@ import (
 	"go/types"
 
 	"honnef.co/go/tools/lint"
+	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 )
 
 func CheckRangeStringRunes(nodeFns map[ast.Node]*ssa.Function, j *lint.Job) {
 	fn := func(node ast.Node) bool {
 		rng, ok := node.(*ast.RangeStmt)
-		if !ok || !lint.IsBlank(rng.Key) {
+		if !ok || !IsBlank(rng.Key) {
 			return true
 		}
 		ssafn := nodeFns[rng]
@@ -47,7 +48,7 @@ func CheckRangeStringRunes(nodeFns map[ast.Node]*ssa.Function, j *lint.Job) {
 
 		// Expect two refs: one for obtaining the length of the slice,
 		// one for accessing the elements
-		if len(lint.FilterDebug(*refs)) != 2 {
+		if len(FilterDebug(*refs)) != 2 {
 			// TODO(dh): right now, we check that only one place
 			// refers to our slice. This will miss cases such as
 			// ranging over the slice twice. Ideally, we'd ensure that

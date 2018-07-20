@@ -5,6 +5,7 @@ import (
 
 	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/lint"
+	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 )
 
@@ -38,7 +39,7 @@ func (c *Checker) CheckErrcheck(j *lint.Job) {
 					continue
 				}
 
-				switch lint.CallName(ssacall.Common()) {
+				switch CallName(ssacall.Common()) {
 				case "fmt.Print", "fmt.Println", "fmt.Printf":
 					continue
 				}
@@ -50,7 +51,7 @@ func (c *Checker) CheckErrcheck(j *lint.Job) {
 				switch ins := ins.(type) {
 				case ssa.Value:
 					refs := ins.Referrers()
-					if refs == nil || len(lint.FilterDebug(*refs)) != 0 {
+					if refs == nil || len(FilterDebug(*refs)) != 0 {
 						continue
 					}
 				case ssa.Instruction:
@@ -99,7 +100,7 @@ func (c *Checker) CheckErrcheck(j *lint.Job) {
 						}
 					}
 				}
-				switch lint.CallName(ssacall.Common()) {
+				switch CallName(ssacall.Common()) {
 				case "(*os.File).Close":
 					recv := ssacall.Common().Args[0]
 					if isReadOnlyFile(recv, nil) {
@@ -144,7 +145,7 @@ func isReadOnlyFile(val ssa.Value, seen map[ssa.Value]bool) bool {
 		if !ok {
 			return false
 		}
-		switch lint.CallName(call.Common()) {
+		switch CallName(call.Common()) {
 		case "os.Open":
 			return true
 		case "os.OpenFile":

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"honnef.co/go/tools/lint"
+	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 
 	"golang.org/x/tools/go/types/typeutil"
@@ -36,7 +37,7 @@ func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
 	}
 	var out []*ast.File
 	for _, f := range files {
-		if !lint.IsGenerated(f) {
+		if !IsGenerated(f) {
 			out = append(out, f)
 		}
 	}
@@ -71,7 +72,7 @@ func (c *Checker) CheckPackageComment(j *lint.Job) {
 	for _, pkg := range j.Program.Packages {
 		hasDocs := false
 		for _, f := range pkg.Info.Files {
-			if j.IsInTest(f) {
+			if IsInTest(j, f) {
 				continue
 			}
 			if f.Doc != nil && len(f.Doc.List) > 0 {
@@ -88,7 +89,7 @@ func (c *Checker) CheckPackageComment(j *lint.Job) {
 
 		if !hasDocs {
 			for _, f := range pkg.Info.Files {
-				if j.IsInTest(f) {
+				if IsInTest(j, f) {
 					continue
 				}
 				j.Errorf(f, "at least one file in a package should have a package comment")
@@ -101,7 +102,7 @@ func (c *Checker) CheckDotImports(j *lint.Job) {
 	for _, pkg := range j.Program.Packages {
 		for _, f := range pkg.Info.Files {
 			for _, imp := range f.Imports {
-				if imp.Name != nil && imp.Name.Name == "." && !j.IsInTest(f) {
+				if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
 					j.Errorf(imp, "should not use dot imports")
 				}
 			}
@@ -122,7 +123,7 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 			return true
 		}
 		if (len(assign.Lhs) != 1 || len(assign.Rhs) != 1) ||
-			!lint.IsIntLiteral(assign.Rhs[0], "1") {
+			!IsIntLiteral(assign.Rhs[0], "1") {
 			return true
 		}
 
@@ -134,7 +135,7 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 			suffix = "--"
 		}
 
-		j.Errorf(assign, "should replace %s with %s%s", j.Render(assign), j.Render(assign.Lhs[0]), suffix)
+		j.Errorf(assign, "should replace %s with %s%s", Render(j, assign), Render(j, assign.Lhs[0]), suffix)
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
@@ -172,16 +173,16 @@ func (c *Checker) CheckUnexportedReturn(j *lint.Job) {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
-		if !ast.IsExported(fn.Name()) || j.IsInMain(fn) || j.IsInTest(fn) {
+		if !ast.IsExported(fn.Name()) || IsInMain(j, fn) || IsInTest(j, fn) {
 			continue
 		}
 		sig := fn.Type().(*types.Signature)
-		if sig.Recv() != nil && !ast.IsExported(lint.Dereference(sig.Recv().Type()).(*types.Named).Obj().Name()) {
+		if sig.Recv() != nil && !ast.IsExported(Dereference(sig.Recv().Type()).(*types.Named).Obj().Name()) {
 			continue
 		}
 		res := sig.Results()
 		for i := 0; i < res.Len(); i++ {
-			if named, ok := lint.DereferenceR(res.At(i).Type()).(*types.Named); ok &&
+			if named, ok := DereferenceR(res.At(i).Type()).(*types.Named); ok &&
 				!ast.IsExported(named.Obj().Name()) &&
 				named != types.Universe.Lookup("error").Type() {
 				j.Errorf(fn, "should not return unexported type")
@@ -201,7 +202,7 @@ func (c *Checker) CheckReceiverNames(j *lint.Job) {
 				for _, sel := range ms {
 					fn := sel.Obj().(*types.Func)
 					recv := fn.Type().(*types.Signature).Recv()
-					if lint.Dereference(recv.Type()) != T.Type() {
+					if Dereference(recv.Type()) != T.Type() {
 						// skip embedded methods
 						continue
 					}
@@ -259,7 +260,7 @@ fnLoop:
 
 func (c *Checker) CheckErrorStrings(j *lint.Job) {
 	for _, fn := range j.Program.InitialFunctions {
-		if j.IsInTest(fn) {
+		if IsInTest(j, fn) {
 			// We don't care about malformed error messages in tests;
 			// they're usually for direct human consumption, not part
 			// of an API
@@ -271,7 +272,7 @@ func (c *Checker) CheckErrorStrings(j *lint.Job) {
 				if !ok {
 					continue
 				}
-				if !lint.IsCallTo(call.Common(), "errors.New") && !lint.IsCallTo(call.Common(), "fmt.Errorf") {
+				if !IsCallTo(call.Common(), "errors.New") && !IsCallTo(call.Common(), "fmt.Errorf") {
 					continue
 				}
 
