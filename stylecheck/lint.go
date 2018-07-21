@@ -58,6 +58,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"ST1009": c.CheckUnexportedReturn,
 		"ST1010": c.CheckContextFirstArg,
 		"ST1011": c.CheckTimeNames,
+		"ST1012": c.CheckErrorVarNames,
 	}
 }
 
@@ -367,5 +368,37 @@ func (c *Checker) CheckTimeNames(j *lint.Job) {
 			}
 			return true
 		})
+	}
+}
+
+func (c *Checker) CheckErrorVarNames(j *lint.Job) {
+	for _, f := range j.Program.Files {
+		for _, decl := range f.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				spec := spec.(*ast.ValueSpec)
+				if len(spec.Names) != len(spec.Values) {
+					continue
+				}
+
+				for i, name := range spec.Names {
+					val := spec.Values[i]
+					if !IsCallToAST(j, val, "errors.New") && !IsCallToAST(j, val, "fmt.Errorf") {
+						continue
+					}
+
+					prefix := "err"
+					if name.IsExported() {
+						prefix = "Err"
+					}
+					if !strings.HasPrefix(name.Name, prefix) {
+						j.Errorf(name, "error var %s should have name of the form %sFoo", name.Name, prefix)
+					}
+				}
+			}
+		}
 	}
 }
