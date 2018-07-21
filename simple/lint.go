@@ -900,7 +900,13 @@ func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
 		if !ok {
 			return
 		}
-		if IsBlank(rs.Key) && (rs.Value == nil || IsBlank(rs.Value)) {
+
+		// for x, _
+		if !IsBlank(rs.Key) && IsBlank(rs.Value) {
+			j.Errorf(rs.Value, "should omit value from range; this loop is equivalent to `for %s %s range ...`", Render(j, rs.Key), rs.Tok)
+		}
+		// for _, _ || for _
+		if IsBlank(rs.Key) && (IsBlank(rs.Value) || rs.Value == nil) {
 			j.Errorf(rs.Key, "should omit values from range; this loop is equivalent to `for range ...`")
 		}
 	}
