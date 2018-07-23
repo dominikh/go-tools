@@ -49,8 +49,8 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"ST1000": c.CheckPackageComment,
 		"ST1001": c.CheckDotImports,
 		"ST1002": nil, // XXX missing/malformed comments for exported identifiers
-		"ST1003": nil, // XXX underscores in names
-		"ST1004": nil, // XXX incorrect initialisms
+		"ST1003": c.CheckNames,
+		"ST1004": nil, // XXX
 		"ST1005": c.CheckErrorStrings,
 		"ST1006": c.CheckReceiverNames,
 		"ST1007": c.CheckIncDec,
