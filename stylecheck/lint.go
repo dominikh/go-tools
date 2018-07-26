@@ -48,7 +48,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
 		"ST1000": c.CheckPackageComment,
 		"ST1001": c.CheckDotImports,
-		"ST1002": nil, // XXX missing/malformed comments for exported identifiers
+		"ST1002": c.CheckBlankImports,
 		"ST1003": c.CheckNames,
 		"ST1004": nil, // XXX
 		"ST1005": c.CheckErrorStrings,
@@ -107,6 +107,64 @@ func (c *Checker) CheckDotImports(j *lint.Job) {
 				if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
 					j.Errorf(imp, "should not use dot imports")
 				}
+			}
+		}
+	}
+}
+
+func (c *Checker) CheckBlankImports(j *lint.Job) {
+	fset := j.Program.Prog.Fset
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		if IsInMain(j, f) || IsInTest(j, f) {
+			continue
+		}
+
+		// Collect imports of the form `import _ "foo"`, i.e. with no
+		// parentheses, as their comment will be associated with the
+		// (paren-free) GenDecl, not the import spec itself.
+		//
+		// We don't directly process the GenDecl so that we can
+		// correctly handle the following:
+		//
+		//  import _ "foo"
+		//  import _ "bar"
+		//
+		// where only the first import should get flagged.
+		skip := map[ast.Spec]bool{}
+		ast.Inspect(f, func(node ast.Node) bool {
+			switch node := node.(type) {
+			case *ast.File:
+				return true
+			case *ast.GenDecl:
+				if node.Tok != token.IMPORT {
+					return false
+				}
+				if node.Lparen == token.NoPos && node.Doc != nil {
+					skip[node.Specs[0]] = true
+				}
+				return false
+			}
+			return false
+		})
+		for i, imp := range f.Imports {
+			pos := fset.Position(imp.Pos())
+
+			if !IsBlank(imp.Name) {
+				continue
+			}
+			// Only flag the first blank import in a group of imports,
+			// or don't flag any of them, if the first one is
+			// commented
+			if i > 0 {
+				prev := f.Imports[i-1]
+				prevPos := fset.Position(prev.Pos())
+				if pos.Line-1 == prevPos.Line && IsBlank(prev.Name) {
+					continue
+				}
+			}
+
+			if imp.Doc == nil && imp.Comment == nil && !skip[imp] {
+				j.Errorf(imp, "a blank import should be only in a main or test package, or have a comment justifying it")
 			}
 		}
 	}

@@ -89,8 +89,8 @@ func IsIdent(expr ast.Expr, ident string) bool {
 // isBlank returns whether id is the blank identifier "_".
 // If id == nil, the answer is false.
 func IsBlank(id ast.Expr) bool {
-	ident, ok := id.(*ast.Ident)
-	return ok && ident.Name == "_"
+	ident, _ := id.(*ast.Ident)
+	return ident != nil && ident.Name == "_"
 }
 
 func IsIntLiteral(expr ast.Expr, literal string) bool {
