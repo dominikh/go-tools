@@ -19,7 +19,6 @@ import (
 	"sync"
 	"unicode"
 
-	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/loader"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssa/ssautil"
@@ -541,57 +540,4 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 func (j *Job) NodePackage(node Positioner) *Pkg {
 	f := j.File(node)
 	return j.Program.astFileMap[f]
-}
-
-type globalVisitor struct {
-	m   map[ast.Node]*ssa.Function
-	pkg *Pkg
-	f   *ast.File
-}
-
-func (v *globalVisitor) Visit(node ast.Node) ast.Visitor {
-	switch node := node.(type) {
-	case *ast.CallExpr:
-		v.m[node] = v.pkg.Func("init")
-		return v
-	case *ast.FuncDecl, *ast.FuncLit:
-		nv := &fnVisitor{v.m, v.f, v.pkg, nil}
-		return nv.Visit(node)
-	default:
-		return v
-	}
-}
-
-type fnVisitor struct {
-	m     map[ast.Node]*ssa.Function
-	f     *ast.File
-	pkg   *Pkg
-	ssafn *ssa.Function
-}
-
-func (v *fnVisitor) Visit(node ast.Node) ast.Visitor {
-	switch node := node.(type) {
-	case *ast.FuncDecl:
-		var ssafn *ssa.Function
-		ssafn = v.pkg.Prog.FuncValue(v.pkg.Info.ObjectOf(node.Name).(*types.Func))
-		v.m[node] = ssafn
-		if ssafn == nil {
-			return nil
-		}
-		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
-	case *ast.FuncLit:
-		var ssafn *ssa.Function
-		path, _ := astutil.PathEnclosingInterval(v.f, node.Pos(), node.Pos())
-		ssafn = ssa.EnclosingFunction(v.pkg.Package, path)
-		v.m[node] = ssafn
-		if ssafn == nil {
-			return nil
-		}
-		return &fnVisitor{v.m, v.f, v.pkg, ssafn}
-	case nil:
-		return nil
-	default:
-		v.m[node] = v.ssafn
-		return v
-	}
 }
