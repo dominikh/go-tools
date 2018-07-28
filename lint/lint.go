@@ -14,7 +14,6 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -542,37 +541,6 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 func (j *Job) NodePackage(node Positioner) *Pkg {
 	f := j.File(node)
 	return j.Program.astFileMap[f]
-}
-
-func NodeFns(pkgs []*Pkg) map[ast.Node]*ssa.Function {
-	out := map[ast.Node]*ssa.Function{}
-
-	wg := &sync.WaitGroup{}
-	chNodeFns := make(chan map[ast.Node]*ssa.Function, runtime.NumCPU()*2)
-	for _, pkg := range pkgs {
-		pkg := pkg
-		wg.Add(1)
-		go func() {
-			m := map[ast.Node]*ssa.Function{}
-			for _, f := range pkg.Info.Files {
-				ast.Walk(&globalVisitor{m, pkg, f}, f)
-			}
-			chNodeFns <- m
-			wg.Done()
-		}()
-	}
-	go func() {
-		wg.Wait()
-		close(chNodeFns)
-	}()
-
-	for nodeFns := range chNodeFns {
-		for k, v := range nodeFns {
-			out[k] = v
-		}
-	}
-
-	return out
 }
 
 type globalVisitor struct {
