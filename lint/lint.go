@@ -90,7 +90,7 @@ type GlobIgnore struct {
 
 func (gi *GlobIgnore) Match(p Problem) bool {
 	if gi.Pattern != "*" {
-		pkgpath := p.Package.Path()
+		pkgpath := p.Package.Pkg.Path()
 		if strings.HasSuffix(pkgpath, "_test") {
 			pkgpath = pkgpath[:len(pkgpath)-len("_test")]
 		}
@@ -131,7 +131,7 @@ type Problem struct {
 	Text     string         // the prose that describes the problem
 	Check    string
 	Checker  string
-	Package  *types.Package
+	Package  *Pkg
 	Ignored  bool
 }
 
@@ -252,10 +252,19 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 				// shouldn't happen
 			}
 		}
-		cfg, err := config.Load(bp.Dir)
-		if err != nil {
-			// FIXME(dh): we couldn't load the config, what are we
-			// supposed to do? probably tell the user somehow
+		var cfg config.Config
+		if bp != nil {
+			var err error
+			// OPT(dh): we're rebuilding the entire config tree for
+			// each package. for example, if we check a/b/c and
+			// a/b/c/d, we'll process a, a/b, a/b/c, a, a/b, a/b/c,
+			// a/b/c/d – we should cache configs per package and only
+			// load the new levels.
+			cfg, err = config.Load(bp.Dir)
+			if err != nil {
+				// FIXME(dh): we couldn't load the config, what are we
+				// supposed to do? probably tell the user somehow
+			}
 		}
 		pkg := &Pkg{
 			Package:  ssapkg,
@@ -411,7 +420,6 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	}
 	sort.Strings(keys)
 
-	// XXX respect check white/blacklist
 	var jobs []*Job
 	for _, k := range keys {
 		j := &Job{
@@ -437,8 +445,56 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 
 	for _, j := range jobs {
 		for _, p := range j.problems {
+			// OPT(dh): this entire computation could be cached per package
+			allowedChecks := map[string]bool{}
+			var enabled, disabled []string
+			// TODO(dh): we don't want to hard-code a list of supported checkers.
+			switch p.Checker {
+			case "staticcheck":
+				enabled = p.Package.Config.Staticcheck.EnabledChecks
+				disabled = p.Package.Config.Staticcheck.DisabledChecks
+			case "simple":
+				enabled = p.Package.Config.Simple.EnabledChecks
+				disabled = p.Package.Config.Simple.DisabledChecks
+			case "unused":
+				enabled = p.Package.Config.Unused.EnabledChecks
+				disabled = p.Package.Config.Unused.DisabledChecks
+			case "errcheck":
+				enabled = p.Package.Config.Errcheck.EnabledChecks
+				disabled = p.Package.Config.Errcheck.DisabledChecks
+			case "stylecheck":
+				enabled = p.Package.Config.Stylecheck.EnabledChecks
+				disabled = p.Package.Config.Stylecheck.DisabledChecks
+			default:
+				enabled = []string{"all"}
+				disabled = nil
+			}
+			for _, c := range enabled {
+				if c == "all" {
+					for _, c := range keys {
+						allowedChecks[c] = true
+					}
+				} else {
+					allowedChecks[c] = true
+				}
+			}
+			for _, c := range disabled {
+				if c == "all" {
+					allowedChecks = nil
+				} else {
+					// TODO(dh): support globs in check white/blacklist
+					delete(allowedChecks, c)
+				}
+			}
 			p.Ignored = l.ignore(p)
-			if l.ReturnIgnored || !p.Ignored {
+			// TODO(dh): support globs in check white/blacklist
+			// OPT(dh): this approach doesn't actually disable checks,
+			// it just discards their results. For the moment, that's
+			// fine. None of our checks are super expensive. In the
+			// future, we may want to provide opt-in expensive
+			// analysis, which shouldn't run at all. It may be easiest
+			// to implement this in the individual checks.
+			if (l.ReturnIgnored || !p.Ignored) && allowedChecks[p.Check] {
 				out = append(out, p)
 			}
 		}
@@ -531,7 +587,7 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	tf := j.Program.SSA.Fset.File(n.Pos())
 	f := j.Program.tokenFileMap[tf]
-	pkg := j.Program.astFileMap[f].Pkg
+	pkg := j.Program.astFileMap[f]
 
 	pos := j.Program.DisplayPosition(n.Pos())
 	problem := Problem{

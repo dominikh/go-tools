@@ -53,6 +53,34 @@ func normalizeList(list []string) []string {
 }
 
 func (cfg config) Merge(ocfg config) config {
+	if ocfg.meta.IsDefined("staticcheck", "enabled_checks") {
+		cfg.cfg.Staticcheck.EnabledChecks = mergeLists(cfg.cfg.Staticcheck.EnabledChecks, ocfg.cfg.Staticcheck.EnabledChecks)
+	}
+	if ocfg.meta.IsDefined("staticcheck", "disabled_checks") {
+		cfg.cfg.Staticcheck.DisabledChecks = mergeLists(cfg.cfg.Staticcheck.DisabledChecks, ocfg.cfg.Staticcheck.DisabledChecks)
+	}
+
+	if ocfg.meta.IsDefined("simple", "enabled_checks") {
+		cfg.cfg.Simple.EnabledChecks = mergeLists(cfg.cfg.Simple.EnabledChecks, ocfg.cfg.Simple.EnabledChecks)
+	}
+	if ocfg.meta.IsDefined("simple", "disabled_checks") {
+		cfg.cfg.Simple.DisabledChecks = mergeLists(cfg.cfg.Simple.DisabledChecks, ocfg.cfg.Simple.DisabledChecks)
+	}
+
+	if ocfg.meta.IsDefined("unused", "enabled_checks") {
+		cfg.cfg.Unused.EnabledChecks = mergeLists(cfg.cfg.Unused.EnabledChecks, ocfg.cfg.Unused.EnabledChecks)
+	}
+	if ocfg.meta.IsDefined("unused", "disabled_checks") {
+		cfg.cfg.Unused.DisabledChecks = mergeLists(cfg.cfg.Unused.DisabledChecks, ocfg.cfg.Unused.DisabledChecks)
+	}
+
+	if ocfg.meta.IsDefined("errcheck", "enabled_checks") {
+		cfg.cfg.Errcheck.EnabledChecks = mergeLists(cfg.cfg.Errcheck.EnabledChecks, ocfg.cfg.Errcheck.EnabledChecks)
+	}
+	if ocfg.meta.IsDefined("errcheck", "disabled_checks") {
+		cfg.cfg.Errcheck.DisabledChecks = mergeLists(cfg.cfg.Errcheck.DisabledChecks, ocfg.cfg.Errcheck.DisabledChecks)
+	}
+
 	if ocfg.meta.IsDefined("stylecheck", "enabled_checks") {
 		cfg.cfg.Stylecheck.EnabledChecks = mergeLists(cfg.cfg.Stylecheck.EnabledChecks, ocfg.cfg.Stylecheck.EnabledChecks)
 	}
@@ -69,23 +97,93 @@ func (cfg config) Merge(ocfg config) config {
 }
 
 type Config struct {
-	Stylecheck StylecheckConfig
+	// TODO(dh): this implementation makes it impossible for external
+	// clients to add their own checkers with configuration. At the
+	// moment, we don't really care about that; we don't encourage
+	// that people use this package. In the future, we may. The
+	// obvious solution would be using map[string]interface{}, but
+	// that's obviously subpar.
+	General     GeneralConfig     `toml:"general"`
+	Staticcheck StaticcheckConfig `toml:"staticcheck"`
+	Simple      SimpleConfig      `toml:"simple"`
+	Unused      UnusedConfig      `toml:"unused"`
+	Errcheck    ErrcheckConfig    `toml:"errcheck"`
+	Stylecheck  StylecheckConfig  `toml:"stylecheck"`
+}
+
+type GeneralConfig struct{}
+
+type Checklist struct {
+	EnabledChecks  []string `toml:"enabled_checks"`
+	DisabledChecks []string `toml:"disabled_checks"`
+}
+
+type StaticcheckConfig struct {
+	Checklist
+}
+
+type SimpleConfig struct {
+	Checklist
+}
+
+type UnusedConfig struct {
+	Checklist
+}
+
+type ErrcheckConfig struct {
+	Checklist
 }
 
 type StylecheckConfig struct {
-	EnabledChecks      []string `toml:"enabled_checks"`
-	DisabledChecks     []string `toml:"disabled_checks"`
+	Checklist
 	Initialisms        []string `toml:"initialisms"`
 	DotImportWhitelist []string `toml:"dot_import_whitelist"`
 }
 
 var defaultConfig = Config{
-	Stylecheck: defaultStylecheckConfig,
+	General:     defaultGeneralConfig,
+	Staticcheck: defaultStaticcheckConfig,
+	Simple:      defaultSimpleConfig,
+	Unused:      defaultUnusedConfig,
+	Errcheck:    defaultErrcheckConfig,
+	Stylecheck:  defaultStylecheckConfig,
+}
+
+var defaultGeneralConfig = GeneralConfig{}
+
+var defaultStaticcheckConfig = StaticcheckConfig{
+	Checklist: Checklist{
+		EnabledChecks:  []string{"all"},
+		DisabledChecks: []string{},
+	},
+}
+
+var defaultSimpleConfig = SimpleConfig{
+	Checklist: Checklist{
+		EnabledChecks:  []string{"all"},
+		DisabledChecks: []string{},
+	},
+}
+
+var defaultUnusedConfig = UnusedConfig{
+	Checklist: Checklist{
+		EnabledChecks:  []string{"all"},
+		DisabledChecks: []string{},
+	},
+}
+
+var defaultErrcheckConfig = ErrcheckConfig{
+	Checklist: Checklist{
+		EnabledChecks:  []string{"all"},
+		DisabledChecks: []string{},
+	},
 }
 
 var defaultStylecheckConfig = StylecheckConfig{
-	EnabledChecks:  []string{"all"},
-	DisabledChecks: []string{},
+	Checklist: Checklist{
+		EnabledChecks:  []string{"all"},
+		DisabledChecks: []string{},
+	},
 	Initialisms: []string{
 		"ACL", "API", "ASCII", "CPU", "CSS", "DNS",
 		"EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID",
@@ -165,6 +263,19 @@ func Load(dir string) (Config, error) {
 		return Config{}, err
 	}
 	conf := mergeConfigs(confs)
+
+	conf.Staticcheck.EnabledChecks = normalizeList(conf.Staticcheck.EnabledChecks)
+	conf.Staticcheck.DisabledChecks = normalizeList(conf.Staticcheck.DisabledChecks)
+
+	conf.Simple.EnabledChecks = normalizeList(conf.Simple.EnabledChecks)
+	conf.Simple.DisabledChecks = normalizeList(conf.Simple.DisabledChecks)
+
+	conf.Unused.EnabledChecks = normalizeList(conf.Unused.EnabledChecks)
+	conf.Unused.DisabledChecks = normalizeList(conf.Unused.DisabledChecks)
+
+	conf.Errcheck.EnabledChecks = normalizeList(conf.Errcheck.EnabledChecks)
+	conf.Errcheck.DisabledChecks = normalizeList(conf.Errcheck.DisabledChecks)
+
 	conf.Stylecheck.EnabledChecks = normalizeList(conf.Stylecheck.EnabledChecks)
 	conf.Stylecheck.DisabledChecks = normalizeList(conf.Stylecheck.DisabledChecks)
 	conf.Stylecheck.Initialisms = normalizeList(conf.Stylecheck.Initialisms)
