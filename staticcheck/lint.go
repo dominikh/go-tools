@@ -367,10 +367,6 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 					docs = append(docs, node.Doc)
 					names = node.Names
 					ret = false
-				case *ast.Field:
-					docs = append(docs, node.Doc)
-					names = node.Names
-					ret = true
 				case *ast.File:
 					return true
 				case *ast.StructType:
