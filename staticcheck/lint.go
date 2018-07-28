@@ -26,6 +26,7 @@ import (
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/loader"
 )
 
 func validRegexp(call *Call) {
@@ -309,18 +310,93 @@ func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
 	return out
 }
 
-func (c *Checker) deprecateObject(m map[types.Object]string, prog *lint.Program, obj types.Object) {
-	if obj.Pkg() == nil {
-		return
+func (c *Checker) findDeprecated(prog *lint.Program) {
+	var docs []*ast.CommentGroup
+	var names []*ast.Ident
+
+	doDocs := func(pkginfo *loader.PackageInfo, names []*ast.Ident, docs []*ast.CommentGroup) {
+		var alt string
+		for _, doc := range docs {
+			if doc == nil {
+				continue
+			}
+			parts := strings.Split(doc.Text(), "\n\n")
+			last := parts[len(parts)-1]
+			if !strings.HasPrefix(last, "Deprecated: ") {
+				continue
+			}
+			alt = last[len("Deprecated: "):]
+			alt = strings.Replace(alt, "\n", " ", -1)
+			break
+		}
+		if alt == "" {
+			return
+		}
+
+		for _, name := range names {
+			obj := pkginfo.ObjectOf(name)
+			c.deprecatedObjs[obj] = alt
+		}
 	}
 
-	f := prog.File(obj)
-	if f == nil {
-		return
-	}
-	msg := c.deprecationMessage(f, prog.Prog.Fset, obj)
-	if msg != "" {
-		m[obj] = msg
+	for _, pkginfo := range prog.Prog.AllPackages {
+		for _, f := range pkginfo.Files {
+			fn := func(node ast.Node) bool {
+				if node == nil {
+					return true
+				}
+				var ret bool
+				switch node := node.(type) {
+				case *ast.GenDecl:
+					switch node.Tok {
+					case token.TYPE, token.CONST, token.VAR:
+						docs = append(docs, node.Doc)
+						return true
+					default:
+						return false
+					}
+				case *ast.FuncDecl:
+					docs = append(docs, node.Doc)
+					names = []*ast.Ident{node.Name}
+					ret = false
+				case *ast.TypeSpec:
+					docs = append(docs, node.Doc)
+					names = []*ast.Ident{node.Name}
+					ret = true
+				case *ast.ValueSpec:
+					docs = append(docs, node.Doc)
+					names = node.Names
+					ret = false
+				case *ast.Field:
+					docs = append(docs, node.Doc)
+					names = node.Names
+					ret = true
+				case *ast.File:
+					return true
+				case *ast.StructType:
+					for _, field := range node.Fields.List {
+						doDocs(pkginfo, field.Names, []*ast.CommentGroup{field.Doc})
+					}
+					return false
+				case *ast.InterfaceType:
+					for _, field := range node.Methods.List {
+						doDocs(pkginfo, field.Names, []*ast.CommentGroup{field.Doc})
+					}
+					return false
+				default:
+					return false
+				}
+				if len(names) == 0 || len(docs) == 0 {
+					return ret
+				}
+				doDocs(pkginfo, names, docs)
+
+				docs = docs[:0]
+				names = nil
+				return ret
+			}
+			ast.Inspect(f, fn)
+		}
 	}
 }
 
@@ -340,88 +416,11 @@ func (c *Checker) Init(prog *lint.Program) {
 
 	go func() {
 		c.deprecatedObjs = map[types.Object]string{}
-		for _, ssapkg := range prog.SSA.AllPackages() {
-			ssapkg := ssapkg
-			for _, member := range ssapkg.Members {
-				obj := member.Object()
-				if obj == nil {
-					continue
-				}
-				c.deprecateObject(c.deprecatedObjs, prog, obj)
-				if typ, ok := obj.Type().(*types.Named); ok {
-					for i := 0; i < typ.NumMethods(); i++ {
-						meth := typ.Method(i)
-						c.deprecateObject(c.deprecatedObjs, prog, meth)
-					}
-
-					if iface, ok := typ.Underlying().(*types.Interface); ok {
-						for i := 0; i < iface.NumExplicitMethods(); i++ {
-							meth := iface.ExplicitMethod(i)
-							c.deprecateObject(c.deprecatedObjs, prog, meth)
-						}
-					}
-				}
-				if typ, ok := obj.Type().Underlying().(*types.Struct); ok {
-					n := typ.NumFields()
-					for i := 0; i < n; i++ {
-						// FIXME(dh): This code will not find deprecated
-						// fields in anonymous structs.
-						field := typ.Field(i)
-						c.deprecateObject(c.deprecatedObjs, prog, field)
-					}
-				}
-			}
-		}
+		c.findDeprecated(prog)
 		wg.Done()
 	}()
 
 	wg.Wait()
-}
-
-func (c *Checker) deprecationMessage(file *ast.File, fset *token.FileSet, obj types.Object) (message string) {
-	pos := obj.Pos()
-	path, _ := astutil.PathEnclosingInterval(file, pos, pos)
-	if len(path) <= 2 {
-		return ""
-	}
-	var docs []*ast.CommentGroup
-	switch n := path[1].(type) {
-	case *ast.FuncDecl:
-		docs = append(docs, n.Doc)
-	case *ast.Field:
-		docs = append(docs, n.Doc)
-	case *ast.ValueSpec:
-		docs = append(docs, n.Doc)
-		if len(path) >= 3 {
-			if n, ok := path[2].(*ast.GenDecl); ok {
-				docs = append(docs, n.Doc)
-			}
-		}
-	case *ast.TypeSpec:
-		docs = append(docs, n.Doc)
-		if len(path) >= 3 {
-			if n, ok := path[2].(*ast.GenDecl); ok {
-				docs = append(docs, n.Doc)
-			}
-		}
-	default:
-		return ""
-	}
-
-	for _, doc := range docs {
-		if doc == nil {
-			continue
-		}
-		parts := strings.Split(doc.Text(), "\n\n")
-		last := parts[len(parts)-1]
-		if !strings.HasPrefix(last, "Deprecated: ") {
-			continue
-		}
-		alt := last[len("Deprecated: "):]
-		alt = strings.Replace(alt, "\n", " ", -1)
-		return alt
-	}
-	return ""
 }
 
 func (c *Checker) isInLoop(b *ssa.BasicBlock) bool {
