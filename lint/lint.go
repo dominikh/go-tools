@@ -20,6 +20,7 @@ import (
 	"unicode"
 
 	"golang.org/x/tools/go/loader"
+	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssa/ssautil"
 )
@@ -251,10 +252,16 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 				// shouldn't happen
 			}
 		}
+		cfg, err := config.Load(bp.Dir)
+		if err != nil {
+			// FIXME(dh): we couldn't load the config, what are we
+			// supposed to do? probably tell the user somehow
+		}
 		pkg := &Pkg{
 			Package:  ssapkg,
 			Info:     pkginfo,
 			BuildPkg: bp,
+			Config:   cfg,
 		}
 		pkgMap[ssapkg] = pkg
 		pkgs = append(pkgs, pkg)
@@ -404,6 +411,7 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 	}
 	sort.Strings(keys)
 
+	// XXX respect check white/blacklist
 	var jobs []*Job
 	for _, k := range keys {
 		j := &Job{
@@ -477,6 +485,7 @@ type Pkg struct {
 	*ssa.Package
 	Info     *loader.PackageInfo
 	BuildPkg *build.Package
+	Config   config.Config
 }
 
 type Positioner interface {

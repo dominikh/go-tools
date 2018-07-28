@@ -159,8 +159,8 @@ func mergeConfigs(confs []config) Config {
 	return conf.cfg
 }
 
-func Load() (Config, error) {
-	confs, err := parseConfigs(".")
+func Load(dir string) (Config, error) {
+	confs, err := parseConfigs(dir)
 	if err != nil {
 		return Config{}, err
 	}
