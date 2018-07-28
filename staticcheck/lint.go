@@ -206,7 +206,6 @@ type Checker struct {
 	CheckGenerated bool
 	funcDescs      *functions.Descriptions
 	deprecatedObjs map[types.Object]string
-	nodeFns        map[ast.Node]*ssa.Function
 }
 
 func NewChecker() *Checker {
@@ -327,7 +326,7 @@ func (c *Checker) deprecateObject(m map[types.Object]string, prog *lint.Program,
 
 func (c *Checker) Init(prog *lint.Program) {
 	wg := &sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		c.funcDescs = functions.NewDescriptions(prog.SSA)
 		for _, fn := range prog.AllFunctions {
@@ -336,11 +335,6 @@ func (c *Checker) Init(prog *lint.Program) {
 				ssa.OptimizeBlocks(fn)
 			}
 		}
-		wg.Done()
-	}()
-
-	go func() {
-		c.nodeFns = lint.NodeFns(prog.Packages)
 		wg.Done()
 	}()
 
@@ -1269,20 +1263,15 @@ func (c *Checker) CheckBenchmarkN(j *lint.Job) {
 }
 
 func (c *Checker) CheckUnreadVariableValues(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		switch node.(type) {
-		case *ast.FuncDecl, *ast.FuncLit:
-		default:
-			return true
+	for _, ssafn := range j.Program.InitialFunctions {
+		if IsExample(ssafn) {
+			continue
+		}
+		node := ssafn.Syntax()
+		if node == nil {
+			continue
 		}
 
-		ssafn := c.nodeFns[node]
-		if ssafn == nil {
-			return true
-		}
-		if IsExample(ssafn) {
-			return true
-		}
 		ast.Inspect(node, func(node ast.Node) bool {
 			assign, ok := node.(*ast.AssignStmt)
 			if !ok {
@@ -1340,10 +1329,6 @@ func (c *Checker) CheckUnreadVariableValues(j *lint.Job) {
 			}
 			return true
 		})
-		return true
-	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
 	}
 }
 
@@ -1485,144 +1470,136 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 }
 
 func (c *Checker) CheckLoopCondition(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		loop, ok := node.(*ast.ForStmt)
-		if !ok {
-			return true
-		}
-		if loop.Init == nil || loop.Cond == nil || loop.Post == nil {
-			return true
-		}
-		init, ok := loop.Init.(*ast.AssignStmt)
-		if !ok || len(init.Lhs) != 1 || len(init.Rhs) != 1 {
-			return true
-		}
-		cond, ok := loop.Cond.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
-		x, ok := cond.X.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		lhs, ok := init.Lhs[0].(*ast.Ident)
-		if !ok {
-			return true
-		}
-		if x.Obj != lhs.Obj {
-			return true
-		}
-		if _, ok := loop.Post.(*ast.IncDecStmt); !ok {
-			return true
-		}
-
-		ssafn := c.nodeFns[cond]
-		if ssafn == nil {
-			return true
-		}
-		v, isAddr := ssafn.ValueForExpr(cond.X)
-		if v == nil || isAddr {
-			return true
-		}
-		switch v := v.(type) {
-		case *ssa.Phi:
-			ops := v.Operands(nil)
-			if len(ops) != 2 {
-				return true
-			}
-			_, ok := (*ops[0]).(*ssa.Const)
+	for _, ssafn := range j.Program.InitialFunctions {
+		fn := func(node ast.Node) bool {
+			loop, ok := node.(*ast.ForStmt)
 			if !ok {
 				return true
 			}
-			sigma, ok := (*ops[1]).(*ssa.Sigma)
+			if loop.Init == nil || loop.Cond == nil || loop.Post == nil {
+				return true
+			}
+			init, ok := loop.Init.(*ast.AssignStmt)
+			if !ok || len(init.Lhs) != 1 || len(init.Rhs) != 1 {
+				return true
+			}
+			cond, ok := loop.Cond.(*ast.BinaryExpr)
 			if !ok {
 				return true
 			}
-			if sigma.X != v {
+			x, ok := cond.X.(*ast.Ident)
+			if !ok {
 				return true
 			}
-		case *ssa.UnOp:
+			lhs, ok := init.Lhs[0].(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if x.Obj != lhs.Obj {
+				return true
+			}
+			if _, ok := loop.Post.(*ast.IncDecStmt); !ok {
+				return true
+			}
+
+			v, isAddr := ssafn.ValueForExpr(cond.X)
+			if v == nil || isAddr {
+				return true
+			}
+			switch v := v.(type) {
+			case *ssa.Phi:
+				ops := v.Operands(nil)
+				if len(ops) != 2 {
+					return true
+				}
+				_, ok := (*ops[0]).(*ssa.Const)
+				if !ok {
+					return true
+				}
+				sigma, ok := (*ops[1]).(*ssa.Sigma)
+				if !ok {
+					return true
+				}
+				if sigma.X != v {
+					return true
+				}
+			case *ssa.UnOp:
+				return true
+			}
+			j.Errorf(cond, "variable in loop condition never changes")
+
 			return true
 		}
-		j.Errorf(cond, "variable in loop condition never changes")
-
-		return true
-	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
+		Inspect(ssafn.Syntax(), fn)
 	}
 }
 
 func (c *Checker) CheckArgOverwritten(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		var typ *ast.FuncType
-		var body *ast.BlockStmt
-		switch fn := node.(type) {
-		case *ast.FuncDecl:
-			typ = fn.Type
-			body = fn.Body
-		case *ast.FuncLit:
-			typ = fn.Type
-			body = fn.Body
-		}
-		if body == nil {
-			return true
-		}
-		ssafn := c.nodeFns[node]
-		if ssafn == nil {
-			return true
-		}
-		if len(typ.Params.List) == 0 {
-			return true
-		}
-		for _, field := range typ.Params.List {
-			for _, arg := range field.Names {
-				obj := ObjectOf(j, arg)
-				var ssaobj *ssa.Parameter
-				for _, param := range ssafn.Params {
-					if param.Object() == obj {
-						ssaobj = param
-						break
+	for _, ssafn := range j.Program.InitialFunctions {
+		fn := func(node ast.Node) bool {
+			var typ *ast.FuncType
+			var body *ast.BlockStmt
+			switch fn := node.(type) {
+			case *ast.FuncDecl:
+				typ = fn.Type
+				body = fn.Body
+			case *ast.FuncLit:
+				typ = fn.Type
+				body = fn.Body
+			}
+			if body == nil {
+				return true
+			}
+			if len(typ.Params.List) == 0 {
+				return true
+			}
+			for _, field := range typ.Params.List {
+				for _, arg := range field.Names {
+					obj := ObjectOf(j, arg)
+					var ssaobj *ssa.Parameter
+					for _, param := range ssafn.Params {
+						if param.Object() == obj {
+							ssaobj = param
+							break
+						}
 					}
-				}
-				if ssaobj == nil {
-					continue
-				}
-				refs := ssaobj.Referrers()
-				if refs == nil {
-					continue
-				}
-				if len(FilterDebug(*refs)) != 0 {
-					continue
-				}
+					if ssaobj == nil {
+						continue
+					}
+					refs := ssaobj.Referrers()
+					if refs == nil {
+						continue
+					}
+					if len(FilterDebug(*refs)) != 0 {
+						continue
+					}
 
-				assigned := false
-				ast.Inspect(body, func(node ast.Node) bool {
-					assign, ok := node.(*ast.AssignStmt)
-					if !ok {
-						return true
-					}
-					for _, lhs := range assign.Lhs {
-						ident, ok := lhs.(*ast.Ident)
+					assigned := false
+					ast.Inspect(body, func(node ast.Node) bool {
+						assign, ok := node.(*ast.AssignStmt)
 						if !ok {
-							continue
+							return true
 						}
-						if ObjectOf(j, ident) == obj {
-							assigned = true
-							return false
+						for _, lhs := range assign.Lhs {
+							ident, ok := lhs.(*ast.Ident)
+							if !ok {
+								continue
+							}
+							if ObjectOf(j, ident) == obj {
+								assigned = true
+								return false
+							}
 						}
+						return true
+					})
+					if assigned {
+						j.Errorf(arg, "argument %s is overwritten before first use", arg)
 					}
-					return true
-				})
-				if assigned {
-					j.Errorf(arg, "argument %s is overwritten before first use", arg)
 				}
 			}
+			return true
 		}
-		return true
-	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
+		Inspect(ssafn.Syntax(), fn)
 	}
 }
 
@@ -2356,19 +2333,24 @@ func (c *Checker) isDeprecated(j *lint.Job, ident *ast.Ident) (bool, string) {
 	return alt != "", alt
 }
 
-func (c *Checker) enclosingFunc(sel *ast.SelectorExpr) *ssa.Function {
-	fn := c.nodeFns[sel]
-	if fn == nil {
-		return nil
-	}
-	for fn.Parent() != nil {
-		fn = fn.Parent()
-	}
-	return fn
-}
-
 func (c *Checker) CheckDeprecated(j *lint.Job) {
+	// Selectors can appear outside of function literals, e.g. when
+	// declaring package level variables.
+
+	var ssafn *ssa.Function
+	stack := 0
 	fn := func(node ast.Node) bool {
+		if node == nil {
+			stack--
+		} else {
+			stack++
+		}
+		if stack == 1 {
+			ssafn = nil
+		}
+		if fn, ok := node.(*ast.FuncDecl); ok {
+			ssafn = j.Program.SSA.FuncValue(ObjectOf(j, fn.Name).(*types.Func))
+		}
 		sel, ok := node.(*ast.SelectorExpr)
 		if !ok {
 			return true
@@ -2395,8 +2377,8 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 				return true
 			}
 
-			if fn := c.enclosingFunc(sel); fn != nil {
-				if _, ok := c.deprecatedObjs[fn.Object()]; ok {
+			if ssafn != nil {
+				if _, ok := c.deprecatedObjs[ssafn.Object()]; ok {
 					// functions that are deprecated may use deprecated
 					// symbols
 					return true
@@ -2579,30 +2561,35 @@ func loopedRegexp(name string) CallCheck {
 }
 
 func (c *Checker) CheckEmptyBranch(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		ifstmt, ok := node.(*ast.IfStmt)
-		if !ok {
-			return true
+	for _, ssafn := range j.Program.InitialFunctions {
+		if ssafn.Syntax() == nil {
+			continue
 		}
-		ssafn := c.nodeFns[node]
+		if IsGenerated(j.File(ssafn.Syntax())) {
+			continue
+		}
 		if IsExample(ssafn) {
-			return true
+			continue
 		}
-		if ifstmt.Else != nil {
-			b, ok := ifstmt.Else.(*ast.BlockStmt)
-			if !ok || len(b.List) != 0 {
+		fn := func(node ast.Node) bool {
+			ifstmt, ok := node.(*ast.IfStmt)
+			if !ok {
 				return true
 			}
-			j.Errorf(ifstmt.Else, "empty branch")
-		}
-		if len(ifstmt.Body.List) != 0 {
+			if ifstmt.Else != nil {
+				b, ok := ifstmt.Else.(*ast.BlockStmt)
+				if !ok || len(b.List) != 0 {
+					return true
+				}
+				j.Errorf(ifstmt.Else, "empty branch")
+			}
+			if len(ifstmt.Body.List) != 0 {
+				return true
+			}
+			j.Errorf(ifstmt, "empty branch")
 			return true
 		}
-		j.Errorf(ifstmt, "empty branch")
-		return true
-	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		ast.Inspect(f, fn)
+		Inspect(ssafn.Syntax(), fn)
 	}
 }
 
@@ -2658,7 +2645,7 @@ func (c *Checker) CheckMapBytesKey(j *lint.Job) {
 }
 
 func (c *Checker) CheckRangeStringRunes(j *lint.Job) {
-	sharedcheck.CheckRangeStringRunes(c.nodeFns, j)
+	sharedcheck.CheckRangeStringRunes(j)
 }
 
 func (c *Checker) CheckSelfAssignment(j *lint.Job) {

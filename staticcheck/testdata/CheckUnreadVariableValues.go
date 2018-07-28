@@ -68,3 +68,12 @@ func fn6() {
 	// Do not report variables if they've been assigned to the blank identifier
 	_ = x
 }
+
+func fn7() {
+	func() {
+		var x int
+		x = gen() // MATCH /this value of x is never used/
+		x = gen()
+		println(x)
+	}()
+}

@@ -273,3 +273,10 @@ func Preamble(f *ast.File) string {
 	}
 	return strings.Join(out, "\n")
 }
+
+func Inspect(node ast.Node, fn func(node ast.Node) bool) {
+	if node == nil {
+		return
+	}
+	ast.Inspect(node, fn)
+}

@@ -1614,7 +1614,7 @@ func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
 }
 
 func (c *Checker) LintRangeStringRunes(j *lint.Job) {
-	sharedcheck.CheckRangeStringRunes(c.nodeFns, j)
+	sharedcheck.CheckRangeStringRunes(j)
 }
 
 func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
