@@ -13,49 +13,6 @@ import (
 	. "honnef.co/go/tools/lint/lintdsl"
 )
 
-// commonInitialisms is a set of common initialisms.
-// Only add entries that are highly unlikely to be non-initialisms.
-// For instance, "ID" is fine (Freudian code is rare), but "AND" is not.
-var commonInitialisms = map[string]bool{
-	"ACL":   true,
-	"API":   true,
-	"ASCII": true,
-	"CPU":   true,
-	"CSS":   true,
-	"DNS":   true,
-	"EOF":   true,
-	"GUID":  true,
-	"HTML":  true,
-	"HTTP":  true,
-	"HTTPS": true,
-	"ID":    true,
-	"IP":    true,
-	"JSON":  true,
-	"QPS":   true,
-	"RAM":   true,
-	"RPC":   true,
-	"SLA":   true,
-	"SMTP":  true,
-	"SQL":   true,
-	"SSH":   true,
-	"TCP":   true,
-	"TLS":   true,
-	"TTL":   true,
-	"UDP":   true,
-	"UI":    true,
-	"GID":   true,
-	"UID":   true,
-	"UUID":  true,
-	"URI":   true,
-	"URL":   true,
-	"UTF8":  true,
-	"VM":    true,
-	"XML":   true,
-	"XMPP":  true,
-	"XSRF":  true,
-	"XSS":   true,
-}
-
 // knownNameExceptions is a set of names that are known to be exempt from naming checks.
 // This is usually because they are constrained by having to match names in the
 // standard library.
@@ -78,7 +35,7 @@ func (c *Checker) CheckNames(j *lint.Job) {
 		return true
 	}
 
-	check := func(id *ast.Ident, thing string) {
+	check := func(id *ast.Ident, thing string, initialisms map[string]bool) {
 		if id.Name == "_" {
 			return
 		}
@@ -92,7 +49,7 @@ func (c *Checker) CheckNames(j *lint.Job) {
 			return
 		}
 
-		should := lintName(id.Name)
+		should := lintName(id.Name, initialisms)
 		if id.Name == should {
 			return
 		}
@@ -103,118 +60,125 @@ func (c *Checker) CheckNames(j *lint.Job) {
 		}
 		j.Errorf(id, "%s %s should be %s", thing, id.Name, should)
 	}
-	checkList := func(fl *ast.FieldList, thing string) {
+	checkList := func(fl *ast.FieldList, thing string, initialisms map[string]bool) {
 		if fl == nil {
 			return
 		}
 		for _, f := range fl.List {
 			for _, id := range f.Names {
-				check(id, thing)
+				check(id, thing, initialisms)
 			}
 		}
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
-		// Package names need slightly different handling than other names.
-		if !strings.HasSuffix(f.Name.Name, "_test") && strings.Contains(f.Name.Name, "_") {
-			j.Errorf(f, "should not use underscores in package names")
-		}
-		if strings.IndexFunc(f.Name.Name, unicode.IsUpper) != -1 {
-			j.Errorf(f, "should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name))
-		}
 
-		ast.Inspect(f, func(node ast.Node) bool {
-			switch v := node.(type) {
-			case *ast.AssignStmt:
-				if v.Tok != token.DEFINE {
-					return true
-				}
-				for _, exp := range v.Lhs {
-					if id, ok := exp.(*ast.Ident); ok {
-						check(id, "var")
+	for _, pkg := range j.Program.Packages {
+		initialisms := make(map[string]bool, len(pkg.Config.Stylecheck.Initialisms))
+		for _, word := range pkg.Config.Stylecheck.Initialisms {
+			initialisms[word] = true
+		}
+		for _, f := range c.filterGenerated(pkg.Info.Files) {
+			// Package names need slightly different handling than other names.
+			if !strings.HasSuffix(f.Name.Name, "_test") && strings.Contains(f.Name.Name, "_") {
+				j.Errorf(f, "should not use underscores in package names")
+			}
+			if strings.IndexFunc(f.Name.Name, unicode.IsUpper) != -1 {
+				j.Errorf(f, "should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name))
+			}
+
+			ast.Inspect(f, func(node ast.Node) bool {
+				switch v := node.(type) {
+				case *ast.AssignStmt:
+					if v.Tok != token.DEFINE {
+						return true
 					}
-				}
-			case *ast.FuncDecl:
-				// Functions with no body are defined elsewhere (in
-				// assembly, or via go:linkname). These are likely to
-				// be something very low level (such as the runtime),
-				// where our rules don't apply.
-				if v.Body == nil {
-					return true
-				}
+					for _, exp := range v.Lhs {
+						if id, ok := exp.(*ast.Ident); ok {
+							check(id, "var", initialisms)
+						}
+					}
+				case *ast.FuncDecl:
+					// Functions with no body are defined elsewhere (in
+					// assembly, or via go:linkname). These are likely to
+					// be something very low level (such as the runtime),
+					// where our rules don't apply.
+					if v.Body == nil {
+						return true
+					}
 
-				if IsInTest(j, v) && (strings.HasPrefix(v.Name.Name, "Example") || strings.HasPrefix(v.Name.Name, "Test") || strings.HasPrefix(v.Name.Name, "Benchmark")) {
-					return true
-				}
+					if IsInTest(j, v) && (strings.HasPrefix(v.Name.Name, "Example") || strings.HasPrefix(v.Name.Name, "Test") || strings.HasPrefix(v.Name.Name, "Benchmark")) {
+						return true
+					}
 
-				thing := "func"
-				if v.Recv != nil {
-					thing = "method"
-				}
+					thing := "func"
+					if v.Recv != nil {
+						thing = "method"
+					}
 
-				if !isTechnicallyExported(v) {
-					check(v.Name, thing)
-				}
+					if !isTechnicallyExported(v) {
+						check(v.Name, thing, initialisms)
+					}
 
-				checkList(v.Type.Params, thing+" parameter")
-				checkList(v.Type.Results, thing+" result")
-			case *ast.GenDecl:
-				if v.Tok == token.IMPORT {
-					return true
-				}
-				var thing string
-				switch v.Tok {
-				case token.CONST:
-					thing = "const"
-				case token.TYPE:
-					thing = "type"
-				case token.VAR:
-					thing = "var"
-				}
-				for _, spec := range v.Specs {
-					switch s := spec.(type) {
-					case *ast.TypeSpec:
-						check(s.Name, thing)
-					case *ast.ValueSpec:
-						for _, id := range s.Names {
-							check(id, thing)
+					checkList(v.Type.Params, thing+" parameter", initialisms)
+					checkList(v.Type.Results, thing+" result", initialisms)
+				case *ast.GenDecl:
+					if v.Tok == token.IMPORT {
+						return true
+					}
+					var thing string
+					switch v.Tok {
+					case token.CONST:
+						thing = "const"
+					case token.TYPE:
+						thing = "type"
+					case token.VAR:
+						thing = "var"
+					}
+					for _, spec := range v.Specs {
+						switch s := spec.(type) {
+						case *ast.TypeSpec:
+							check(s.Name, thing, initialisms)
+						case *ast.ValueSpec:
+							for _, id := range s.Names {
+								check(id, thing, initialisms)
+							}
+						}
+					}
+				case *ast.InterfaceType:
+					// Do not check interface method names.
+					// They are often constrainted by the method names of concrete types.
+					for _, x := range v.Methods.List {
+						ft, ok := x.Type.(*ast.FuncType)
+						if !ok { // might be an embedded interface name
+							continue
+						}
+						checkList(ft.Params, "interface method parameter", initialisms)
+						checkList(ft.Results, "interface method result", initialisms)
+					}
+				case *ast.RangeStmt:
+					if v.Tok == token.ASSIGN {
+						return true
+					}
+					if id, ok := v.Key.(*ast.Ident); ok {
+						check(id, "range var", initialisms)
+					}
+					if id, ok := v.Value.(*ast.Ident); ok {
+						check(id, "range var", initialisms)
+					}
+				case *ast.StructType:
+					for _, f := range v.Fields.List {
+						for _, id := range f.Names {
+							check(id, "struct field", initialisms)
 						}
 					}
 				}
-			case *ast.InterfaceType:
-				// Do not check interface method names.
-				// They are often constrainted by the method names of concrete types.
-				for _, x := range v.Methods.List {
-					ft, ok := x.Type.(*ast.FuncType)
-					if !ok { // might be an embedded interface name
-						continue
-					}
-					checkList(ft.Params, "interface method parameter")
-					checkList(ft.Results, "interface method result")
-				}
-			case *ast.RangeStmt:
-				if v.Tok == token.ASSIGN {
-					return true
-				}
-				if id, ok := v.Key.(*ast.Ident); ok {
-					check(id, "range var")
-				}
-				if id, ok := v.Value.(*ast.Ident); ok {
-					check(id, "range var")
-				}
-			case *ast.StructType:
-				for _, f := range v.Fields.List {
-					for _, id := range f.Names {
-						check(id, "struct field")
-					}
-				}
-			}
-			return true
-		})
+				return true
+			})
+		}
 	}
 }
 
 // lintName returns a different name if it should be different.
-func lintName(name string) (should string) {
+func lintName(name string, initialisms map[string]bool) (should string) {
 	// A large part of this function is copied from
 	// github.com/golang/lint, Copyright (c) 2013 The Go Authors,
 	// licensed under the BSD 3-clause license.
@@ -261,7 +225,7 @@ func lintName(name string) (should string) {
 
 		// [w,i) is a word.
 		word := string(runes[w:i])
-		if u := strings.ToUpper(word); commonInitialisms[u] {
+		if u := strings.ToUpper(word); initialisms[u] {
 			// Keep consistent case, which is lowercase only at the start.
 			if w == 0 && unicode.IsLower(runes[w]) {
 				u = strings.ToLower(u)
