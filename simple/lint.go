@@ -12,7 +12,6 @@ import (
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
-	"honnef.co/go/tools/ssa"
 
 	"golang.org/x/tools/go/types/typeutil"
 )
@@ -20,8 +19,6 @@ import (
 type Checker struct {
 	CheckGenerated bool
 	MS             *typeutil.MethodSetCache
-
-	nodeFns map[ast.Node]*ssa.Function
 }
 
 func NewChecker() *Checker {
@@ -33,9 +30,7 @@ func NewChecker() *Checker {
 func (*Checker) Name() string   { return "gosimple" }
 func (*Checker) Prefix() string { return "S" }
 
-func (c *Checker) Init(prog *lint.Program) {
-	c.nodeFns = lint.NodeFns(prog.Packages)
-}
+func (c *Checker) Init(prog *lint.Program) {}
 
 func (c *Checker) Funcs() map[string]lint.Func {
 	return map[string]lint.Func{
