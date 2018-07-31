@@ -161,7 +161,6 @@ func (v *versionFlag) Get() interface{} {
 func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
-	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
 	flags.String("tags", "", "List of `build tags`")
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
 	flags.Bool("tests", true, "Include tests")
