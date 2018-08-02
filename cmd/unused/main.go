@@ -3,6 +3,7 @@
 package main // import "honnef.co/go/tools/cmd/unused"
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -38,6 +39,7 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 }
 
 func main() {
+	fmt.Fprintln(os.Stderr, "Unused has been deprecated. Please use staticcheck instead.")
 	log.SetFlags(0)
 
 	fs := lintutil.FlagSet("unused")

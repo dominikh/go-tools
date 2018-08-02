@@ -2,6 +2,7 @@
 package main // import "honnef.co/go/tools/cmd/megacheck"
 
 import (
+	"fmt"
 	"os"
 
 	"honnef.co/go/tools/lint/lintutil"
@@ -11,6 +12,8 @@ import (
 )
 
 func main() {
+	fmt.Fprintln(os.Stderr, "Megacheck has been deprecated. Please use staticcheck instead.")
+
 	var flags struct {
 		staticcheck struct {
 			enabled     bool
