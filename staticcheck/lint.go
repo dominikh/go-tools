@@ -23,6 +23,7 @@ import (
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ssautil"
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -243,6 +244,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA1022": nil,
 		"SA1023": c.CheckWriterBufferModified,
 		"SA1024": c.callChecker(checkUniqueCutsetRules),
+		"SA1025": c.CheckTimerResetReturnValue,
 
 		"SA2000": c.CheckWaitgroupAdd,
 		"SA2001": c.CheckEmptyCriticalSection,
@@ -2786,5 +2788,67 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckTimerResetReturnValue(j *lint.Job) {
+	for _, fn := range j.Program.InitialFunctions {
+		for _, block := range fn.Blocks {
+			for _, ins := range block.Instrs {
+				call, ok := ins.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				if !IsCallTo(call.Common(), "(*time.Timer).Reset") {
+					continue
+				}
+				refs := call.Referrers()
+				if refs == nil {
+					continue
+				}
+				for _, ref := range FilterDebug(*refs) {
+					ifstmt, ok := ref.(*ssa.If)
+					if !ok {
+						continue
+					}
+
+					found := false
+					for _, succ := range ifstmt.Block().Succs {
+						if len(succ.Preds) != 1 {
+							// Merge point, not a branch in the
+							// syntactical sense.
+
+							// FIXME(dh): this is broken for if
+							// statements a la "if x || y"
+							continue
+						}
+						ssautil.Walk(succ, func(b *ssa.BasicBlock) bool {
+							if !succ.Dominates(b) {
+								// We've reached the end of the branch
+								return false
+							}
+							for _, ins := range b.Instrs {
+								// TODO(dh): we should check that
+								// we're receiving from the channel of
+								// a time.Timer to further reduce
+								// false positives. Not a key
+								// priority, considering the rarity of
+								// Reset and the tiny likeliness of a
+								// false positive
+								if ins, ok := ins.(*ssa.UnOp); ok && ins.Op == token.ARROW && IsType(ins.X.Type(), "<-chan time.Time") {
+									found = true
+									return false
+								}
+							}
+							return true
+						})
+					}
+
+					if found {
+						j.Errorf(call, "it is not possible to use Reset's return value correctly, as there is a race condition between draining the channel and the new timer expiring")
+					}
+				}
+			}
+		}
 	}
 }
