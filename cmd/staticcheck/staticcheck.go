@@ -1,5 +1,4 @@
-// staticcheck detects a myriad of bugs and inefficiencies in your
-// code.
+// staticcheck analyses Go code and makes it better.
 package main // import "honnef.co/go/tools/cmd/staticcheck"
 
 import (
