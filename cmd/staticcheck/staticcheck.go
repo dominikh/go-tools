@@ -19,9 +19,6 @@ const doc = `Usage of staticcheck:
 The staticcheck command runs code analysis on one or more packages and
 reports bugs, stylistic issues, unused identifiers and more.
 
-It provides the entry-point for a number of different check
-categories, which can be run simultaneously or individually.
-
 Packages are specified in the same way as for your underlying build
 system (e.g. go build, or Bazel).
 
