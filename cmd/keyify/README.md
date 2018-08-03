@@ -5,7 +5,7 @@ ones (`T{A: 1, B: 2, C: 3}`)
 
 Keyify requires Go 1.6 or later.
 
-    go get honnef.co/go/tools/cmd/keyify
+    go get github.com/dominikh/go-tools/cmd/keyify
 
 ## Usage
 
