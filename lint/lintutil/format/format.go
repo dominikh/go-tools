@@ -37,8 +37,8 @@ func relativePositionString(pos token.Position) string {
 	return s
 }
 
-type Flusher interface {
-	Flush()
+type Statter interface {
+	Stats(total, errors, warnings int)
 }
 
 type Formatter interface {
@@ -105,8 +105,11 @@ func (o *Stylish) Format(p lint.Problem) {
 	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", p.Position.Line, p.Position.Column, p.Check, p.Text)
 }
 
-func (o *Stylish) Flush() {
+func (o *Stylish) Stats(total, errors, warnings int) {
 	if o.tw != nil {
 		o.tw.Flush()
+		fmt.Fprintln(o.W)
 	}
+	fmt.Fprintf(o.W, " ✖ %d problems (%d errors, %d warnings)\n",
+		total, errors, warnings)
 }

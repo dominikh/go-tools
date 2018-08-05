@@ -168,11 +168,6 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 		os.Exit(1)
 	}
 
-	var ps []lint.Problem
-	for _, p := range pss {
-		ps = append(ps, p...)
-	}
-
 	var f format.Formatter
 	switch formatter {
 	case "text":
@@ -186,16 +181,27 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 		os.Exit(2)
 	}
 
-	for _, p := range ps {
-		f.Format(p)
-	}
-	if f, ok := f.(format.Flusher); ok {
-		f.Flush()
-	}
-	for i, p := range pss {
-		if len(p) != 0 && confs[i].ExitNonZero {
-			os.Exit(1)
+	var (
+		total    int
+		errors   int
+		warnings int
+	)
+	for i, ps := range pss {
+		total += len(ps)
+		if confs[i].ExitNonZero {
+			errors += len(ps)
+		} else {
+			warnings += len(ps)
 		}
+		for _, p := range ps {
+			f.Format(p)
+		}
+	}
+	if f, ok := f.(format.Statter); ok {
+		f.Stats(total, errors, warnings)
+	}
+	if errors > 0 {
+		os.Exit(1)
 	}
 }
 
