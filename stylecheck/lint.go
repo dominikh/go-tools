@@ -61,6 +61,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"ST1011": c.CheckTimeNames,
 		"ST1012": c.CheckErrorVarNames,
 		"ST1013": c.CheckHTTPStatusCodes,
+		"ST1014": c.CheckShadowedBuiltin,
 	}
 }
 
@@ -571,5 +572,84 @@ func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
 		for _, f := range c.filterGenerated(pkg.Info.Files) {
 			ast.Inspect(f, fn)
 		}
+	}
+}
+
+var builtins = map[string]bool{
+	"append":     true,
+	"bool":       true,
+	"byte":       true,
+	"cap":        true,
+	"close":      true,
+	"complex":    true,
+	"complex128": true,
+	"complex64":  true,
+	"copy":       true,
+	"delete":     true,
+	"error":      true,
+	"false":      true,
+	"float32":    true,
+	"float64":    true,
+	"imag":       true,
+	"int":        true,
+	"int16":      true,
+	"int32":      true,
+	"int64":      true,
+	"int8":       true,
+	"iota":       true,
+	"len":        true,
+	"make":       true,
+	"new":        true,
+	"nil":        true,
+	"panic":      true,
+	"print":      true,
+	"println":    true,
+	"real":       true,
+	"recover":    true,
+	"rune":       true,
+	"string":     true,
+	"true":       true,
+	"uint":       true,
+	"uint16":     true,
+	"uint32":     true,
+	"uint64":     true,
+	"uint8":      true,
+	"uintptr":    true,
+}
+
+func (c *Checker) CheckShadowedBuiltin(j *lint.Job) {
+	seen := map[types.Object]bool{}
+	fn := func(node ast.Node) bool {
+		ident, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if !builtins[ident.Name] {
+			return true
+		}
+		obj := ObjectOf(j, ident)
+		if obj.Pkg() == nil {
+			// this is a built-in
+			return true
+		}
+		if seen[obj] {
+			return true
+		}
+		seen[obj] = true
+		switch obj := obj.(type) {
+		case *types.Var:
+			if obj.IsField() {
+				return true
+			}
+		case *types.Func:
+			if obj.Type().(*types.Signature).Recv() != nil {
+				return true
+			}
+		}
+		j.Errorf(obj, "identifier %s shadows built-in of the same name", ident.Name)
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
 	}
 }
