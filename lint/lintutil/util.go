@@ -8,70 +8,24 @@
 package lintutil // import "honnef.co/go/tools/lint/lintutil"
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"go/build"
 	"go/parser"
-	"go/token"
 	"go/types"
-	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/lint"
+	"honnef.co/go/tools/lint/lintutil/format"
 	"honnef.co/go/tools/version"
 
 	"github.com/kisielk/gotool"
 	"golang.org/x/tools/go/loader"
 )
 
-type OutputFormatter interface {
-	Format(p lint.Problem)
-}
-
-type TextOutput struct {
-	w io.Writer
-}
-
-func (o TextOutput) Format(p lint.Problem) {
-	fmt.Fprintf(o.w, "%v: %s\n", relativePositionString(p.Position), p.String())
-}
-
-type JSONOutput struct {
-	w io.Writer
-}
-
-func (o JSONOutput) Format(p lint.Problem) {
-	type location struct {
-		File   string `json:"file"`
-		Line   int    `json:"line"`
-		Column int    `json:"column"`
-	}
-	jp := struct {
-		Checker  string   `json:"checker"`
-		Code     string   `json:"code"`
-		Severity string   `json:"severity,omitempty"`
-		Location location `json:"location"`
-		Message  string   `json:"message"`
-		Ignored  bool     `json:"ignored"`
-	}{
-		p.Checker,
-		p.Check,
-		"", // TODO(dh): support severity
-		location{
-			p.Position.Filename,
-			p.Position.Line,
-			p.Position.Column,
-		},
-		p.Text,
-		p.Ignored,
-	}
-	_ = json.NewEncoder(o.w).Encode(jp)
-}
 func usage(name string, flags *flag.FlagSet) func() {
 	return func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", name)
@@ -189,7 +143,7 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
-	format := fs.Lookup("f").Value.(flag.Getter).Get().(string)
+	formatter := fs.Lookup("f").Value.(flag.Getter).Get().(string)
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
 
@@ -219,19 +173,24 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 		ps = append(ps, p...)
 	}
 
-	var f OutputFormatter
-	switch format {
+	var f format.Formatter
+	switch formatter {
 	case "text":
-		f = TextOutput{os.Stdout}
+		f = format.Text{W: os.Stdout}
+	case "stylish":
+		f = &format.Stylish{W: os.Stdout}
 	case "json":
-		f = JSONOutput{os.Stdout}
+		f = format.JSON{W: os.Stdout}
 	default:
-		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", format)
+		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", formatter)
 		os.Exit(2)
 	}
 
 	for _, p := range ps {
 		f.Format(p)
+	}
+	if f, ok := f.(format.Flusher); ok {
+		f.Flush()
 	}
 	for i, p := range pss {
 		if len(p) != 0 && confs[i].ExitNonZero {
@@ -304,31 +263,6 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 		problems = append(problems, runner.lint(lprog, conf))
 	}
 	return problems, nil
-}
-
-func shortPath(path string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return path
-	}
-	if rel, err := filepath.Rel(cwd, path); err == nil && len(rel) < len(path) {
-		return rel
-	}
-	return path
-}
-
-func relativePositionString(pos token.Position) string {
-	s := shortPath(pos.Filename)
-	if pos.IsValid() {
-		if s != "" {
-			s += ":"
-		}
-		s += fmt.Sprintf("%d:%d", pos.Line, pos.Column)
-	}
-	if s == "" {
-		s = "-"
-	}
-	return s
 }
 
 func ProcessArgs(name string, cs []CheckerConfig, args []string) {
