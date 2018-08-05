@@ -62,6 +62,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"ST1012": c.CheckErrorVarNames,
 		"ST1013": c.CheckHTTPStatusCodes,
 		"ST1014": c.CheckShadowedBuiltin,
+		"ST1015": c.CheckDefaultCaseOrder,
 	}
 }
 
@@ -647,6 +648,26 @@ func (c *Checker) CheckShadowedBuiltin(j *lint.Job) {
 			}
 		}
 		j.Errorf(obj, "identifier %s shadows built-in of the same name", ident.Name)
+		return true
+	}
+	for _, f := range c.filterGenerated(j.Program.Files) {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckDefaultCaseOrder(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		stmt, ok := node.(*ast.SwitchStmt)
+		if !ok {
+			return true
+		}
+		list := stmt.Body.List
+		for i, c := range list {
+			if c.(*ast.CaseClause).List == nil && i != 0 && i != len(list)-1 {
+				j.Errorf(c, "default case should be first or last in switch statement")
+				break
+			}
+		}
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
