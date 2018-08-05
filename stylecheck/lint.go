@@ -6,6 +6,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -59,6 +60,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"ST1010": c.CheckContextFirstArg,
 		"ST1011": c.CheckTimeNames,
 		"ST1012": c.CheckErrorVarNames,
+		"ST1013": c.CheckHTTPStatusCodes,
 	}
 }
 
@@ -456,6 +458,118 @@ func (c *Checker) CheckErrorVarNames(j *lint.Job) {
 					}
 				}
 			}
+		}
+	}
+}
+
+var httpStatusCodes = map[int]string{
+	100: "StatusContinue",
+	101: "StatusSwitchingProtocols",
+	102: "StatusProcessing",
+	200: "StatusOK",
+	201: "StatusCreated",
+	202: "StatusAccepted",
+	203: "StatusNonAuthoritativeInfo",
+	204: "StatusNoContent",
+	205: "StatusResetContent",
+	206: "StatusPartialContent",
+	207: "StatusMultiStatus",
+	208: "StatusAlreadyReported",
+	226: "StatusIMUsed",
+	300: "StatusMultipleChoices",
+	301: "StatusMovedPermanently",
+	302: "StatusFound",
+	303: "StatusSeeOther",
+	304: "StatusNotModified",
+	305: "StatusUseProxy",
+	307: "StatusTemporaryRedirect",
+	308: "StatusPermanentRedirect",
+	400: "StatusBadRequest",
+	401: "StatusUnauthorized",
+	402: "StatusPaymentRequired",
+	403: "StatusForbidden",
+	404: "StatusNotFound",
+	405: "StatusMethodNotAllowed",
+	406: "StatusNotAcceptable",
+	407: "StatusProxyAuthRequired",
+	408: "StatusRequestTimeout",
+	409: "StatusConflict",
+	410: "StatusGone",
+	411: "StatusLengthRequired",
+	412: "StatusPreconditionFailed",
+	413: "StatusRequestEntityTooLarge",
+	414: "StatusRequestURITooLong",
+	415: "StatusUnsupportedMediaType",
+	416: "StatusRequestedRangeNotSatisfiable",
+	417: "StatusExpectationFailed",
+	418: "StatusTeapot",
+	422: "StatusUnprocessableEntity",
+	423: "StatusLocked",
+	424: "StatusFailedDependency",
+	426: "StatusUpgradeRequired",
+	428: "StatusPreconditionRequired",
+	429: "StatusTooManyRequests",
+	431: "StatusRequestHeaderFieldsTooLarge",
+	451: "StatusUnavailableForLegalReasons",
+	500: "StatusInternalServerError",
+	501: "StatusNotImplemented",
+	502: "StatusBadGateway",
+	503: "StatusServiceUnavailable",
+	504: "StatusGatewayTimeout",
+	505: "StatusHTTPVersionNotSupported",
+	506: "StatusVariantAlsoNegotiates",
+	507: "StatusInsufficientStorage",
+	508: "StatusLoopDetected",
+	510: "StatusNotExtended",
+	511: "StatusNetworkAuthenticationRequired",
+}
+
+func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
+	for _, pkg := range j.Program.Packages {
+		whitelist := map[string]bool{}
+		for _, code := range pkg.Config.Stylecheck.HTTPStatusCodeWhitelist {
+			whitelist[code] = true
+		}
+		fn := func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+
+			var arg int
+			switch CallNameAST(j, call) {
+			case "net/http.Error":
+				arg = 2
+			case "net/http.Redirect":
+				arg = 3
+			case "net/http.StatusText":
+				arg = 0
+			case "net/http.RedirectHandler":
+				arg = 1
+			default:
+				return true
+			}
+			lit, ok := call.Args[arg].(*ast.BasicLit)
+			if !ok {
+				return true
+			}
+			if whitelist[lit.Value] {
+				return true
+			}
+
+			n, err := strconv.Atoi(lit.Value)
+			if err != nil {
+				return true
+			}
+			s, ok := httpStatusCodes[n]
+			if !ok {
+				return true
+			}
+			j.Errorf(lit, "should use constant http.%s instead of numeric literal %d", s, n)
+			return true
+		}
+		for _, f := range c.filterGenerated(pkg.Info.Files) {
+			ast.Inspect(f, fn)
 		}
 	}
 }

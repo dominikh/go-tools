@@ -93,6 +93,9 @@ func (cfg config) Merge(ocfg config) config {
 	if ocfg.meta.IsDefined("stylecheck", "dot_import_whitelist") {
 		cfg.cfg.Stylecheck.DotImportWhitelist = mergeLists(cfg.cfg.Stylecheck.DotImportWhitelist, ocfg.cfg.Stylecheck.DotImportWhitelist)
 	}
+	if ocfg.meta.IsDefined("stylecheck", "http_status_code_whitelist") {
+		cfg.cfg.Stylecheck.HTTPStatusCodeWhitelist = mergeLists(cfg.cfg.Stylecheck.HTTPStatusCodeWhitelist, ocfg.cfg.Stylecheck.HTTPStatusCodeWhitelist)
+	}
 	return cfg
 }
 
@@ -136,8 +139,9 @@ type ErrcheckConfig struct {
 
 type StylecheckConfig struct {
 	Checklist
-	Initialisms        []string `toml:"initialisms"`
-	DotImportWhitelist []string `toml:"dot_import_whitelist"`
+	Initialisms             []string `toml:"initialisms"`
+	DotImportWhitelist      []string `toml:"dot_import_whitelist"`
+	HTTPStatusCodeWhitelist []string `toml:"http_status_code_whitelist"`
 }
 
 var defaultConfig = Config{
@@ -193,7 +197,8 @@ var defaultStylecheckConfig = StylecheckConfig{
 		"URL", "UTF8", "VM", "XML", "XMPP", "XSRF",
 		"XSS",
 	},
-	DotImportWhitelist: []string{},
+	DotImportWhitelist:      []string{},
+	HTTPStatusCodeWhitelist: []string{"200", "400", "404", "500"},
 }
 
 const configName = "staticcheck.conf"

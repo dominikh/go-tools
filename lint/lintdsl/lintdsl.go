@@ -220,17 +220,24 @@ func IsGoVersion(j *lint.Job, minor int) bool {
 	return j.Program.GoVersion >= minor
 }
 
+func CallNameAST(j *lint.Job, call *ast.CallExpr) string {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	fn, ok := j.Program.Info.ObjectOf(sel.Sel).(*types.Func)
+	if !ok {
+		return ""
+	}
+	return fn.FullName()
+}
+
 func IsCallToAST(j *lint.Job, node ast.Node, name string) bool {
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return false
 	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	fn, ok := j.Program.Info.ObjectOf(sel.Sel).(*types.Func)
-	return ok && fn.FullName() == name
+	return CallNameAST(j, call) == name
 }
 
 func IsCallToAnyAST(j *lint.Job, node ast.Node, names ...string) bool {
