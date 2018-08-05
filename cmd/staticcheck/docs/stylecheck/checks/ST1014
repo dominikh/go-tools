@@ -1,0 +1,22 @@
+Shadowing of a built-in identifier
+
+The Go language has very few keywords. Built-in types and functions
+are ordinary identifiers that have been predeclared globally. Due to
+this, it is possible to shadow these identifiers. For example, you can
+name your local variable `len`.
+
+In the general case, this is a desired feature. It gives you more
+freedom in the choice of your names, writing clearer code. It also
+allows the Go authors to add new built-ins to the language without
+breaking existing code.
+
+In rare cases, however, such as security sensitive code, you may want
+to forbid the shadowing of built-ins if you're worried that it would
+reduce the readability of the code. You may thus want to enable this
+check for packages containing such code.
+
+It must be stressed again that this kind of shadowing isn't
+categorically bad. In fact, the Go standard library has 180 instances
+of shadowed built-ins, and each of those instances improves the
+readability of the surrounding code. Only enable this check in very
+specific instances!
