@@ -120,4 +120,10 @@ func fn() {
 	} else {
 		id1 = "game over" // else branch
 	}
+
+	if strings.HasPrefix(id1, s1) {
+		// the conditional is guarding additional code
+		id1 = id1[len(s1):]
+		println(id1)
+	}
 }
