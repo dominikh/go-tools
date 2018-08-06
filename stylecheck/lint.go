@@ -67,34 +67,35 @@ func (c *Checker) Funcs() map[string]lint.Func {
 }
 
 func (c *Checker) CheckPackageComment(j *lint.Job) {
-	// - At least one file in a package should have a package comment
+	// - At least one file in a non-main package should have a package comment
 	//
-	// - For non-main packages, the comment should be of the form
+	// - The comment should be of the form
 	// "Package x ...". This has a slight potential for false
 	// positives, as multiple files can have package comments, in
 	// which case they get appended. But that doesn't happen a lot in
 	// the real world.
 
-	for _, pkg := range j.Program.Packages {
+	for _, pkg := range j.Program.InitialPackages {
+		if pkg.Name == "main" {
+			continue
+		}
 		hasDocs := false
-		for _, f := range pkg.Info.Files {
+		for _, f := range pkg.Syntax {
 			if IsInTest(j, f) {
 				continue
 			}
 			if f.Doc != nil && len(f.Doc.List) > 0 {
 				hasDocs = true
-				if f.Name.Name != "main" {
-					prefix := "Package " + f.Name.Name + " "
-					if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
-						j.Errorf(f.Doc, `package comment should be of the form "%s..."`, prefix)
-					}
+				prefix := "Package " + f.Name.Name + " "
+				if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
+					j.Errorf(f.Doc, `package comment should be of the form "%s..."`, prefix)
 				}
 				f.Doc.Text()
 			}
 		}
 
 		if !hasDocs {
-			for _, f := range pkg.Info.Files {
+			for _, f := range pkg.Syntax {
 				if IsInTest(j, f) {
 					continue
 				}
@@ -116,7 +117,7 @@ func (c *Checker) CheckDotImports(j *lint.Job) {
 }
 
 func (c *Checker) CheckBlankImports(j *lint.Job) {
-	fset := j.Program.Prog.Fset
+	fset := j.Program.Fset()
 	for _, f := range c.filterGenerated(j.Program.Files) {
 		if IsInMain(j, f) || IsInTest(j, f) {
 			continue
@@ -255,8 +256,8 @@ func (c *Checker) CheckUnexportedReturn(j *lint.Job) {
 }
 
 func (c *Checker) CheckReceiverNames(j *lint.Job) {
-	for _, pkg := range j.Program.Packages {
-		for _, m := range pkg.Members {
+	for _, pkg := range j.Program.InitialPackages {
+		for _, m := range pkg.SSA.Members {
 			names := map[string]int{}
 
 			var firstFn *types.Func
@@ -527,7 +528,7 @@ var httpStatusCodes = map[int]string{
 }
 
 func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
-	for _, pkg := range j.Program.Packages {
+	for _, pkg := range j.Program.InitialPackages {
 		whitelist := map[string]bool{}
 		for _, code := range pkg.Config.Stylecheck.HTTPStatusCodeWhitelist {
 			whitelist[code] = true
@@ -570,7 +571,7 @@ func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
 			j.Errorf(lit, "should use constant http.%s instead of numeric literal %d", s, n)
 			return true
 		}
-		for _, f := range c.filterGenerated(pkg.Info.Files) {
+		for _, f := range c.filterGenerated(pkg.Syntax) {
 			ast.Inspect(f, fn)
 		}
 	}

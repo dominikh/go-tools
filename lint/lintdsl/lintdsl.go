@@ -123,7 +123,7 @@ func IsInMain(j *lint.Job, node lint.Positioner) bool {
 	if pkg == nil {
 		return false
 	}
-	return pkg.Pkg.Name() == "main"
+	return pkg.Types.Name() == "main"
 }
 
 func SelectorName(j *lint.Job, expr *ast.SelectorExpr) string {

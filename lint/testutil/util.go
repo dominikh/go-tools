@@ -12,122 +12,155 @@ import (
 	"go/parser"
 	"go/token"
 	"io/ioutil"
+	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
 
+	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/lint"
-
-	"golang.org/x/tools/go/loader"
 )
 
 var lintMatch = flag.String("lint.match", "", "restrict testdata matches to this pattern")
 
 func TestAll(t *testing.T, c lint.Checker, dir string) {
-	baseDir := filepath.Join("testdata", dir)
-	fis, err := ioutil.ReadDir(baseDir)
+	testPackages(t, c, dir)
+}
+
+func testPackages(t *testing.T, c lint.Checker, dir string) {
+	gopath := filepath.Join("testdata", dir)
+	gopath, err := filepath.Abs(gopath)
 	if err != nil {
-		t.Fatalf("ioutil.ReadDir: %v", err)
+		log.Fatal(err)
 	}
-	if len(fis) == 0 {
-		t.Fatalf("no files in %v", baseDir)
-	}
-	rx, err := regexp.Compile(*lintMatch)
+	fis, err := ioutil.ReadDir(filepath.Join(gopath, "src"))
 	if err != nil {
-		t.Fatalf("Bad -lint.match value %q: %v", *lintMatch, err)
+		if os.IsNotExist(err) {
+			// no packages to test
+			return
+		}
+		t.Fatal("couldn't get test packages:", err)
 	}
 
-	files := map[int][]os.FileInfo{}
+	var paths []string
 	for _, fi := range fis {
-		if !rx.MatchString(fi.Name()) {
+		if strings.HasSuffix(fi.Name(), ".disabled") {
 			continue
 		}
-		if !strings.HasSuffix(fi.Name(), ".go") {
-			continue
-		}
-		parts := strings.Split(fi.Name(), "_")
-		v := 0
-		if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "go1") {
-			var err error
-			s := parts[len(parts)-1][len("go1"):]
-			s = s[:len(s)-len(".go")]
-			v, err = strconv.Atoi(s)
-			if err != nil {
-				t.Fatalf("cannot process file name %q: %s", fi.Name(), err)
+		paths = append(paths, fi.Name())
+	}
+
+	conf := &packages.Config{
+		Mode:  packages.LoadAllSyntax,
+		Tests: true,
+		Env:   append(os.Environ(), "GOPATH="+gopath),
+	}
+
+	pkgs, err := packages.Load(conf, paths...)
+	if err != nil {
+		t.Error("Error loading packages:", err)
+		return
+	}
+
+	versions := map[int][]*packages.Package{}
+	for _, pkg := range pkgs {
+		path := strings.TrimSuffix(pkg.Types.Path(), ".test")
+		parts := strings.Split(path, "_")
+
+		version := 0
+		if len(parts) > 1 {
+			part := parts[len(parts)-1]
+			if len(part) >= 4 && strings.HasPrefix(part, "go1") {
+				v, err := strconv.Atoi(part[len("go1"):])
+				if err != nil {
+					continue
+				}
+				version = v
 			}
 		}
-		files[v] = append(files[v], fi)
+		versions[version] = append(versions[version], pkg)
 	}
 
-	conf := &loader.Config{
-		ParserMode: parser.ParseComments,
-	}
-	sources := map[string][]byte{}
-	for _, fi := range fis {
-		filename := path.Join(baseDir, fi.Name())
-		src, err := ioutil.ReadFile(filename)
-		if err != nil {
-			t.Errorf("Failed reading %s: %v", fi.Name(), err)
-			continue
-		}
-		f, err := conf.ParseFile(filename, src)
-		if err != nil {
-			t.Errorf("error parsing %s: %s", filename, err)
-			continue
-		}
-		sources[fi.Name()] = src
-		conf.CreateFromFiles(fi.Name(), f)
-	}
+	for version, pkgs := range versions {
+		sources := map[string][]byte{}
+		var files []string
 
-	lprog, err := conf.Load()
-	if err != nil {
-		t.Fatalf("error loading program: %s", err)
-	}
-
-	for version, fis := range files {
-		l := &lint.Linter{Checker: c, GoVersion: version}
-
-		res := l.Lint(lprog, conf)
-		for _, fi := range fis {
-			name := fi.Name()
-			src := sources[name]
-
-			ins := parseInstructions(t, name, src)
-
-			for _, in := range ins {
-				ok := false
-				for i, p := range res {
-					if p.Position.Line != in.Line || filepath.Base(p.Position.Filename) != name {
-						continue
-					}
-					if in.Match.MatchString(p.Text) {
-						// remove this problem from ps
-						copy(res[i:], res[i+1:])
-						res = res[:len(res)-1]
-
-						//t.Logf("/%v/ matched at %s:%d", in.Match, fi.Name(), in.Line)
-						ok = true
-						break
-					}
+		for _, pkg := range pkgs {
+			files = append(files, pkg.GoFiles...)
+			for _, fi := range pkg.GoFiles {
+				src, err := ioutil.ReadFile(fi)
+				if err != nil {
+					log.Fatal(err)
 				}
-				if !ok {
-					t.Errorf("Lint failed at %s:%d; /%v/ did not match", name, in.Line, in.Match)
-				}
+				sources[fi] = src
 			}
 		}
-		for _, p := range res {
-			name := filepath.Base(p.Position.Filename)
-			for _, fi := range fis {
-				if name == fi.Name() {
-					t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
+
+		sort.Strings(files)
+		filesUniq := make([]string, 0, len(files))
+		if len(files) < 2 {
+			filesUniq = files
+		} else {
+			filesUniq = append(filesUniq, files[0])
+			prev := files[0]
+			for _, f := range files[1:] {
+				if f == prev {
+					continue
+				}
+				prev = f
+				filesUniq = append(filesUniq, f)
+			}
+		}
+
+		lintGoVersion(t, c, version, pkgs, filesUniq, sources)
+	}
+}
+
+func lintGoVersion(
+	t *testing.T,
+	c lint.Checker,
+	version int,
+	pkgs []*packages.Package,
+	files []string,
+	sources map[string][]byte,
+) {
+	for _, pkg := range pkgs {
+		t.Logf("testing package %s", pkg.ID)
+	}
+	l := &lint.Linter{Checker: c, GoVersion: version}
+	res := l.Lint(pkgs)
+
+	for _, fi := range files {
+		src := sources[fi]
+
+		ins := parseInstructions(t, fi, src)
+
+		for _, in := range ins {
+			ok := false
+			for i, p := range res {
+				if p.Position.Line != in.Line || p.Position.Filename != fi {
+					continue
+				}
+				if in.Match.MatchString(p.Text) {
+					// remove this problem from ps
+					copy(res[i:], res[i+1:])
+					res = res[:len(res)-1]
+
+					ok = true
 					break
 				}
 			}
+			if !ok {
+				t.Errorf("Lint failed at %s:%d; /%v/ did not match", fi, in.Line, in.Match)
+			}
 		}
+	}
+	for _, p := range res {
+		t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
 	}
 }
 

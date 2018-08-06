@@ -27,7 +27,7 @@ import (
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 )
 
 func validRegexp(call *Call) {
@@ -316,7 +316,7 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 	var docs []*ast.CommentGroup
 	var names []*ast.Ident
 
-	doDocs := func(pkginfo *loader.PackageInfo, names []*ast.Ident, docs []*ast.CommentGroup) {
+	doDocs := func(pkg *packages.Package, names []*ast.Ident, docs []*ast.CommentGroup) {
 		var alt string
 		for _, doc := range docs {
 			if doc == nil {
@@ -336,13 +336,13 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 		}
 
 		for _, name := range names {
-			obj := pkginfo.ObjectOf(name)
+			obj := pkg.TypesInfo.ObjectOf(name)
 			c.deprecatedObjs[obj] = alt
 		}
 	}
 
-	for _, pkginfo := range prog.Prog.AllPackages {
-		for _, f := range pkginfo.Files {
+	for _, pkg := range prog.AllPackages {
+		for _, f := range pkg.Syntax {
 			fn := func(node ast.Node) bool {
 				if node == nil {
 					return true
@@ -373,12 +373,12 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 					return true
 				case *ast.StructType:
 					for _, field := range node.Fields.List {
-						doDocs(pkginfo, field.Names, []*ast.CommentGroup{field.Doc})
+						doDocs(pkg, field.Names, []*ast.CommentGroup{field.Doc})
 					}
 					return false
 				case *ast.InterfaceType:
 					for _, field := range node.Methods.List {
-						doDocs(pkginfo, field.Names, []*ast.CommentGroup{field.Doc})
+						doDocs(pkg, field.Names, []*ast.CommentGroup{field.Doc})
 					}
 					return false
 				default:
@@ -387,7 +387,7 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 				if len(names) == 0 || len(docs) == 0 {
 					return ret
 				}
-				doDocs(pkginfo, names, docs)
+				doDocs(pkg, names, docs)
 
 				docs = docs[:0]
 				names = nil
@@ -2357,7 +2357,7 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 		if obj.Pkg() == nil {
 			return true
 		}
-		nodePkg := j.NodePackage(node).Pkg
+		nodePkg := j.NodePackage(node).Types
 		if nodePkg == obj.Pkg() || obj.Pkg().Path()+"_test" == nodePkg.Path() {
 			// Don't flag stuff in our own package
 			return true

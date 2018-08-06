@@ -71,12 +71,12 @@ func (c *Checker) CheckNames(j *lint.Job) {
 		}
 	}
 
-	for _, pkg := range j.Program.Packages {
+	for _, pkg := range j.Program.InitialPackages {
 		initialisms := make(map[string]bool, len(pkg.Config.Stylecheck.Initialisms))
 		for _, word := range pkg.Config.Stylecheck.Initialisms {
 			initialisms[word] = true
 		}
-		for _, f := range c.filterGenerated(pkg.Info.Files) {
+		for _, f := range c.filterGenerated(pkg.Syntax) {
 			// Package names need slightly different handling than other names.
 			if !strings.HasSuffix(f.Name.Name, "_test") && strings.Contains(f.Name.Name, "_") {
 				j.Errorf(f, "should not use underscores in package names")

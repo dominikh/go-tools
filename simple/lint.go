@@ -1534,11 +1534,11 @@ func (c *Checker) Implements(j *lint.Job, typ types.Type, iface string) bool {
 		ifaceName = iface
 	} else {
 		pkgName := iface[:idx]
-		pkg := j.Program.Prog.Package(pkgName)
+		pkg := j.Program.Package(pkgName)
 		if pkg == nil {
 			return false
 		}
-		scope = pkg.Pkg.Scope()
+		scope = pkg.Types.Scope()
 		ifaceName = iface[idx+1:]
 	}
 
@@ -1568,9 +1568,8 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		if s, ok := ExprToString(j, call.Args[0]); !ok || s != "%s" {
 			return true
 		}
-		pkg := j.NodePackage(call)
 		arg := call.Args[1]
-		typ := pkg.Info.TypeOf(arg)
+		typ := TypeOf(j, arg)
 
 		if c.Implements(j, typ, "fmt.Stringer") {
 			j.Errorf(call, "should use String() instead of fmt.Sprintf")

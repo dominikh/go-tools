@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
-	"go/parser"
 	"go/types"
 	"os"
 	"strconv"
@@ -22,8 +21,7 @@ import (
 	"honnef.co/go/tools/lint/lintutil/format"
 	"honnef.co/go/tools/version"
 
-	"github.com/kisielk/gotool"
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 )
 
 func usage(name string, flags *flag.FlagSet) func() {
@@ -213,7 +211,7 @@ type Options struct {
 	ReturnIgnored bool
 }
 
-func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, error) {
+func Lint(cs []lint.Checker, paths []string, opt *Options) ([][]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -221,38 +219,30 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 	if err != nil {
 		return nil, err
 	}
-	paths := gotool.ImportPaths(pkgs)
-	goFiles, err := resolveRelative(paths, opt.Tags)
-	if err != nil {
-		return nil, err
-	}
+
 	ctx := build.Default
+	// XXX nothing cares about built tags right now
 	ctx.BuildTags = opt.Tags
 	hadError := false
-	conf := &loader.Config{
-		Build:      &ctx,
-		ParserMode: parser.ParseComments,
-		ImportPkgs: map[string]bool{},
+	conf := &packages.Config{
+		Mode:  packages.LoadAllSyntax,
+		Tests: opt.LintTests,
 		TypeChecker: types.Config{
+			// XXX this is not build system agnostic
 			Sizes: types.SizesFor(ctx.Compiler, ctx.GOARCH),
-			Error: func(err error) {
-				// Only print the first error found
-				if hadError {
-					return
-				}
-				hadError = true
-				fmt.Fprintln(os.Stderr, err)
-			},
+		},
+		Error: func(err error) {
+			// Only print the first error found
+			if hadError {
+				return
+			}
+			// XXX make this thread safe
+			hadError = true
+			fmt.Fprintln(os.Stderr, err)
 		},
 	}
-	if goFiles {
-		conf.CreateFromFilenames("adhoc", paths...)
-	} else {
-		for _, path := range paths {
-			conf.ImportPkgs[path] = opt.LintTests
-		}
-	}
-	lprog, err := conf.Load()
+
+	pkgs, err := packages.Load(conf, paths...)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +256,7 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
 		}
-		problems = append(problems, runner.lint(lprog, conf))
+		problems = append(problems, runner.lint(pkgs))
 	}
 	return problems, nil
 }
@@ -278,12 +268,12 @@ func ProcessArgs(name string, cs []CheckerConfig, args []string) {
 	ProcessFlagSet(cs, flags)
 }
 
-func (runner *runner) lint(lprog *loader.Program, conf *loader.Config) []lint.Problem {
+func (runner *runner) lint(initial []*packages.Package) []lint.Problem {
 	l := &lint.Linter{
 		Checker:       runner.checker,
 		Ignores:       runner.ignores,
 		GoVersion:     runner.version,
 		ReturnIgnored: runner.returnIgnored,
 	}
-	return l.Lint(lprog, conf)
+	return l.Lint(initial)
 }
