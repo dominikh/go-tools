@@ -155,7 +155,7 @@ type Checker interface {
 
 // A Linter lints Go source code.
 type Linter struct {
-	Checker       Checker
+	Checkers      []Checker
 	Ignores       []Ignore
 	GoVersion     int
 	ReturnIgnored bool
@@ -303,7 +303,7 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 									Position: prog.DisplayPosition(c.Pos()),
 									Text:     "malformed linter directive; missing the required reason field?",
 									Check:    "",
-									Checker:  l.Checker.Name(),
+									Checker:  "lint",
 									Package:  nil,
 								}
 								out = append(out, p)
@@ -379,24 +379,34 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 			prog.Info.Scopes[k] = v
 		}
 	}
-	l.Checker.Init(prog)
 
-	funcs := l.Checker.Funcs()
-	var keys []string
-	for k := range funcs {
-		keys = append(keys, k)
+	for _, checker := range l.Checkers {
+		checker.Init(prog)
 	}
-	sort.Strings(keys)
 
 	var jobs []*Job
-	for _, k := range keys {
-		j := &Job{
-			Program: prog,
-			checker: l.Checker.Name(),
-			check:   k,
+	var allKeys []string
+	funcs := map[string]Func{}
+	for _, checker := range l.Checkers {
+		m := checker.Funcs()
+		var keys []string
+		for k, v := range m {
+			funcs[k] = v
+			keys = append(keys, k)
 		}
-		jobs = append(jobs, j)
+		sort.Strings(keys)
+		allKeys = append(allKeys, keys...)
+
+		for _, k := range keys {
+			j := &Job{
+				Program: prog,
+				checker: checker.Name(),
+				check:   k,
+			}
+			jobs = append(jobs, j)
+		}
 	}
+
 	wg := &sync.WaitGroup{}
 	for _, j := range jobs {
 		wg.Add(1)
@@ -439,7 +449,7 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 			}
 			for _, c := range enabled {
 				if c == "all" {
-					for _, c := range keys {
+					for _, c := range allKeys {
 						allowedChecks[c] = true
 					}
 				} else {
@@ -484,22 +494,60 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 				// malformed check name, backing out
 				continue
 			}
-			if c[:idx] != l.Checker.Prefix() {
-				// not for this checker
+
+			responsible := false
+			for _, checker := range l.Checkers {
+				if c[:idx] == checker.Prefix() {
+					// for this checker
+					responsible = true
+					break
+				}
+			}
+			if !responsible {
 				continue
 			}
 			p := Problem{
 				Position: prog.DisplayPosition(ig.pos),
 				Text:     "this linter directive didn't match anything; should it be removed?",
 				Check:    "",
-				Checker:  l.Checker.Name(),
+				Checker:  "lint",
 				Package:  nil,
 			}
 			out = append(out, p)
 		}
 	}
 
-	return out
+	sort.Slice(out, func(i int, j int) bool {
+		pi, pj := out[i].Position, out[j].Position
+
+		if pi.Filename != pj.Filename {
+			return pi.Filename < pj.Filename
+		}
+		if pi.Line != pj.Line {
+			return pi.Line < pj.Line
+		}
+		if pi.Column != pj.Column {
+			return pi.Column < pj.Column
+		}
+
+		return out[i].Text < out[j].Text
+	})
+
+	if len(out) < 2 {
+		return out
+	}
+
+	uniq := make([]Problem, 0, len(out))
+	uniq = append(uniq, out[0])
+	prev := out[0]
+	for _, p := range out[1:] {
+		if prev.Position == p.Position && prev.Text == p.Text {
+			continue
+		}
+		prev = p
+		uniq = append(uniq, p)
+	}
+	return uniq
 }
 
 func (prog *Program) Package(path string) *packages.Package {

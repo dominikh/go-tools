@@ -127,38 +127,8 @@ func lintGoVersion(
 	files []string,
 	sources map[string][]byte,
 ) {
-	l := &lint.Linter{Checker: c, GoVersion: version}
+	l := &lint.Linter{Checkers: []lint.Checker{c}, GoVersion: version}
 	problems := l.Lint(pkgs)
-
-	sort.Slice(problems, func(i int, j int) bool {
-		pi, pj := problems[i].Position, problems[j].Position
-
-		if pi.Filename != pj.Filename {
-			return pi.Filename < pj.Filename
-		}
-		if pi.Line != pj.Line {
-			return pi.Line < pj.Line
-		}
-		if pi.Column != pj.Column {
-			return pi.Column < pj.Column
-		}
-
-		return problems[i].Text < problems[j].Text
-	})
-
-	if len(problems) >= 2 {
-		uniq := make([]lint.Problem, 0, len(problems))
-		uniq = append(uniq, problems[0])
-		prev := problems[0]
-		for _, p := range problems[1:] {
-			if prev.Position == p.Position && prev.Text == p.Text {
-				continue
-			}
-			prev = p
-			uniq = append(uniq, p)
-		}
-		problems = uniq
-	}
 
 	for _, fi := range files {
 		src := sources[fi]

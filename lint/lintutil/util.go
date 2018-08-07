@@ -14,7 +14,6 @@ import (
 	"go/build"
 	"go/types"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -35,14 +34,6 @@ func usage(name string, flags *flag.FlagSet) func() {
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flags.PrintDefaults()
 	}
-}
-
-type runner struct {
-	checker       lint.Checker
-	tags          []string
-	ignores       []lint.Ignore
-	version       int
-	returnIgnored bool
 }
 
 func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
@@ -253,49 +244,15 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 		return problems, nil
 	}
 
-	for _, c := range cs {
-		runner := &runner{
-			checker:       c,
-			tags:          opt.Tags,
-			ignores:       ignores,
-			version:       opt.GoVersion,
-			returnIgnored: opt.ReturnIgnored,
-		}
-		problems = append(problems, runner.lint(workingPkgs)...)
+	l := &lint.Linter{
+		Checkers:      cs,
+		Ignores:       ignores,
+		GoVersion:     opt.GoVersion,
+		ReturnIgnored: opt.ReturnIgnored,
 	}
+	problems = append(problems, l.Lint(workingPkgs)...)
 
-	sort.Slice(problems, func(i int, j int) bool {
-		pi, pj := problems[i].Position, problems[j].Position
-
-		if pi.Filename != pj.Filename {
-			return pi.Filename < pj.Filename
-		}
-		if pi.Line != pj.Line {
-			return pi.Line < pj.Line
-		}
-		if pi.Column != pj.Column {
-			return pi.Column < pj.Column
-		}
-
-		return problems[i].Text < problems[j].Text
-	})
-
-	if len(problems) < 2 {
-		return problems, nil
-	}
-
-	uniq := make([]lint.Problem, 0, len(problems))
-	uniq = append(uniq, problems[0])
-	prev := problems[0]
-	for _, p := range problems[1:] {
-		if prev.Position == p.Position && prev.Text == p.Text {
-			continue
-		}
-		prev = p
-		uniq = append(uniq, p)
-	}
-
-	return uniq, nil
+	return problems, nil
 }
 
 func compileErrors(pkg *packages.Package) []lint.Problem {
@@ -334,14 +291,4 @@ func ProcessArgs(name string, cs map[string]CheckerConfig, args []string) {
 	flags.Parse(args)
 
 	ProcessFlagSet(cs, flags)
-}
-
-func (runner *runner) lint(initial []*packages.Package) []lint.Problem {
-	l := &lint.Linter{
-		Checker:       runner.checker,
-		Ignores:       runner.ignores,
-		GoVersion:     runner.version,
-		ReturnIgnored: runner.returnIgnored,
-	}
-	return l.Lint(initial)
 }
