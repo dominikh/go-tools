@@ -74,24 +74,24 @@ func main() {
 
 	fs.Parse(os.Args[1:])
 
-	var checkers []lintutil.CheckerConfig
+	checkers := map[string]lintutil.CheckerConfig{}
 
 	if flags.staticcheck.enabled {
 		sac := staticcheck.NewChecker()
 		sac.CheckGenerated = flags.staticcheck.generated
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["staticcheck"] = lintutil.CheckerConfig{
 			Checker:     sac,
 			ExitNonZero: flags.staticcheck.exitNonZero,
-		})
+		}
 	}
 
 	if flags.gosimple.enabled {
 		sc := simple.NewChecker()
 		sc.CheckGenerated = flags.gosimple.generated
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["simple"] = lintutil.CheckerConfig{
 			Checker:     sc,
 			ExitNonZero: flags.gosimple.exitNonZero,
-		})
+		}
 	}
 
 	if flags.unused.enabled {
@@ -114,10 +114,10 @@ func main() {
 		uc := unused.NewChecker(mode)
 		uc.WholeProgram = flags.unused.wholeProgram
 		uc.ConsiderReflection = flags.unused.reflection
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["unused"] = lintutil.CheckerConfig{
 			Checker:     unused.NewLintChecker(uc),
 			ExitNonZero: flags.unused.exitNonZero,
-		})
+		}
 
 	}
 

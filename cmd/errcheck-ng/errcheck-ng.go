@@ -12,5 +12,5 @@ func main() {
 		Checker:     errcheck.NewChecker(),
 		ExitNonZero: true,
 	}
-	lintutil.ProcessArgs("errcheck-ng", []lintutil.CheckerConfig{c}, os.Args[1:])
+	lintutil.ProcessArgs("errcheck-ng", map[string]lintutil.CheckerConfig{"errcheck": c}, os.Args[1:])
 }

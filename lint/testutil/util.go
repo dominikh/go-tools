@@ -12,7 +12,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,7 +34,7 @@ func testPackages(t *testing.T, c lint.Checker, dir string) {
 	gopath := filepath.Join("testdata", dir)
 	gopath, err := filepath.Abs(gopath)
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 	fis, err := ioutil.ReadDir(filepath.Join(gopath, "src"))
 	if err != nil {
@@ -94,7 +93,7 @@ func testPackages(t *testing.T, c lint.Checker, dir string) {
 			for _, fi := range pkg.GoFiles {
 				src, err := ioutil.ReadFile(fi)
 				if err != nil {
-					log.Fatal(err)
+					t.Fatal(err)
 				}
 				sources[fi] = src
 			}
@@ -128,11 +127,38 @@ func lintGoVersion(
 	files []string,
 	sources map[string][]byte,
 ) {
-	for _, pkg := range pkgs {
-		t.Logf("testing package %s", pkg.ID)
-	}
 	l := &lint.Linter{Checker: c, GoVersion: version}
-	res := l.Lint(pkgs)
+	problems := l.Lint(pkgs)
+
+	sort.Slice(problems, func(i int, j int) bool {
+		pi, pj := problems[i].Position, problems[j].Position
+
+		if pi.Filename != pj.Filename {
+			return pi.Filename < pj.Filename
+		}
+		if pi.Line != pj.Line {
+			return pi.Line < pj.Line
+		}
+		if pi.Column != pj.Column {
+			return pi.Column < pj.Column
+		}
+
+		return problems[i].Text < problems[j].Text
+	})
+
+	if len(problems) >= 2 {
+		uniq := make([]lint.Problem, 0, len(problems))
+		uniq = append(uniq, problems[0])
+		prev := problems[0]
+		for _, p := range problems[1:] {
+			if prev.Position == p.Position && prev.Text == p.Text {
+				continue
+			}
+			prev = p
+			uniq = append(uniq, p)
+		}
+		problems = uniq
+	}
 
 	for _, fi := range files {
 		src := sources[fi]
@@ -141,14 +167,14 @@ func lintGoVersion(
 
 		for _, in := range ins {
 			ok := false
-			for i, p := range res {
+			for i, p := range problems {
 				if p.Position.Line != in.Line || p.Position.Filename != fi {
 					continue
 				}
 				if in.Match.MatchString(p.Text) {
 					// remove this problem from ps
-					copy(res[i:], res[i+1:])
-					res = res[:len(res)-1]
+					copy(problems[i:], problems[i+1:])
+					problems = problems[:len(problems)-1]
 
 					ok = true
 					break
@@ -159,7 +185,7 @@ func lintGoVersion(
 			}
 		}
 	}
-	for _, p := range res {
+	for _, p := range problems {
 		t.Errorf("Unexpected problem at %s: %v", p.Position, p.Text)
 	}
 }

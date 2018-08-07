@@ -14,6 +14,7 @@ import (
 	"go/build"
 	"go/types"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -136,7 +137,7 @@ type CheckerConfig struct {
 	ExitNonZero bool
 }
 
-func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
+func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
@@ -154,7 +155,7 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 	for _, conf := range confs {
 		cs = append(cs, conf.Checker)
 	}
-	pss, err := Lint(cs, fs.Args(), &Options{
+	ps, err := Lint(cs, fs.Args(), &Options{
 		Tags:          strings.Fields(tags),
 		LintTests:     tests,
 		Ignores:       ignore,
@@ -184,16 +185,16 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 		errors   int
 		warnings int
 	)
-	for i, ps := range pss {
-		total += len(ps)
-		if confs[i].ExitNonZero {
-			errors += len(ps)
+
+	total = len(ps)
+	for _, p := range ps {
+		conf, ok := confs[p.Checker]
+		if !ok || conf.ExitNonZero {
+			errors++
 		} else {
-			warnings += len(ps)
+			warnings++
 		}
-		for _, p := range ps {
-			f.Format(p)
-		}
+		f.Format(p)
 	}
 	if f, ok := f.(format.Statter); ok {
 		f.Stats(total, errors, warnings)
@@ -211,7 +212,7 @@ type Options struct {
 	ReturnIgnored bool
 }
 
-func Lint(cs []lint.Checker, paths []string, opt *Options) ([][]lint.Problem, error) {
+func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, error) {
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -223,7 +224,6 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([][]lint.Problem, er
 	ctx := build.Default
 	// XXX nothing cares about built tags right now
 	ctx.BuildTags = opt.Tags
-	hadError := false
 	conf := &packages.Config{
 		Mode:  packages.LoadAllSyntax,
 		Tests: opt.LintTests,
@@ -231,15 +231,7 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([][]lint.Problem, er
 			// XXX this is not build system agnostic
 			Sizes: types.SizesFor(ctx.Compiler, ctx.GOARCH),
 		},
-		Error: func(err error) {
-			// Only print the first error found
-			if hadError {
-				return
-			}
-			// XXX make this thread safe
-			hadError = true
-			fmt.Fprintln(os.Stderr, err)
-		},
+		Error: func(err error) {},
 	}
 
 	pkgs, err := packages.Load(conf, paths...)
@@ -247,7 +239,20 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([][]lint.Problem, er
 		return nil, err
 	}
 
-	var problems [][]lint.Problem
+	var problems []lint.Problem
+	workingPkgs := make([]*packages.Package, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if pkg.IllTyped {
+			problems = append(problems, compileErrors(pkg)...)
+		} else {
+			workingPkgs = append(workingPkgs, pkg)
+		}
+	}
+
+	if len(workingPkgs) == 0 {
+		return problems, nil
+	}
+
 	for _, c := range cs {
 		runner := &runner{
 			checker:       c,
@@ -256,12 +261,75 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([][]lint.Problem, er
 			version:       opt.GoVersion,
 			returnIgnored: opt.ReturnIgnored,
 		}
-		problems = append(problems, runner.lint(pkgs))
+		problems = append(problems, runner.lint(workingPkgs)...)
 	}
-	return problems, nil
+
+	sort.Slice(problems, func(i int, j int) bool {
+		pi, pj := problems[i].Position, problems[j].Position
+
+		if pi.Filename != pj.Filename {
+			return pi.Filename < pj.Filename
+		}
+		if pi.Line != pj.Line {
+			return pi.Line < pj.Line
+		}
+		if pi.Column != pj.Column {
+			return pi.Column < pj.Column
+		}
+
+		return problems[i].Text < problems[j].Text
+	})
+
+	if len(problems) < 2 {
+		return problems, nil
+	}
+
+	uniq := make([]lint.Problem, 0, len(problems))
+	uniq = append(uniq, problems[0])
+	prev := problems[0]
+	for _, p := range problems[1:] {
+		if prev.Position == p.Position && prev.Text == p.Text {
+			continue
+		}
+		prev = p
+		uniq = append(uniq, p)
+	}
+
+	return uniq, nil
 }
 
-func ProcessArgs(name string, cs []CheckerConfig, args []string) {
+func compileErrors(pkg *packages.Package) []lint.Problem {
+	if !pkg.IllTyped {
+		return nil
+	}
+	if len(pkg.Errors) == 0 {
+		// transitively ill-typed
+		var ps []lint.Problem
+		for _, imp := range pkg.Imports {
+			ps = append(ps, compileErrors(imp)...)
+		}
+		return ps
+	}
+	var ps []lint.Problem
+	for _, err := range pkg.Errors {
+		var p lint.Problem
+		switch err := err.(type) {
+		case types.Error:
+			p = lint.Problem{
+				Position: err.Fset.Position(err.Pos),
+				Text:     err.Msg,
+				Checker:  "compiler",
+				Check:    "compile",
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "internal error: unhandled error type %T\n", err)
+		}
+		ps = append(ps, p)
+	}
+	return ps
+}
+
+func ProcessArgs(name string, cs map[string]CheckerConfig, args []string) {
 	flags := FlagSet(name)
 	flags.Parse(args)
 

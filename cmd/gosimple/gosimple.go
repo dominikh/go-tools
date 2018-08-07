@@ -19,5 +19,5 @@ func main() {
 		Checker:     c,
 		ExitNonZero: true,
 	}
-	lintutil.ProcessFlagSet([]lintutil.CheckerConfig{cfg}, fs)
+	lintutil.ProcessFlagSet(map[string]lintutil.CheckerConfig{"simple": cfg}, fs)
 }

@@ -110,43 +110,43 @@ func main() {
 		flags.unused.enabled = true
 	}
 
-	var checkers []lintutil.CheckerConfig
+	checkers := map[string]lintutil.CheckerConfig{}
 
 	if flags.simple.enabled {
 		sc := simple.NewChecker()
 		sc.CheckGenerated = false
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["simple"] = lintutil.CheckerConfig{
 			Checker:     sc,
 			ExitNonZero: flags.simple.exitNonZero,
-		})
+		}
 	}
 
 	if flags.staticcheck.enabled {
 		sac := staticcheck.NewChecker()
 		sac.CheckGenerated = true
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["staticcheck"] = lintutil.CheckerConfig{
 			Checker:     sac,
 			ExitNonZero: flags.staticcheck.exitNonZero,
-		})
+		}
 	}
 
 	if flags.stylecheck.enabled {
 		stc := stylecheck.NewChecker()
 		stc.CheckGenerated = true
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["stylecheck"] = lintutil.CheckerConfig{
 			Checker:     stc,
 			ExitNonZero: flags.stylecheck.exitNonZero,
-		})
+		}
 	}
 
 	if flags.unused.enabled {
 		var mode unused.CheckMode
 		uc := unused.NewChecker(mode)
 		uc.ConsiderReflection = true
-		checkers = append(checkers, lintutil.CheckerConfig{
+		checkers["unused"] = lintutil.CheckerConfig{
 			Checker:     unused.NewLintChecker(uc),
 			ExitNonZero: flags.unused.exitNonZero,
-		})
+		}
 
 	}
 

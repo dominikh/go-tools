@@ -76,5 +76,5 @@ func main() {
 		Checker:     l,
 		ExitNonZero: true,
 	}
-	lintutil.ProcessFlagSet([]lintutil.CheckerConfig{cfg}, fs)
+	lintutil.ProcessFlagSet(map[string]lintutil.CheckerConfig{"unused": cfg}, fs)
 }

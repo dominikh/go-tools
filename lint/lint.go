@@ -131,7 +131,6 @@ type Func func(*Job)
 
 // Problem represents a problem in some source code.
 type Problem struct {
-	pos      token.Pos
 	Position token.Position // position in source file
 	Text     string         // the prose that describes the problem
 	Check    string
@@ -195,36 +194,6 @@ func (prog *Program) File(node Positioner) *ast.File {
 
 func (j *Job) File(node Positioner) *ast.File {
 	return j.Program.File(node)
-}
-
-// TODO(dh): switch to sort.Slice when Go 1.9 lands.
-type byPosition struct {
-	fset *token.FileSet
-	ps   []Problem
-}
-
-func (ps byPosition) Len() int {
-	return len(ps.ps)
-}
-
-func (ps byPosition) Less(i int, j int) bool {
-	pi, pj := ps.ps[i].Position, ps.ps[j].Position
-
-	if pi.Filename != pj.Filename {
-		return pi.Filename < pj.Filename
-	}
-	if pi.Line != pj.Line {
-		return pi.Line < pj.Line
-	}
-	if pi.Column != pj.Column {
-		return pi.Column < pj.Column
-	}
-
-	return ps.ps[i].Text < ps.ps[j].Text
-}
-
-func (ps byPosition) Swap(i int, j int) {
-	ps.ps[i], ps.ps[j] = ps.ps[j], ps.ps[i]
 }
 
 func parseDirective(s string) (cmd string, args []string) {
@@ -331,7 +300,6 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 							if len(args) < 2 {
 								// FIXME(dh): this causes duplicated warnings when using megacheck
 								p := Problem{
-									pos:      c.Pos(),
 									Position: prog.DisplayPosition(c.Pos()),
 									Text:     "malformed linter directive; missing the required reason field?",
 									Check:    "",
@@ -521,7 +489,6 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 				continue
 			}
 			p := Problem{
-				pos:      ig.pos,
 				Position: prog.DisplayPosition(ig.pos),
 				Text:     "this linter directive didn't match anything; should it be removed?",
 				Check:    "",
@@ -532,24 +499,7 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 		}
 	}
 
-	sort.Sort(byPosition{initial[0].Fset, out})
-
-	if len(out) < 2 {
-		return out
-	}
-
-	outUniq := make([]Problem, 0, len(out))
-	outUniq = append(outUniq, out[0])
-	prev := out[0]
-	for _, p := range out[1:] {
-		if prev.Position == p.Position && prev.Text == p.Text {
-			continue
-		}
-		prev = p
-		outUniq = append(outUniq, p)
-	}
-
-	return outUniq
+	return out
 }
 
 func (prog *Program) Package(path string) *packages.Package {
@@ -588,7 +538,6 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 
 	pos := j.Program.DisplayPosition(n.Pos())
 	problem := Problem{
-		pos:      n.Pos(),
 		Position: pos,
 		Text:     fmt.Sprintf(format, args...),
 		Check:    j.check,
