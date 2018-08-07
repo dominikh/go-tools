@@ -12,10 +12,13 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"golang.org/x/tools/go/packages"
@@ -31,6 +34,8 @@ type Job struct {
 	checker  string
 	check    string
 	problems []Problem
+
+	duration time.Duration
 }
 
 type Ignore interface {
@@ -160,6 +165,9 @@ type Linter struct {
 	GoVersion     int
 	ReturnIgnored bool
 
+	MaxConcurrentJobs int
+	PrintStats        bool
+
 	automaticIgnores []Ignore
 }
 
@@ -205,10 +213,52 @@ func parseDirective(s string) (cmd string, args []string) {
 	return fields[0], fields[1:]
 }
 
-func (l *Linter) Lint(initial []*packages.Package) []Problem {
+type PerfStats struct {
+	PackageLoading time.Duration
+	SSABuild       time.Duration
+	OtherInitWork  time.Duration
+	CheckerInits   map[string]time.Duration
+	Jobs           []JobStat
+}
+
+type JobStat struct {
+	Job      string
+	Duration time.Duration
+}
+
+func (stats *PerfStats) Print(w io.Writer) {
+	fmt.Fprintln(w, "Package loading:", stats.PackageLoading)
+	fmt.Fprintln(w, "SSA build:", stats.SSABuild)
+	fmt.Fprintln(w, "Other init work:", stats.OtherInitWork)
+
+	fmt.Fprintln(w, "Checker inits:")
+	for checker, d := range stats.CheckerInits {
+		fmt.Fprintf(w, "\t%s: %s\n", checker, d)
+	}
+	fmt.Fprintln(w)
+
+	fmt.Fprintln(w, "Jobs:")
+	sort.Slice(stats.Jobs, func(i, j int) bool {
+		return stats.Jobs[i].Duration < stats.Jobs[j].Duration
+	})
+	var total time.Duration
+	for _, job := range stats.Jobs {
+		fmt.Fprintf(w, "\t%s: %s\n", job.Job, job.Duration)
+		total += job.Duration
+	}
+	fmt.Fprintf(w, "\tTotal: %s\n", total)
+}
+
+func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	allPkgs := allPackages(initial)
+	t := time.Now()
 	ssaprog := ssautil.CreateProgram(allPkgs, ssa.GlobalDebug)
 	ssaprog.Build()
+	if stats != nil {
+		stats.SSABuild = time.Since(t)
+	}
+
+	t = time.Now()
 	pkgMap := map[*ssa.Package]*Pkg{}
 	var pkgs []*Pkg
 	for _, pkg := range initial {
@@ -380,8 +430,16 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 		}
 	}
 
+	if stats != nil {
+		stats.OtherInitWork = time.Since(t)
+	}
+
 	for _, checker := range l.Checkers {
+		t := time.Now()
 		checker.Init(prog)
+		if stats != nil {
+			stats.CheckerInits[checker.Name()] = time.Since(t)
+		}
 	}
 
 	var jobs []*Job
@@ -407,21 +465,34 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 		}
 	}
 
+	max := len(jobs)
+	if l.MaxConcurrentJobs > 0 {
+		max = l.MaxConcurrentJobs
+	}
+
+	sem := make(chan struct{}, max)
 	wg := &sync.WaitGroup{}
 	for _, j := range jobs {
 		wg.Add(1)
 		go func(j *Job) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			fn := funcs[j.check]
 			if fn == nil {
 				return
 			}
+			t := time.Now()
 			fn(j)
+			j.duration = time.Since(t)
 		}(j)
 	}
 	wg.Wait()
 
 	for _, j := range jobs {
+		if stats != nil {
+			stats.Jobs = append(stats.Jobs, JobStat{j.check, j.duration})
+		}
 		for _, p := range j.problems {
 			// OPT(dh): this entire computation could be cached per package
 			allowedChecks := map[string]bool{}
@@ -546,6 +617,10 @@ func (l *Linter) Lint(initial []*packages.Package) []Problem {
 		}
 		prev = p
 		uniq = append(uniq, p)
+	}
+
+	if l.PrintStats && stats != nil {
+		stats.Print(os.Stderr)
 	}
 	return uniq
 }

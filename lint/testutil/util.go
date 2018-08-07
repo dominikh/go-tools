@@ -128,7 +128,7 @@ func lintGoVersion(
 	sources map[string][]byte,
 ) {
 	l := &lint.Linter{Checkers: []lint.Checker{c}, GoVersion: version}
-	problems := l.Lint(pkgs)
+	problems := l.Lint(pkgs, nil)
 
 	for _, fi := range files {
 		src := sources[fi]

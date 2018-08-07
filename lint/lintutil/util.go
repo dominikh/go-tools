@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil/format"
@@ -112,6 +113,9 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
 	flags.String("f", "text", "Output `format` (valid choices are 'text' and 'json')")
 
+	flags.Int("debug.max-concurrent-jobs", 0, "Number of jobs to run concurrently")
+	flags.Bool("debug.print-stats", false, "Print debug statistics")
+
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
 	version := new(versionFlag)
@@ -137,6 +141,9 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
 
+	maxConcurrentJobs := fs.Lookup("debug.max-concurrent-jobs").Value.(flag.Getter).Get().(int)
+	printStats := fs.Lookup("debug.print-stats").Value.(flag.Getter).Get().(bool)
+
 	if printVersion {
 		version.Print()
 		os.Exit(0)
@@ -152,6 +159,9 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 		Ignores:       ignore,
 		GoVersion:     goVersion,
 		ReturnIgnored: showIgnored,
+
+		MaxConcurrentJobs: maxConcurrentJobs,
+		PrintStats:        printStats,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -201,9 +211,16 @@ type Options struct {
 	Ignores       string
 	GoVersion     int
 	ReturnIgnored bool
+
+	MaxConcurrentJobs int
+	PrintStats        bool
 }
 
 func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, error) {
+	stats := lint.PerfStats{
+		CheckerInits: map[string]time.Duration{},
+	}
+
 	if opt == nil {
 		opt = &Options{}
 	}
@@ -225,10 +242,12 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 		Error: func(err error) {},
 	}
 
+	t := time.Now()
 	pkgs, err := packages.Load(conf, paths...)
 	if err != nil {
 		return nil, err
 	}
+	stats.PackageLoading = time.Since(t)
 
 	var problems []lint.Problem
 	workingPkgs := make([]*packages.Package, 0, len(pkgs))
@@ -249,8 +268,11 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 		Ignores:       ignores,
 		GoVersion:     opt.GoVersion,
 		ReturnIgnored: opt.ReturnIgnored,
+
+		MaxConcurrentJobs: opt.MaxConcurrentJobs,
+		PrintStats:        opt.PrintStats,
 	}
-	problems = append(problems, l.Lint(workingPkgs)...)
+	problems = append(problems, l.Lint(workingPkgs, &stats)...)
 
 	return problems, nil
 }
