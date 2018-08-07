@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"go/build"
 	"go/types"
+	"log"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -115,6 +117,7 @@ func FlagSet(name string) *flag.FlagSet {
 
 	flags.Int("debug.max-concurrent-jobs", 0, "Number of jobs to run concurrently")
 	flags.Bool("debug.print-stats", false, "Print debug statistics")
+	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
 
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
@@ -143,10 +146,24 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 
 	maxConcurrentJobs := fs.Lookup("debug.max-concurrent-jobs").Value.(flag.Getter).Get().(int)
 	printStats := fs.Lookup("debug.print-stats").Value.(flag.Getter).Get().(bool)
+	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
+
+	exit := os.Exit
+	if cpuProfile != "" {
+		f, err := os.Create(cpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		exit = func(code int) {
+			pprof.StopCPUProfile()
+			os.Exit(code)
+		}
+	}
 
 	if printVersion {
 		version.Print()
-		os.Exit(0)
+		exit(0)
 	}
 
 	var cs []lint.Checker
@@ -165,7 +182,7 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		exit(1)
 	}
 
 	var f format.Formatter
@@ -178,7 +195,7 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 		f = format.JSON{W: os.Stdout}
 	default:
 		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", formatter)
-		os.Exit(2)
+		exit(2)
 	}
 
 	var (
@@ -201,7 +218,7 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 		f.Stats(total, errors, warnings)
 	}
 	if errors > 0 {
-		os.Exit(1)
+		exit(1)
 	}
 }
 
