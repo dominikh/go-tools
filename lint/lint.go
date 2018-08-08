@@ -25,7 +25,6 @@ import (
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/ssa"
 	gossautil "honnef.co/go/tools/ssa/ssautil"
-	"honnef.co/go/tools/ssautil"
 )
 
 type Job struct {
@@ -252,7 +251,7 @@ func (stats *PerfStats) Print(w io.Writer) {
 func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	allPkgs := allPackages(initial)
 	t := time.Now()
-	ssaprog := ssautil.CreateProgram(allPkgs, ssa.GlobalDebug)
+	ssaprog, _ := gossautil.Packages(allPkgs, ssa.GlobalDebug)
 	ssaprog.Build()
 	if stats != nil {
 		stats.SSABuild = time.Since(t)

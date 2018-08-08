@@ -1,30 +1,8 @@
 package ssautil
 
 import (
-	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/ssa"
 )
-
-// CreateProgram returns a new program in SSA form, given a program
-// loaded from source.  An SSA package is created for each transitively
-// error-free package of lprog.
-//
-// Code for bodies of functions is not built until Build is called
-// on the result.
-//
-// mode controls diagnostics and checking during SSA construction.
-//
-func CreateProgram(pkgs []*packages.Package, mode ssa.BuilderMode) *ssa.Program {
-	prog := ssa.NewProgram(pkgs[0].Fset, mode)
-
-	for _, pkg := range pkgs {
-		if !pkg.IllTyped {
-			prog.CreatePackage(pkg.Types, pkg.Syntax, pkg.TypesInfo, true)
-		}
-	}
-
-	return prog
-}
 
 func Reachable(from, to *ssa.BasicBlock) bool {
 	if from == to {
