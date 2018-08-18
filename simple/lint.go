@@ -419,6 +419,9 @@ func (c *Checker) LintRegexpRaw(j *lint.Job) {
 		if !strings.Contains(val, `\\`) {
 			return true
 		}
+		if strings.Contains(val, "`") {
+			return true
+		}
 
 		bs := false
 		for _, c := range val {
