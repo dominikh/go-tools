@@ -252,10 +252,6 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 	conf := &packages.Config{
 		Mode:  packages.LoadAllSyntax,
 		Tests: opt.LintTests,
-		TypeChecker: types.Config{
-			// XXX this is not build system agnostic
-			Sizes: types.SizesFor(ctx.Compiler, ctx.GOARCH),
-		},
 		Error: func(err error) {},
 	}
 
