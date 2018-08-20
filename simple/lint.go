@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	. "honnef.co/go/tools/arg"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
@@ -420,7 +421,7 @@ func (c *Checker) LintRegexpRaw(j *lint.Job) {
 			// invalid function call
 			return true
 		}
-		lit, ok := call.Args[0].(*ast.BasicLit)
+		lit, ok := call.Args[Arg("regexp.Compile.expr")].(*ast.BasicLit)
 		if !ok {
 			// TODO(dominikh): support string concat, maybe support constants
 			return true
@@ -600,7 +601,7 @@ func (c *Checker) LintRedundantNilCheckWithLen(j *lint.Job) {
 		if !ok || yxFun.Name != "len" || len(yx.Args) != 1 {
 			return true
 		}
-		yxArg, ok := yx.Args[0].(*ast.Ident)
+		yxArg, ok := yx.Args[Arg("len.v")].(*ast.Ident)
 		if !ok {
 			return true
 		}
@@ -685,7 +686,7 @@ func (c *Checker) LintSlicing(j *lint.Job) {
 		if _, ok := j.Program.Info.ObjectOf(fun).(*types.Builtin); !ok {
 			return true
 		}
-		arg, ok := call.Args[0].(*ast.Ident)
+		arg, ok := call.Args[Arg("len.v")].(*ast.Ident)
 		if !ok || arg.Obj != s.Obj {
 			return true
 		}
@@ -758,7 +759,7 @@ func (c *Checker) LintLoopAppend(j *lint.Job) {
 		}
 
 		src := j.Program.Info.TypeOf(loop.X)
-		dst := j.Program.Info.TypeOf(call.Args[0])
+		dst := j.Program.Info.TypeOf(call.Args[Arg("append.slice")])
 		// TODO(dominikh) remove nil check once Go issue #15173 has
 		// been fixed
 		if src == nil {
@@ -768,11 +769,11 @@ func (c *Checker) LintLoopAppend(j *lint.Job) {
 			return true
 		}
 
-		if Render(j, stmt.Lhs[0]) != Render(j, call.Args[0]) {
+		if Render(j, stmt.Lhs[0]) != Render(j, call.Args[Arg("append.slice")]) {
 			return true
 		}
 
-		el, ok := call.Args[1].(*ast.Ident)
+		el, ok := call.Args[Arg("append.elems")].(*ast.Ident)
 		if !ok {
 			return true
 		}
@@ -780,7 +781,7 @@ func (c *Checker) LintLoopAppend(j *lint.Job) {
 			return true
 		}
 		j.Errorf(loop, "should replace loop with %s = append(%s, %s...)",
-			Render(j, stmt.Lhs[0]), Render(j, call.Args[0]), Render(j, loop.X))
+			Render(j, stmt.Lhs[0]), Render(j, call.Args[Arg("append.slice")]), Render(j, loop.X))
 		return true
 	}
 	for _, f := range c.filterGenerated(j.Program.Files) {
@@ -824,7 +825,7 @@ func (c *Checker) LintTimeUntil(j *lint.Job) {
 		if !IsCallToAST(j, call, "(time.Time).Sub") {
 			return true
 		}
-		if !IsCallToAST(j, call.Args[0], "time.Now") {
+		if !IsCallToAST(j, call.Args[Arg("(time.Time).Sub.u")], "time.Now") {
 			return true
 		}
 		j.Errorf(call, "should use time.Until instead of t.Sub(time.Now())")
@@ -1066,7 +1067,7 @@ func (c *Checker) LintTrim(j *lint.Job) {
 		if len(call.Args) != 1 {
 			return false
 		}
-		return sameNonDynamic(call.Args[0], ident)
+		return sameNonDynamic(call.Args[Arg("len.v")], ident)
 	}
 
 	fn := func(node ast.Node) bool {
@@ -1162,7 +1163,7 @@ func (c *Checker) LintTrim(j *lint.Job) {
 			if len(index.Args) != 1 {
 				return true
 			}
-			id3 := index.Args[0]
+			id3 := index.Args[Arg("len.v")]
 			switch oid3 := condCall.Args[1].(type) {
 			case *ast.BasicLit:
 				if pkg != "strings" {
@@ -1342,16 +1343,18 @@ func (c *Checker) LintMakeLenCap(j *lint.Job) {
 		switch len(call.Args) {
 		case 2:
 			// make(T, len)
-			if _, ok := j.Program.Info.TypeOf(call.Args[0]).Underlying().(*types.Slice); ok {
+			if _, ok := j.Program.Info.TypeOf(call.Args[Arg("make.t")]).Underlying().(*types.Slice); ok {
 				break
 			}
-			if IsZero(call.Args[1]) {
-				j.Errorf(call.Args[1], "should use make(%s) instead", Render(j, call.Args[0]))
+			if IsZero(call.Args[Arg("make.size[0]")]) {
+				j.Errorf(call.Args[Arg("make.size[0]")], "should use make(%s) instead", Render(j, call.Args[Arg("make.t")]))
 			}
 		case 3:
 			// make(T, len, cap)
-			if Render(j, call.Args[1]) == Render(j, call.Args[2]) {
-				j.Errorf(call.Args[1], "should use make(%s, %s) instead", Render(j, call.Args[0]), Render(j, call.Args[1]))
+			if Render(j, call.Args[Arg("make.size[0]")]) == Render(j, call.Args[Arg("make.size[1]")]) {
+				j.Errorf(call.Args[Arg("make.size[0]")],
+					"should use make(%s, %s) instead",
+					Render(j, call.Args[Arg("make.t")]), Render(j, call.Args[Arg("make.size[0]")]))
 			}
 		}
 		return false
@@ -1565,10 +1568,10 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		if len(call.Args) != 2 {
 			return true
 		}
-		if s, ok := ExprToString(j, call.Args[0]); !ok || s != "%s" {
+		if s, ok := ExprToString(j, call.Args[Arg("fmt.Sprintf.format")]); !ok || s != "%s" {
 			return true
 		}
-		arg := call.Args[1]
+		arg := call.Args[Arg("fmt.Sprintf.a[0]")]
 		typ := TypeOf(j, arg)
 
 		if c.Implements(j, typ, "fmt.Stringer") {
@@ -1596,7 +1599,7 @@ func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
 			return true
 		}
 		call := node.(*ast.CallExpr)
-		if !IsCallToAST(j, call.Args[0], "fmt.Sprintf") {
+		if !IsCallToAST(j, call.Args[Arg("errors.New.text")], "fmt.Sprintf") {
 			return true
 		}
 		j.Errorf(node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))")
@@ -1707,7 +1710,7 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 				return false
 			}
 			call := node.(*ast.CallExpr)
-			typeconv := call.Args[0].(*ast.CallExpr)
+			typeconv := call.Args[Arg("sort.Sort.data")].(*ast.CallExpr)
 			sel := typeconv.Fun.(*ast.SelectorExpr)
 			name := SelectorName(j, sel)
 

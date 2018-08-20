@@ -17,6 +17,7 @@ import (
 	"sync"
 	texttemplate "text/template"
 
+	. "honnef.co/go/tools/arg"
 	"honnef.co/go/tools/deprecated"
 	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/internal/sharedcheck"
@@ -91,7 +92,7 @@ var (
 
 	checkTimeParseRules = map[string]CallCheck{
 		"time.Parse": func(call *Call) {
-			arg := call.Args[0]
+			arg := call.Args[Arg("time.Parse.layout")]
 			err := ValidateTimeLayout(arg.Value)
 			if err != nil {
 				arg.Invalid(err.Error())
@@ -101,7 +102,7 @@ var (
 
 	checkEncodingBinaryRules = map[string]CallCheck{
 		"encoding/binary.Write": func(call *Call) {
-			arg := call.Args[2]
+			arg := call.Args[Arg("encoding/binary.Write.data")]
 			if !CanBinaryMarshal(call.Job, arg.Value) {
 				arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 			}
@@ -110,7 +111,7 @@ var (
 
 	checkURLsRules = map[string]CallCheck{
 		"net/url.Parse": func(call *Call) {
-			arg := call.Args[0]
+			arg := call.Args[Arg("net/url.Parse.rawurl")]
 			err := ValidateURL(arg.Value)
 			if err != nil {
 				arg.Invalid(err.Error())
@@ -120,7 +121,7 @@ var (
 
 	checkSyncPoolValueRules = map[string]CallCheck{
 		"(*sync.Pool).Put": func(call *Call) {
-			arg := call.Args[0]
+			arg := call.Args[Arg("(*sync.Pool).Put.x")]
 			typ := arg.Value.Value.Type()
 			if !IsPointerLike(typ) {
 				arg.Invalid("argument should be pointer-like to avoid allocations")
@@ -164,7 +165,7 @@ var (
 
 	checkUnbufferedSignalChanRules = map[string]CallCheck{
 		"os/signal.Notify": func(call *Call) {
-			arg := call.Args[0]
+			arg := call.Args[Arg("os/signal.Notify.c")]
 			if UnbufferedChannel(arg.Value) {
 				arg.Invalid("the channel used with signal.Notify should be buffered")
 			}
@@ -191,7 +192,8 @@ var (
 
 	checkBytesEqualIPRules = map[string]CallCheck{
 		"bytes.Equal": func(call *Call) {
-			if ConvertedFrom(call.Args[0].Value, "net.IP") && ConvertedFrom(call.Args[1].Value, "net.IP") {
+			if ConvertedFrom(call.Args[Arg("bytes.Equal.a")].Value, "net.IP") &&
+				ConvertedFrom(call.Args[Arg("bytes.Equal.b")].Value, "net.IP") {
 				call.Invalid("use net.IP.Equal to compare net.IPs, not bytes.Equal")
 			}
 		},
@@ -543,7 +545,7 @@ func (c *Checker) CheckTemplate(j *lint.Job) {
 			// template comes from and where it has been
 			return true
 		}
-		s, ok := ExprToString(j, call.Args[0])
+		s, ok := ExprToString(j, call.Args[Arg("(*text/template.Template).Parse.text")])
 		if !ok {
 			return true
 		}
@@ -557,7 +559,7 @@ func (c *Checker) CheckTemplate(j *lint.Job) {
 		if err != nil {
 			// TODO(dominikh): whitelist other parse errors, if any
 			if strings.Contains(err.Error(), "unexpected") {
-				j.Errorf(call.Args[0], "%s", err)
+				j.Errorf(call.Args[Arg("(*text/template.Template).Parse.text")], "%s", err)
 			}
 		}
 		return true
@@ -576,7 +578,7 @@ func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
 		if !IsCallToAST(j, call, "time.Sleep") {
 			return true
 		}
-		lit, ok := call.Args[0].(*ast.BasicLit)
+		lit, ok := call.Args[Arg("time.Sleep.d")].(*ast.BasicLit)
 		if !ok {
 			return true
 		}
@@ -594,7 +596,8 @@ func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
 		if n != 1 {
 			recommendation = fmt.Sprintf("time.Sleep(%d * time.Nanosecond)", n)
 		}
-		j.Errorf(call.Args[0], "sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
+		j.Errorf(call.Args[Arg("time.Sleep.d")],
+			"sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
 		return true
 	}
 	for _, f := range j.Program.Files {
@@ -831,14 +834,15 @@ func (c *Checker) CheckExec(j *lint.Job) {
 		if !IsCallToAST(j, call, "os/exec.Command") {
 			return true
 		}
-		val, ok := ExprToString(j, call.Args[0])
+		val, ok := ExprToString(j, call.Args[Arg("os/exec.Command.name")])
 		if !ok {
 			return true
 		}
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) || strings.Contains(val, "/") {
 			return true
 		}
-		j.Errorf(call.Args[0], "first argument to exec.Command looks like a shell command, but a program name or path are expected")
+		j.Errorf(call.Args[Arg("os/exec.Command.name")],
+			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
 		return true
 	}
 	for _, f := range j.Program.Files {
@@ -974,12 +978,13 @@ func (c *Checker) CheckUnsafePrintf(j *lint.Job) {
 		if len(call.Args) != 1 {
 			return true
 		}
-		switch call.Args[0].(type) {
+		switch call.Args[Arg("fmt.Printf.format")].(type) {
 		case *ast.CallExpr, *ast.Ident:
 		default:
 			return true
 		}
-		j.Errorf(call.Args[0], "printf-style function with dynamic first argument and no further arguments should use print-style function instead")
+		j.Errorf(call.Args[Arg("fmt.Printf.format")],
+			"printf-style function with dynamic first argument and no further arguments should use print-style function instead")
 		return true
 	}
 	for _, f := range j.Program.Files {
@@ -1758,7 +1763,7 @@ func (c *Checker) CheckSeeker(j *lint.Job) {
 		if len(call.Args) != 2 {
 			return true
 		}
-		arg0, ok := call.Args[0].(*ast.SelectorExpr)
+		arg0, ok := call.Args[Arg("(io.Seeker).Seek.offset")].(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
@@ -1913,7 +1918,7 @@ func (c *Checker) CheckCyclicFinalizer(j *lint.Job) {
 			if edge.Callee.Func.RelString(nil) != "runtime.SetFinalizer" {
 				continue
 			}
-			arg0 := edge.Site.Common().Args[0]
+			arg0 := edge.Site.Common().Args[Arg("runtime.SetFinalizer.obj")]
 			if iface, ok := arg0.(*ssa.MakeInterface); ok {
 				arg0 = iface.X
 			}
@@ -1925,7 +1930,7 @@ func (c *Checker) CheckCyclicFinalizer(j *lint.Job) {
 			if !ok {
 				continue
 			}
-			arg1 := edge.Site.Common().Args[1]
+			arg1 := edge.Site.Common().Args[Arg("runtime.SetFinalizer.finalizer")]
 			if iface, ok := arg1.(*ssa.MakeInterface); ok {
 				arg1 = iface.X
 			}
