@@ -256,6 +256,9 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 	}
 
 	t := time.Now()
+	if len(paths) == 0 {
+		paths = []string{"."}
+	}
 	pkgs, err := packages.Load(conf, paths...)
 	if err != nil {
 		return nil, err
