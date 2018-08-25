@@ -264,7 +264,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		ssapkg := ssaprog.Package(pkg.Types)
 		var cfg config.Config
 		if len(pkg.GoFiles) != 0 {
-			// XXX this won't always work; files can be in cache directories
 			path := pkg.GoFiles[0]
 			dir := filepath.Dir(path)
 			var err error
