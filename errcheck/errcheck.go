@@ -20,9 +20,9 @@ func NewChecker() *Checker {
 func (*Checker) Name() string   { return "errcheck" }
 func (*Checker) Prefix() string { return "ERR" }
 
-func (c *Checker) Funcs() map[string]lint.Func {
-	return map[string]lint.Func{
-		"ERR1000": c.CheckErrcheck,
+func (c *Checker) Checks() []lint.Check {
+	return []lint.Check{
+		{ID: "ERR1000", FilterGenerated: false, Fn: c.CheckErrcheck},
 	}
 }
 

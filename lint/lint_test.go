@@ -13,9 +13,9 @@ func (testChecker) Name() string       { return "stylecheck" }
 func (testChecker) Prefix() string     { return "TEST" }
 func (testChecker) Init(prog *Program) {}
 
-func (testChecker) Funcs() map[string]Func {
-	return map[string]Func{
-		"TEST1000": testLint,
+func (testChecker) Checks() []Check {
+	return []Check{
+		{ID: "TEST1000", FilterGenerated: false, Fn: testLint},
 	}
 }
 

@@ -219,99 +219,82 @@ func NewChecker() *Checker {
 func (*Checker) Name() string   { return "staticcheck" }
 func (*Checker) Prefix() string { return "SA" }
 
-func (c *Checker) Funcs() map[string]lint.Func {
-	return map[string]lint.Func{
-		"SA1000": c.callChecker(checkRegexpRules),
-		"SA1001": c.CheckTemplate,
-		"SA1002": c.callChecker(checkTimeParseRules),
-		"SA1003": c.callChecker(checkEncodingBinaryRules),
-		"SA1004": c.CheckTimeSleepConstant,
-		"SA1005": c.CheckExec,
-		"SA1006": c.CheckUnsafePrintf,
-		"SA1007": c.callChecker(checkURLsRules),
-		"SA1008": c.CheckCanonicalHeaderKey,
-		"SA1009": nil,
-		"SA1010": c.callChecker(checkRegexpFindAllRules),
-		"SA1011": c.callChecker(checkUTF8CutsetRules),
-		"SA1012": c.CheckNilContext,
-		"SA1013": c.CheckSeeker,
-		"SA1014": c.callChecker(checkUnmarshalPointerRules),
-		"SA1015": c.CheckLeakyTimeTick,
-		"SA1016": c.CheckUntrappableSignal,
-		"SA1017": c.callChecker(checkUnbufferedSignalChanRules),
-		"SA1018": c.callChecker(checkStringsReplaceZeroRules),
-		"SA1019": c.CheckDeprecated,
-		"SA1020": c.callChecker(checkListenAddressRules),
-		"SA1021": c.callChecker(checkBytesEqualIPRules),
-		"SA1022": nil,
-		"SA1023": c.CheckWriterBufferModified,
-		"SA1024": c.callChecker(checkUniqueCutsetRules),
-		"SA1025": c.CheckTimerResetReturnValue,
+func (c *Checker) Checks() []lint.Check {
+	return []lint.Check{
+		{ID: "SA1000", FilterGenerated: false, Fn: c.callChecker(checkRegexpRules)},
+		{ID: "SA1001", FilterGenerated: false, Fn: c.CheckTemplate},
+		{ID: "SA1002", FilterGenerated: false, Fn: c.callChecker(checkTimeParseRules)},
+		{ID: "SA1003", FilterGenerated: false, Fn: c.callChecker(checkEncodingBinaryRules)},
+		{ID: "SA1004", FilterGenerated: false, Fn: c.CheckTimeSleepConstant},
+		{ID: "SA1005", FilterGenerated: false, Fn: c.CheckExec},
+		{ID: "SA1006", FilterGenerated: false, Fn: c.CheckUnsafePrintf},
+		{ID: "SA1007", FilterGenerated: false, Fn: c.callChecker(checkURLsRules)},
+		{ID: "SA1008", FilterGenerated: false, Fn: c.CheckCanonicalHeaderKey},
+		{ID: "SA1010", FilterGenerated: false, Fn: c.callChecker(checkRegexpFindAllRules)},
+		{ID: "SA1011", FilterGenerated: false, Fn: c.callChecker(checkUTF8CutsetRules)},
+		{ID: "SA1012", FilterGenerated: false, Fn: c.CheckNilContext},
+		{ID: "SA1013", FilterGenerated: false, Fn: c.CheckSeeker},
+		{ID: "SA1014", FilterGenerated: false, Fn: c.callChecker(checkUnmarshalPointerRules)},
+		{ID: "SA1015", FilterGenerated: false, Fn: c.CheckLeakyTimeTick},
+		{ID: "SA1016", FilterGenerated: false, Fn: c.CheckUntrappableSignal},
+		{ID: "SA1017", FilterGenerated: false, Fn: c.callChecker(checkUnbufferedSignalChanRules)},
+		{ID: "SA1018", FilterGenerated: false, Fn: c.callChecker(checkStringsReplaceZeroRules)},
+		{ID: "SA1019", FilterGenerated: false, Fn: c.CheckDeprecated},
+		{ID: "SA1020", FilterGenerated: false, Fn: c.callChecker(checkListenAddressRules)},
+		{ID: "SA1021", FilterGenerated: false, Fn: c.callChecker(checkBytesEqualIPRules)},
+		{ID: "SA1023", FilterGenerated: false, Fn: c.CheckWriterBufferModified},
+		{ID: "SA1024", FilterGenerated: false, Fn: c.callChecker(checkUniqueCutsetRules)},
+		{ID: "SA1025", FilterGenerated: false, Fn: c.CheckTimerResetReturnValue},
 
-		"SA2000": c.CheckWaitgroupAdd,
-		"SA2001": c.CheckEmptyCriticalSection,
-		"SA2002": c.CheckConcurrentTesting,
-		"SA2003": c.CheckDeferLock,
+		{ID: "SA2000", FilterGenerated: false, Fn: c.CheckWaitgroupAdd},
+		{ID: "SA2001", FilterGenerated: false, Fn: c.CheckEmptyCriticalSection},
+		{ID: "SA2002", FilterGenerated: false, Fn: c.CheckConcurrentTesting},
+		{ID: "SA2003", FilterGenerated: false, Fn: c.CheckDeferLock},
 
-		"SA3000": c.CheckTestMainExit,
-		"SA3001": c.CheckBenchmarkN,
+		{ID: "SA3000", FilterGenerated: false, Fn: c.CheckTestMainExit},
+		{ID: "SA3001", FilterGenerated: false, Fn: c.CheckBenchmarkN},
 
-		"SA4000": c.CheckLhsRhsIdentical,
-		"SA4001": c.CheckIneffectiveCopy,
-		"SA4002": c.CheckDiffSizeComparison,
-		"SA4003": c.CheckUnsignedComparison,
-		"SA4004": c.CheckIneffectiveLoop,
-		"SA4005": nil,
-		"SA4006": c.CheckUnreadVariableValues,
-		// "SA4007": c.CheckPredeterminedBooleanExprs,
-		"SA4007": nil,
-		"SA4008": c.CheckLoopCondition,
-		"SA4009": c.CheckArgOverwritten,
-		"SA4010": c.CheckIneffectiveAppend,
-		"SA4011": c.CheckScopedBreak,
-		"SA4012": c.CheckNaNComparison,
-		"SA4013": c.CheckDoubleNegation,
-		"SA4014": c.CheckRepeatedIfElse,
-		"SA4015": c.callChecker(checkMathIntRules),
-		"SA4016": c.CheckSillyBitwiseOps,
-		"SA4017": c.CheckPureFunctions,
-		"SA4018": c.CheckSelfAssignment,
-		"SA4019": c.CheckDuplicateBuildConstraints,
+		{ID: "SA4000", FilterGenerated: false, Fn: c.CheckLhsRhsIdentical},
+		{ID: "SA4001", FilterGenerated: false, Fn: c.CheckIneffectiveCopy},
+		{ID: "SA4002", FilterGenerated: false, Fn: c.CheckDiffSizeComparison},
+		{ID: "SA4003", FilterGenerated: false, Fn: c.CheckUnsignedComparison},
+		{ID: "SA4004", FilterGenerated: false, Fn: c.CheckIneffectiveLoop},
+		{ID: "SA4006", FilterGenerated: false, Fn: c.CheckUnreadVariableValues},
+		{ID: "SA4008", FilterGenerated: false, Fn: c.CheckLoopCondition},
+		{ID: "SA4009", FilterGenerated: false, Fn: c.CheckArgOverwritten},
+		{ID: "SA4010", FilterGenerated: false, Fn: c.CheckIneffectiveAppend},
+		{ID: "SA4011", FilterGenerated: false, Fn: c.CheckScopedBreak},
+		{ID: "SA4012", FilterGenerated: false, Fn: c.CheckNaNComparison},
+		{ID: "SA4013", FilterGenerated: false, Fn: c.CheckDoubleNegation},
+		{ID: "SA4014", FilterGenerated: false, Fn: c.CheckRepeatedIfElse},
+		{ID: "SA4015", FilterGenerated: false, Fn: c.callChecker(checkMathIntRules)},
+		{ID: "SA4016", FilterGenerated: false, Fn: c.CheckSillyBitwiseOps},
+		{ID: "SA4017", FilterGenerated: false, Fn: c.CheckPureFunctions},
+		{ID: "SA4018", FilterGenerated: true, Fn: c.CheckSelfAssignment},
+		{ID: "SA4019", FilterGenerated: true, Fn: c.CheckDuplicateBuildConstraints},
 
-		"SA5000": c.CheckNilMaps,
-		"SA5001": c.CheckEarlyDefer,
-		"SA5002": c.CheckInfiniteEmptyLoop,
-		"SA5003": c.CheckDeferInInfiniteLoop,
-		"SA5004": c.CheckLoopEmptyDefault,
-		"SA5005": c.CheckCyclicFinalizer,
-		// "SA5006": c.CheckSliceOutOfBounds,
-		"SA5007": c.CheckInfiniteRecursion,
+		{ID: "SA5000", FilterGenerated: false, Fn: c.CheckNilMaps},
+		{ID: "SA5001", FilterGenerated: false, Fn: c.CheckEarlyDefer},
+		{ID: "SA5002", FilterGenerated: false, Fn: c.CheckInfiniteEmptyLoop},
+		{ID: "SA5003", FilterGenerated: false, Fn: c.CheckDeferInInfiniteLoop},
+		{ID: "SA5004", FilterGenerated: false, Fn: c.CheckLoopEmptyDefault},
+		{ID: "SA5005", FilterGenerated: false, Fn: c.CheckCyclicFinalizer},
+		{ID: "SA5007", FilterGenerated: false, Fn: c.CheckInfiniteRecursion},
 
-		"SA6000": c.callChecker(checkRegexpMatchLoopRules),
-		"SA6001": c.CheckMapBytesKey,
-		"SA6002": c.callChecker(checkSyncPoolValueRules),
-		"SA6003": c.CheckRangeStringRunes,
-		"SA6004": c.CheckSillyRegexp,
+		{ID: "SA6000", FilterGenerated: false, Fn: c.callChecker(checkRegexpMatchLoopRules)},
+		{ID: "SA6001", FilterGenerated: false, Fn: c.CheckMapBytesKey},
+		{ID: "SA6002", FilterGenerated: false, Fn: c.callChecker(checkSyncPoolValueRules)},
+		{ID: "SA6003", FilterGenerated: false, Fn: c.CheckRangeStringRunes},
+		{ID: "SA6004", FilterGenerated: false, Fn: c.CheckSillyRegexp},
 
-		"SA9000": nil,
-		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
-		"SA9002": c.CheckNonOctalFileMode,
-		"SA9003": c.CheckEmptyBranch,
-		"SA9004": c.CheckMissingEnumTypesInDeclaration,
+		{ID: "SA9001", FilterGenerated: false, Fn: c.CheckDubiousDeferInChannelRangeLoop},
+		{ID: "SA9002", FilterGenerated: false, Fn: c.CheckNonOctalFileMode},
+		{ID: "SA9003", FilterGenerated: false, Fn: c.CheckEmptyBranch},
+		{ID: "SA9004", FilterGenerated: false, Fn: c.CheckMissingEnumTypesInDeclaration},
 	}
-}
 
-func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
-	if c.CheckGenerated {
-		return files
-	}
-	var out []*ast.File
-	for _, f := range files {
-		if !IsGenerated(f) {
-			out = append(out, f)
-		}
-	}
-	return out
+	// "SA5006": c.CheckSliceOutOfBounds,
+	// "SA4007": c.CheckPredeterminedBooleanExprs,
 }
 
 func (c *Checker) findDeprecated(prog *lint.Program) {
@@ -2668,7 +2651,7 @@ func (c *Checker) CheckSelfAssignment(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -2692,7 +2675,7 @@ func buildTagsIdentical(s1, s2 []string) bool {
 }
 
 func (c *Checker) CheckDuplicateBuildConstraints(job *lint.Job) {
-	for _, f := range c.filterGenerated(job.Program.Files) {
+	for _, f := range job.Program.Files {
 		constraints := buildTags(f)
 		for i, constraint1 := range constraints {
 			for j, constraint2 := range constraints {

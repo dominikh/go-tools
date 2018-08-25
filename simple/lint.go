@@ -33,55 +33,36 @@ func (*Checker) Prefix() string { return "S" }
 
 func (c *Checker) Init(prog *lint.Program) {}
 
-func (c *Checker) Funcs() map[string]lint.Func {
-	return map[string]lint.Func{
-		"S1000": c.LintSingleCaseSelect,
-		"S1001": c.LintLoopCopy,
-		"S1002": c.LintIfBoolCmp,
-		"S1003": c.LintStringsContains,
-		"S1004": c.LintBytesCompare,
-		"S1005": c.LintUnnecessaryBlank,
-		"S1006": c.LintForTrue,
-		"S1007": c.LintRegexpRaw,
-		"S1008": c.LintIfReturn,
-		"S1009": c.LintRedundantNilCheckWithLen,
-		"S1010": c.LintSlicing,
-		"S1011": c.LintLoopAppend,
-		"S1012": c.LintTimeSince,
-		"S1013": nil,
-		"S1014": nil,
-		"S1015": nil,
-		"S1016": c.LintSimplerStructConversion,
-		"S1017": c.LintTrim,
-		"S1018": c.LintLoopSlide,
-		"S1019": c.LintMakeLenCap,
-		"S1020": c.LintAssertNotNil,
-		"S1021": c.LintDeclareAssign,
-		"S1022": nil,
-		"S1023": c.LintRedundantBreak,
-		"S1024": c.LintTimeUntil,
-		"S1025": c.LintRedundantSprintf,
-		"S1026": nil,
-		"S1027": nil,
-		"S1028": c.LintErrorsNewSprintf,
-		"S1029": c.LintRangeStringRunes,
-		"S1030": c.LintBytesBufferConversions,
-		"S1031": c.LintNilCheckAroundRange,
-		"S1032": c.LintSortHelpers,
+func (c *Checker) Checks() []lint.Check {
+	return []lint.Check{
+		{ID: "S1000", FilterGenerated: true, Fn: c.LintSingleCaseSelect},
+		{ID: "S1001", FilterGenerated: true, Fn: c.LintLoopCopy},
+		{ID: "S1002", FilterGenerated: true, Fn: c.LintIfBoolCmp},
+		{ID: "S1003", FilterGenerated: true, Fn: c.LintStringsContains},
+		{ID: "S1004", FilterGenerated: true, Fn: c.LintBytesCompare},
+		{ID: "S1005", FilterGenerated: true, Fn: c.LintUnnecessaryBlank},
+		{ID: "S1006", FilterGenerated: true, Fn: c.LintForTrue},
+		{ID: "S1007", FilterGenerated: true, Fn: c.LintRegexpRaw},
+		{ID: "S1008", FilterGenerated: true, Fn: c.LintIfReturn},
+		{ID: "S1009", FilterGenerated: true, Fn: c.LintRedundantNilCheckWithLen},
+		{ID: "S1010", FilterGenerated: true, Fn: c.LintSlicing},
+		{ID: "S1011", FilterGenerated: true, Fn: c.LintLoopAppend},
+		{ID: "S1012", FilterGenerated: true, Fn: c.LintTimeSince},
+		{ID: "S1016", FilterGenerated: true, Fn: c.LintSimplerStructConversion},
+		{ID: "S1017", FilterGenerated: true, Fn: c.LintTrim},
+		{ID: "S1018", FilterGenerated: true, Fn: c.LintLoopSlide},
+		{ID: "S1019", FilterGenerated: true, Fn: c.LintMakeLenCap},
+		{ID: "S1020", FilterGenerated: true, Fn: c.LintAssertNotNil},
+		{ID: "S1021", FilterGenerated: true, Fn: c.LintDeclareAssign},
+		{ID: "S1023", FilterGenerated: true, Fn: c.LintRedundantBreak},
+		{ID: "S1024", FilterGenerated: true, Fn: c.LintTimeUntil},
+		{ID: "S1025", FilterGenerated: true, Fn: c.LintRedundantSprintf},
+		{ID: "S1028", FilterGenerated: true, Fn: c.LintErrorsNewSprintf},
+		{ID: "S1029", FilterGenerated: false, Fn: c.LintRangeStringRunes},
+		{ID: "S1030", FilterGenerated: true, Fn: c.LintBytesBufferConversions},
+		{ID: "S1031", FilterGenerated: true, Fn: c.LintNilCheckAroundRange},
+		{ID: "S1032", FilterGenerated: true, Fn: c.LintSortHelpers},
 	}
-}
-
-func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
-	if c.CheckGenerated {
-		return files
-	}
-	var out []*ast.File
-	for _, f := range files {
-		if !IsGenerated(f) {
-			out = append(out, f)
-		}
-	}
-	return out
 }
 
 func (c *Checker) LintSingleCaseSelect(j *lint.Job) {
@@ -121,7 +102,7 @@ func (c *Checker) LintSingleCaseSelect(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -201,7 +182,7 @@ func (c *Checker) LintLoopCopy(j *lint.Job) {
 		j.Errorf(loop, "should use copy() instead of a loop")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -243,7 +224,7 @@ func (c *Checker) LintIfBoolCmp(j *lint.Job) {
 		j.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s", r)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -273,7 +254,7 @@ func (c *Checker) LintBytesBufferConversions(j *lint.Job) {
 
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -345,7 +326,7 @@ func (c *Checker) LintStringsContains(j *lint.Job) {
 
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -378,7 +359,7 @@ func (c *Checker) LintBytesCompare(j *lint.Job) {
 		j.Errorf(node, "should use %sbytes.Equal(%s) instead", prefix, args)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -398,7 +379,7 @@ func (c *Checker) LintForTrue(j *lint.Job) {
 		j.Errorf(loop, "should use for {} instead of for true {}")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -458,7 +439,7 @@ func (c *Checker) LintRegexpRaw(j *lint.Job) {
 		j.Errorf(call, "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -525,7 +506,7 @@ func (c *Checker) LintIfReturn(j *lint.Job) {
 		j.Errorf(n1, "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -657,7 +638,7 @@ func (c *Checker) LintRedundantNilCheckWithLen(j *lint.Job) {
 		j.Errorf(expr, "should omit nil check; len() for %s is defined as zero", nilType)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -693,7 +674,7 @@ func (c *Checker) LintSlicing(j *lint.Job) {
 		j.Errorf(n, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -784,7 +765,7 @@ func (c *Checker) LintLoopAppend(j *lint.Job) {
 			Render(j, stmt.Lhs[0]), Render(j, call.Args[Arg("append.slice")]), Render(j, loop.X))
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -808,7 +789,7 @@ func (c *Checker) LintTimeSince(j *lint.Job) {
 		j.Errorf(call, "should use time.Since instead of time.Now().Sub")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -831,7 +812,7 @@ func (c *Checker) LintTimeUntil(j *lint.Job) {
 		j.Errorf(call, "should use time.Until instead of t.Sub(time.Now())")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -915,7 +896,7 @@ func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1034,7 +1015,7 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 			ident.Name, typ2.Obj().Name(), typ1.Obj().Name())
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1220,7 +1201,7 @@ func (c *Checker) LintTrim(j *lint.Job) {
 		j.Errorf(ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1325,7 +1306,7 @@ func (c *Checker) LintLoopSlide(j *lint.Job) {
 		j.Errorf(loop, "should use copy(%s[:%s], %s[%s:]) instead", Render(j, bs1), Render(j, biny), Render(j, bs1), Render(j, add1))
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1359,7 +1340,7 @@ func (c *Checker) LintMakeLenCap(j *lint.Job) {
 		}
 		return false
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1418,7 +1399,7 @@ func (c *Checker) LintAssertNotNil(j *lint.Job) {
 		j.Errorf(ifstmt, "when %s is true, %s can't be nil", Render(j, assignIdent), Render(j, assertIdent))
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1469,7 +1450,7 @@ func (c *Checker) LintDeclareAssign(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1522,7 +1503,7 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 		fn2(node)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1588,7 +1569,7 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1605,7 +1586,7 @@ func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
 		j.Errorf(node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))")
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1651,7 +1632,7 @@ func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -1735,7 +1716,7 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 		return false
 	}
 
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fnFuncs)
 	}
 }

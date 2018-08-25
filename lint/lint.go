@@ -31,7 +31,7 @@ type Job struct {
 	Program *Program
 
 	checker  string
-	check    string
+	check    Check
 	problems []Problem
 
 	duration time.Duration
@@ -123,8 +123,10 @@ type Program struct {
 
 	tokenFileMap map[*token.File]*ast.File
 	astFileMap   map[*ast.File]*Pkg
+	packagesMap  map[string]*packages.Package
 
-	packagesMap map[string]*packages.Package
+	genMu        sync.RWMutex
+	generatedMap map[string]bool
 }
 
 func (p *Program) Fset() *token.FileSet {
@@ -154,7 +156,13 @@ type Checker interface {
 	Name() string
 	Prefix() string
 	Init(*Program)
-	Funcs() map[string]Func
+	Checks() []Check
+}
+
+type Check struct {
+	Fn              Func
+	ID              string
+	FilterGenerated bool
 }
 
 // A Linter lints Go source code.
@@ -296,6 +304,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		GoVersion:       l.GoVersion,
 		tokenFileMap:    map[*token.File]*ast.File{},
 		astFileMap:      map[*ast.File]*Pkg{},
+		generatedMap:    map[string]bool{},
 	}
 	prog.packagesMap = map[string]*packages.Package{}
 	for _, pkg := range allPkgs {
@@ -441,23 +450,16 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	}
 
 	var jobs []*Job
-	var allKeys []string
-	funcs := map[string]Func{}
-	for _, checker := range l.Checkers {
-		m := checker.Funcs()
-		var keys []string
-		for k, v := range m {
-			funcs[k] = v
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		allKeys = append(allKeys, keys...)
+	var allChecks []Check
 
-		for _, k := range keys {
+	for _, checker := range l.Checkers {
+		checks := checker.Checks()
+		allChecks = append(allChecks, checks...)
+		for _, check := range checks {
 			j := &Job{
 				Program: prog,
 				checker: checker.Name(),
-				check:   k,
+				check:   check,
 			}
 			jobs = append(jobs, j)
 		}
@@ -476,7 +478,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			fn := funcs[j.check]
+			fn := j.check.Fn
 			if fn == nil {
 				return
 			}
@@ -489,7 +491,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 
 	for _, j := range jobs {
 		if stats != nil {
-			stats.Jobs = append(stats.Jobs, JobStat{j.check, j.duration})
+			stats.Jobs = append(stats.Jobs, JobStat{j.check.ID, j.duration})
 		}
 		for _, p := range j.problems {
 			// OPT(dh): this entire computation could be cached per package
@@ -518,8 +520,8 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			}
 			for _, c := range enabled {
 				if c == "all" {
-					for _, c := range allKeys {
-						allowedChecks[c] = true
+					for _, c := range allChecks {
+						allowedChecks[c.ID] = true
 					}
 				} else {
 					allowedChecks[c] = true
@@ -652,16 +654,48 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 	return pos
 }
 
+func (prog *Program) isGenerated(path string) bool {
+	// This function isn't very efficient in terms of lock contention
+	// and lack of parallelism, but it really shouldn't matter.
+	// Projects consists of thousands of files, and have hundreds of
+	// errors. That's not a lot of calls to isGenerated.
+
+	prog.genMu.RLock()
+	if b, ok := prog.generatedMap[path]; ok {
+		prog.genMu.RUnlock()
+		return b
+	}
+	prog.genMu.RUnlock()
+	prog.genMu.Lock()
+	defer prog.genMu.Unlock()
+	// recheck to avoid doing extra work in case of race
+	if b, ok := prog.generatedMap[path]; ok {
+		return b
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	b := isGenerated(f)
+	prog.generatedMap[path] = b
+	return b
+}
+
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
 	tf := j.Program.SSA.Fset.File(n.Pos())
 	f := j.Program.tokenFileMap[tf]
 	pkg := j.Program.astFileMap[f]
 
 	pos := j.Program.DisplayPosition(n.Pos())
+	if j.Program.isGenerated(pos.Filename) && j.check.FilterGenerated {
+		return nil
+	}
 	problem := Problem{
 		Position: pos,
 		Text:     fmt.Sprintf(format, args...),
-		Check:    j.check,
+		Check:    j.check.ID,
 		Checker:  j.checker,
 		Package:  pkg,
 	}
@@ -674,6 +708,7 @@ func (j *Job) NodePackage(node Positioner) *Pkg {
 	return j.Program.astFileMap[f]
 }
 
+// TODO(dh): replace with packages.Visit
 func allPackages(pkgs []*packages.Package) []*packages.Package {
 	all := map[*packages.Package]bool{}
 	var wl []*packages.Package

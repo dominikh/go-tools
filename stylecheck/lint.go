@@ -26,43 +26,28 @@ func NewChecker() *Checker {
 	return &Checker{}
 }
 
-func (*Checker) Name() string   { return "stylecheck" }
-func (*Checker) Prefix() string { return "ST" }
+func (*Checker) Name() string              { return "stylecheck" }
+func (*Checker) Prefix() string            { return "ST" }
+func (c *Checker) Init(prog *lint.Program) {}
 
-func (c *Checker) Init(prog *lint.Program) {
-}
-
-func (c *Checker) filterGenerated(files []*ast.File) []*ast.File {
-	if c.CheckGenerated {
-		return files
-	}
-	var out []*ast.File
-	for _, f := range files {
-		if !IsGenerated(f) {
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-func (c *Checker) Funcs() map[string]lint.Func {
-	return map[string]lint.Func{
-		"ST1000": c.CheckPackageComment,
-		"ST1001": c.CheckDotImports,
-		"ST1002": c.CheckBlankImports,
-		"ST1003": c.CheckNames,
-		"ST1004": nil, // XXX
-		"ST1005": c.CheckErrorStrings,
-		"ST1006": c.CheckReceiverNames,
-		"ST1007": c.CheckIncDec,
-		"ST1008": c.CheckErrorReturn,
-		"ST1009": c.CheckUnexportedReturn,
-		"ST1010": c.CheckContextFirstArg,
-		"ST1011": c.CheckTimeNames,
-		"ST1012": c.CheckErrorVarNames,
-		"ST1013": c.CheckHTTPStatusCodes,
-		"ST1014": c.CheckShadowedBuiltin,
-		"ST1015": c.CheckDefaultCaseOrder,
+func (c *Checker) Checks() []lint.Check {
+	return []lint.Check{
+		{ID: "ST1000", FilterGenerated: false, Fn: c.CheckPackageComment},
+		{ID: "ST1001", FilterGenerated: true, Fn: c.CheckDotImports},
+		{ID: "ST1002", FilterGenerated: true, Fn: c.CheckBlankImports},
+		{ID: "ST1003", FilterGenerated: true, Fn: c.CheckNames},
+		// {ID: "ST1004", FilterGenerated: false, Fn: nil, 			  },
+		{ID: "ST1005", FilterGenerated: false, Fn: c.CheckErrorStrings},
+		{ID: "ST1006", FilterGenerated: false, Fn: c.CheckReceiverNames},
+		{ID: "ST1007", FilterGenerated: true, Fn: c.CheckIncDec},
+		{ID: "ST1008", FilterGenerated: false, Fn: c.CheckErrorReturn},
+		{ID: "ST1009", FilterGenerated: false, Fn: c.CheckUnexportedReturn},
+		{ID: "ST1010", FilterGenerated: false, Fn: c.CheckContextFirstArg},
+		{ID: "ST1011", FilterGenerated: false, Fn: c.CheckTimeNames},
+		{ID: "ST1012", FilterGenerated: false, Fn: c.CheckErrorVarNames},
+		{ID: "ST1013", FilterGenerated: true, Fn: c.CheckHTTPStatusCodes},
+		{ID: "ST1014", FilterGenerated: true, Fn: c.CheckShadowedBuiltin},
+		{ID: "ST1015", FilterGenerated: true, Fn: c.CheckDefaultCaseOrder},
 	}
 }
 
@@ -107,7 +92,7 @@ func (c *Checker) CheckPackageComment(j *lint.Job) {
 
 func (c *Checker) CheckDotImports(j *lint.Job) {
 	// TODO(dh): implement user-provided whitelist for dot imports
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		for _, imp := range f.Imports {
 			if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
 				j.Errorf(imp, "should not use dot imports")
@@ -118,7 +103,7 @@ func (c *Checker) CheckDotImports(j *lint.Job) {
 
 func (c *Checker) CheckBlankImports(j *lint.Job) {
 	fset := j.Program.Fset()
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		if IsInMain(j, f) || IsInTest(j, f) {
 			continue
 		}
@@ -202,7 +187,7 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 		j.Errorf(assign, "should replace %s with %s%s", Render(j, assign), Render(j, assign.Lhs[0]), suffix)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -571,7 +556,7 @@ func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
 			j.Errorf(lit, "should use constant http.%s instead of numeric literal %d", s, n)
 			return true
 		}
-		for _, f := range c.filterGenerated(pkg.Syntax) {
+		for _, f := range pkg.Syntax {
 			ast.Inspect(f, fn)
 		}
 	}
@@ -651,7 +636,7 @@ func (c *Checker) CheckShadowedBuiltin(j *lint.Job) {
 		j.Errorf(obj, "identifier %s shadows built-in of the same name", ident.Name)
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
@@ -671,7 +656,7 @@ func (c *Checker) CheckDefaultCaseOrder(j *lint.Job) {
 		}
 		return true
 	}
-	for _, f := range c.filterGenerated(j.Program.Files) {
+	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
 }
