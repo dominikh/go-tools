@@ -132,7 +132,7 @@ func main() {
 
 	if flags.stylecheck.enabled {
 		stc := stylecheck.NewChecker()
-		stc.CheckGenerated = true
+		stc.CheckGenerated = false
 		checkers["stylecheck"] = lintutil.CheckerConfig{
 			Checker:     stc,
 			ExitNonZero: flags.stylecheck.exitNonZero,
