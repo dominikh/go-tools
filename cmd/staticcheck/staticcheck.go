@@ -140,8 +140,7 @@ func main() {
 	}
 
 	if flags.unused.enabled {
-		var mode unused.CheckMode
-		uc := unused.NewChecker(mode)
+		uc := unused.NewChecker(unused.CheckAll)
 		uc.ConsiderReflection = true
 		checkers["unused"] = lintutil.CheckerConfig{
 			Checker:     unused.NewLintChecker(uc),
