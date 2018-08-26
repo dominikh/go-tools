@@ -57,6 +57,18 @@ type JSON struct {
 	W io.Writer
 }
 
+func severity(s lint.Severity) string {
+	switch s {
+	case lint.Error:
+		return "error"
+	case lint.Warning:
+		return "warning"
+	case lint.Ignored:
+		return "ignored"
+	}
+	return ""
+}
+
 func (o JSON) Format(p lint.Problem) {
 	type location struct {
 		File   string `json:"file"`
@@ -64,23 +76,19 @@ func (o JSON) Format(p lint.Problem) {
 		Column int    `json:"column"`
 	}
 	jp := struct {
-		Checker  string   `json:"checker"`
 		Code     string   `json:"code"`
 		Severity string   `json:"severity,omitempty"`
 		Location location `json:"location"`
 		Message  string   `json:"message"`
-		Ignored  bool     `json:"ignored"`
 	}{
-		p.Checker,
-		p.Check,
-		"", // TODO(dh): support severity
-		location{
-			p.Position.Filename,
-			p.Position.Line,
-			p.Position.Column,
+		Code:     p.Check,
+		Severity: severity(p.Severity),
+		Location: location{
+			File:   p.Position.Filename,
+			Line:   p.Position.Line,
+			Column: p.Position.Column,
 		},
-		p.Text,
-		p.Ignored,
+		Message: p.Text,
 	}
 	_ = json.NewEncoder(o.W).Encode(jp)
 }

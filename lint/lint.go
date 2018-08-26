@@ -129,6 +129,14 @@ func (p *Program) Fset() *token.FileSet {
 
 type Func func(*Job)
 
+type Severity uint8
+
+const (
+	Error Severity = iota
+	Warning
+	Ignored
+)
+
 // Problem represents a problem in some source code.
 type Problem struct {
 	Position token.Position // position in source file
@@ -136,7 +144,7 @@ type Problem struct {
 	Check    string
 	Checker  string
 	Package  *Pkg
-	Ignored  bool
+	Severity Severity
 }
 
 func (p *Problem) String() string {
@@ -492,7 +500,9 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		for _, p := range j.problems {
 			allowedChecks := FilterChecks(allChecks, p.Package.Config.Checks)
 
-			p.Ignored = l.ignore(p)
+			if l.ignore(p) {
+				p.Severity = Ignored
+			}
 			// TODO(dh): support globs in check white/blacklist
 			// OPT(dh): this approach doesn't actually disable checks,
 			// it just discards their results. For the moment, that's
@@ -500,7 +510,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			// future, we may want to provide opt-in expensive
 			// analysis, which shouldn't run at all. It may be easiest
 			// to implement this in the individual checks.
-			if (l.ReturnIgnored || !p.Ignored) && allowedChecks[p.Check] {
+			if (l.ReturnIgnored || p.Severity != Ignored) && allowedChecks[p.Check] {
 				out = append(out, p)
 			}
 		}

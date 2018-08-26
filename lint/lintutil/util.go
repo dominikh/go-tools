@@ -234,6 +234,7 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 		if shouldExit[p.Check] {
 			errors++
 		} else {
+			p.Severity = lint.Warning
 			warnings++
 		}
 		f.Format(p)
