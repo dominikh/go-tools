@@ -3,15 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/BurntSushi/toml"
 )
-
-type config struct {
-	cfg  Config
-	meta toml.MetaData
-}
 
 func mergeLists(a, b []string) []string {
 	out := make([]string, 0, len(a)+len(b))
@@ -22,12 +16,12 @@ func mergeLists(a, b []string) []string {
 			out = append(out, el)
 		}
 	}
+
 	return out
 }
 
 func normalizeList(list []string) []string {
 	if len(list) > 1 {
-		sort.Strings(list)
 		nlist := make([]string, 0, len(list))
 		nlist = append(nlist, list[0])
 		for i, el := range list[1:] {
@@ -44,57 +38,23 @@ func normalizeList(list []string) []string {
 			// should not use "inherit"
 			panic(`unresolved "inherit"`)
 		}
-		if el == "all" {
-			return []string{"all"}
-		}
 	}
 
 	return list
 }
 
-func (cfg config) Merge(ocfg config) config {
-	if ocfg.meta.IsDefined("staticcheck", "enabled_checks") {
-		cfg.cfg.Staticcheck.EnabledChecks = mergeLists(cfg.cfg.Staticcheck.EnabledChecks, ocfg.cfg.Staticcheck.EnabledChecks)
+func (cfg Config) Merge(ocfg Config) Config {
+	if ocfg.Checks != nil {
+		cfg.Checks = mergeLists(cfg.Checks, ocfg.Checks)
 	}
-	if ocfg.meta.IsDefined("staticcheck", "disabled_checks") {
-		cfg.cfg.Staticcheck.DisabledChecks = mergeLists(cfg.cfg.Staticcheck.DisabledChecks, ocfg.cfg.Staticcheck.DisabledChecks)
+	if ocfg.Initialisms != nil {
+		cfg.Initialisms = mergeLists(cfg.Initialisms, ocfg.Initialisms)
 	}
-
-	if ocfg.meta.IsDefined("simple", "enabled_checks") {
-		cfg.cfg.Simple.EnabledChecks = mergeLists(cfg.cfg.Simple.EnabledChecks, ocfg.cfg.Simple.EnabledChecks)
+	if ocfg.DotImportWhitelist != nil {
+		cfg.DotImportWhitelist = mergeLists(cfg.DotImportWhitelist, ocfg.DotImportWhitelist)
 	}
-	if ocfg.meta.IsDefined("simple", "disabled_checks") {
-		cfg.cfg.Simple.DisabledChecks = mergeLists(cfg.cfg.Simple.DisabledChecks, ocfg.cfg.Simple.DisabledChecks)
-	}
-
-	if ocfg.meta.IsDefined("unused", "enabled_checks") {
-		cfg.cfg.Unused.EnabledChecks = mergeLists(cfg.cfg.Unused.EnabledChecks, ocfg.cfg.Unused.EnabledChecks)
-	}
-	if ocfg.meta.IsDefined("unused", "disabled_checks") {
-		cfg.cfg.Unused.DisabledChecks = mergeLists(cfg.cfg.Unused.DisabledChecks, ocfg.cfg.Unused.DisabledChecks)
-	}
-
-	if ocfg.meta.IsDefined("errcheck", "enabled_checks") {
-		cfg.cfg.Errcheck.EnabledChecks = mergeLists(cfg.cfg.Errcheck.EnabledChecks, ocfg.cfg.Errcheck.EnabledChecks)
-	}
-	if ocfg.meta.IsDefined("errcheck", "disabled_checks") {
-		cfg.cfg.Errcheck.DisabledChecks = mergeLists(cfg.cfg.Errcheck.DisabledChecks, ocfg.cfg.Errcheck.DisabledChecks)
-	}
-
-	if ocfg.meta.IsDefined("stylecheck", "enabled_checks") {
-		cfg.cfg.Stylecheck.EnabledChecks = mergeLists(cfg.cfg.Stylecheck.EnabledChecks, ocfg.cfg.Stylecheck.EnabledChecks)
-	}
-	if ocfg.meta.IsDefined("stylecheck", "disabled_checks") {
-		cfg.cfg.Stylecheck.DisabledChecks = mergeLists(cfg.cfg.Stylecheck.DisabledChecks, ocfg.cfg.Stylecheck.DisabledChecks)
-	}
-	if ocfg.meta.IsDefined("stylecheck", "initialisms") {
-		cfg.cfg.Stylecheck.Initialisms = mergeLists(cfg.cfg.Stylecheck.Initialisms, ocfg.cfg.Stylecheck.Initialisms)
-	}
-	if ocfg.meta.IsDefined("stylecheck", "dot_import_whitelist") {
-		cfg.cfg.Stylecheck.DotImportWhitelist = mergeLists(cfg.cfg.Stylecheck.DotImportWhitelist, ocfg.cfg.Stylecheck.DotImportWhitelist)
-	}
-	if ocfg.meta.IsDefined("stylecheck", "http_status_code_whitelist") {
-		cfg.cfg.Stylecheck.HTTPStatusCodeWhitelist = mergeLists(cfg.cfg.Stylecheck.HTTPStatusCodeWhitelist, ocfg.cfg.Stylecheck.HTTPStatusCodeWhitelist)
+	if ocfg.HTTPStatusCodeWhitelist != nil {
+		cfg.HTTPStatusCodeWhitelist = mergeLists(cfg.HTTPStatusCodeWhitelist, ocfg.HTTPStatusCodeWhitelist)
 	}
 	return cfg
 }
@@ -106,88 +66,15 @@ type Config struct {
 	// that people use this package. In the future, we may. The
 	// obvious solution would be using map[string]interface{}, but
 	// that's obviously subpar.
-	General     GeneralConfig     `toml:"general"`
-	Staticcheck StaticcheckConfig `toml:"staticcheck"`
-	Simple      SimpleConfig      `toml:"simple"`
-	Unused      UnusedConfig      `toml:"unused"`
-	Errcheck    ErrcheckConfig    `toml:"errcheck"`
-	Stylecheck  StylecheckConfig  `toml:"stylecheck"`
-}
 
-type GeneralConfig struct{}
-
-type Checklist struct {
-	EnabledChecks  []string `toml:"enabled_checks"`
-	DisabledChecks []string `toml:"disabled_checks"`
-}
-
-type StaticcheckConfig struct {
-	Checklist
-}
-
-type SimpleConfig struct {
-	Checklist
-}
-
-type UnusedConfig struct {
-	Checklist
-}
-
-type ErrcheckConfig struct {
-	Checklist
-}
-
-type StylecheckConfig struct {
-	Checklist
+	Checks                  []string `toml:"checks"`
 	Initialisms             []string `toml:"initialisms"`
 	DotImportWhitelist      []string `toml:"dot_import_whitelist"`
 	HTTPStatusCodeWhitelist []string `toml:"http_status_code_whitelist"`
 }
 
 var defaultConfig = Config{
-	General:     defaultGeneralConfig,
-	Staticcheck: defaultStaticcheckConfig,
-	Simple:      defaultSimpleConfig,
-	Unused:      defaultUnusedConfig,
-	Errcheck:    defaultErrcheckConfig,
-	Stylecheck:  defaultStylecheckConfig,
-}
-
-var defaultGeneralConfig = GeneralConfig{}
-
-var defaultStaticcheckConfig = StaticcheckConfig{
-	Checklist: Checklist{
-		EnabledChecks:  []string{"all"},
-		DisabledChecks: []string{},
-	},
-}
-
-var defaultSimpleConfig = SimpleConfig{
-	Checklist: Checklist{
-		EnabledChecks:  []string{"all"},
-		DisabledChecks: []string{},
-	},
-}
-
-var defaultUnusedConfig = UnusedConfig{
-	Checklist: Checklist{
-		EnabledChecks:  []string{"all"},
-		DisabledChecks: []string{},
-	},
-}
-
-var defaultErrcheckConfig = ErrcheckConfig{
-	Checklist: Checklist{
-		EnabledChecks:  []string{"all"},
-		DisabledChecks: []string{},
-	},
-}
-
-var defaultStylecheckConfig = StylecheckConfig{
-	Checklist: Checklist{
-		EnabledChecks:  []string{"all"},
-		DisabledChecks: []string{},
-	},
+	Checks: []string{"all", "-ST1003", "-ST1014"},
 	Initialisms: []string{
 		"ACL", "API", "ASCII", "CPU", "CSS", "DNS",
 		"EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID",
@@ -203,8 +90,8 @@ var defaultStylecheckConfig = StylecheckConfig{
 
 const configName = "staticcheck.conf"
 
-func parseConfigs(dir string) ([]config, error) {
-	var out []config
+func parseConfigs(dir string) ([]Config, error) {
+	var out []Config
 
 	// TODO(dh): consider stopping at the GOPATH/module boundary
 	for dir != "" {
@@ -221,22 +108,19 @@ func parseConfigs(dir string) ([]config, error) {
 			return nil, err
 		}
 		var cfg Config
-		meta, err := toml.DecodeReader(f, &cfg)
+		_, err = toml.DecodeReader(f, &cfg)
 		f.Close()
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, config{cfg, meta})
+		out = append(out, cfg)
 		ndir := filepath.Dir(dir)
 		if ndir == dir {
 			break
 		}
 		dir = ndir
 	}
-	out = append(out, config{
-		cfg:  defaultConfig,
-		meta: toml.MetaData{}, // meta of the base config should never be accessed
-	})
+	out = append(out, defaultConfig)
 	if len(out) < 2 {
 		return out, nil
 	}
@@ -246,20 +130,20 @@ func parseConfigs(dir string) ([]config, error) {
 	return out, nil
 }
 
-func mergeConfigs(confs []config) Config {
+func mergeConfigs(confs []Config) Config {
 	if len(confs) == 0 {
 		// This shouldn't happen because we always have at least a
 		// default config.
 		panic("trying to merge zero configs")
 	}
 	if len(confs) == 1 {
-		return confs[0].cfg
+		return confs[0]
 	}
 	conf := confs[0]
 	for _, oconf := range confs[1:] {
 		conf = conf.Merge(oconf)
 	}
-	return conf.cfg
+	return conf
 }
 
 func Load(dir string) (Config, error) {
@@ -269,22 +153,10 @@ func Load(dir string) (Config, error) {
 	}
 	conf := mergeConfigs(confs)
 
-	conf.Staticcheck.EnabledChecks = normalizeList(conf.Staticcheck.EnabledChecks)
-	conf.Staticcheck.DisabledChecks = normalizeList(conf.Staticcheck.DisabledChecks)
-
-	conf.Simple.EnabledChecks = normalizeList(conf.Simple.EnabledChecks)
-	conf.Simple.DisabledChecks = normalizeList(conf.Simple.DisabledChecks)
-
-	conf.Unused.EnabledChecks = normalizeList(conf.Unused.EnabledChecks)
-	conf.Unused.DisabledChecks = normalizeList(conf.Unused.DisabledChecks)
-
-	conf.Errcheck.EnabledChecks = normalizeList(conf.Errcheck.EnabledChecks)
-	conf.Errcheck.DisabledChecks = normalizeList(conf.Errcheck.DisabledChecks)
-
-	conf.Stylecheck.EnabledChecks = normalizeList(conf.Stylecheck.EnabledChecks)
-	conf.Stylecheck.DisabledChecks = normalizeList(conf.Stylecheck.DisabledChecks)
-	conf.Stylecheck.Initialisms = normalizeList(conf.Stylecheck.Initialisms)
-	conf.Stylecheck.DotImportWhitelist = normalizeList(conf.Stylecheck.DotImportWhitelist)
+	conf.Checks = normalizeList(conf.Checks)
+	conf.Initialisms = normalizeList(conf.Initialisms)
+	conf.DotImportWhitelist = normalizeList(conf.DotImportWhitelist)
+	conf.HTTPStatusCodeWhitelist = normalizeList(conf.HTTPStatusCodeWhitelist)
 
 	return conf, nil
 }

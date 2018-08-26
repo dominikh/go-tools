@@ -1,10 +1,4 @@
-// Copyright (c) 2013 The Go Authors. All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file or at
-// https://developers.google.com/open-source/licenses/bsd.
-
-// Package lint provides the foundation for tools like gosimple.
+// Package lint provides the foundation for tools like staticcheck
 package lint // import "honnef.co/go/tools/lint"
 
 import (
@@ -24,7 +18,7 @@ import (
 	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/ssa"
-	gossautil "honnef.co/go/tools/ssa/ssautil"
+	"honnef.co/go/tools/ssa/ssautil"
 )
 
 type Job struct {
@@ -171,6 +165,7 @@ type Linter struct {
 	Ignores       []Ignore
 	GoVersion     int
 	ReturnIgnored bool
+	Config        config.Config
 
 	MaxConcurrentJobs int
 	PrintStats        bool
@@ -259,7 +254,7 @@ func (stats *PerfStats) Print(w io.Writer) {
 func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	allPkgs := allPackages(initial)
 	t := time.Now()
-	ssaprog, _ := gossautil.Packages(allPkgs, ssa.GlobalDebug)
+	ssaprog, _ := ssautil.Packages(allPkgs, ssa.GlobalDebug)
 	ssaprog.Build()
 	if stats != nil {
 		stats.SSABuild = time.Since(t)
@@ -285,6 +280,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 				// FIXME(dh): we couldn't load the config, what are we
 				// supposed to do? probably tell the user somehow
 			}
+			cfg = cfg.Merge(l.Config)
 		}
 
 		pkg := &Pkg{
@@ -315,7 +311,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	for _, pkg := range pkgs {
 		isInitial[pkg.Types] = struct{}{}
 	}
-	for fn := range gossautil.AllFunctions(ssaprog) {
+	for fn := range ssautil.AllFunctions(ssaprog) {
 		if fn.Pkg == nil {
 			continue
 		}
@@ -450,12 +446,12 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	}
 
 	var jobs []*Job
-	var allChecks []Check
+	var allChecks []string
 
 	for _, checker := range l.Checkers {
 		checks := checker.Checks()
-		allChecks = append(allChecks, checks...)
 		for _, check := range checks {
+			allChecks = append(allChecks, check.ID)
 			j := &Job{
 				Program: prog,
 				checker: checker.Name(),
@@ -494,47 +490,8 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			stats.Jobs = append(stats.Jobs, JobStat{j.check.ID, j.duration})
 		}
 		for _, p := range j.problems {
-			// OPT(dh): this entire computation could be cached per package
-			allowedChecks := map[string]bool{}
-			var enabled, disabled []string
-			// TODO(dh): we don't want to hard-code a list of supported checkers.
-			switch p.Checker {
-			case "staticcheck":
-				enabled = p.Package.Config.Staticcheck.EnabledChecks
-				disabled = p.Package.Config.Staticcheck.DisabledChecks
-			case "simple":
-				enabled = p.Package.Config.Simple.EnabledChecks
-				disabled = p.Package.Config.Simple.DisabledChecks
-			case "unused":
-				enabled = p.Package.Config.Unused.EnabledChecks
-				disabled = p.Package.Config.Unused.DisabledChecks
-			case "errcheck":
-				enabled = p.Package.Config.Errcheck.EnabledChecks
-				disabled = p.Package.Config.Errcheck.DisabledChecks
-			case "stylecheck":
-				enabled = p.Package.Config.Stylecheck.EnabledChecks
-				disabled = p.Package.Config.Stylecheck.DisabledChecks
-			default:
-				enabled = []string{"all"}
-				disabled = nil
-			}
-			for _, c := range enabled {
-				if c == "all" {
-					for _, c := range allChecks {
-						allowedChecks[c.ID] = true
-					}
-				} else {
-					allowedChecks[c] = true
-				}
-			}
-			for _, c := range disabled {
-				if c == "all" {
-					allowedChecks = nil
-				} else {
-					// TODO(dh): support globs in check white/blacklist
-					delete(allowedChecks, c)
-				}
-			}
+			allowedChecks := FilterChecks(allChecks, p.Package.Config.Checks)
+
 			p.Ignored = l.ignore(p)
 			// TODO(dh): support globs in check white/blacklist
 			// OPT(dh): this approach doesn't actually disable checks,
@@ -623,6 +580,49 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		stats.Print(os.Stderr)
 	}
 	return uniq
+}
+
+func FilterChecks(allChecks []string, checks []string) map[string]bool {
+	// OPT(dh): this entire computation could be cached per package
+	allowedChecks := map[string]bool{}
+
+	for _, check := range checks {
+		b := true
+		if len(check) > 1 && check[0] == '-' {
+			b = false
+			check = check[1:]
+		}
+		if check == "*" || check == "all" {
+			// Match all
+			for _, c := range allChecks {
+				allowedChecks[c] = b
+			}
+		} else if strings.HasSuffix(check, "*") {
+			// Glob
+			prefix := check[:len(check)-1]
+			isCat := strings.IndexFunc(prefix, func(r rune) bool { return unicode.IsNumber(r) }) == -1
+
+			for _, c := range allChecks {
+				idx := strings.IndexFunc(c, func(r rune) bool { return unicode.IsNumber(r) })
+				if isCat {
+					// Glob is S*, which should match S1000 but not SA1000
+					cat := c[:idx]
+					if prefix == cat {
+						allowedChecks[c] = b
+					}
+				} else {
+					// Glob is S1*
+					if strings.HasPrefix(c, prefix) {
+						allowedChecks[c] = b
+					}
+				}
+			}
+		} else {
+			// Literal check name
+			allowedChecks[check] = b
+		}
+	}
+	return allowedChecks
 }
 
 func (prog *Program) Package(path string) *packages.Package {

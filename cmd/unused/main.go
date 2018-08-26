@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 
+	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/unused"
 )
@@ -72,9 +73,5 @@ func main() {
 
 	checker := newChecker(mode)
 	l := unused.NewLintChecker(checker)
-	cfg := lintutil.CheckerConfig{
-		Checker:     l,
-		ExitNonZero: true,
-	}
-	lintutil.ProcessFlagSet(map[string]lintutil.CheckerConfig{"unused": cfg}, fs)
+	lintutil.ProcessFlagSet([]lint.Checker{l}, fs)
 }

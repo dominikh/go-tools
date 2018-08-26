@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/simple"
 )
@@ -15,9 +16,5 @@ func main() {
 	fs.Parse(os.Args[1:])
 	c := simple.NewChecker()
 	c.CheckGenerated = *gen
-	cfg := lintutil.CheckerConfig{
-		Checker:     c,
-		ExitNonZero: true,
-	}
-	lintutil.ProcessFlagSet(map[string]lintutil.CheckerConfig{"simple": cfg}, fs)
+	lintutil.ProcessFlagSet([]lint.Checker{c}, fs)
 }

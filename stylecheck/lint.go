@@ -515,7 +515,7 @@ var httpStatusCodes = map[int]string{
 func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
 	for _, pkg := range j.Program.InitialPackages {
 		whitelist := map[string]bool{}
-		for _, code := range pkg.Config.Stylecheck.HTTPStatusCodeWhitelist {
+		for _, code := range pkg.Config.HTTPStatusCodeWhitelist {
 			whitelist[code] = true
 		}
 		fn := func(node ast.Node) bool {

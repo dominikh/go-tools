@@ -72,8 +72,8 @@ func (c *Checker) CheckNames(j *lint.Job) {
 	}
 
 	for _, pkg := range j.Program.InitialPackages {
-		initialisms := make(map[string]bool, len(pkg.Config.Stylecheck.Initialisms))
-		for _, word := range pkg.Config.Stylecheck.Initialisms {
+		initialisms := make(map[string]bool, len(pkg.Config.Initialisms))
+		for _, word := range pkg.Config.Initialisms {
 			initialisms[word] = true
 		}
 		for _, f := range pkg.Syntax {

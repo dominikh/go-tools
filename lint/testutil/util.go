@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"golang.org/x/tools/go/packages"
+	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/lint"
 )
 
@@ -127,7 +128,7 @@ func lintGoVersion(
 	files []string,
 	sources map[string][]byte,
 ) {
-	l := &lint.Linter{Checkers: []lint.Checker{c}, GoVersion: version}
+	l := &lint.Linter{Checkers: []lint.Checker{c}, GoVersion: version, Config: config.Config{Checks: []string{"all"}}}
 	problems := l.Lint(pkgs, nil)
 
 	for _, fi := range files {

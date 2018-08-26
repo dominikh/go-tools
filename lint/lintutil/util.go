@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil/format"
 	"honnef.co/go/tools/version"
@@ -105,6 +106,22 @@ func (v *versionFlag) Get() interface{} {
 	return int(*v)
 }
 
+type list []string
+
+func (list *list) String() string {
+	return `"` + strings.Join(*list, ",") + `"`
+}
+
+func (list *list) Set(s string) error {
+	if s == "" {
+		*list = nil
+		return nil
+	}
+
+	*list = strings.Split(s, ",")
+	return nil
+}
+
 func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
@@ -119,6 +136,11 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("debug.print-stats", false, "Print debug statistics")
 	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
 
+	checks := list{"inherit"}
+	fail := list{"all"}
+	flags.Var(&checks, "checks", "Comma-separated list of `checks` to enable.")
+	flags.Var(&fail, "fail", "Comma-separated list of `checks` that can cause a non-zero exit status.")
+
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
 	version := new(versionFlag)
@@ -130,12 +152,7 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-type CheckerConfig struct {
-	Checker     lint.Checker
-	ExitNonZero bool
-}
-
-func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
+func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
@@ -147,6 +164,9 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 	maxConcurrentJobs := fs.Lookup("debug.max-concurrent-jobs").Value.(flag.Getter).Get().(int)
 	printStats := fs.Lookup("debug.print-stats").Value.(flag.Getter).Get().(bool)
 	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
+
+	cfg := config.Config{}
+	cfg.Checks = *fs.Lookup("checks").Value.(*list)
 
 	exit := os.Exit
 	if cpuProfile != "" {
@@ -166,16 +186,13 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 		exit(0)
 	}
 
-	var cs []lint.Checker
-	for _, conf := range confs {
-		cs = append(cs, conf.Checker)
-	}
 	ps, err := Lint(cs, fs.Args(), &Options{
 		Tags:          strings.Fields(tags),
 		LintTests:     tests,
 		Ignores:       ignore,
 		GoVersion:     goVersion,
 		ReturnIgnored: showIgnored,
+		Config:        cfg,
 
 		MaxConcurrentJobs: maxConcurrentJobs,
 		PrintStats:        printStats,
@@ -204,10 +221,17 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 		warnings int
 	)
 
+	fail := *fs.Lookup("fail").Value.(*list)
+	var allChecks []string
+	for _, p := range ps {
+		allChecks = append(allChecks, p.Check)
+	}
+
+	shouldExit := lint.FilterChecks(allChecks, fail)
+
 	total = len(ps)
 	for _, p := range ps {
-		conf, ok := confs[p.Checker]
-		if !ok || conf.ExitNonZero {
+		if shouldExit[p.Check] {
 			errors++
 		} else {
 			warnings++
@@ -223,6 +247,8 @@ func ProcessFlagSet(confs map[string]CheckerConfig, fs *flag.FlagSet) {
 }
 
 type Options struct {
+	Config config.Config
+
 	Tags          []string
 	LintTests     bool
 	Ignores       string
@@ -284,6 +310,7 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 		Ignores:       ignores,
 		GoVersion:     opt.GoVersion,
 		ReturnIgnored: opt.ReturnIgnored,
+		Config:        opt.Config,
 
 		MaxConcurrentJobs: opt.MaxConcurrentJobs,
 		PrintStats:        opt.PrintStats,
@@ -324,7 +351,7 @@ func compileErrors(pkg *packages.Package) []lint.Problem {
 	return ps
 }
 
-func ProcessArgs(name string, cs map[string]CheckerConfig, args []string) {
+func ProcessArgs(name string, cs []lint.Checker, args []string) {
 	flags := FlagSet(name)
 	flags.Parse(args)
 
