@@ -34,7 +34,7 @@ func (c *Checker) Checks() []lint.Check {
 	return []lint.Check{
 		{ID: "ST1000", FilterGenerated: false, Fn: c.CheckPackageComment},
 		{ID: "ST1001", FilterGenerated: true, Fn: c.CheckDotImports},
-		{ID: "ST1002", FilterGenerated: true, Fn: c.CheckBlankImports},
+		// {ID: "ST1002", FilterGenerated: true, Fn: c.CheckBlankImports},
 		{ID: "ST1003", FilterGenerated: true, Fn: c.CheckNames},
 		// {ID: "ST1004", FilterGenerated: false, Fn: nil, 			  },
 		{ID: "ST1005", FilterGenerated: false, Fn: c.CheckErrorStrings},
