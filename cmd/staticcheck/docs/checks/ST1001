@@ -1,0 +1,26 @@
+Dot imports are discouraged
+
+Dot imports that aren't in external test packages are discouraged.
+
+The [`dot_import_whitelist`](/docs/options#dot_import_whitelist) option
+can be used to whitelist certain imports.
+
+<blockquote>
+<p>
+The import . form can be useful in tests that, due to circular dependencies, cannot be made part of the package being tested:
+</p>
+
+<pre><code>package foo_test
+
+import (
+	"bar/testutil" // also imports "foo"
+	. "foo"
+)</code></pre>
+
+<p>
+In this case, the test file cannot be in package foo because it uses bar/testutil, which imports foo. So we use the 'import .' form to let the file pretend to be part of package foo even though it is not. Except for this one case, do not use import . in your programs. It makes the programs much harder to read because it is unclear whether a name like Quux is a top-level identifier in the current package or in an imported package.
+</p>
+<footer>
+– <cite><a href="https://github.com/golang/go/wiki/CodeReviewComments#import-dot">Go Code Review Comments</a></cite>
+</footer>
+</blockquote>
