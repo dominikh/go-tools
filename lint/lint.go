@@ -524,35 +524,36 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		if ig.matched {
 			continue
 		}
-		for _, c := range ig.Checks {
-			idx := strings.IndexFunc(c, func(r rune) bool {
-				return unicode.IsNumber(r)
-			})
-			if idx == -1 {
-				// malformed check name, backing out
-				continue
-			}
 
-			responsible := false
-			for _, checker := range l.Checkers {
-				if c[:idx] == checker.Prefix() {
-					// for this checker
-					responsible = true
-					break
-				}
-			}
-			if !responsible {
+		couldveMatched := false
+		for f, pkg := range prog.astFileMap {
+			if prog.Fset().Position(f.Pos()).Filename != ig.File {
 				continue
 			}
-			p := Problem{
-				Position: prog.DisplayPosition(ig.pos),
-				Text:     "this linter directive didn't match anything; should it be removed?",
-				Check:    "",
-				Checker:  "lint",
-				Package:  nil,
+			allowedChecks := FilterChecks(allChecks, pkg.Config.Checks)
+			for _, c := range ig.Checks {
+				if !allowedChecks[c] {
+					continue
+				}
+				couldveMatched = true
+				break
 			}
-			out = append(out, p)
+			break
 		}
+
+		if !couldveMatched {
+			// The ignored checks were disabled for the containing package.
+			// Don't flag the ignore for not having matched.
+			continue
+		}
+		p := Problem{
+			Position: prog.DisplayPosition(ig.pos),
+			Text:     "this linter directive didn't match anything; should it be removed?",
+			Check:    "",
+			Checker:  "lint",
+			Package:  nil,
+		}
+		out = append(out, p)
 	}
 
 	sort.Slice(out, func(i int, j int) bool {
