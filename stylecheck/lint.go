@@ -91,11 +91,21 @@ func (c *Checker) CheckPackageComment(j *lint.Job) {
 }
 
 func (c *Checker) CheckDotImports(j *lint.Job) {
-	// TODO(dh): implement user-provided whitelist for dot imports
-	for _, f := range j.Program.Files {
-		for _, imp := range f.Imports {
-			if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
-				j.Errorf(imp, "should not use dot imports")
+	for _, pkg := range j.Program.InitialPackages {
+		for _, f := range pkg.Syntax {
+		imports:
+			for _, imp := range f.Imports {
+				path := imp.Path.Value
+				path = path[1 : len(path)-1]
+				for _, w := range pkg.Config.DotImportWhitelist {
+					if w == path {
+						continue imports
+					}
+				}
+
+				if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
+					j.Errorf(imp, "should not use dot imports")
+				}
 			}
 		}
 	}
