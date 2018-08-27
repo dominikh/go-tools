@@ -41,7 +41,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "ST1006", FilterGenerated: false, Fn: c.CheckReceiverNames},
 		{ID: "ST1007", FilterGenerated: true, Fn: c.CheckIncDec},
 		{ID: "ST1008", FilterGenerated: false, Fn: c.CheckErrorReturn},
-		{ID: "ST1009", FilterGenerated: false, Fn: c.CheckUnexportedReturn},
+		// {ID: "ST1009", FilterGenerated: false, Fn: c.CheckUnexportedReturn},
 		{ID: "ST1010", FilterGenerated: false, Fn: c.CheckContextFirstArg},
 		{ID: "ST1011", FilterGenerated: false, Fn: c.CheckTimeNames},
 		{ID: "ST1012", FilterGenerated: false, Fn: c.CheckErrorVarNames},
