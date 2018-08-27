@@ -625,6 +625,12 @@ func (c *Checker) CheckShadowedBuiltin(j *lint.Job) {
 			return true
 		}
 		obj := ObjectOf(j, ident)
+		if obj == nil {
+			// Symbolic variable such as new := x.(type) – we'll still
+			// end up flagging it via actual uses of concrete
+			// instances.
+			return true
+		}
 		if obj.Pkg() == nil {
 			// this is a built-in
 			return true

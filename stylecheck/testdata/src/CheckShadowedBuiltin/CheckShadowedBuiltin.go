@@ -25,3 +25,10 @@ func fn2() {
 func fn3(x []string) {
 	_ = len(x)
 }
+
+func fn4(t interface{}) {
+	switch new := t.(type) { // MATCH "shadows built-in"
+	default:
+		_ = new
+	}
+}
