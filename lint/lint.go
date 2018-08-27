@@ -123,8 +123,8 @@ type Program struct {
 	generatedMap map[string]bool
 }
 
-func (p *Program) Fset() *token.FileSet {
-	return p.InitialPackages[0].Fset
+func (prog *Program) Fset() *token.FileSet {
+	return prog.InitialPackages[0].Fset
 }
 
 type Func func(*Job)

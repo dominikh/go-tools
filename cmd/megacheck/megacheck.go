@@ -31,7 +31,6 @@ func main() {
 			functions    bool
 			types        bool
 			variables    bool
-			debug        string
 			wholeProgram bool
 			reflection   bool
 		}

@@ -1469,7 +1469,6 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 			return
 		}
 		j.Errorf(branch, "redundant break statement")
-		return
 	}
 	fn2 := func(node ast.Node) {
 		var ret *ast.FieldList

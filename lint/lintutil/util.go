@@ -40,30 +40,6 @@ func usage(name string, flags *flag.FlagSet) func() {
 	}
 }
 
-func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
-	if len(importPaths) == 0 {
-		return false, nil
-	}
-	if strings.HasSuffix(importPaths[0], ".go") {
-		// User is specifying a package in terms of .go files, don't resolve
-		return true, nil
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return false, err
-	}
-	ctx := build.Default
-	ctx.BuildTags = tags
-	for i, path := range importPaths {
-		bpkg, err := ctx.Import(path, wd, build.FindOnly)
-		if err != nil {
-			return false, fmt.Errorf("can't load package %q: %v", path, err)
-		}
-		importPaths[i] = bpkg.ImportPath
-	}
-	return false, nil
-}
-
 func parseIgnore(s string) ([]lint.Ignore, error) {
 	var out []lint.Ignore
 	if len(s) == 0 {

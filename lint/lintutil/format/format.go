@@ -1,3 +1,4 @@
+// Package format provides formatters for linter problems.
 package format
 
 import (

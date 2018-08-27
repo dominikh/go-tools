@@ -2058,8 +2058,7 @@ func objectName(obj types.Object) string {
 	}
 	var name string
 	if obj.Pkg() != nil && obj.Pkg().Scope().Lookup(obj.Name()) == obj {
-		var s string
-		s = obj.Pkg().Path()
+		s := obj.Pkg().Path()
 		if s != "" {
 			name += s + "."
 		}
@@ -2442,17 +2441,6 @@ func (c *Checker) checkCalls(j *lint.Job, rules map[string]CallCheck) {
 	}
 }
 
-func unwrapFunction(val ssa.Value) *ssa.Function {
-	switch val := val.(type) {
-	case *ssa.Function:
-		return val
-	case *ssa.MakeClosure:
-		return val.Fn.(*ssa.Function)
-	default:
-		return nil
-	}
-}
-
 func shortCallName(call *ssa.CallCommon) string {
 	if call.IsInvoke() {
 		return ""
@@ -2468,19 +2456,6 @@ func shortCallName(call *ssa.CallCommon) string {
 		return v.Name()
 	}
 	return ""
-}
-
-func hasCallTo(block *ssa.BasicBlock, name string) bool {
-	for _, ins := range block.Instrs {
-		call, ok := ins.(*ssa.Call)
-		if !ok {
-			continue
-		}
-		if IsCallTo(call.Common(), name) {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *Checker) CheckWriterBufferModified(j *lint.Job) {

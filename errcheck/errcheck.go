@@ -69,7 +69,7 @@ func (c *Checker) CheckErrcheck(j *lint.Job) {
 						if ssafn != nil {
 							ct := c.funcDescs.Get(ssafn).ConcreteReturnTypes
 							// TODO(dh): support >1 concrete types
-							if ct != nil && len(ct) == 1 {
+							if len(ct) == 1 {
 								// TODO(dh): do we have access to a
 								// cached method set somewhere?
 								ms := types.NewMethodSet(ct[0].At(ct[0].Len() - 1).Type())
