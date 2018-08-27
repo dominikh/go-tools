@@ -37,17 +37,17 @@ func main() {
 	}
 	fs := lintutil.FlagSet("megacheck")
 	fs.BoolVar(&flags.gosimple.enabled,
-		"simple.enabled", true, "Run gosimple")
+		"simple.enabled", true, "Deprecated: use -checks instead")
 	fs.BoolVar(&flags.gosimple.generated,
 		"simple.generated", false, "Check generated code")
 
 	fs.BoolVar(&flags.staticcheck.enabled,
-		"staticcheck.enabled", true, "Run staticcheck")
+		"staticcheck.enabled", true, "Deprecated: use -checks instead")
 	fs.BoolVar(&flags.staticcheck.generated,
 		"staticcheck.generated", false, "Check generated code (only applies to a subset of checks)")
 
 	fs.BoolVar(&flags.unused.enabled,
-		"unused.enabled", true, "Run unused")
+		"unused.enabled", true, "Deprecated: use -checks instead")
 	fs.BoolVar(&flags.unused.constants,
 		"unused.consts", true, "Report unused constants")
 	fs.BoolVar(&flags.unused.fields,
@@ -62,6 +62,10 @@ func main() {
 		"unused.exported", false, "Treat arguments as a program and report unused exported identifiers")
 	fs.BoolVar(&flags.unused.reflection,
 		"unused.reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
+
+	fs.Bool("simple.exit-non-zero", true, "Deprecated: use -fail instead")
+	fs.Bool("staticcheck.exit-non-zero", true, "Deprecated: use -fail instead")
+	fs.Bool("unused.exit-non-zero", true, "Deprecated: use -fail instead")
 
 	fs.Parse(os.Args[1:])
 

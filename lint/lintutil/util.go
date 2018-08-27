@@ -102,7 +102,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
 	flags.String("tags", "", "List of `build tags`")
-	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
+	flags.String("ignore", "", "Deprecated: use linter directives instead")
 	flags.Bool("tests", true, "Include tests")
 	flags.Bool("version", false, "Print version and exit")
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
