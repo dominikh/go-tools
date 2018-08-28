@@ -23,18 +23,14 @@ Alternatively, see individual tool pages below.
 All of the following tools can be found in the cmd/ directory. Each
 tool is accompanied by its own README, describing it in more detail.
 
-| Tool                                               | Description                                                      |
-|----------------------------------------------------|------------------------------------------------------------------|
-| [gosimple](cmd/gosimple/)                          | Detects code that could be rewritten in a simpler way.           |
-| [keyify](cmd/keyify/)                              | Transforms an unkeyed struct literal into a keyed one.           |
-| [rdeps](cmd/rdeps/)                                | Find all reverse dependencies of a set of packages               |
-| [staticcheck](cmd/staticcheck/)                    | Detects a myriad of bugs and inefficiencies in your code.        |
-| [structlayout](cmd/structlayout/)                  | Displays the layout (field sizes and padding) of structs.        |
-| [structlayout-optimize](cmd/structlayout-optimize) | Reorders struct fields to minimize the amount of padding.        |
-| [structlayout-pretty](cmd/structlayout-pretty)     | Formats the output of structlayout with ASCII art.               |
-| [unused](cmd/unused/)                              | Reports unused identifiers (types, functions, ...) in your code. |
-|                                                    |                                                                  |
-| [megacheck](cmd/megacheck)                         | Run staticcheck, gosimple and unused in one go                   |
+| Tool                                               | Description                                                             |
+|----------------------------------------------------|-------------------------------------------------------------------------|
+| [keyify](cmd/keyify/)                              | Transforms an unkeyed struct literal into a keyed one.                  |
+| [rdeps](cmd/rdeps/)                                | Find all reverse dependencies of a set of packages                      |
+| [staticcheck](cmd/staticcheck/)                    | Go static analysis, detecting bugs, performance issues, and much more. |
+| [structlayout](cmd/structlayout/)                  | Displays the layout (field sizes and padding) of structs.               |
+| [structlayout-optimize](cmd/structlayout-optimize) | Reorders struct fields to minimize the amount of padding.               |
+| [structlayout-pretty](cmd/structlayout-pretty)     | Formats the output of structlayout with ASCII art.                      |
 
 ## Libraries
 
