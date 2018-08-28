@@ -318,6 +318,16 @@ fnLoop:
 }
 
 func (c *Checker) CheckErrorStrings(j *lint.Job) {
+	fnNames := map[*ssa.Package]map[string]bool{}
+	for _, fn := range j.Program.InitialFunctions {
+		m := fnNames[fn.Package()]
+		if m == nil {
+			m = map[string]bool{}
+			fnNames[fn.Package()] = m
+		}
+		m[fn.Name()] = true
+	}
+
 	for _, fn := range j.Program.InitialFunctions {
 		if IsInTest(j, fn) {
 			// We don't care about malformed error messages in tests;
@@ -326,6 +336,7 @@ func (c *Checker) CheckErrorStrings(j *lint.Job) {
 			continue
 		}
 		for _, block := range fn.Blocks {
+		instrLoop:
 			for _, ins := range block.Instrs {
 				call, ok := ins.(*ssa.Call)
 				if !ok {
@@ -356,35 +367,31 @@ func (c *Checker) CheckErrorStrings(j *lint.Job) {
 					continue
 				}
 				word := s[:idx]
-				first, _ := utf8.DecodeRuneInString(word)
+				first, n := utf8.DecodeRuneInString(word)
 				if !unicode.IsUpper(first) {
 					continue
 				}
-				many := false
-				for _, c := range []rune(word)[1:] {
+				for _, c := range word[n:] {
 					if unicode.IsUpper(c) {
-						many = true
-						break
+						// Word is probably an initialism or
+						// multi-word function name
+						continue instrLoop
 					}
 				}
-				if !many {
-					// First word in error starts with a capital
-					// letter, and the word doesn't contain any other
-					// capitals, making it unlikely to be an
-					// initialism or multi-word function name.
-					//
-					// It could still be a single-word function name
-					// or a proper noun, though.
-					//
-					// TODO(dh): example from the stdlib that we incorrectly flag:
-					// 	func (w *pooledFlateWriter) Write(p []byte) (n int, err error) {
-					// 		...
-					// 		return 0, errors.New("Write after Close")
-					// 		...
-					// 	}
 
-					j.Errorf(call, "error strings should not be capitalized")
+				word = strings.TrimRightFunc(word, func(r rune) bool { return unicode.IsPunct(r) })
+				if fnNames[fn.Package()][word] {
+					// Word is probably the name of a function in this package
+					continue
 				}
+				// First word in error starts with a capital
+				// letter, and the word doesn't contain any other
+				// capitals, making it unlikely to be an
+				// initialism or multi-word function name.
+				//
+				// It could still be a proper noun, though.
+
+				j.Errorf(call, "error strings should not be capitalized")
 			}
 		}
 	}
