@@ -1011,8 +1011,14 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 		if typ1 == typ2 {
 			return true
 		}
-		if !structsIdentical(s1, s2) {
-			return true
+		if IsGoVersion(j, 8) {
+			if !types.IdenticalIgnoreTags(s1, s2) {
+				return true
+			}
+		} else {
+			if !types.Identical(s1, s2) {
+				return true
+			}
 		}
 		j.Errorf(node, "should convert %s (type %s) to %s instead of using struct literal",
 			ident.Name, typ2.Obj().Name(), typ1.Obj().Name())
