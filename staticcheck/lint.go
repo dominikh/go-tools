@@ -285,7 +285,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA6001", FilterGenerated: false, Fn: c.CheckMapBytesKey},
 		{ID: "SA6002", FilterGenerated: false, Fn: c.callChecker(checkSyncPoolValueRules)},
 		{ID: "SA6003", FilterGenerated: false, Fn: c.CheckRangeStringRunes},
-		{ID: "SA6004", FilterGenerated: false, Fn: c.CheckSillyRegexp},
+		// {ID: "SA6004", FilterGenerated: false, Fn: c.CheckSillyRegexp},
 
 		{ID: "SA9001", FilterGenerated: false, Fn: c.CheckDubiousDeferInChannelRangeLoop},
 		{ID: "SA9002", FilterGenerated: false, Fn: c.CheckNonOctalFileMode},
