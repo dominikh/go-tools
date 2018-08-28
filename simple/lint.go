@@ -221,6 +221,9 @@ func (c *Checker) LintIfBoolCmp(j *lint.Job) {
 		if (l1-len(r))%2 == 1 {
 			r = "!" + r
 		}
+		if IsInTest(j, node) {
+			return true
+		}
 		j.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s", r)
 		return true
 	}
