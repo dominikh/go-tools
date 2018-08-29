@@ -106,7 +106,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("tests", true, "Include tests")
 	flags.Bool("version", false, "Print version and exit")
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
-	flags.String("f", "text", "Output `format` (valid choices are 'text' and 'json')")
+	flags.String("f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
 
 	flags.Int("debug.max-concurrent-jobs", 0, "Number of jobs to run concurrently")
 	flags.Bool("debug.print-stats", false, "Print debug statistics")
