@@ -233,15 +233,26 @@ func IsGoVersion(j *lint.Job, minor int) bool {
 }
 
 func CallNameAST(j *lint.Job, call *ast.CallExpr) string {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
+	switch fun := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		fn, ok := ObjectOf(j, fun.Sel).(*types.Func)
+		if !ok {
+			return ""
+		}
+		return fn.FullName()
+	case *ast.Ident:
+		obj := ObjectOf(j, fun)
+		switch obj := obj.(type) {
+		case *types.Func:
+			return obj.FullName()
+		case *types.Builtin:
+			return obj.Name()
+		default:
+			return ""
+		}
+	default:
 		return ""
 	}
-	fn, ok := j.NodePackage(call).TypesInfo.ObjectOf(sel.Sel).(*types.Func)
-	if !ok {
-		return ""
-	}
-	return fn.FullName()
 }
 
 func IsCallToAST(j *lint.Job, node ast.Node, name string) bool {

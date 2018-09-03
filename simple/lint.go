@@ -62,6 +62,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "S1030", FilterGenerated: true, Fn: c.LintBytesBufferConversions},
 		{ID: "S1031", FilterGenerated: true, Fn: c.LintNilCheckAroundRange},
 		{ID: "S1032", FilterGenerated: true, Fn: c.LintSortHelpers},
+		{ID: "S1033", FilterGenerated: true, Fn: c.LintGuardedDelete},
 	}
 }
 
@@ -1795,5 +1796,70 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fnFuncs)
+	}
+}
+
+func (c *Checker) LintGuardedDelete(j *lint.Job) {
+	isCommaOkMapIndex := func(stmt ast.Stmt) (b *ast.Ident, m ast.Expr, key ast.Expr, ok bool) {
+		// Has to be of the form `_, <b:*ast.Ident> = <m:*types.Map>[<key>]
+
+		assign, ok := stmt.(*ast.AssignStmt)
+		if !ok {
+			return nil, nil, nil, false
+		}
+		if len(assign.Lhs) != 2 || len(assign.Rhs) != 1 {
+			return nil, nil, nil, false
+		}
+		if !IsBlank(assign.Lhs[0]) {
+			return nil, nil, nil, false
+		}
+		ident, ok := assign.Lhs[1].(*ast.Ident)
+		if !ok {
+			return nil, nil, nil, false
+		}
+		index, ok := assign.Rhs[0].(*ast.IndexExpr)
+		if !ok {
+			return nil, nil, nil, false
+		}
+		if _, ok := TypeOf(j, index.X).(*types.Map); !ok {
+			return nil, nil, nil, false
+		}
+		key = index.Index
+		return ident, index.X, key, true
+	}
+	fn := func(node ast.Node) bool {
+		stmt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		if len(stmt.Body.List) != 1 {
+			return true
+		}
+		expr, ok := stmt.Body.List[0].(*ast.ExprStmt)
+		if !ok {
+			return true
+		}
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !IsCallToAST(j, call, "delete") {
+			return true
+		}
+		b, m, key, ok := isCommaOkMapIndex(stmt.Init)
+		if !ok {
+			return true
+		}
+		if cond, ok := stmt.Cond.(*ast.Ident); !ok || ObjectOf(j, cond) != ObjectOf(j, b) {
+			return true
+		}
+		if Render(j, call.Args[0]) != Render(j, m) || Render(j, call.Args[1]) != Render(j, key) {
+			return true
+		}
+		j.Errorf(stmt, "unnecessary guard around call to delete")
+		return true
+	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
 	}
 }
