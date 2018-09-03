@@ -1,3 +1,0 @@
-context.Context should be first argument
-
-Idiomatically, context.Context should be the first argument of a function.

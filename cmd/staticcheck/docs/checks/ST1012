@@ -1,4 +1,0 @@
-Poorly chosen name for error variable
-
-Error variables that are part of an API
-should be called `errFoo` or `ErrFoo`.

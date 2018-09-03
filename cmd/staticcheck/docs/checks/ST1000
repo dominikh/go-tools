@@ -1,5 +1,0 @@
-Incorrect or missing package comment
-
-Packages must have a package comment
-that is formatted according to the guidelines
-laid out in https://github.com/golang/go/wiki/CodeReviewComments#package-comments.

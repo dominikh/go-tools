@@ -1,6 +1,0 @@
-Regular expression does not contain any meta characters
-
-Regular expressions that do not contain any meta characters (things
-like `\d`) are just regular strings. Using the `regexp` with such
-expressions is unnecessarily complex and slow. Functions from the
-`bytes` and `strings` packages should be used instead.
