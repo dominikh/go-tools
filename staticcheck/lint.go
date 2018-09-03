@@ -257,7 +257,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA4000", FilterGenerated: false, Fn: c.CheckLhsRhsIdentical},
 		{ID: "SA4001", FilterGenerated: false, Fn: c.CheckIneffectiveCopy},
 		{ID: "SA4002", FilterGenerated: false, Fn: c.CheckDiffSizeComparison},
-		{ID: "SA4003", FilterGenerated: false, Fn: c.CheckUnsignedComparison},
+		{ID: "SA4003", FilterGenerated: false, Fn: c.CheckExtremeComparison},
 		{ID: "SA4004", FilterGenerated: false, Fn: c.CheckIneffectiveLoop},
 		{ID: "SA4006", FilterGenerated: false, Fn: c.CheckUnreadVariableValues},
 		{ID: "SA4008", FilterGenerated: false, Fn: c.CheckLoopCondition},
@@ -1391,7 +1391,15 @@ func (c *Checker) CheckNilMaps(j *lint.Job) {
 	}
 }
 
-func (c *Checker) CheckUnsignedComparison(j *lint.Job) {
+func (c *Checker) CheckExtremeComparison(j *lint.Job) {
+	isobj := func(expr ast.Expr, name string) bool {
+		sel, ok := expr.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		return IsObject(ObjectOf(j, sel.Sel), name)
+	}
+
 	fn := func(node ast.Node) bool {
 		expr, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -1402,19 +1410,68 @@ func (c *Checker) CheckUnsignedComparison(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if (basic.Info() & types.IsUnsigned) == 0 {
-			return true
+
+		var max string
+		var min string
+
+		switch basic.Kind() {
+		case types.Uint8:
+			max = "math.MaxUint8"
+		case types.Uint16:
+			max = "math.MaxUint16"
+		case types.Uint32:
+			max = "math.MaxUint32"
+		case types.Uint64:
+			max = "math.MaxUint64"
+		case types.Uint:
+			max = "math.MaxUint64"
+
+		case types.Int8:
+			min = "math.MinInt8"
+			max = "math.MaxInt8"
+		case types.Int16:
+			min = "math.MinInt16"
+			max = "math.MaxInt16"
+		case types.Int32:
+			min = "math.MinInt32"
+			max = "math.MaxInt32"
+		case types.Int64:
+			min = "math.MinInt64"
+			max = "math.MaxInt64"
+		case types.Int:
+			min = "math.MinInt64"
+			max = "math.MaxInt64"
 		}
-		lit, ok := expr.Y.(*ast.BasicLit)
-		if !ok || lit.Value != "0" {
-			return true
+
+		if (expr.Op == token.GTR || expr.Op == token.GEQ) && isobj(expr.Y, max) ||
+			(expr.Op == token.LSS || expr.Op == token.LEQ) && isobj(expr.X, max) {
+			j.Errorf(expr, "no value of type %s is greater than %s", basic, max)
 		}
-		switch expr.Op {
-		case token.GEQ:
-			j.Errorf(expr, "unsigned values are always >= 0")
-		case token.LSS:
-			j.Errorf(expr, "unsigned values are never < 0")
+		if expr.Op == token.LEQ && isobj(expr.Y, max) ||
+			expr.Op == token.GEQ && isobj(expr.X, max) {
+			j.Errorf(expr, "every value of type %s is <= %s", basic, max)
 		}
+
+		if (basic.Info() & types.IsUnsigned) != 0 {
+			if (expr.Op == token.LSS || expr.Op == token.LEQ) && IsIntLiteral(expr.Y, "0") ||
+				(expr.Op == token.GTR || expr.Op == token.GEQ) && IsIntLiteral(expr.X, "0") {
+				j.Errorf(expr, "no value of type %s is less than 0", basic)
+			}
+			if expr.Op == token.GEQ && IsIntLiteral(expr.Y, "0") ||
+				expr.Op == token.LEQ && IsIntLiteral(expr.X, "0") {
+				j.Errorf(expr, "every value of type %s is >= 0", basic)
+			}
+		} else {
+			if (expr.Op == token.LSS || expr.Op == token.LEQ) && isobj(expr.Y, min) ||
+				(expr.Op == token.GTR || expr.Op == token.GEQ) && isobj(expr.X, min) {
+				j.Errorf(expr, "no value of type %s is less than %s", basic, min)
+			}
+			if expr.Op == token.GEQ && isobj(expr.Y, min) ||
+				expr.Op == token.LEQ && isobj(expr.X, min) {
+				j.Errorf(expr, "every value of type %s is >= %s", basic, min)
+			}
+		}
+
 		return true
 	}
 	for _, f := range j.Program.Files {

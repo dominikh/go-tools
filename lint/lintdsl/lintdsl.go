@@ -332,3 +332,11 @@ func GroupSpecs(j *lint.Job, specs []ast.Spec) [][]ast.Spec {
 
 	return groups
 }
+
+func IsObject(obj types.Object, name string) bool {
+	var path string
+	if pkg := obj.Pkg(); pkg != nil {
+		path = pkg.Path() + "."
+	}
+	return path+obj.Name() == name
+}
