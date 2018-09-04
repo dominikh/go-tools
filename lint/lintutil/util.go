@@ -12,9 +12,10 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
-	"go/types"
+	"go/token"
 	"log"
 	"os"
+	"regexp"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -255,7 +256,6 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 	conf := &packages.Config{
 		Mode:  packages.LoadAllSyntax,
 		Tests: opt.LintTests,
-		Error: func(err error) {},
 	}
 
 	t := time.Now()
@@ -297,6 +297,26 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 	return problems, nil
 }
 
+var posRe = regexp.MustCompile(`^(.+?):(\d+):(\d+)?$`)
+
+func parsePos(pos string) token.Position {
+	if pos == "-" || pos == "" {
+		return token.Position{}
+	}
+	parts := posRe.FindStringSubmatch(pos)
+	if parts == nil {
+		panic(fmt.Sprintf("internal error: malformed position %q", pos))
+	}
+	file := parts[0]
+	line, _ := strconv.Atoi(parts[1])
+	col, _ := strconv.Atoi(parts[2])
+	return token.Position{
+		Filename: file,
+		Line:     line,
+		Column:   col,
+	}
+}
+
 func compileErrors(pkg *packages.Package) []lint.Problem {
 	if !pkg.IllTyped {
 		return nil
@@ -311,17 +331,11 @@ func compileErrors(pkg *packages.Package) []lint.Problem {
 	}
 	var ps []lint.Problem
 	for _, err := range pkg.Errors {
-		var p lint.Problem
-		switch err := err.(type) {
-		case types.Error:
-			p = lint.Problem{
-				Position: err.Fset.Position(err.Pos),
-				Text:     err.Msg,
-				Checker:  "compiler",
-				Check:    "compile",
-			}
-		default:
-			fmt.Fprintf(os.Stderr, "internal error: unhandled error type %T\n", err)
+		p := lint.Problem{
+			Position: parsePos(err.Pos),
+			Text:     err.Msg,
+			Checker:  "compiler",
+			Check:    "compile",
 		}
 		ps = append(ps, p)
 	}
