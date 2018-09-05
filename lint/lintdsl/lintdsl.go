@@ -103,10 +103,21 @@ func IsZero(expr ast.Expr) bool {
 	return IsIntLiteral(expr, "0")
 }
 
-func TypeOf(j *lint.Job, expr ast.Expr) types.Type          { return j.Program.Info.TypeOf(expr) }
+func TypeOf(j *lint.Job, expr ast.Expr) types.Type {
+	if expr == nil {
+		return nil
+	}
+	return j.NodePackage(expr).TypesInfo.TypeOf(expr)
+}
+
 func IsOfType(j *lint.Job, expr ast.Expr, name string) bool { return IsType(TypeOf(j, expr), name) }
 
-func ObjectOf(j *lint.Job, ident *ast.Ident) types.Object { return j.Program.Info.ObjectOf(ident) }
+func ObjectOf(j *lint.Job, ident *ast.Ident) types.Object {
+	if ident == nil {
+		return nil
+	}
+	return j.NodePackage(ident).TypesInfo.ObjectOf(ident)
+}
 
 func IsInTest(j *lint.Job, node lint.Positioner) bool {
 	// FIXME(dh): this doesn't work for global variables with
@@ -127,10 +138,11 @@ func IsInMain(j *lint.Job, node lint.Positioner) bool {
 }
 
 func SelectorName(j *lint.Job, expr *ast.SelectorExpr) string {
-	sel := j.Program.Info.Selections[expr]
+	info := j.NodePackage(expr).TypesInfo
+	sel := info.Selections[expr]
 	if sel == nil {
 		if x, ok := expr.X.(*ast.Ident); ok {
-			pkg, ok := j.Program.Info.ObjectOf(x).(*types.PkgName)
+			pkg, ok := info.ObjectOf(x).(*types.PkgName)
 			if !ok {
 				// This shouldn't happen
 				return fmt.Sprintf("%s.%s", x.Name, expr.Sel.Name)
@@ -143,11 +155,11 @@ func SelectorName(j *lint.Job, expr *ast.SelectorExpr) string {
 }
 
 func IsNil(j *lint.Job, expr ast.Expr) bool {
-	return j.Program.Info.Types[expr].IsNil()
+	return j.NodePackage(expr).TypesInfo.Types[expr].IsNil()
 }
 
 func BoolConst(j *lint.Job, expr ast.Expr) bool {
-	val := j.Program.Info.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
+	val := j.NodePackage(expr).TypesInfo.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
 	return constant.BoolVal(val)
 }
 
@@ -160,7 +172,7 @@ func IsBoolConst(j *lint.Job, expr ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	obj := j.Program.Info.ObjectOf(ident)
+	obj := j.NodePackage(expr).TypesInfo.ObjectOf(ident)
 	c, ok := obj.(*types.Const)
 	if !ok {
 		return false
@@ -176,7 +188,7 @@ func IsBoolConst(j *lint.Job, expr ast.Expr) bool {
 }
 
 func ExprToInt(j *lint.Job, expr ast.Expr) (int64, bool) {
-	tv := j.Program.Info.Types[expr]
+	tv := j.NodePackage(expr).TypesInfo.Types[expr]
 	if tv.Value == nil {
 		return 0, false
 	}
@@ -187,7 +199,7 @@ func ExprToInt(j *lint.Job, expr ast.Expr) (int64, bool) {
 }
 
 func ExprToString(j *lint.Job, expr ast.Expr) (string, bool) {
-	val := j.Program.Info.Types[expr].Value
+	val := j.NodePackage(expr).TypesInfo.Types[expr].Value
 	if val == nil {
 		return "", false
 	}
@@ -225,7 +237,7 @@ func CallNameAST(j *lint.Job, call *ast.CallExpr) string {
 	if !ok {
 		return ""
 	}
-	fn, ok := j.Program.Info.ObjectOf(sel.Sel).(*types.Func)
+	fn, ok := j.NodePackage(call).TypesInfo.ObjectOf(sel.Sel).(*types.Func)
 	if !ok {
 		return ""
 	}

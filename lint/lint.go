@@ -112,7 +112,6 @@ type Program struct {
 	AllPackages      []*packages.Package
 	AllFunctions     []*ssa.Function
 	Files            []*ast.File
-	Info             *types.Info
 	GoVersion        int
 
 	tokenFileMap map[*token.File]*ast.File
@@ -304,7 +303,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		SSA:             ssaprog,
 		InitialPackages: pkgs,
 		AllPackages:     allPkgs,
-		Info:            &types.Info{},
 		GoVersion:       l.GoVersion,
 		tokenFileMap:    map[*token.File]*ast.File{},
 		astFileMap:      map[*ast.File]*Pkg{},
@@ -413,32 +411,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		sizes.implicits += len(pkg.TypesInfo.Implicits)
 		sizes.selections += len(pkg.TypesInfo.Selections)
 		sizes.scopes += len(pkg.TypesInfo.Scopes)
-	}
-	prog.Info.Types = make(map[ast.Expr]types.TypeAndValue, sizes.types)
-	prog.Info.Defs = make(map[*ast.Ident]types.Object, sizes.defs)
-	prog.Info.Uses = make(map[*ast.Ident]types.Object, sizes.uses)
-	prog.Info.Implicits = make(map[ast.Node]types.Object, sizes.implicits)
-	prog.Info.Selections = make(map[*ast.SelectorExpr]*types.Selection, sizes.selections)
-	prog.Info.Scopes = make(map[ast.Node]*types.Scope, sizes.scopes)
-	for _, pkg := range pkgs {
-		for k, v := range pkg.TypesInfo.Types {
-			prog.Info.Types[k] = v
-		}
-		for k, v := range pkg.TypesInfo.Defs {
-			prog.Info.Defs[k] = v
-		}
-		for k, v := range pkg.TypesInfo.Uses {
-			prog.Info.Uses[k] = v
-		}
-		for k, v := range pkg.TypesInfo.Implicits {
-			prog.Info.Implicits[k] = v
-		}
-		for k, v := range pkg.TypesInfo.Selections {
-			prog.Info.Selections[k] = v
-		}
-		for k, v := range pkg.TypesInfo.Scopes {
-			prog.Info.Scopes[k] = v
-		}
 	}
 
 	if stats != nil {
