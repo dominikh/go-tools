@@ -46,7 +46,6 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "ST1011", FilterGenerated: false, Fn: c.CheckTimeNames},
 		{ID: "ST1012", FilterGenerated: false, Fn: c.CheckErrorVarNames},
 		{ID: "ST1013", FilterGenerated: true, Fn: c.CheckHTTPStatusCodes},
-		{ID: "ST1014", FilterGenerated: true, Fn: c.CheckShadowedBuiltin},
 		{ID: "ST1015", FilterGenerated: true, Fn: c.CheckDefaultCaseOrder},
 	}
 }
@@ -576,91 +575,6 @@ func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
 		for _, f := range pkg.Syntax {
 			ast.Inspect(f, fn)
 		}
-	}
-}
-
-var builtins = map[string]bool{
-	"append":     true,
-	"bool":       true,
-	"byte":       true,
-	"cap":        true,
-	"close":      true,
-	"complex":    true,
-	"complex128": true,
-	"complex64":  true,
-	"copy":       true,
-	"delete":     true,
-	"error":      true,
-	"false":      true,
-	"float32":    true,
-	"float64":    true,
-	"imag":       true,
-	"int":        true,
-	"int16":      true,
-	"int32":      true,
-	"int64":      true,
-	"int8":       true,
-	"iota":       true,
-	"len":        true,
-	"make":       true,
-	"new":        true,
-	"nil":        true,
-	"panic":      true,
-	"print":      true,
-	"println":    true,
-	"real":       true,
-	"recover":    true,
-	"rune":       true,
-	"string":     true,
-	"true":       true,
-	"uint":       true,
-	"uint16":     true,
-	"uint32":     true,
-	"uint64":     true,
-	"uint8":      true,
-	"uintptr":    true,
-}
-
-func (c *Checker) CheckShadowedBuiltin(j *lint.Job) {
-	seen := map[types.Object]bool{}
-	fn := func(node ast.Node) bool {
-		ident, ok := node.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		if !builtins[ident.Name] {
-			return true
-		}
-		obj := ObjectOf(j, ident)
-		if obj == nil {
-			// Symbolic variable such as new := x.(type) – we'll still
-			// end up flagging it via actual uses of concrete
-			// instances.
-			return true
-		}
-		if obj.Pkg() == nil {
-			// this is a built-in
-			return true
-		}
-		if seen[obj] {
-			return true
-		}
-		seen[obj] = true
-		switch obj := obj.(type) {
-		case *types.Var:
-			if obj.IsField() {
-				return true
-			}
-		case *types.Func:
-			if obj.Type().(*types.Signature).Recv() != nil {
-				return true
-			}
-		}
-		j.Errorf(obj, "identifier %s shadows built-in of the same name", ident.Name)
-		return true
-	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
 	}
 }
 

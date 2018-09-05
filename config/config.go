@@ -74,7 +74,7 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	Checks: []string{"all", "-ST1003", "-ST1014"},
+	Checks: []string{"all", "-ST1003"},
 	Initialisms: []string{
 		"ACL", "API", "ASCII", "CPU", "CSS", "DNS",
 		"EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID",
