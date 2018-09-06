@@ -313,16 +313,24 @@ func (c *Checker) useNoCopyFields(typ types.Type) {
 	}
 }
 
-func (c *Checker) useExportedFields(typ types.Type) {
+func (c *Checker) useExportedFields(typ types.Type, by types.Type) bool {
+	any := false
 	if st, ok := typ.Underlying().(*types.Struct); ok {
 		n := st.NumFields()
 		for i := 0; i < n; i++ {
 			field := st.Field(i)
+			if field.Anonymous() {
+				if c.useExportedFields(field.Type(), typ) {
+					c.graph.markUsedBy(field, typ)
+				}
+			}
 			if field.Exported() {
-				c.graph.markUsedBy(field, typ)
+				c.graph.markUsedBy(field, by)
+				any = true
 			}
 		}
 	}
+	return any
 }
 
 func (c *Checker) useExportedMethods(typ types.Type) {
@@ -380,7 +388,7 @@ func (c *Checker) processDefs(pkg *lint.Pkg) {
 			// mark them used if an instance of the type was
 			// accessible via an interface value.
 			if !c.WholeProgram || c.ConsiderReflection {
-				c.useExportedFields(obj.Type())
+				c.useExportedFields(obj.Type(), obj.Type())
 			}
 
 			// TODO(dh): Traditionally we have not marked all exported
@@ -525,7 +533,7 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 		case *types.Struct:
 			c.useNoCopyFields(obj)
 			if pkg.Types.Name() != "main" && !c.WholeProgram {
-				c.useExportedFields(obj)
+				c.useExportedFields(obj, obj)
 			}
 		}
 	}

@@ -48,3 +48,11 @@ type i3 interface {
 type I4 interface {
 	i3
 }
+
+type T5 struct {
+	t6
+}
+
+type t6 struct {
+	F int
+}
