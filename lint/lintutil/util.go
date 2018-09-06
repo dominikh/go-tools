@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -112,6 +113,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Int("debug.max-concurrent-jobs", 0, "Number of jobs to run concurrently")
 	flags.Bool("debug.print-stats", false, "Print debug statistics")
 	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
+	flags.String("debug.memprofile", "", "Write memory profile to `file`")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -141,21 +143,31 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	maxConcurrentJobs := fs.Lookup("debug.max-concurrent-jobs").Value.(flag.Getter).Get().(int)
 	printStats := fs.Lookup("debug.print-stats").Value.(flag.Getter).Get().(bool)
 	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
+	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
 
 	cfg := config.Config{}
 	cfg.Checks = *fs.Lookup("checks").Value.(*list)
 
-	exit := os.Exit
+	exit := func(code int) {
+		if cpuProfile != "" {
+			pprof.StopCPUProfile()
+		}
+		if memProfile != "" {
+			f, err := os.Create(memProfile)
+			if err != nil {
+				panic(err)
+			}
+			runtime.GC()
+			pprof.WriteHeapProfile(f)
+		}
+		os.Exit(code)
+	}
 	if cpuProfile != "" {
 		f, err := os.Create(cpuProfile)
 		if err != nil {
 			log.Fatal(err)
 		}
 		pprof.StartCPUProfile(f)
-		exit = func(code int) {
-			pprof.StopCPUProfile()
-			os.Exit(code)
-		}
 	}
 
 	if printVersion {
