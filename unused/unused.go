@@ -535,11 +535,14 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 	//
 	// TODO(dh): For normal operations, that's the best we can do, as
 	// we have no idea what external users will do with our types. In
-	// whole-program mode, we could be more conservative, in two ways:
+	// whole-program mode, we could be more precise, in two ways:
 	// 1) Only consider interfaces if a type has been assigned to one
 	// 2) Use SSA and flow analysis and determine the exact set of
 	// interfaces that is relevant.
 	fn := func(iface *types.Interface) {
+		for i := 0; i < iface.NumEmbeddeds(); i++ {
+			c.graph.markUsedBy(iface.Embedded(i), iface)
+		}
 		for obj, objPtr := range named {
 			if !types.Implements(obj, iface) && !types.Implements(objPtr, iface) {
 				continue

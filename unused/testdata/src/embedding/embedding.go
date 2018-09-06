@@ -40,3 +40,11 @@ func init() {
 	i.f3()
 	i.f4()
 }
+
+type i3 interface {
+	F()
+}
+
+type I4 interface {
+	i3
+}
