@@ -1,0 +1,67 @@
+Unreachable case clause in a type switch
+
+In a type switch like this
+
+```
+type T struct{}
+func (T) Read(b []byte) (int, error) { return 0, nil }
+
+var v interface{} = T{}
+
+switch v.(type) {
+case io.Reader:
+    // ...
+case T:
+    // ...
+}
+```
+
+the second case clause can never be reached because `T` implements
+`io.Reader` and the case clause that checks that comes first in the source.
+
+Another example:
+
+```
+switch v.(type) {
+case io.Reader:
+    // ...
+case io.ReadCloser:
+    // unreachable
+}
+```
+
+Even if `v`'s value has `Close()`, thus implementing `io.ReadCloser`,
+`io.Reader` will always match first. This is because the methods of
+`io.Reader` are a subset of those of `io.ReadCloser`.
+
+#### Structurally equivalent interfaces
+
+Given these declarations
+
+```
+type T error
+type V error
+
+func doSomething() error {
+    err, ok := doAnotherThing()
+    if ok {
+        return T(err)
+    }
+
+    return U(err)
+}
+```
+
+the following type switch will have an unreachable case clause
+
+```
+switch doSomething().(type) {
+case T:
+    // ...
+case V:
+    // ...
+}
+```
+
+`T` will always match before `V` because they are structurally equivalent and
+therefore `doSomething()`'s return value implements both.

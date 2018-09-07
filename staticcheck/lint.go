@@ -294,6 +294,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA9002": c.CheckNonOctalFileMode,
 		"SA9003": c.CheckEmptyBranch,
 		"SA9004": c.CheckMissingEnumTypesInDeclaration,
+		"SA9005": c.CheckUnreachableTypeCases,
 	}
 }
 
@@ -2784,6 +2785,90 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 		j.Errorf(decl, "only the first constant has an explicit type")
 		return true
 	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
+	// Check if T subsumes V in a type switch:
+	// T and V are structurally identical interfaces;
+	// interface T is a superset of V;
+	// T is an interface implemented by concrete type V.
+	subsumes := func(T, V types.Type) bool {
+		tIface, ok := T.Underlying().(*types.Interface)
+		if !ok {
+			return false
+		}
+
+		return types.Implements(V, tIface)
+	}
+
+	intersect := func(Ts, Vs []types.Type) (types.Type, types.Type, bool) {
+		for i, T := range Ts {
+			for j, V := range Vs {
+				if subsumes(T, V) {
+					return Ts[i], Vs[j], true
+				}
+			}
+		}
+
+		return nil, nil, false
+	}
+
+	fn := func(node ast.Node) bool {
+		tsStmt, ok := node.(*ast.TypeSwitchStmt)
+		if !ok {
+			return true
+		}
+
+		type ccAndTypes struct {
+			cc    *ast.CaseClause
+			types []types.Type
+		}
+
+		// All asserted types in the order of case clauses.
+		ccs := []ccAndTypes{}
+		for _, stmt := range tsStmt.Body.List {
+			cc, ok := stmt.(*ast.CaseClause)
+			if !ok {
+				continue
+			}
+
+			// Exclude the 'default' case.
+			if len(cc.List) == 0 {
+				continue
+			}
+
+			Ts := []types.Type{}
+			for _, expr := range cc.List {
+				if T := TypeOf(j, expr); T != nil {
+					Ts = append(Ts, T)
+				}
+			}
+
+			if len(Ts) > 0 {
+				ccs = append(ccs, ccAndTypes{cc: cc, types: Ts})
+			}
+		}
+
+		if len(ccs) <= 1 {
+			// Zero or one case clauses, nothing to check.
+			return true
+		}
+
+		// Check if case clauses following cc have types that are subsumed by cc.
+		for i, cc := range ccs[:len(ccs)-1] {
+			for _, next := range ccs[i+1:] {
+				if T, V, yes := intersect(cc.types, next.types); yes {
+					j.Errorf(next.cc, "unreachable case clause: %s will always match before %s", T.String(), V.String())
+				}
+			}
+		}
+
+		return true
+	}
+
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
