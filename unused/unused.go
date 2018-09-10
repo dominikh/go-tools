@@ -231,6 +231,7 @@ func (c *Checker) Check(prog *lint.Program) []Unused {
 	}
 	markNodesUsed(roots)
 	c.markNodesQuiet()
+	c.deduplicate()
 
 	if c.Debug != nil {
 		c.printDebugGraph(c.Debug)
@@ -935,6 +936,33 @@ func markNodesUsed(nodes map[*graphNode]struct{}) {
 		if !wasUsed {
 			markNodesUsed(node.uses)
 		}
+	}
+}
+
+// deduplicate merges objects based on their positions. This is done
+// to work around packages existing multiple times in go/packages.
+func (c *Checker) deduplicate() {
+	m := map[token.Position]struct{ used, quiet bool }{}
+	for _, node := range c.graph.nodes {
+		obj, ok := node.obj.(types.Object)
+		if !ok {
+			continue
+		}
+		pos := c.prog.Fset().Position(obj.Pos())
+		m[pos] = struct{ used, quiet bool }{
+			m[pos].used || node.used,
+			m[pos].quiet || node.quiet,
+		}
+	}
+
+	for _, node := range c.graph.nodes {
+		obj, ok := node.obj.(types.Object)
+		if !ok {
+			continue
+		}
+		pos := c.prog.Fset().Position(obj.Pos())
+		node.used = m[pos].used
+		node.quiet = m[pos].quiet
 	}
 }
 
