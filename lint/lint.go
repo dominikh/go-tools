@@ -544,6 +544,10 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		return out[i].Text < out[j].Text
 	})
 
+	if l.PrintStats && stats != nil {
+		stats.Print(os.Stderr)
+	}
+
 	if len(out) < 2 {
 		return out
 	}
@@ -559,9 +563,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		uniq = append(uniq, p)
 	}
 
-	if l.PrintStats && stats != nil {
-		stats.Print(os.Stderr)
-	}
 	return uniq
 }
 
