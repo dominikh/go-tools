@@ -2,6 +2,12 @@ package printf
 
 import "testing"
 
+func BenchmarkParseVerb(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		ParseVerb("%[3]*.[2]*[1]f")
+	}
+}
+
 func TestParseVerb(t *testing.T) {
 	var tests = []struct {
 		in  string

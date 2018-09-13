@@ -129,7 +129,6 @@ func ParseVerb(f string) (Verb, int, error) {
 		verb      = 12
 	)
 
-	re := regexp.MustCompile(r)
 	m := re.FindStringSubmatch(f)
 	if m == nil {
 		return Verb{}, 0, ErrInvalid
@@ -194,6 +193,6 @@ const (
 	width             = `(?:` + width1 + `|` + width2 + `)`
 	precision         = width
 	widthAndPrecision = `(?:(?:` + width + `)?(?:(\.)(?:` + precision + `)?)?)`
-
-	r = `^%` + flags + widthAndPrecision + `?` + index + `?` + verb
 )
+
+var re = regexp.MustCompile(`^%` + flags + widthAndPrecision + `?` + index + `?` + verb)
