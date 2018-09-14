@@ -43,6 +43,8 @@ type Verb struct {
 	// -1 denotes the next argument,
 	// values > 0 denote explicit arguments.
 	Value int
+
+	Raw string
 }
 
 // Argument is an implicit or explicit width or precision.
@@ -137,6 +139,7 @@ func ParseVerb(f string) (Verb, int, error) {
 	v := Verb{
 		Letter: []rune(m[verb])[0],
 		Flags:  m[flags],
+		Raw:    m[0],
 	}
 
 	if m[width] != "" {

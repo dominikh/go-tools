@@ -82,6 +82,7 @@ func TestParseVerb(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt.out.Raw = tt.in
 		v, n, err := ParseVerb(tt.in)
 		if err != nil {
 			t.Errorf("unexpected error %s while parsing %s", err, tt.in)
