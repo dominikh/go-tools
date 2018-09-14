@@ -79,6 +79,33 @@ func TestParseVerb(t *testing.T) {
 				Value:     1,
 			},
 		},
+		{
+			"%%",
+			Verb{
+				Letter:    '%',
+				Width:     Default{},
+				Precision: Default{},
+				Value:     0,
+			},
+		},
+		{
+			"%*%",
+			Verb{
+				Letter:    '%',
+				Width:     Star{Index: -1},
+				Precision: Default{},
+				Value:     0,
+			},
+		},
+		{
+			"%[1]%",
+			Verb{
+				Letter:    '%',
+				Width:     Default{},
+				Precision: Default{},
+				Value:     0,
+			},
+		},
 	}
 
 	for _, tt := range tests {

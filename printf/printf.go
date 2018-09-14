@@ -18,7 +18,7 @@
 //     WidthAndPrecision -> '.'
 //
 //     Flag -> '+' | '-' | '#' | ' ' | '0'
-//     Verb -> Letter
+//     Verb -> Letter | '%'
 //
 //     Input -> '%' [ Flag+ ] [ WidthAndPrecision ] [ Index ] Verb
 package printf
@@ -42,6 +42,7 @@ type Verb struct {
 	// Which value in the argument list the verb uses.
 	// -1 denotes the next argument,
 	// values > 0 denote explicit arguments.
+	// The value 0 denotes that no argument is consumed. This is the case for %%.
 	Value int
 
 	Raw string
@@ -81,11 +82,7 @@ func Parse(f string) ([]interface{}, error) {
 				return nil, err
 			}
 			f = f[n:]
-			if v.Letter == '%' {
-				out = append(out, "%")
-			} else {
-				out = append(out, v)
-			}
+			out = append(out, v)
 		} else {
 			n := strings.IndexByte(f, '%')
 			if n > -1 {
@@ -109,9 +106,6 @@ func atoi(s string) int {
 // ParseVerb parses the verb at the beginning of f.
 // It returns the verb, how much of the input was consumed, and an error, if any.
 func ParseVerb(f string) (Verb, int, error) {
-	if strings.HasPrefix(f, "%%") {
-		return Verb{Letter: '%'}, 2, nil
-	}
 	if len(f) < 2 {
 		return Verb{}, 0, ErrInvalid
 	}
@@ -177,7 +171,9 @@ func ParseVerb(f string) (Verb, int, error) {
 		}
 	}
 
-	if m[verbIndex] != "" {
+	if m[verb] == "%" {
+		v.Value = 0
+	} else if m[verbIndex] != "" {
 		v.Value = atoi(m[verbIndex])
 	} else {
 		v.Value = -1
@@ -188,7 +184,7 @@ func ParseVerb(f string) (Verb, int, error) {
 
 const (
 	flags             = `([+#0 -]*)`
-	verb              = `([a-zA-Z])`
+	verb              = `([a-zA-Z%])`
 	index             = `(?:\[([0-9]+)\])`
 	star              = `((` + index + `)?\*)`
 	width1            = `([0-9]+)`
