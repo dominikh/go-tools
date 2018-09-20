@@ -37,3 +37,12 @@ func fn2() {
 	_ = s1 == "123"[:]
 	_ = s1 == "12"[:] // MATCH /comparing strings of different sizes/
 }
+
+func fn3(x string) {
+	switch x[:1] {
+	case "a":
+	case "ab": // MATCH /comparing strings of different sizes/
+	case "b":
+	case "bc": // MATCH /comparing strings of different sizes/
+	}
+}

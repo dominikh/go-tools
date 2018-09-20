@@ -1288,7 +1288,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 			// instead of BinOp(EQL, tag, b.expr(cond))
 			// followed by If.  Don't forget conversions
 			// though.
-			cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), token.NoPos)
+			cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), cond.Pos())
 			emitIf(fn, cond, body, nextCond)
 			fn.currentBlock = nextCond
 		}
