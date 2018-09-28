@@ -85,11 +85,12 @@ func usage(name string, flags *flag.FlagSet) func() {
 }
 
 type runner struct {
-	checker       lint.Checker
-	tags          []string
-	ignores       []lint.Ignore
-	version       int
-	returnIgnored bool
+	checker         lint.Checker
+	tags            []string
+	ignores         []lint.Ignore
+	ignoreGenerated bool
+	version         int
+	returnIgnored   bool
 }
 
 func resolveRelative(importPaths []string, tags []string) (goFiles bool, err error) {
@@ -164,6 +165,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Float64("min_confidence", 0, "Deprecated; use -ignore instead")
 	flags.String("tags", "", "List of `build tags`")
 	flags.String("ignore", "", "Space separated list of checks to ignore, in the following format: 'import/path/file.go:Check1,Check2,...' Both the import path and file name sections support globbing, e.g. 'os/exec/*_test.go'")
+	flags.Bool("ignore-generated", false, "Ignore generated files. Generated files are marked by a line of text that matches the regular expression, in Go syntax: '^// Code generated .* DO NOT EDIT\\.$'")
 	flags.Bool("tests", true, "Include tests")
 	flags.Bool("version", false, "Print version and exit")
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
@@ -188,6 +190,7 @@ type CheckerConfig struct {
 func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
+	ignoreGenerated := fs.Lookup("ignore-generated").Value.(flag.Getter).Get().(bool)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 	format := fs.Lookup("f").Value.(flag.Getter).Get().(string)
@@ -204,11 +207,12 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 		cs = append(cs, conf.Checker)
 	}
 	pss, err := Lint(cs, fs.Args(), &Options{
-		Tags:          strings.Fields(tags),
-		LintTests:     tests,
-		Ignores:       ignore,
-		GoVersion:     goVersion,
-		ReturnIgnored: showIgnored,
+		Tags:            strings.Fields(tags),
+		LintTests:       tests,
+		Ignores:         ignore,
+		IgnoreGenerated: ignoreGenerated,
+		GoVersion:       goVersion,
+		ReturnIgnored:   showIgnored,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -242,11 +246,12 @@ func ProcessFlagSet(confs []CheckerConfig, fs *flag.FlagSet) {
 }
 
 type Options struct {
-	Tags          []string
-	LintTests     bool
-	Ignores       string
-	GoVersion     int
-	ReturnIgnored bool
+	Tags            []string
+	LintTests       bool
+	Ignores         string
+	IgnoreGenerated bool
+	GoVersion       int
+	ReturnIgnored   bool
 }
 
 func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, error) {
@@ -296,11 +301,12 @@ func Lint(cs []lint.Checker, pkgs []string, opt *Options) ([][]lint.Problem, err
 	var problems [][]lint.Problem
 	for _, c := range cs {
 		runner := &runner{
-			checker:       c,
-			tags:          opt.Tags,
-			ignores:       ignores,
-			version:       opt.GoVersion,
-			returnIgnored: opt.ReturnIgnored,
+			checker:         c,
+			tags:            opt.Tags,
+			ignores:         ignores,
+			ignoreGenerated: opt.IgnoreGenerated,
+			version:         opt.GoVersion,
+			returnIgnored:   opt.ReturnIgnored,
 		}
 		problems = append(problems, runner.lint(lprog, conf))
 	}
@@ -341,10 +347,11 @@ func ProcessArgs(name string, cs []CheckerConfig, args []string) {
 
 func (runner *runner) lint(lprog *loader.Program, conf *loader.Config) []lint.Problem {
 	l := &lint.Linter{
-		Checker:       runner.checker,
-		Ignores:       runner.ignores,
-		GoVersion:     runner.version,
-		ReturnIgnored: runner.returnIgnored,
+		Checker:         runner.checker,
+		Ignores:         runner.ignores,
+		IgnoreGenerated: runner.ignoreGenerated,
+		GoVersion:       runner.version,
+		ReturnIgnored:   runner.returnIgnored,
 	}
 	return l.Lint(lprog, conf)
 }

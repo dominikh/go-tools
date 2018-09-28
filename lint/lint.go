@@ -14,6 +14,7 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -23,6 +24,8 @@ import (
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssa/ssautil"
 )
+
+var generatedRegexp = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)
 
 type Job struct {
 	Program *Program
@@ -73,6 +76,9 @@ type FileIgnore struct {
 func (fi *FileIgnore) Match(p Problem) bool {
 	if p.Position.Filename != fi.File {
 		return false
+	}
+	if len(fi.Checks) == 0 {
+		return true
 	}
 	for _, c := range fi.Checks {
 		if m, _ := filepath.Match(c, p.Check); m {
@@ -150,10 +156,11 @@ type Checker interface {
 
 // A Linter lints Go source code.
 type Linter struct {
-	Checker       Checker
-	Ignores       []Ignore
-	GoVersion     int
-	ReturnIgnored bool
+	Checker         Checker
+	Ignores         []Ignore
+	IgnoreGenerated bool
+	GoVersion       int
+	ReturnIgnored   bool
 
 	automaticIgnores []Ignore
 }
@@ -306,6 +313,11 @@ func (l *Linter) Lint(lprog *loader.Program, conf *loader.Config) []Problem {
 			for node, cgs := range cm {
 				for _, cg := range cgs {
 					for _, c := range cg.List {
+						if l.IgnoreGenerated && generatedRegexp.MatchString(c.Text) {
+							pos := prog.DisplayPosition(c.Pos())
+							l.automaticIgnores = append(l.automaticIgnores, &FileIgnore{File: pos.Filename})
+							continue
+						}
 						if !strings.HasPrefix(c.Text, "//lint:") {
 							continue
 						}
