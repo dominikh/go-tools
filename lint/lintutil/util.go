@@ -262,12 +262,12 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 		return nil, err
 	}
 
-	ctx := build.Default
-	// XXX nothing cares about built tags right now
-	ctx.BuildTags = opt.Tags
 	conf := &packages.Config{
 		Mode:  packages.LoadAllSyntax,
 		Tests: opt.LintTests,
+		BuildFlags: []string{
+			"-tags=" + strings.Join(opt.Tags, " "),
+		},
 	}
 
 	t := time.Now()
