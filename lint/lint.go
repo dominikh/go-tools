@@ -692,26 +692,15 @@ func (j *Job) NodePackage(node Positioner) *Pkg {
 	return j.Program.astFileMap[f]
 }
 
-// TODO(dh): replace with packages.Visit
 func allPackages(pkgs []*packages.Package) []*packages.Package {
-	all := map[*packages.Package]bool{}
-	var wl []*packages.Package
-	wl = append(wl, pkgs...)
-	for len(wl) > 0 {
-		pkg := wl[len(wl)-1]
-		wl = wl[:len(wl)-1]
-		if all[pkg] {
-			continue
-		}
-		all[pkg] = true
-		for _, imp := range pkg.Imports {
-			wl = append(wl, imp)
-		}
-	}
-
-	out := make([]*packages.Package, 0, len(all))
-	for pkg := range all {
-		out = append(out, pkg)
-	}
+	var out []*packages.Package
+	packages.Visit(
+		pkgs,
+		func(pkg *packages.Package) bool {
+			out = append(out, pkg)
+			return true
+		},
+		nil,
+	)
 	return out
 }
