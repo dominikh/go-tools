@@ -47,6 +47,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "ST1012", FilterGenerated: false, Fn: c.CheckErrorVarNames},
 		{ID: "ST1013", FilterGenerated: true, Fn: c.CheckHTTPStatusCodes},
 		{ID: "ST1015", FilterGenerated: true, Fn: c.CheckDefaultCaseOrder},
+		{ID: "ST1016", FilterGenerated: false, Fn: c.CheckReceiverNamesIdentical},
 	}
 }
 
@@ -252,6 +253,30 @@ func (c *Checker) CheckUnexportedReturn(j *lint.Job) {
 func (c *Checker) CheckReceiverNames(j *lint.Job) {
 	for _, pkg := range j.Program.InitialPackages {
 		for _, m := range pkg.SSA.Members {
+			if T, ok := m.Object().(*types.TypeName); ok {
+				ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
+				for _, sel := range ms {
+					fn := sel.Obj().(*types.Func)
+					recv := fn.Type().(*types.Signature).Recv()
+					if Dereference(recv.Type()) != T.Type() {
+						// skip embedded methods
+						continue
+					}
+					if recv.Name() == "self" || recv.Name() == "this" {
+						j.Errorf(recv, `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
+					}
+					if recv.Name() == "_" {
+						j.Errorf(recv, "receiver name should not be an underscore, omit the name if it is unused")
+					}
+				}
+			}
+		}
+	}
+}
+
+func (c *Checker) CheckReceiverNamesIdentical(j *lint.Job) {
+	for _, pkg := range j.Program.InitialPackages {
+		for _, m := range pkg.SSA.Members {
 			names := map[string]int{}
 
 			var firstFn *types.Func
@@ -269,12 +294,6 @@ func (c *Checker) CheckReceiverNames(j *lint.Job) {
 					}
 					if recv.Name() != "" && recv.Name() != "_" {
 						names[recv.Name()]++
-					}
-					if recv.Name() == "self" || recv.Name() == "this" {
-						j.Errorf(recv, `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
-					}
-					if recv.Name() == "_" {
-						j.Errorf(recv, "receiver name should not be an underscore, omit the name if it is unused")
 					}
 				}
 			}
