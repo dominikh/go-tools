@@ -2707,46 +2707,54 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 			return true
 		}
 		if !decl.Lparen.IsValid() {
-			// not a parenthesised gendecl
-			//
-			// TODO(dh): do we need this check, considering we require
-			// decl.Specs to contain 2+ elements?
 			return true
 		}
 		if decl.Tok != token.CONST {
 			return true
 		}
-		if len(decl.Specs) < 2 {
-			return true
-		}
-		if decl.Specs[0].(*ast.ValueSpec).Type == nil {
-			// first constant doesn't have a type
-			return true
-		}
-		for i, spec := range decl.Specs {
-			spec := spec.(*ast.ValueSpec)
-			if len(spec.Names) != 1 || len(spec.Values) != 1 {
-				return true
-			}
-			switch v := spec.Values[0].(type) {
-			case *ast.BasicLit:
-			case *ast.UnaryExpr:
-				if _, ok := v.X.(*ast.BasicLit); !ok {
-					return true
-				}
-			default:
-				// if it's not a literal it might be typed, such as
-				// time.Microsecond = 1000 * Nanosecond
-				return true
-			}
-			if i == 0 {
+
+		groups := GroupSpecs(j, decl.Specs)
+	groupLoop:
+		for _, group := range groups {
+			if len(group) < 2 {
 				continue
 			}
-			if spec.Type != nil {
-				return true
+			if group[0].(*ast.ValueSpec).Type == nil {
+				// first constant doesn't have a type
+				continue groupLoop
+			}
+			for i, spec := range group {
+				spec := spec.(*ast.ValueSpec)
+				if len(spec.Names) != 1 || len(spec.Values) != 1 {
+					continue groupLoop
+				}
+				switch v := spec.Values[0].(type) {
+				case *ast.BasicLit:
+				case *ast.UnaryExpr:
+					if _, ok := v.X.(*ast.BasicLit); !ok {
+						continue groupLoop
+					}
+				default:
+					// if it's not a literal it might be typed, such as
+					// time.Microsecond = 1000 * Nanosecond
+					continue groupLoop
+				}
+				if i == 0 {
+					continue
+				}
+				if spec.Type != nil {
+					continue groupLoop
+				}
+			}
+			if len(groups) == 1 {
+				// Older versions of staticcheck only checked the GenDecl as a whole, not dividing it into groups.
+				// Errors were always reported on the GenDecl node.
+				// To avoid breaking most ignore directives, we keep reporting it on the GenDecl when there is only one group.
+				j.Errorf(decl, "only the first constant in this group has an explicit type")
+			} else {
+				j.Errorf(group[0], "only the first constant in this group has an explicit type")
 			}
 		}
-		j.Errorf(decl, "only the first constant has an explicit type")
 		return true
 	}
 	for _, f := range j.Program.Files {

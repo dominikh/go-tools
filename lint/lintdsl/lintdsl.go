@@ -299,3 +299,25 @@ func Inspect(node ast.Node, fn func(node ast.Node) bool) {
 	}
 	ast.Inspect(node, fn)
 }
+
+func GroupSpecs(j *lint.Job, specs []ast.Spec) [][]ast.Spec {
+	if len(specs) == 0 {
+		return nil
+	}
+	fset := j.Program.SSA.Fset
+	groups := make([][]ast.Spec, 1)
+	groups[0] = append(groups[0], specs[0])
+
+	for _, spec := range specs[1:] {
+		g := groups[len(groups)-1]
+		if fset.PositionFor(spec.Pos(), false).Line-1 !=
+			fset.PositionFor(g[len(g)-1].End(), false).Line {
+
+			groups = append(groups, nil)
+		}
+
+		groups[len(groups)-1] = append(groups[len(groups)-1], spec)
+	}
+
+	return groups
+}

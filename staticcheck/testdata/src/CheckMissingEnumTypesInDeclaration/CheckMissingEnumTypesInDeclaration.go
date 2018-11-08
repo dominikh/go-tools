@@ -9,7 +9,7 @@ const (
 	c5
 )
 
-const ( // MATCH "only the first constant has an explicit type"
+const ( // MATCH "only the first constant in this group has an explicit type"
 	c6 int = 1
 	c7     = 2
 	c8     = 3
@@ -34,4 +34,35 @@ const (
 	c18 int = 2
 	c19     = 3
 	c20 int = 4
+)
+
+const (
+	c21 int = 1
+
+	c22 = 2
+)
+
+const (
+	c23 int = 1
+	c24 int = 2
+
+	c25 string = "" // MATCH "only the first constant in this group has an explicit type"
+	c26        = ""
+
+	c27     = 1
+	c28 int = 2
+
+	c29 int = 1
+	c30     = 2
+	c31 int = 2
+
+	c32 string = "" // MATCH "only the first constant in this group has an explicit type"
+	c33        = ""
+)
+
+const (
+	c34 int = 1 // MATCH "only the first constant in this group has an explicit type"
+	c35     = 2
+
+	c36 int = 2
 )
