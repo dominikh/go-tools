@@ -9,8 +9,8 @@ const (
 	c5
 )
 
-const ( // MATCH "only the first constant in this group has an explicit type"
-	c6 int = 1
+const (
+	c6 int = 1 // MATCH "only the first constant in this group has an explicit type"
 	c7     = 2
 	c8     = 3
 )

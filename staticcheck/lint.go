@@ -2746,14 +2746,7 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 					continue groupLoop
 				}
 			}
-			if len(groups) == 1 {
-				// Older versions of staticcheck only checked the GenDecl as a whole, not dividing it into groups.
-				// Errors were always reported on the GenDecl node.
-				// To avoid breaking most ignore directives, we keep reporting it on the GenDecl when there is only one group.
-				j.Errorf(decl, "only the first constant in this group has an explicit type")
-			} else {
-				j.Errorf(group[0], "only the first constant in this group has an explicit type")
-			}
+			j.Errorf(group[0], "only the first constant in this group has an explicit type")
 		}
 		return true
 	}
