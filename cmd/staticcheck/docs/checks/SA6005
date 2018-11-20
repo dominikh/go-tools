@@ -1,0 +1,20 @@
+Inefficient string comparison with strings.ToLower or strings.ToUpper
+
+Converting two strings to the same case and comparing them like so
+
+```
+if strings.ToLower(s1) == strings.ToLower(s2) {
+    ...
+}
+```
+
+or
+
+```
+if strings.ToUpper(s1) != strings.ToUpper(s2) {
+    ...
+}
+```
+
+may result in `len(s1) + len(s2) + len(s2)` iterations in the worst case
+whereas `strings.EqualFold` will do `len(s1)` at most.

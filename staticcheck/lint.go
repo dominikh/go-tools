@@ -288,6 +288,7 @@ func (c *Checker) Funcs() map[string]lint.Func {
 		"SA6002": c.callChecker(checkSyncPoolValueRules),
 		"SA6003": c.CheckRangeStringRunes,
 		"SA6004": c.CheckSillyRegexp,
+		"SA6005": c.CheckToLowerToUpperComparison,
 
 		"SA9000": nil,
 		"SA9001": c.CheckDubiousDeferInChannelRangeLoop,
@@ -2784,6 +2785,52 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 		j.Errorf(decl, "only the first constant has an explicit type")
 		return true
 	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		binExpr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+
+		var negative bool
+		switch binExpr.Op {
+		case token.EQL:
+			negative = false
+		case token.NEQ:
+			negative = true
+		default:
+			return true
+		}
+
+		const (
+			lo = "strings.ToLower"
+			up = "strings.ToUpper"
+		)
+		var call string
+
+		if IsCallToAST(j, binExpr.X, lo) && IsCallToAST(j, binExpr.Y, lo) {
+			call = lo
+		} else if IsCallToAST(j, binExpr.X, up) && IsCallToAST(j, binExpr.Y, up) {
+			call = up
+		} else {
+			return true
+		}
+
+		bang := ""
+		if negative {
+			bang = "!"
+		}
+
+		j.Errorf(binExpr, "%s(a) %s %s(b) is better written as %sstrings.EqualFold(a, b)", call, binExpr.Op, call, bang)
+
+		return true
+	}
+
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
