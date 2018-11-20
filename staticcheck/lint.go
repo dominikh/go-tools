@@ -286,6 +286,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA6002", FilterGenerated: false, Fn: c.callChecker(checkSyncPoolValueRules)},
 		{ID: "SA6003", FilterGenerated: false, Fn: c.CheckRangeStringRunes},
 		// {ID: "SA6004", FilterGenerated: false, Fn: c.CheckSillyRegexp},
+		{ID: "SA6005", FilterGenerated: false, Fn: c.CheckToLowerToUpperComparison},
 
 		{ID: "SA9001", FilterGenerated: false, Fn: c.CheckDubiousDeferInChannelRangeLoop},
 		{ID: "SA9002", FilterGenerated: false, Fn: c.CheckNonOctalFileMode},
@@ -2814,5 +2815,51 @@ func (c *Checker) CheckTimerResetReturnValue(j *lint.Job) {
 				}
 			}
 		}
+	}
+}
+
+func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		binExpr, ok := node.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+
+		var negative bool
+		switch binExpr.Op {
+		case token.EQL:
+			negative = false
+		case token.NEQ:
+			negative = true
+		default:
+			return true
+		}
+
+		const (
+			lo = "strings.ToLower"
+			up = "strings.ToUpper"
+		)
+		var call string
+
+		if IsCallToAST(j, binExpr.X, lo) && IsCallToAST(j, binExpr.Y, lo) {
+			call = lo
+		} else if IsCallToAST(j, binExpr.X, up) && IsCallToAST(j, binExpr.Y, up) {
+			call = up
+		} else {
+			return true
+		}
+
+		bang := ""
+		if negative {
+			bang = "!"
+		}
+
+		j.Errorf(binExpr, "%s(a) %s %s(b) is better written as %sstrings.EqualFold(a, b)", call, binExpr.Op, call, bang)
+
+		return true
+	}
+
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
 	}
 }
