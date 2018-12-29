@@ -2830,10 +2830,7 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		// All asserted types in the order of case clauses.
 		ccs := []ccAndTypes{}
 		for _, stmt := range tsStmt.Body.List {
-			cc, ok := stmt.(*ast.CaseClause)
-			if !ok {
-				continue
-			}
+			cc, _ := stmt.(*ast.CaseClause)
 
 			// Exclude the 'default' case.
 			if len(cc.List) == 0 {
