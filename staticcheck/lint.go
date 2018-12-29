@@ -2804,11 +2804,10 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		return types.Implements(V, tIface)
 	}
 
-	intersect := func(Ts, Vs []types.Type) (types.Type, types.Type, bool) {
-		for i, T := range Ts {
-			for j, V := range Vs {
+		for _, T := range Ts {
+			for _, V := range Vs {
 				if subsumes(T, V) {
-					return Ts[i], Vs[j], true
+					return T, V, true
 				}
 			}
 		}
