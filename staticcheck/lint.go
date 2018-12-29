@@ -2804,6 +2804,7 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		return types.Implements(V, tIface)
 	}
 
+	subsumesAny := func(Ts, Vs []types.Type) (types.Type, types.Type, bool) {
 		for _, T := range Ts {
 			for _, V := range Vs {
 				if subsumes(T, V) {
@@ -2856,7 +2857,7 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		// Check if case clauses following cc have types that are subsumed by cc.
 		for i, cc := range ccs[:len(ccs)-1] {
 			for _, next := range ccs[i+1:] {
-				if T, V, yes := intersect(cc.types, next.types); yes {
+				if T, V, yes := subsumesAny(cc.types, next.types); yes {
 					j.Errorf(next.cc, "unreachable case clause: %s will always match before %s", T.String(), V.String())
 				}
 			}
