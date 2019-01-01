@@ -2793,7 +2793,7 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 	// Check if T subsumes V in a type switch:
 	// T and V are structurally identical interfaces;
-	// interface T is a superset of V;
+	// interface T is a subset of V;
 	// T is an interface implemented by concrete type V.
 	subsumes := func(T, V types.Type) bool {
 		tIface, ok := T.Underlying().(*types.Interface)
