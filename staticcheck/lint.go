@@ -2828,7 +2828,7 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		}
 
 		// All asserted types in the order of case clauses.
-		ccs := []ccAndTypes{}
+		ccs := make([]ccAndTypes, 0, len(tsStmt.Body.List))
 		for _, stmt := range tsStmt.Body.List {
 			cc, _ := stmt.(*ast.CaseClause)
 
@@ -2837,16 +2837,12 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 				continue
 			}
 
-			Ts := []types.Type{}
-			for _, expr := range cc.List {
-				if T := TypeOf(j, expr); T != nil {
-					Ts = append(Ts, T)
-				}
+			Ts := make([]types.Type, len(cc.List))
+			for i, expr := range cc.List {
+				Ts[i] = TypeOf(j, expr)
 			}
 
-			if len(Ts) > 0 {
-				ccs = append(ccs, ccAndTypes{cc: cc, types: Ts})
-			}
+			ccs = append(ccs, ccAndTypes{cc: cc, types: Ts})
 		}
 
 		if len(ccs) <= 1 {
