@@ -2865,10 +2865,7 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 }
 
 func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
-	// Check if T subsumes V in a type switch:
-	// T and V are structurally identical interfaces;
-	// interface T is a subset of V;
-	// T is an interface implemented by concrete type V.
+	// Check if T subsumes V in a type switch. T subsumes V if T is an interface and T's method set is a subset of V's method set.
 	subsumes := func(T, V types.Type) bool {
 		tIface, ok := T.Underlying().(*types.Interface)
 		if !ok {
