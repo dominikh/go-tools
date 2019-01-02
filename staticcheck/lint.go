@@ -2839,8 +2839,8 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 			lo = "strings.ToLower"
 			up = "strings.ToUpper"
 		)
-		var call string
 
+		var call string
 		if IsCallToAST(j, binExpr.X, lo) && IsCallToAST(j, binExpr.Y, lo) {
 			call = lo
 		} else if IsCallToAST(j, binExpr.X, up) && IsCallToAST(j, binExpr.Y, up) {
@@ -2854,8 +2854,7 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 			bang = "!"
 		}
 
-		j.Errorf(binExpr, "%s(a) %s %s(b) is better written as %sstrings.EqualFold(a, b)", call, binExpr.Op, call, bang)
-
+		j.Errorf(binExpr, "should use %sstrings.EqualFold(a, b) instead of %s(a) %s %s(b)", bang, call, binExpr.Op, call)
 		return true
 	}
 
