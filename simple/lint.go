@@ -63,6 +63,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "S1031", FilterGenerated: true, Fn: c.LintNilCheckAroundRange},
 		{ID: "S1032", FilterGenerated: true, Fn: c.LintSortHelpers},
 		{ID: "S1033", FilterGenerated: true, Fn: c.LintGuardedDelete},
+		{ID: "S1034", FilterGenerated: true, Fn: c.LintSimplifyTypeSwitch},
 	}
 }
 
@@ -1857,6 +1858,81 @@ func (c *Checker) LintGuardedDelete(j *lint.Job) {
 			return true
 		}
 		j.Errorf(stmt, "unnecessary guard around call to delete")
+		return true
+	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) LintSimplifyTypeSwitch(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		stmt, ok := node.(*ast.TypeSwitchStmt)
+		if !ok {
+			return true
+		}
+		if stmt.Init != nil {
+			// bailing out for now, can't anticipate how type switches with initializers are being used
+			return true
+		}
+		expr, ok := stmt.Assign.(*ast.ExprStmt)
+		if !ok {
+			// the user is in fact assigning the result
+			return true
+		}
+		assert := expr.X.(*ast.TypeAssertExpr)
+		ident, ok := assert.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		x := ObjectOf(j, ident)
+		var allOffenders []ast.Node
+		for _, clause := range stmt.Body.List {
+			clause := clause.(*ast.CaseClause)
+			if len(clause.List) != 1 {
+				continue
+			}
+			hasUnrelatedAssertion := false
+			var offenders []ast.Node
+			ast.Inspect(clause, func(node ast.Node) bool {
+				assert2, ok := node.(*ast.TypeAssertExpr)
+				if !ok {
+					return true
+				}
+				ident, ok := assert2.X.(*ast.Ident)
+				if !ok {
+					hasUnrelatedAssertion = true
+					return false
+				}
+				if ObjectOf(j, ident) != x {
+					hasUnrelatedAssertion = true
+					return false
+				}
+
+				if !types.Identical(TypeOf(j, clause.List[0]), TypeOf(j, assert2.Type)) {
+					hasUnrelatedAssertion = true
+					return false
+				}
+				offenders = append(offenders, assert2)
+				return true
+			})
+			if !hasUnrelatedAssertion {
+				// don't flag cases that have other type assertions
+				// unrelated to the one in the case clause. often
+				// times, this is done for symmetry, when two
+				// different values have to be asserted to the same
+				// type.
+				allOffenders = append(allOffenders, offenders...)
+			}
+		}
+		if len(allOffenders) != 0 {
+			at := ""
+			for _, offender := range allOffenders {
+				pos := j.Program.DisplayPosition(offender.Pos())
+				at += "\n\t" + pos.String()
+			}
+			j.Errorf(expr, "assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate the following type assertions:%s", Render(j, ident), Render(j, ident), at)
+		}
 		return true
 	}
 	for _, f := range j.Program.Files {
