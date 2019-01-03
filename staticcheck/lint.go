@@ -654,14 +654,21 @@ func (c *Checker) CheckInfiniteEmptyLoop(j *lint.Job) {
 		// is dynamic and the loop might terminate. Similarly for
 		// channel receives.
 
-		if loop.Cond != nil && hasSideEffects(loop.Cond) {
-			return true
-		}
-
-		j.Errorf(loop, "this loop will spin, using 100%% CPU")
 		if loop.Cond != nil {
+			if hasSideEffects(loop.Cond) {
+				return true
+			}
+			if ident, ok := loop.Cond.(*ast.Ident); ok {
+				if k, ok := ObjectOf(j, ident).(*types.Const); ok {
+					if !constant.BoolVal(k.Val()) {
+						// don't flag `for false {}` loops. They're a debug aid.
+						return true
+					}
+				}
+			}
 			j.Errorf(loop, "loop condition never changes or has a race condition")
 		}
+		j.Errorf(loop, "this loop will spin, using 100%% CPU")
 
 		return true
 	}
