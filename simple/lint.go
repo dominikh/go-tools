@@ -1380,7 +1380,7 @@ func (c *Checker) LintAssertNotNil(j *lint.Job) {
 		}
 		return true
 	}
-	fn := func(node ast.Node) bool {
+	fn1 := func(node ast.Node) bool {
 		ifstmt, ok := node.(*ast.IfStmt)
 		if !ok {
 			return true
@@ -1411,6 +1411,71 @@ func (c *Checker) LintAssertNotNil(j *lint.Job) {
 		}
 		j.Errorf(ifstmt, "when %s is true, %s can't be nil", Render(j, assignIdent), Render(j, assertIdent))
 		return true
+	}
+	fn2 := func(node ast.Node) bool {
+		// Check that outer ifstmt is an 'if x != nil {}'
+		ifstmt, ok := node.(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		if ifstmt.Init != nil {
+			return true
+		}
+		if ifstmt.Else != nil {
+			return true
+		}
+		if len(ifstmt.Body.List) != 1 {
+			return true
+		}
+		binop, ok := ifstmt.Cond.(*ast.BinaryExpr)
+		if !ok {
+			return true
+		}
+		if binop.Op != token.NEQ {
+			return true
+		}
+		lhs, ok := binop.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if !IsNil(j, binop.Y) {
+			return true
+		}
+
+		// Check that inner ifstmt is an `if _, ok := x.(T); ok {}`
+		ifstmt, ok = ifstmt.Body.List[0].(*ast.IfStmt)
+		if !ok {
+			return true
+		}
+		assign, ok := ifstmt.Init.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 2 || len(assign.Rhs) != 1 || !IsBlank(assign.Lhs[0]) {
+			return true
+		}
+		assert, ok := assign.Rhs[0].(*ast.TypeAssertExpr)
+		if !ok {
+			return true
+		}
+		assertIdent, ok := assert.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if lhs.Obj != assertIdent.Obj {
+			return true
+		}
+		assignIdent, ok := assign.Lhs[1].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if !isOKCheck(assignIdent, ifstmt.Cond) {
+			return true
+		}
+		j.Errorf(ifstmt, "when %s is true, %s can't be nil", Render(j, assignIdent), Render(j, assertIdent))
+		return true
+	}
+	fn := func(node ast.Node) bool {
+		b1 := fn1(node)
+		b2 := fn2(node)
+		return b1 || b2
 	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
