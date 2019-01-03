@@ -21,6 +21,18 @@ func fn() {
 		id1 = id1[len(s1):]
 	}
 
+	if strings.HasPrefix(id1, s1) { // MATCH /should replace.*with.*strings.TrimPrefix/
+		id1 = strings.TrimPrefix(id1, s1)
+	}
+
+	if strings.HasPrefix(id1, s1) {
+		id1 = strings.TrimPrefix(id1, s2)
+	}
+
+	if strings.Contains(id1, s1) { // MATCH /should replace.*with.*strings.Replace/
+		id1 = strings.Replace(id1, s1, "something", 123)
+	}
+
 	if strings.HasSuffix(id1, s2) { // MATCH /should replace.*with.*strings.TrimSuffix/
 		id1 = id1[:len(id1)-len(s2)]
 	}

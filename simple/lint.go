@@ -1087,22 +1087,26 @@ func (c *Checker) LintTrim(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		call, ok := condCall.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		if IsIdent(call.X, "strings") {
+		switch {
+		case IsCallToAST(j, condCall, "strings.HasPrefix"):
 			pkg = "strings"
-		} else if IsIdent(call.X, "bytes") {
-			pkg = "bytes"
-		} else {
-			return true
-		}
-		if IsIdent(call.Sel, "HasPrefix") {
 			fun = "HasPrefix"
-		} else if IsIdent(call.Sel, "HasSuffix") {
+		case IsCallToAST(j, condCall, "strings.HasSuffix"):
+			pkg = "strings"
 			fun = "HasSuffix"
-		} else {
+		case IsCallToAST(j, condCall, "strings.Contains"):
+			pkg = "strings"
+			fun = "Contains"
+		case IsCallToAST(j, condCall, "bytes.HasPrefix"):
+			pkg = "bytes"
+			fun = "HasPrefix"
+		case IsCallToAST(j, condCall, "bytes.HasSuffix"):
+			pkg = "bytes"
+			fun = "HasSuffix"
+		case IsCallToAST(j, condCall, "bytes.Contains"):
+			pkg = "bytes"
+			fun = "Contains"
+		default:
 			return true
 		}
 
@@ -1119,102 +1123,121 @@ func (c *Checker) LintTrim(j *lint.Job) {
 		if !sameNonDynamic(condCall.Args[0], assign.Lhs[0]) {
 			return true
 		}
-		slice, ok := assign.Rhs[0].(*ast.SliceExpr)
-		if !ok {
-			return true
-		}
-		if slice.Slice3 {
-			return true
-		}
-		if !sameNonDynamic(slice.X, condCall.Args[0]) {
-			return true
-		}
-		var index ast.Expr
-		switch fun {
-		case "HasPrefix":
-			// TODO(dh) We could detect a High that is len(s), but another
-			// rule will already flag that, anyway.
-			if slice.High != nil {
-				return true
-			}
-			index = slice.Low
-		case "HasSuffix":
-			if slice.Low != nil {
-				n, ok := ExprToInt(j, slice.Low)
-				if !ok || n != 0 {
-					return true
-				}
-			}
-			index = slice.High
-		}
 
-		switch index := index.(type) {
+		switch rhs := assign.Rhs[0].(type) {
 		case *ast.CallExpr:
-			if fun != "HasPrefix" {
+			if len(rhs.Args) < 2 || !sameNonDynamic(condCall.Args[0], rhs.Args[0]) || !sameNonDynamic(condCall.Args[1], rhs.Args[1]) {
 				return true
 			}
-			if fn, ok := index.Fun.(*ast.Ident); !ok || fn.Name != "len" {
+			if IsCallToAST(j, condCall, "strings.HasPrefix") && IsCallToAST(j, rhs, "strings.TrimPrefix") ||
+				IsCallToAST(j, condCall, "strings.HasSuffix") && IsCallToAST(j, rhs, "strings.TrimSuffix") ||
+				IsCallToAST(j, condCall, "strings.Contains") && IsCallToAST(j, rhs, "strings.Replace") ||
+				IsCallToAST(j, condCall, "bytes.HasPrefix") && IsCallToAST(j, rhs, "bytes.TrimPrefix") ||
+				IsCallToAST(j, condCall, "bytes.HasSuffix") && IsCallToAST(j, rhs, "bytes.TrimSuffix") ||
+				IsCallToAST(j, condCall, "bytes.Contains") && IsCallToAST(j, rhs, "bytes.Replace") {
+				j.Errorf(ifstmt, "should replace this if statement with an unconditional %s", CallNameAST(j, rhs))
+			}
+			return true
+		case *ast.SliceExpr:
+			slice := rhs
+			if !ok {
 				return true
 			}
-			if len(index.Args) != 1 {
+			if slice.Slice3 {
 				return true
 			}
-			id3 := index.Args[Arg("len.v")]
-			switch oid3 := condCall.Args[1].(type) {
-			case *ast.BasicLit:
-				if pkg != "strings" {
-					return false
-				}
-				lit, ok := id3.(*ast.BasicLit)
-				if !ok {
+			if !sameNonDynamic(slice.X, condCall.Args[0]) {
+				return true
+			}
+			var index ast.Expr
+			switch fun {
+			case "HasPrefix":
+				// TODO(dh) We could detect a High that is len(s), but another
+				// rule will already flag that, anyway.
+				if slice.High != nil {
 					return true
 				}
-				s1, ok1 := ExprToString(j, lit)
-				s2, ok2 := ExprToString(j, condCall.Args[1])
-				if !ok1 || !ok2 || s1 != s2 {
+				index = slice.Low
+			case "HasSuffix":
+				if slice.Low != nil {
+					n, ok := ExprToInt(j, slice.Low)
+					if !ok || n != 0 {
+						return true
+					}
+				}
+				index = slice.High
+			}
+
+			switch index := index.(type) {
+			case *ast.CallExpr:
+				if fun != "HasPrefix" {
+					return true
+				}
+				if fn, ok := index.Fun.(*ast.Ident); !ok || fn.Name != "len" {
+					return true
+				}
+				if len(index.Args) != 1 {
+					return true
+				}
+				id3 := index.Args[Arg("len.v")]
+				switch oid3 := condCall.Args[1].(type) {
+				case *ast.BasicLit:
+					if pkg != "strings" {
+						return false
+					}
+					lit, ok := id3.(*ast.BasicLit)
+					if !ok {
+						return true
+					}
+					s1, ok1 := ExprToString(j, lit)
+					s2, ok2 := ExprToString(j, condCall.Args[1])
+					if !ok1 || !ok2 || s1 != s2 {
+						return true
+					}
+				default:
+					if !sameNonDynamic(id3, oid3) {
+						return true
+					}
+				}
+			case *ast.BasicLit, *ast.Ident:
+				if fun != "HasPrefix" {
+					return true
+				}
+				if pkg != "strings" {
+					return true
+				}
+				string, ok1 := ExprToString(j, condCall.Args[1])
+				int, ok2 := ExprToInt(j, slice.Low)
+				if !ok1 || !ok2 || int != int64(len(string)) {
+					return true
+				}
+			case *ast.BinaryExpr:
+				if fun != "HasSuffix" {
+					return true
+				}
+				if index.Op != token.SUB {
+					return true
+				}
+				if !isLenOnIdent(index.X, condCall.Args[0]) ||
+					!isLenOnIdent(index.Y, condCall.Args[1]) {
 					return true
 				}
 			default:
-				if !sameNonDynamic(id3, oid3) {
-					return true
-				}
-			}
-		case *ast.BasicLit, *ast.Ident:
-			if fun != "HasPrefix" {
 				return true
 			}
-			if pkg != "strings" {
-				return true
+
+			var replacement string
+			switch fun {
+			case "HasPrefix":
+				replacement = "TrimPrefix"
+			case "HasSuffix":
+				replacement = "TrimSuffix"
 			}
-			string, ok1 := ExprToString(j, condCall.Args[1])
-			int, ok2 := ExprToInt(j, slice.Low)
-			if !ok1 || !ok2 || int != int64(len(string)) {
-				return true
-			}
-		case *ast.BinaryExpr:
-			if fun != "HasSuffix" {
-				return true
-			}
-			if index.Op != token.SUB {
-				return true
-			}
-			if !isLenOnIdent(index.X, condCall.Args[0]) ||
-				!isLenOnIdent(index.Y, condCall.Args[1]) {
-				return true
-			}
+			j.Errorf(ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
+			return true
 		default:
 			return true
 		}
-
-		var replacement string
-		switch fun {
-		case "HasPrefix":
-			replacement = "TrimPrefix"
-		case "HasSuffix":
-			replacement = "TrimSuffix"
-		}
-		j.Errorf(ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
-		return true
 	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
