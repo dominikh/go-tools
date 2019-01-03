@@ -3,6 +3,7 @@ package pkg
 import (
 	"fmt"
 	"log"
+	"os"
 )
 
 func fn() {
@@ -13,6 +14,8 @@ func fn() {
 	log.Printf(fn2())      // MATCH /should use print-style function/
 	fmt.Printf(s)          // MATCH /should use print-style function/
 	fmt.Printf(s, "")
+	fmt.Fprintf(os.Stdout, s) // MATCH /should use print-style function/
+	fmt.Fprintf(os.Stdout, s, "")
 
 	fmt.Printf(fn2(), "")
 	fmt.Printf("")

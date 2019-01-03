@@ -964,19 +964,24 @@ func (c *Checker) CheckUnsafePrintf(j *lint.Job) {
 		if !ok {
 			return true
 		}
-		if !IsCallToAnyAST(j, call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
+		var arg int
+		if IsCallToAnyAST(j, call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
+			arg = Arg("fmt.Printf.format")
+		} else if IsCallToAnyAST(j, call, "fmt.Fprintf") {
+			arg = Arg("fmt.Fprintf.format")
+		} else {
 			return true
 		}
-		if len(call.Args) != 1 {
+		if len(call.Args) != arg+1 {
 			return true
 		}
-		switch call.Args[Arg("fmt.Printf.format")].(type) {
+		switch call.Args[arg].(type) {
 		case *ast.CallExpr, *ast.Ident:
 		default:
 			return true
 		}
-		j.Errorf(call.Args[Arg("fmt.Printf.format")],
-			"printf-style function with dynamic first argument and no further arguments should use print-style function instead")
+		j.Errorf(call.Args[arg],
+			"printf-style function with dynamic format string and no further arguments should use print-style function instead")
 		return true
 	}
 	for _, f := range j.Program.Files {
