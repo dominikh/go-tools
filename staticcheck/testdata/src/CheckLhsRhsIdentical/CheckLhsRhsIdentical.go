@@ -1,6 +1,8 @@
 package pkg
 
-func fn(a int, s []int, f float64) {
+type Float float64
+
+func fn(a int, s []int, f1 float64, f2 Float) {
 	if 1 == 1 { // MATCH /identical expressions/
 		println()
 	}
@@ -19,10 +21,16 @@ func fn(a int, s []int, f float64) {
 	if (1 + 2 + 3) == (1 + 2 + 3) { // MATCH /identical expressions/
 		println()
 	}
-	if f == f {
+	if f1 == f1 {
 		println()
 	}
-	if f != f {
+	if f1 != f1 {
+		println()
+	}
+	if f1 > f1 { // MATCH /identical expressions/
+		println()
+	}
+	if f2 == f2 {
 		println()
 	}
 }

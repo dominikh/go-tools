@@ -872,7 +872,7 @@ func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
 		}
 		switch op.Op {
 		case token.EQL, token.NEQ:
-			if basic, ok := TypeOf(j, op.X).(*types.Basic); ok {
+			if basic, ok := TypeOf(j, op.X).Underlying().(*types.Basic); ok {
 				if kind := basic.Kind(); kind == types.Float32 || kind == types.Float64 {
 					// f == f and f != f might be used to check for NaN
 					return true
