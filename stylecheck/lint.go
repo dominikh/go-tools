@@ -254,7 +254,7 @@ func (c *Checker) CheckUnexportedReturn(j *lint.Job) {
 func (c *Checker) CheckReceiverNames(j *lint.Job) {
 	for _, pkg := range j.Program.InitialPackages {
 		for _, m := range pkg.SSA.Members {
-			if T, ok := m.Object().(*types.TypeName); ok {
+			if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
 				ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
 				for _, sel := range ms {
 					fn := sel.Obj().(*types.Func)
@@ -281,7 +281,7 @@ func (c *Checker) CheckReceiverNamesIdentical(j *lint.Job) {
 			names := map[string]int{}
 
 			var firstFn *types.Func
-			if T, ok := m.Object().(*types.TypeName); ok {
+			if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
 				ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
 				for _, sel := range ms {
 					fn := sel.Obj().(*types.Func)
