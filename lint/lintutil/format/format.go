@@ -102,6 +102,10 @@ type Stylish struct {
 }
 
 func (o *Stylish) Format(p lint.Problem) {
+	if p.Position.Filename == "" {
+		p.Position.Filename = "-"
+	}
+
 	if p.Position.Filename != o.prevFile {
 		if o.prevFile != "" {
 			o.tw.Flush()
