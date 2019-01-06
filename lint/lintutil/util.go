@@ -319,9 +319,9 @@ func parsePos(pos string) token.Position {
 	if parts == nil {
 		panic(fmt.Sprintf("internal error: malformed position %q", pos))
 	}
-	file := parts[0]
-	line, _ := strconv.Atoi(parts[1])
-	col, _ := strconv.Atoi(parts[2])
+	file := parts[1]
+	line, _ := strconv.Atoi(parts[2])
+	col, _ := strconv.Atoi(parts[3])
 	return token.Position{
 		Filename: file,
 		Line:     line,
