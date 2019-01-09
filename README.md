@@ -7,8 +7,7 @@ prominently staticcheck.
 **These tools are supported by
 [patrons on Patreon](https://www.patreon.com/dominikh) and
 [sponsors](#sponsors). If you use these tools at your company,
-consider purchasing
-[commercial support](https://staticcheck.io/pricing).**
+consider supporting open source by [becoming a sponsor!](mailto:dominik@honnef.co?subject=Staticcheck%20sponsorship)**
 
 ## Installation
 
