@@ -3,9 +3,7 @@ packages.
 
 # Installation
 
-```
-go get honnef.co/go/tools/cmd/rdeps
-```
+See [the main README](https://github.com/dominikh/go-tools#installation) for installation instructions.
 
 # Usage
 

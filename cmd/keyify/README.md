@@ -3,9 +3,7 @@ ones (`T{A: 1, B: 2, C: 3}`)
 
 ## Installation
 
-Keyify requires Go 1.6 or later.
-
-    go get honnef.co/go/tools/cmd/keyify
+See [the main README](https://github.com/dominikh/go-tools#installation) for installation instructions.
 
 ## Usage
 

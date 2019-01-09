@@ -6,7 +6,7 @@ point out dead code, and more.
 
 ## Installation
 
-    go get honnef.co/go/tools/cmd/staticcheck
+See [the main README](https://github.com/dominikh/go-tools#installation) for installation instructions.
 
 ## Documentation
 

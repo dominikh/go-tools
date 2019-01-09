@@ -1,7 +1,8 @@
 # honnef.co/go/tools
 
 `honnef.co/go/tools/...` is a collection of tools and libraries for
-working with Go code, including linters and static analysis.
+working with Go code, including linters and static analysis, most
+prominently staticcheck.
 
 **These tools are supported by
 [patrons on Patreon](https://www.patreon.com/dominikh) and
@@ -11,12 +12,29 @@ consider purchasing
 
 ## Installation
 
-To install or update all tools run
-```
-go get -u honnef.co/go/tools/...
-```
+### Releases
 
-Alternatively, see individual tool pages below.
+It is recommended that you run released versions of the tools. These
+releases can be found as git tags (e.g. `2019.1`) as well as prebuilt
+binaries in the [releases tab](https://github.com/dominikh/go-tools/releases).
+
+The easiest way of using the releases from source is to use a Go
+package manager such as Godep or Go modules. Alternatively you can use
+a combination of `git clone -b` and `go get` to check out the
+appropriate tag and download its dependencies.
+
+
+### Master
+
+You can also run the master branch instead of a release. Note that
+while the master branch is usually stable, it may still contain new
+checks or backwards incompatible changes that break your build. By
+using the master branch you agree to become a beta tester.
+
+To use the master branch, a simple `go get -u
+honnef.co/go/tools/cmd....` suffices. You can also install a subset of
+the commands, for example only staticcheck with `go get -u
+honnef.co/go/tools/cmd/staticcheck`.
 
 ## Tools
 
@@ -42,9 +60,13 @@ Their main purpose is to aid the implementation of the tools. If you
 decide to use these libraries, please vendor them and expect regular
 backwards-incompatible changes.
 
+## System requirements
+
+We support the last two versions of Go.
+
 ## Documentation
 
-You can find more documentation on
+You can find extensive documentation on
 [staticcheck.io](https://staticcheck.io).
 
 ## Sponsors
