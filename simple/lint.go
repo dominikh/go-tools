@@ -1859,6 +1859,9 @@ func (c *Checker) LintGuardedDelete(j *lint.Job) {
 		if len(stmt.Body.List) != 1 {
 			return true
 		}
+		if stmt.Else != nil {
+			return true
+		}
 		expr, ok := stmt.Body.List[0].(*ast.ExprStmt)
 		if !ok {
 			return true
