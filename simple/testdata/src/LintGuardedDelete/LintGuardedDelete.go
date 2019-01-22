@@ -23,6 +23,11 @@ func fn(m map[int]int) {
 	if _, ok := m[key]; ok {
 		delete(m, 0)
 	}
+	if _, ok := m[key]; ok {
+		delete(m, key)
+	} else {
+		println("not deleted")
+	}
 
 	var ok bool
 	if _, ok = m[key]; ok {
