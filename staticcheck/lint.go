@@ -204,7 +204,50 @@ var (
 		"regexp.MatchReader": loopedRegexp("regexp.MatchReader"),
 		"regexp.MatchString": loopedRegexp("regexp.MatchString"),
 	}
+
+	checkNoopMarshal = map[string]CallCheck{
+		// TODO(dh): should we really flag XML? Even an empty struct
+		// produces a non-zero amount of data, namely its type name.
+		// Let's see if we encounter any false positives.
+		//
+		// Also, should we flag gob?
+		"encoding/json.Marshal":           checkNoopMarshalImpl(Arg("json.Marshal.v"), "MarshalJSON", "MarshalText"),
+		"encoding/xml.Marshal":            checkNoopMarshalImpl(Arg("xml.Marshal.v"), "MarshalXML", "MarshalText"),
+		"(*encoding/json.Encoder).Encode": checkNoopMarshalImpl(Arg("(*encoding/json.Encoder).Encode.v"), "MarshalJSON", "MarshalText"),
+		"(*encoding/xml.Encoder).Encode":  checkNoopMarshalImpl(Arg("(*encoding/xml.Encoder).Encode.v"), "MarshalXML", "MarshalText"),
+
+		"encoding/json.Unmarshal":         checkNoopMarshalImpl(Arg("json.Unmarshal.v"), "UnmarshalJSON", "UnmarshalText"),
+		"encoding/xml.Unmarshal":          checkNoopMarshalImpl(Arg("xml.Unmarshal.v"), "UnmarshalXML", "UnmarshalText"),
+		"(*encoding/json.Decoder).Decode": checkNoopMarshalImpl(Arg("(*encoding/json.Decoder).Decode.v"), "UnmarshalJSON", "UnmarshalText"),
+		"(*encoding/xml.Decoder).Decode":  checkNoopMarshalImpl(Arg("(*encoding/xml.Decoder).Decode.v"), "UnmarshalXML", "UnmarshalText"),
+	}
 )
+
+func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
+	return func(call *Call) {
+		arg := call.Args[argN]
+		T := arg.Value.Value.Type()
+		Ts, ok := Dereference(T).Underlying().(*types.Struct)
+		if !ok {
+			return
+		}
+		if Ts.NumFields() == 0 {
+			return
+		}
+		if !HasExportedFieldsR(Ts) {
+			// OPT(dh): we could use a method set cache here
+			ms := types.NewMethodSet(T)
+			// TODO(dh): we're not checking the signature, which can cause false negatives.
+			// This isn't a huge problem, however, since vet complains about incorrect signatures.
+			for _, meth := range meths {
+				if ms.Lookup(nil, meth) != nil {
+					return
+				}
+			}
+			arg.Invalid("struct doesn't have any exported fields, nor custom marshaling")
+		}
+	}
+}
 
 type Checker struct {
 	CheckGenerated bool
@@ -293,6 +336,8 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA9002", FilterGenerated: false, Fn: c.CheckNonOctalFileMode},
 		{ID: "SA9003", FilterGenerated: false, Fn: c.CheckEmptyBranch},
 		{ID: "SA9004", FilterGenerated: false, Fn: c.CheckMissingEnumTypesInDeclaration},
+		// Filtering generated code because it may include empty structs generated from data models.
+		{ID: "SA9005", FilterGenerated: true, Fn: c.callChecker(checkNoopMarshal)},
 	}
 
 	// "SA5006": c.CheckSliceOutOfBounds,

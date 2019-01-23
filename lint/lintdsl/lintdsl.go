@@ -340,3 +340,31 @@ func IsObject(obj types.Object, name string) bool {
 	}
 	return path+obj.Name() == name
 }
+
+func HasExportedFieldsR(T *types.Struct) bool {
+	return hasExportedFieldsR(T, nil)
+}
+
+func hasExportedFieldsR(T *types.Struct, seen map[types.Type]bool) bool {
+	if seen == nil {
+		seen = map[types.Type]bool{}
+	}
+	if seen[T] {
+		return false
+	}
+	seen[T] = true
+	for i := 0; i < T.NumFields(); i++ {
+		field := T.Field(i)
+		if field.Anonymous() {
+			s, ok := Dereference(field.Type()).Underlying().(*types.Struct)
+			if ok && hasExportedFieldsR(s, seen) {
+				return true
+			}
+		} else {
+			if ast.IsExported(field.Name()) {
+				return true
+			}
+		}
+	}
+	return false
+}

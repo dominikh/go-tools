@@ -1,6 +1,10 @@
 package arg
 
 var args = map[string]int{
+	"(*encoding/json.Decoder).Decode.v":    0,
+	"(*encoding/json.Encoder).Encode.v":    0,
+	"(*encoding/xml.Decoder).Decode.v":     0,
+	"(*encoding/xml.Encoder).Encode.v":     0,
 	"(*sync.Pool).Put.x":                   0,
 	"(*text/template.Template).Parse.text": 0,
 	"(io.Seeker).Seek.offset":              0,
@@ -11,10 +15,12 @@ var args = map[string]int{
 	"bytes.Equal.b":                        1,
 	"encoding/binary.Write.data":           2,
 	"errors.New.text":                      0,
-	"fmt.Printf.format":                    0,
 	"fmt.Fprintf.format":                   1,
+	"fmt.Printf.format":                    0,
 	"fmt.Sprintf.a[0]":                     1,
 	"fmt.Sprintf.format":                   0,
+	"json.Marshal.v":                       0,
+	"json.Unmarshal.v":                     1,
 	"len.v":                                0,
 	"make.size[0]":                         1,
 	"make.size[1]":                         2,
@@ -29,6 +35,8 @@ var args = map[string]int{
 	"sort.Sort.data":                       0,
 	"time.Parse.layout":                    0,
 	"time.Sleep.d":                         0,
+	"xml.Marshal.v":                        0,
+	"xml.Unmarshal.v":                      1,
 }
 
 func Arg(name string) int {
