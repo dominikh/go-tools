@@ -594,15 +594,15 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 func (c *Checker) processSelections(pkg *lint.Pkg) {
 	fn := func(expr *ast.SelectorExpr, sel *types.Selection, offset int) {
 		scope := pkg.Types.Scope().Innermost(expr.Pos())
-		c.graph.markUsedBy(expr.X, c.topmostScope(scope, pkg.Types))
-		c.graph.markUsedBy(sel.Obj(), expr.X)
+		c.graph.markUsedBy(sel, c.topmostScope(scope, pkg.Types))
+		c.graph.markUsedBy(sel.Obj(), sel)
 		if len(sel.Index()) > 1 {
 			typ := sel.Recv()
 			indices := sel.Index()
 			for _, idx := range indices[:len(indices)-offset] {
 				obj := getField(typ, idx)
 				typ = obj.Type()
-				c.graph.markUsedBy(obj, expr.X)
+				c.graph.markUsedBy(obj, sel)
 			}
 		}
 	}
