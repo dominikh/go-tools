@@ -342,29 +342,40 @@ func IsObject(obj types.Object, name string) bool {
 }
 
 func HasExportedFieldsR(T *types.Struct) bool {
-	return hasExportedFieldsR(T, nil)
+	fields := FlattenFields(T)
+	for _, field := range fields {
+		if ast.IsExported(field.Name()) {
+			return true
+		}
+	}
+	return false
 }
 
-func hasExportedFieldsR(T *types.Struct, seen map[types.Type]bool) bool {
+// FlattenFields recursively flattens T and embedded structs,
+// returning a list of fields. If multiple fields with the same name
+// exist, all will be returned.
+func FlattenFields(T *types.Struct) []*types.Var {
+	return flattenFields(T, nil)
+}
+
+func flattenFields(T *types.Struct, seen map[types.Type]bool) []*types.Var {
 	if seen == nil {
 		seen = map[types.Type]bool{}
 	}
 	if seen[T] {
-		return false
+		return nil
 	}
 	seen[T] = true
+	var out []*types.Var
 	for i := 0; i < T.NumFields(); i++ {
 		field := T.Field(i)
 		if field.Anonymous() {
-			s, ok := Dereference(field.Type()).Underlying().(*types.Struct)
-			if ok && hasExportedFieldsR(s, seen) {
-				return true
+			if s, ok := Dereference(field.Type()).Underlying().(*types.Struct); ok {
+				out = append(out, flattenFields(s, seen)...)
 			}
 		} else {
-			if ast.IsExported(field.Name()) {
-				return true
-			}
+			out = append(out, field)
 		}
 	}
-	return false
+	return out
 }
