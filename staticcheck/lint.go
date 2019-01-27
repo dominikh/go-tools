@@ -9,6 +9,7 @@ import (
 	"go/types"
 	htmltemplate "html/template"
 	"net/http"
+	"reflect"
 	"regexp"
 	"regexp/syntax"
 	"sort"
@@ -221,6 +222,13 @@ var (
 		"(*encoding/json.Decoder).Decode": checkNoopMarshalImpl(Arg("(*encoding/json.Decoder).Decode.v"), "UnmarshalJSON", "UnmarshalText"),
 		"(*encoding/xml.Decoder).Decode":  checkNoopMarshalImpl(Arg("(*encoding/xml.Decoder).Decode.v"), "UnmarshalXML", "UnmarshalText"),
 	}
+
+	checkUnsupportedMarshal = map[string]CallCheck{
+		"encoding/json.Marshal":           checkUnsupportedMarshalImpl(Arg("json.Marshal.v"), "json", "MarshalJSON", "MarshalText"),
+		"encoding/xml.Marshal":            checkUnsupportedMarshalImpl(Arg("xml.Marshal.v"), "xml", "MarshalXML", "MarshalText"),
+		"(*encoding/json.Encoder).Encode": checkUnsupportedMarshalImpl(Arg("(*encoding/json.Encoder).Encode.v"), "json", "MarshalJSON", "MarshalText"),
+		"(*encoding/xml.Encoder).Encode":  checkUnsupportedMarshalImpl(Arg("(*encoding/xml.Encoder).Encode.v"), "xml", "MarshalXML", "MarshalText"),
+	}
 )
 
 func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
@@ -236,7 +244,7 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 		}
 		fields := FlattenFields(Ts)
 		for _, field := range fields {
-			if ast.IsExported(field.Name()) {
+			if field.Var.Exported() {
 				return
 			}
 		}
@@ -250,6 +258,48 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 			}
 		}
 		arg.Invalid("struct doesn't have any exported fields, nor custom marshaling")
+	}
+}
+
+func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallCheck {
+	return func(call *Call) {
+		arg := call.Args[argN]
+		T := arg.Value.Value.Type()
+		Ts, ok := Dereference(T).Underlying().(*types.Struct)
+		if !ok {
+			return
+		}
+		// OPT(dh): we could use a method set cache here
+		ms := types.NewMethodSet(T)
+		// TODO(dh): we're not checking the signature, which can cause false negatives.
+		// This isn't a huge problem, however, since vet complains about incorrect signatures.
+		for _, meth := range meths {
+			if ms.Lookup(nil, meth) != nil {
+				return
+			}
+		}
+		fields := FlattenFields(Ts)
+		for _, field := range fields {
+			if !(field.Var.Exported()) {
+				continue
+			}
+			if reflect.StructTag(field.Tag).Get(tag) == "-" {
+				continue
+			}
+			// OPT(dh): we could use a method set cache here
+			ms := types.NewMethodSet(field.Var.Type())
+			// TODO(dh): we're not checking the signature, which can cause false negatives.
+			// This isn't a huge problem, however, since vet complains about incorrect signatures.
+			for _, meth := range meths {
+				if ms.Lookup(nil, meth) != nil {
+					return
+				}
+			}
+			switch field.Var.Type().Underlying().(type) {
+			case *types.Chan, *types.Signature:
+				arg.Invalid("trying to marshal chan or func value")
+			}
+		}
 	}
 }
 
@@ -292,6 +342,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA1023", FilterGenerated: false, Fn: c.CheckWriterBufferModified},
 		{ID: "SA1024", FilterGenerated: false, Fn: c.callChecker(checkUniqueCutsetRules)},
 		{ID: "SA1025", FilterGenerated: false, Fn: c.CheckTimerResetReturnValue},
+		{ID: "SA1026", FilterGenerated: false, Fn: c.callChecker(checkUnsupportedMarshal)},
 
 		{ID: "SA2000", FilterGenerated: false, Fn: c.CheckWaitgroupAdd},
 		{ID: "SA2001", FilterGenerated: false, Fn: c.CheckEmptyCriticalSection},

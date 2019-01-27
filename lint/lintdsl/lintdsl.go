@@ -341,14 +341,19 @@ func IsObject(obj types.Object, name string) bool {
 	return path+obj.Name() == name
 }
 
+type Field struct {
+	Var *types.Var
+	Tag string
+}
+
 // FlattenFields recursively flattens T and embedded structs,
 // returning a list of fields. If multiple fields with the same name
 // exist, all will be returned.
-func FlattenFields(T *types.Struct) []*types.Var {
+func FlattenFields(T *types.Struct) []Field {
 	return flattenFields(T, nil)
 }
 
-func flattenFields(T *types.Struct, seen map[types.Type]bool) []*types.Var {
+func flattenFields(T *types.Struct, seen map[types.Type]bool) []Field {
 	if seen == nil {
 		seen = map[types.Type]bool{}
 	}
@@ -356,15 +361,16 @@ func flattenFields(T *types.Struct, seen map[types.Type]bool) []*types.Var {
 		return nil
 	}
 	seen[T] = true
-	var out []*types.Var
+	var out []Field
 	for i := 0; i < T.NumFields(); i++ {
 		field := T.Field(i)
+		tag := T.Tag(i)
 		if field.Anonymous() {
 			if s, ok := Dereference(field.Type()).Underlying().(*types.Struct); ok {
 				out = append(out, flattenFields(s, seen)...)
 			}
 		} else {
-			out = append(out, field)
+			out = append(out, Field{field, tag})
 		}
 	}
 	return out
