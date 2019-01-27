@@ -234,18 +234,22 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 		if Ts.NumFields() == 0 {
 			return
 		}
-		if !HasExportedFieldsR(Ts) {
-			// OPT(dh): we could use a method set cache here
-			ms := types.NewMethodSet(T)
-			// TODO(dh): we're not checking the signature, which can cause false negatives.
-			// This isn't a huge problem, however, since vet complains about incorrect signatures.
-			for _, meth := range meths {
-				if ms.Lookup(nil, meth) != nil {
-					return
-				}
+		fields := FlattenFields(Ts)
+		for _, field := range fields {
+			if ast.IsExported(field.Name()) {
+				return
 			}
-			arg.Invalid("struct doesn't have any exported fields, nor custom marshaling")
 		}
+		// OPT(dh): we could use a method set cache here
+		ms := types.NewMethodSet(T)
+		// TODO(dh): we're not checking the signature, which can cause false negatives.
+		// This isn't a huge problem, however, since vet complains about incorrect signatures.
+		for _, meth := range meths {
+			if ms.Lookup(nil, meth) != nil {
+				return
+			}
+		}
+		arg.Invalid("struct doesn't have any exported fields, nor custom marshaling")
 	}
 }
 

@@ -341,16 +341,6 @@ func IsObject(obj types.Object, name string) bool {
 	return path+obj.Name() == name
 }
 
-func HasExportedFieldsR(T *types.Struct) bool {
-	fields := FlattenFields(T)
-	for _, field := range fields {
-		if ast.IsExported(field.Name()) {
-			return true
-		}
-	}
-	return false
-}
-
 // FlattenFields recursively flattens T and embedded structs,
 // returning a list of fields. If multiple fields with the same name
 // exist, all will be returned.
