@@ -262,6 +262,7 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 }
 
 func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallCheck {
+	// TODO(dh): flag slices and maps of unsupported types
 	return func(call *Call) {
 		arg := call.Args[argN]
 		T := arg.Value.Value.Type()
@@ -297,10 +298,20 @@ func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallChec
 			}
 			switch field.Var.Type().Underlying().(type) {
 			case *types.Chan, *types.Signature:
-				arg.Invalid("trying to marshal chan or func value")
+				arg.Invalid(fmt.Sprintf("trying to marshal chan or func value, field %s", fieldPath(T, field.Path)))
 			}
 		}
 	}
+}
+
+func fieldPath(start types.Type, indices []int) string {
+	p := start.String()
+	for _, idx := range indices {
+		field := Dereference(start).Underlying().(*types.Struct).Field(idx)
+		start = field.Type()
+		p += "." + field.Name()
+	}
+	return p
 }
 
 type Checker struct {
