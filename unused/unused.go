@@ -265,6 +265,7 @@ func (c *Checker) Check(prog *lint.Program) []Unused {
 
 		unused = append(unused, Unused{Obj: obj, Position: pos})
 	}
+
 	return unused
 }
 
@@ -557,13 +558,13 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 			switch obj.Underlying().(type) {
 			case *types.Interface:
 				// pointers to interfaces have no methods, only checking non-pointer
-				if !types.Implements(obj, iface) {
+				if !c.implements(obj, iface) {
 					continue namedLoop
 				}
 			default:
 				// pointer receivers include the method set of non-pointer receivers,
 				// only checking pointer
-				if !types.Implements(objPtr, iface) {
+				if !c.implements(objPtr, iface) {
 					continue namedLoop
 				}
 			}
