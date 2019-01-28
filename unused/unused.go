@@ -552,10 +552,22 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 		for i := 0; i < iface.NumEmbeddeds(); i++ {
 			c.graph.markUsedBy(iface.Embedded(i), iface)
 		}
+	namedLoop:
 		for obj, objPtr := range named {
-			if !types.Implements(obj, iface) && !types.Implements(objPtr, iface) {
-				continue
+			switch obj.Underlying().(type) {
+			case *types.Interface:
+				// pointers to interfaces have no methods, only checking non-pointer
+				if !types.Implements(obj, iface) {
+					continue namedLoop
+				}
+			default:
+				// pointer receivers include the method set of non-pointer receivers,
+				// only checking pointer
+				if !types.Implements(objPtr, iface) {
+					continue namedLoop
+				}
 			}
+
 			ifaceMethods := make(map[string]struct{}, iface.NumMethods())
 			n := iface.NumMethods()
 			for i := 0; i < n; i++ {
