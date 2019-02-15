@@ -317,6 +317,7 @@ func fieldPath(start types.Type, indices []int) string {
 type Checker struct {
 	CheckGenerated bool
 	funcDescs      *functions.Descriptions
+	deprecatedPkgs map[*types.Package]string
 	deprecatedObjs map[types.Object]string
 }
 
@@ -411,11 +412,9 @@ func (c *Checker) Checks() []lint.Check {
 }
 
 func (c *Checker) findDeprecated(prog *lint.Program) {
-	var docs []*ast.CommentGroup
 	var names []*ast.Ident
 
-	doDocs := func(pkg *packages.Package, names []*ast.Ident, docs []*ast.CommentGroup) {
-		var alt string
+	extractDeprecatedMessage := func(docs []*ast.CommentGroup) string {
 		for _, doc := range docs {
 			if doc == nil {
 				continue
@@ -425,10 +424,14 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 			if !strings.HasPrefix(last, "Deprecated: ") {
 				continue
 			}
-			alt = last[len("Deprecated: "):]
+			alt := last[len("Deprecated: "):]
 			alt = strings.Replace(alt, "\n", " ", -1)
-			break
+			return alt
 		}
+		return ""
+	}
+	doDocs := func(pkg *packages.Package, names []*ast.Ident, docs []*ast.CommentGroup) {
+		alt := extractDeprecatedMessage(docs)
 		if alt == "" {
 			return
 		}
@@ -440,6 +443,21 @@ func (c *Checker) findDeprecated(prog *lint.Program) {
 	}
 
 	for _, pkg := range prog.AllPackages {
+		var docs []*ast.CommentGroup
+		for _, f := range pkg.Syntax {
+			docs = append(docs, f.Doc)
+		}
+		if alt := extractDeprecatedMessage(docs); alt != "" {
+			// Don't mark package syscall as deprecated, even though
+			// it is. A lot of people still use it for simple
+			// constants like SIGKILL, and I am not comfortable
+			// telling them to use x/sys for that.
+			if pkg.PkgPath != "syscall" {
+				c.deprecatedPkgs[pkg.Types] = alt
+			}
+		}
+
+		docs = docs[:0]
 		for _, f := range pkg.Syntax {
 			fn := func(node ast.Node) bool {
 				if node == nil {
@@ -511,6 +529,7 @@ func (c *Checker) Init(prog *lint.Program) {
 	}()
 
 	go func() {
+		c.deprecatedPkgs = map[*types.Package]string{}
 		c.deprecatedObjs = map[types.Object]string{}
 		c.findDeprecated(prog)
 		wg.Done()
@@ -2554,6 +2573,21 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			return true
 		}
 		return true
+	}
+	for _, pkg := range j.Program.InitialPackages {
+		for _, f := range pkg.Syntax {
+			ast.Inspect(f, func(node ast.Node) bool {
+				if node, ok := node.(*ast.ImportSpec); ok {
+					p := node.Path.Value
+					path := p[1 : len(p)-1]
+					imp := pkg.Imports[path]
+					if alt := c.deprecatedPkgs[imp.Types]; alt != "" {
+						j.Errorf(node, "Package %s is deprecated: %s", path, alt)
+					}
+				}
+				return true
+			})
+		}
 	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
