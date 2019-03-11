@@ -3,6 +3,8 @@ go:
 repository:
   path: github.com/dominikh/go-tools
 build:
+  ldflags: |
+    -X honnef.co/go/tools/version.Version={{.Version}}
   binaries:
   - name: errcheck-ng
     path: ./cmd/errcheck-ng
