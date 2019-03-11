@@ -1,0 +1,29 @@
+go:
+  version: 1.12
+repository:
+  path: github.com/dominikh/go-tools
+build:
+  binaries:
+  - name: errcheck-ng
+    path: ./cmd/errcheck-ng
+  - name: gosimple
+    path: ./cmd/gosimple
+  - name: keyify
+    path: ./cmd/keyify
+  - name: megacheck
+    path: ./cmd/megacheck
+  - name: rdeps
+    path: ./cmd/rdeps
+  - name: staticcheck
+    path: ./cmd/staticcheck
+  - name: structlayout
+    path: ./cmd/structlayout
+  - name: structlayout-optimize
+    path: ./cmd/structlayout-optimize
+  - name: structlayout-pretty
+    path: ./cmd/structlayout-pretty
+  - name: unused
+    path: ./cmd/unused
+tarball:
+  files:
+  - LICENSE
