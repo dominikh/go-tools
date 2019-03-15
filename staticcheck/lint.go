@@ -383,6 +383,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA4018", FilterGenerated: true, Fn: c.CheckSelfAssignment},
 		{ID: "SA4019", FilterGenerated: true, Fn: c.CheckDuplicateBuildConstraints},
 		{ID: "SA4020", FilterGenerated: false, Fn: c.CheckUnreachableTypeCases},
+		{ID: "SA4021", FilterGenerated: true, Fn: c.CheckSingleArgAppend},
 
 		{ID: "SA5000", FilterGenerated: false, Fn: c.CheckNilMaps},
 		{ID: "SA5001", FilterGenerated: false, Fn: c.CheckEarlyDefer},
@@ -3147,6 +3148,23 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		return true
 	}
 
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckSingleArgAppend(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		if !IsCallToAST(j, node, "append") {
+			return true
+		}
+		call, _ := node.(*ast.CallExpr)
+		if len(call.Args) != 1 {
+			return true
+		}
+		j.Errorf(call, "x = append(y) is equivalent to x = y")
+		return true
+	}
 	for _, f := range j.Program.Files {
 		ast.Inspect(f, fn)
 	}
