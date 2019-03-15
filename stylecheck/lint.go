@@ -49,6 +49,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "ST1015", FilterGenerated: true, Fn: c.CheckDefaultCaseOrder},
 		{ID: "ST1016", FilterGenerated: false, Fn: c.CheckReceiverNamesIdentical},
 		{ID: "ST1017", FilterGenerated: true, Fn: c.CheckYodaConditions},
+		{ID: "ST1018", FilterGenerated: false, Fn: c.CheckInvisibleCharacters},
 	}
 }
 
@@ -635,6 +636,26 @@ func (c *Checker) CheckYodaConditions(j *lint.Job) {
 			return true
 		}
 		j.Errorf(cond, "don't use Yoda conditions")
+		return true
+	}
+	for _, f := range j.Program.Files {
+		ast.Inspect(f, fn)
+	}
+}
+
+func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
+	fn := func(node ast.Node) bool {
+		lit, ok := node.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		for _, r := range lit.Value {
+			if unicode.Is(unicode.Cf, r) {
+				j.Errorf(lit, "string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r)
+			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
+				j.Errorf(lit, "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
+			}
+		}
 		return true
 	}
 	for _, f := range j.Program.Files {
