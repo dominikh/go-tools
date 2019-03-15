@@ -10,6 +10,7 @@ func fn() {
 	errors.New("URL is okay")
 	errors.New("SomeFunc is okay")
 	errors.New("URL is okay, but the period is not.") // MATCH "error strings should not end with punctuation or a newline"
+	errors.New("T must not be nil")
 }
 
 func Write() {

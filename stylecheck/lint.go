@@ -338,14 +338,18 @@ fnLoop:
 }
 
 func (c *Checker) CheckErrorStrings(j *lint.Job) {
-	fnNames := map[*ssa.Package]map[string]bool{}
-	for _, fn := range j.Program.InitialFunctions {
-		m := fnNames[fn.Package()]
-		if m == nil {
-			m = map[string]bool{}
-			fnNames[fn.Package()] = m
+	objNames := map[*ssa.Package]map[string]bool{}
+	for _, pkg := range j.Program.InitialPackages {
+		ssapkg := pkg.SSA
+		objNames[ssapkg] = map[string]bool{}
+		for _, m := range ssapkg.Members {
+			if typ, ok := m.(*ssa.Type); ok {
+				objNames[ssapkg][typ.Name()] = true
+			}
 		}
-		m[fn.Name()] = true
+	}
+	for _, fn := range j.Program.InitialFunctions {
+		objNames[fn.Package()][fn.Name()] = true
 	}
 
 	for _, fn := range j.Program.InitialFunctions {
@@ -400,8 +404,8 @@ func (c *Checker) CheckErrorStrings(j *lint.Job) {
 				}
 
 				word = strings.TrimRightFunc(word, func(r rune) bool { return unicode.IsPunct(r) })
-				if fnNames[fn.Package()][word] {
-					// Word is probably the name of a function in this package
+				if objNames[fn.Package()][word] {
+					// Word is probably the name of a function or type in this package
 					continue
 				}
 				// First word in error starts with a capital
