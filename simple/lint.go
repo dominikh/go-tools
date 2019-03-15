@@ -1508,6 +1508,28 @@ func (c *Checker) LintAssertNotNil(j *lint.Job) {
 }
 
 func (c *Checker) LintDeclareAssign(j *lint.Job) {
+	hasMultipleAssignments := func(root ast.Node, ident *ast.Ident) bool {
+		num := 0
+		ast.Inspect(root, func(node ast.Node) bool {
+			if num >= 2 {
+				return false
+			}
+			assign, ok := node.(*ast.AssignStmt)
+			if !ok {
+				return true
+			}
+			for _, lhs := range assign.Lhs {
+				if oident, ok := lhs.(*ast.Ident); ok {
+					if oident.Obj == ident.Obj {
+						num++
+					}
+				}
+			}
+
+			return true
+		})
+		return num >= 2
+	}
 	fn := func(node ast.Node) bool {
 		block, ok := node.(*ast.BlockStmt)
 		if !ok {
@@ -1549,6 +1571,10 @@ func (c *Checker) LintDeclareAssign(j *lint.Job) {
 			if refersTo(j, assign.Rhs[0], ident) {
 				continue
 			}
+			if hasMultipleAssignments(block, ident) {
+				continue
+			}
+
 			j.Errorf(decl, "should merge variable declaration with assignment on next line")
 		}
 		return true
