@@ -514,7 +514,7 @@ func (c *Checker) findExportedInterfaces() {
 }
 
 func (c *Checker) processTypes(pkg *lint.Pkg) {
-	named := map[*types.Named]*types.Pointer{}
+	implementers := map[types.Type]*types.Pointer{}
 	var interfaces []*types.Interface
 	for _, tv := range pkg.TypesInfo.Types {
 		if typ, ok := tv.Type.(interface {
@@ -525,7 +525,7 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 
 		switch obj := tv.Type.(type) {
 		case *types.Named:
-			named[obj] = types.NewPointer(obj)
+			implementers[obj] = types.NewPointer(obj)
 			c.graph.markUsedBy(obj, obj.Underlying())
 			c.graph.markUsedBy(obj.Underlying(), obj)
 		case *types.Interface:
@@ -533,6 +533,7 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 				interfaces = append(interfaces, obj)
 			}
 		case *types.Struct:
+			implementers[obj] = types.NewPointer(obj)
 			c.useNoCopyFields(obj)
 			if pkg.Types.Name() != "main" && !c.WholeProgram {
 				c.useExportedFields(obj, obj)
@@ -554,7 +555,7 @@ func (c *Checker) processTypes(pkg *lint.Pkg) {
 			c.graph.markUsedBy(iface.Embedded(i), iface)
 		}
 	namedLoop:
-		for obj, objPtr := range named {
+		for obj, objPtr := range implementers {
 			switch obj.Underlying().(type) {
 			case *types.Interface:
 				// pointers to interfaces have no methods, only checking non-pointer
