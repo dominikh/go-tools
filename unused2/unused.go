@@ -17,8 +17,6 @@ import (
 // basic types, empty signatures etc doesn't add any information to
 // the graph.
 //
-// OPT(dh): deduplicate type nodes. [1]T and [1]T are the same type and can be merged
-//
 // OPT(dh): deduplicate edges
 //
 // OPT(dh): don't track function calls into external packages
@@ -172,9 +170,9 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 		graph.entry(pkg.TypesInfo)
 
 		graph.color(graph.Root)
-		for _, node := range graph.Nodes {
+		quieten := func(node *Node) {
 			if node.seen {
-				continue
+				return
 			}
 			switch obj := node.obj.(type) {
 			case *types.Var:
@@ -187,59 +185,73 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			case *types.Named:
 				for i := 0; i < obj.NumMethods(); i++ {
 					m := pkg.SSA.Prog.FuncValue(obj.Method(i))
-					if node, ok := graph.Nodes[m]; ok {
+					if node, ok := graph.nodeMaybe(m); ok {
 						node.quiet = true
 					}
 				}
 			case *types.Struct:
 				for i := 0; i < obj.NumFields(); i++ {
-					if node, ok := graph.Nodes[obj.Field(i)]; ok {
+					if node, ok := graph.nodeMaybe(obj.Field(i)); ok {
 						node.quiet = true
 					}
 				}
 			}
 		}
 		for _, node := range graph.Nodes {
-			if !node.seen {
-				if node.quiet {
-					if debug {
-						fmt.Printf("n%d [color=purple];\n", node.id)
-					}
-					continue
-				}
-				if debug {
-					fmt.Printf("n%d [color=red];\n", node.id)
-				}
-				switch obj := node.obj.(type) {
-				case types.Object:
-					if obj.Pkg() == pkg.Package.Types {
-						pos := prog.Fset().Position(obj.Pos())
-						out = append(out, Unused{
-							Obj:      obj,
-							Position: pos,
-						})
-					}
-				case *ssa.Function:
-					if obj == nil {
-						// TODO(dh): how does this happen?
-						continue
-					}
+			quieten(node)
+		}
+		graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+			quieten(value.(*Node))
+		})
 
-					// OPT(dh): objects in other packages should never make it into the graph
-					if obj.Object() != nil && obj.Object().Pkg() == pkg.Types {
-						pos := prog.Fset().Position(obj.Pos())
-						out = append(out, Unused{
-							Obj:      obj.Object(),
-							Position: pos,
-						})
-					}
-				default:
-					if debug {
-						fmt.Printf("n%d [color=gray];\n", node.id)
-					}
+		report := func(node *Node) {
+			if node.seen {
+				return
+			}
+			if node.quiet {
+				if debug {
+					fmt.Printf("n%d [color=purple];\n", node.id)
+				}
+				return
+			}
+			if debug {
+				fmt.Printf("n%d [color=red];\n", node.id)
+			}
+			switch obj := node.obj.(type) {
+			case types.Object:
+				if obj.Pkg() == pkg.Package.Types {
+					pos := prog.Fset().Position(obj.Pos())
+					out = append(out, Unused{
+						Obj:      obj,
+						Position: pos,
+					})
+				}
+			case *ssa.Function:
+				if obj == nil {
+					// TODO(dh): how does this happen?
+					return
+				}
+
+				// OPT(dh): objects in other packages should never make it into the graph
+				if obj.Object() != nil && obj.Object().Pkg() == pkg.Types {
+					pos := prog.Fset().Position(obj.Pos())
+					out = append(out, Unused{
+						Obj:      obj.Object(),
+						Position: pos,
+					})
+				}
+			default:
+				if debug {
+					fmt.Printf("n%d [color=gray];\n", node.id)
 				}
 			}
 		}
+		for _, node := range graph.Nodes {
+			report(node)
+		}
+		graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+			report(value.(*Node))
+		})
 	}
 	return out
 }
@@ -251,19 +263,19 @@ type Graph struct {
 
 	nodeCounter int
 
-	Root  *Node
-	Nodes map[interface{}]*Node
+	Root      *Node
+	TypeNodes typeutil.Map
+	Nodes     map[interface{}]*Node
 
-	seenTypes map[types.Type]struct{}
+	seenTypes typeutil.Map
 	seenFns   map[*ssa.Function]struct{}
 }
 
 func NewGraph(pkg *ssa.Package) *Graph {
 	g := &Graph{
-		pkg:       pkg,
-		Nodes:     map[interface{}]*Node{},
-		seenTypes: map[types.Type]struct{}{},
-		seenFns:   map[*ssa.Function]struct{}{},
+		pkg:     pkg,
+		Nodes:   map[interface{}]*Node{},
+		seenFns: map[*ssa.Function]struct{}{},
 	}
 	g.Root = g.newNode(nil)
 	if debug {
@@ -292,6 +304,36 @@ type Node struct {
 	quiet bool
 }
 
+func (g *Graph) nodeMaybe(obj interface{}) (*Node, bool) {
+	if t, ok := obj.(types.Type); ok {
+		if v := g.TypeNodes.At(t); v != nil {
+			return v.(*Node), true
+		}
+		return nil, false
+	}
+	if node, ok := g.Nodes[obj]; ok {
+		return node, true
+	}
+	return nil, false
+}
+
+func (g *Graph) node(obj interface{}) *Node {
+	if t, ok := obj.(types.Type); ok {
+		if v := g.TypeNodes.At(t); v != nil {
+			return v.(*Node)
+		}
+		node := g.newNode(obj)
+		g.TypeNodes.Set(t, node)
+		return node
+	}
+	if node, ok := g.Nodes[obj]; ok {
+		return node
+	}
+	node := g.newNode(obj)
+	g.Nodes[obj] = node
+	return node
+}
+
 func (g *Graph) newNode(obj interface{}) *Node {
 	g.nodeCounter++
 	return &Node{
@@ -313,12 +355,11 @@ func (g *Graph) see(obj interface{}) {
 			return
 		}
 	}
-	if g.Nodes[obj] == nil {
-		g.Nodes[obj] = g.newNode(obj)
 
-		if debug {
-			fmt.Printf("n%d [label=%q];\n", g.Nodes[obj].id, obj)
-		}
+	// add new node to graph
+	node := g.node(obj)
+	if debug {
+		fmt.Printf("n%d [label=%q];\n", node.id, obj)
 	}
 }
 
@@ -340,19 +381,18 @@ func (g *Graph) use(used, by interface{}, reason string) {
 			return
 		}
 	}
-	usedNode := g.Nodes[used]
-	assert(usedNode != nil)
+	usedNode := g.node(used)
 	if by == nil {
 		g.Root.use(usedNode)
 		if debug {
 			fmt.Printf("n%d -> n%d [label=%q];\n", g.Root.id, usedNode.id, reason)
 		}
 	} else {
-		assert(g.Nodes[by] != nil)
+		byNode := g.node(by)
 		if debug {
-			fmt.Printf("n%d -> n%d [label=%q];\n", g.Nodes[by].id, usedNode.id, reason)
+			fmt.Printf("n%d -> n%d [label=%q];\n", byNode.id, usedNode.id, reason)
 		}
-		g.Nodes[by].use(usedNode)
+		byNode.use(usedNode)
 	}
 }
 
@@ -464,7 +504,7 @@ usesLoop:
 	var ifaces []*types.Interface
 	var notIfaces []types.Type
 
-	for t := range g.seenTypes {
+	g.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 		switch t := t.(type) {
 		case *types.Interface:
 			ifaces = append(ifaces, t)
@@ -473,7 +513,7 @@ usesLoop:
 				notIfaces = append(notIfaces, t)
 			}
 		}
-	}
+	})
 
 	for _, iface := range ifaces {
 		for _, t := range notIfaces {
@@ -515,7 +555,7 @@ func (g *Graph) function(fn *ssa.Function) {
 }
 
 func (g *Graph) typ(t types.Type) {
-	if _, ok := g.seenTypes[t]; ok {
+	if g.seenTypes.At(t) != nil {
 		return
 	}
 	if t, ok := t.(*types.Named); ok {
@@ -523,7 +563,7 @@ func (g *Graph) typ(t types.Type) {
 			return
 		}
 	}
-	g.seenTypes[t] = struct{}{}
+	g.seenTypes.Set(t, struct{}{})
 
 	g.see(t)
 	switch t := t.(type) {
@@ -663,7 +703,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					// See https://github.com/golang/go/issues/19670
 
 					g.see(v.Type())
-					g.seeAndUse(v.Type(), fn, fmt.Sprintf("%s = %s", v.Name(), v))
+					g.seeAndUse(v.Type(), fn, "instruction")
 					g.typ(v.Type())
 				}
 			}
