@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"go/types"
 
-	"golang.org/x/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintdsl"
@@ -402,71 +401,88 @@ func (g *Graph) seeAndUse(used, by interface{}, reason string) {
 }
 
 func (g *Graph) entry(tinfo *types.Info) {
-	scopes := map[*types.Scope]ast.Node{}
-	for node, scope := range tinfo.Scopes {
-		switch node.(type) {
-		case *ast.File, *ast.FuncType:
-			scopes[scope] = node
+	// TODO rename Entry
+
+	scopes := map[*types.Scope]*ssa.Function{}
+	for _, fn := range g.job.Program.InitialFunctions {
+		if fn.Pkg != g.pkg {
+			continue
+		}
+		if fn.Object() != nil {
+			scope := fn.Object().(*types.Func).Scope()
+			scopes[scope] = fn
 		}
 	}
-	// TODO rename Entry
+
+	surroundingFunc := func(obj types.Object) *ssa.Function {
+		scope := obj.Parent()
+		for scope != nil {
+			if fn := scopes[scope]; fn != nil {
+				return fn
+			}
+			scope = scope.Parent()
+		}
+		return nil
+	}
 
 	// SSA form won't tell us about locally scoped types that aren't
 	// being used. Walk the list of Defs to get all named types.
 	//
 	// SSA form also won't tell us about constants; use Defs and Uses
 	// to determine which constants exist and which are being used.
-	for def, obj := range tinfo.Defs {
-		if def.Name == "_" && obj != nil {
-			path, _ := astutil.PathEnclosingInterval(g.job.File(def), def.Pos(), def.Pos())
-			for _, p := range path {
-				if decl, ok := p.(*ast.FuncDecl); ok {
-					fnObj := lintdsl.ObjectOf(g.job, decl.Name)
-					fn := g.pkg.Prog.FuncValue(fnObj.(*types.Func))
-					g.see(fn)
-					// Note that this isn't necessarily the tightest
-					// possible match. This will only match named
-					// functions, not closures, for example.
-					g.seeAndUse(obj.Type(), fn, "defined as blank")
-					break
-				}
-			}
-		}
+	for _, obj := range tinfo.Defs {
 		switch obj := obj.(type) {
 		case *types.TypeName:
 			g.see(obj)
 			g.typ(obj.Type())
 		case *types.Const:
 			g.see(obj)
-			// FIXME(dh): we don't know the scope of the constant, it
-			// may be local to a function
-			if obj.Exported() {
+			fn := surroundingFunc(obj)
+			if fn == nil && obj.Exported() {
 				g.use(obj, nil, "exported constant")
 			}
 			g.typ(obj.Type())
 			g.seeAndUse(obj.Type(), obj, "constant type")
 		}
 	}
-usesLoop:
-	for use, obj := range tinfo.Uses {
-		switch obj := obj.(type) {
-		case *types.Const:
-			path, _ := astutil.PathEnclosingInterval(g.job.File(use), use.Pos(), use.Pos())
-			for _, p := range path {
-				if decl, ok := p.(*ast.FuncDecl); ok {
-					fnObj := lintdsl.ObjectOf(g.job, decl.Name)
-					fn := g.pkg.Prog.FuncValue(fnObj.(*types.Func))
-					g.see(fn)
-					// Note that this isn't necessarily the tightest
-					// possible match. This will only match named
-					// functions, not closures, for example.
-					g.seeAndUse(obj, fn, "used constant")
-					continue usesLoop
-				}
-			}
-			// we couldn't find the surrounding function, so mark it as used by the root node.
-			g.seeAndUse(obj, nil, "used constant")
+
+	// Find constants being used inside functions
+	handledConsts := map[*ast.Ident]struct{}{}
+	for _, fn := range g.job.Program.InitialFunctions {
+		if fn.Pkg != g.pkg {
+			continue
 		}
+		node := fn.Syntax()
+		if node == nil {
+			continue
+		}
+		ast.Inspect(node, func(node ast.Node) bool {
+			ident, ok := node.(*ast.Ident)
+			if !ok {
+				return true
+			}
+
+			obj, ok := tinfo.Uses[ident]
+			if !ok {
+				return true
+			}
+			switch obj := obj.(type) {
+			case *types.Const:
+				g.seeAndUse(obj, fn, "used constant")
+			}
+			return true
+		})
+	}
+	// Find constants being used in non-function contexts
+	for ident, obj := range tinfo.Uses {
+		_, ok := obj.(*types.Const)
+		if !ok {
+			continue
+		}
+		if _, ok := handledConsts[ident]; ok {
+			continue
+		}
+		g.seeAndUse(obj, nil, "used constant")
 	}
 
 	for _, m := range g.pkg.Members {
