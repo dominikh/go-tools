@@ -610,14 +610,11 @@ func hasType(j *lint.Job, expr ast.Expr, name string) bool {
 }
 
 func (c *Checker) CheckUntrappableSignal(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		if !IsCallToAnyAST(j, call,
 			"os/signal.Ignore", "os/signal.Notify", "os/signal.Reset") {
-			return true
+			return
 		}
 		for _, arg := range call.Args {
 			if conv, ok := arg.(*ast.CallExpr); ok && isName(j, conv.Fun, "os.Signal") {
@@ -631,26 +628,20 @@ func (c *Checker) CheckUntrappableSignal(j *lint.Job) {
 				j.Errorf(arg, "%s signal cannot be trapped", Render(j, arg))
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckTemplate(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		var kind string
 		if IsCallToAST(j, call, "(*text/template.Template).Parse") {
 			kind = "text"
 		} else if IsCallToAST(j, call, "(*html/template.Template).Parse") {
 			kind = "html"
 		} else {
-			return true
+			return
 		}
 		sel := call.Fun.(*ast.SelectorExpr)
 		if !IsCallToAST(j, sel.X, "text/template.New") &&
@@ -659,11 +650,11 @@ func (c *Checker) CheckTemplate(j *lint.Job) {
 			// different delims. A better solution with less false
 			// negatives would use data flow analysis to see where the
 			// template comes from and where it has been
-			return true
+			return
 		}
 		s, ok := ExprToString(j, call.Args[Arg("(*text/template.Template).Parse.text")])
 		if !ok {
-			return true
+			return
 		}
 		var err error
 		switch kind {
@@ -678,35 +669,29 @@ func (c *Checker) CheckTemplate(j *lint.Job) {
 				j.Errorf(call.Args[Arg("(*text/template.Template).Parse.text")], "%s", err)
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		if !IsCallToAST(j, call, "time.Sleep") {
-			return true
+			return
 		}
 		lit, ok := call.Args[Arg("time.Sleep.d")].(*ast.BasicLit)
 		if !ok {
-			return true
+			return
 		}
 		n, err := strconv.Atoi(lit.Value)
 		if err != nil {
-			return true
+			return
 		}
 		if n == 0 || n > 120 {
 			// time.Sleep(0) is a seldom used pattern in concurrency
 			// tests. >120 might be intentional. 120 was chosen
 			// because the user could've meant 2 minutes.
-			return true
+			return
 		}
 		recommendation := "time.Sleep(time.Nanosecond)"
 		if n != 1 {
@@ -714,64 +699,55 @@ func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
 		}
 		j.Errorf(call.Args[Arg("time.Sleep.d")],
 			"sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckWaitgroupAdd(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		g, ok := node.(*ast.GoStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		g := node.(*ast.GoStmt)
 		fun, ok := g.Call.Fun.(*ast.FuncLit)
 		if !ok {
-			return true
+			return
 		}
 		if len(fun.Body.List) == 0 {
-			return true
+			return
 		}
 		stmt, ok := fun.Body.List[0].(*ast.ExprStmt)
 		if !ok {
-			return true
+			return
 		}
 		call, ok := stmt.X.(*ast.CallExpr)
 		if !ok {
-			return true
+			return
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
-			return true
+			return
 		}
 		fn, ok := ObjectOf(j, sel.Sel).(*types.Func)
 		if !ok {
-			return true
+			return
 		}
 		if fn.FullName() == "(*sync.WaitGroup).Add" {
 			j.Errorf(sel, "should call %s before starting the goroutine to avoid a race",
 				Render(j, stmt))
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.GoStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckInfiniteEmptyLoop(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		loop, ok := node.(*ast.ForStmt)
-		if !ok || len(loop.Body.List) != 0 || loop.Post != nil {
-			return true
+	fn := func(node ast.Node) {
+		loop := node.(*ast.ForStmt)
+		if len(loop.Body.List) != 0 || loop.Post != nil {
+			return
 		}
 
 		if loop.Init != nil {
 			// TODO(dh): this isn't strictly necessary, it just makes
 			// the check easier.
-			return true
+			return
 		}
 		// An empty loop is bad news in two cases: 1) The loop has no
 		// condition. In that case, it's just a loop that spins
@@ -787,34 +763,30 @@ func (c *Checker) CheckInfiniteEmptyLoop(j *lint.Job) {
 
 		if loop.Cond != nil {
 			if hasSideEffects(loop.Cond) {
-				return true
+				return
 			}
 			if ident, ok := loop.Cond.(*ast.Ident); ok {
 				if k, ok := ObjectOf(j, ident).(*types.Const); ok {
 					if !constant.BoolVal(k.Val()) {
 						// don't flag `for false {}` loops. They're a debug aid.
-						return true
+						return
 					}
 				}
 			}
 			j.Errorf(loop, "loop condition never changes or has a race condition")
 		}
 		j.Errorf(loop, "this loop will spin, using 100%% CPU")
-
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckDeferInInfiniteLoop(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node) {
 		mightExit := false
 		var defers []ast.Stmt
-		loop, ok := node.(*ast.ForStmt)
-		if !ok || loop.Cond != nil {
-			return true
+		loop := node.(*ast.ForStmt)
+		if loop.Cond != nil {
+			return
 		}
 		fn2 := func(node ast.Node) bool {
 			switch stmt := node.(type) {
@@ -838,28 +810,22 @@ func (c *Checker) CheckDeferInInfiniteLoop(j *lint.Job) {
 		}
 		ast.Inspect(loop.Body, fn2)
 		if mightExit {
-			return true
+			return
 		}
 		for _, stmt := range defers {
 			j.Errorf(stmt, "defers in this infinite loop will never run")
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckDubiousDeferInChannelRangeLoop(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		loop, ok := node.(*ast.RangeStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		loop := node.(*ast.RangeStmt)
 		typ := TypeOf(j, loop.X)
-		_, ok = typ.Underlying().(*types.Chan)
+		_, ok := typ.Underlying().(*types.Chan)
 		if !ok {
-			return true
+			return
 		}
 		fn2 := func(node ast.Node) bool {
 			switch stmt := node.(type) {
@@ -872,17 +838,14 @@ func (c *Checker) CheckDubiousDeferInChannelRangeLoop(j *lint.Job) {
 			return true
 		}
 		ast.Inspect(loop.Body, fn2)
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckTestMainExit(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node) {
 		if !isTestMain(j, node) {
-			return true
+			return
 		}
 
 		arg := ObjectOf(j, node.(*ast.FuncDecl).Type.Params.List[0].Names[0])
@@ -923,11 +886,8 @@ func (c *Checker) CheckTestMainExit(j *lint.Job) {
 		if !callsExit && callsRun {
 			j.Errorf(node, "TestMain should call os.Exit to set exit code")
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder(nil, fn)
 }
 
 func isTestMain(j *lint.Job, node ast.Node) bool {
@@ -949,64 +909,52 @@ func isTestMain(j *lint.Job, node ast.Node) bool {
 }
 
 func (c *Checker) CheckExec(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		if !IsCallToAST(j, call, "os/exec.Command") {
-			return true
+			return
 		}
 		val, ok := ExprToString(j, call.Args[Arg("os/exec.Command.name")])
 		if !ok {
-			return true
+			return
 		}
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) || strings.Contains(val, "/") {
-			return true
+			return
 		}
 		j.Errorf(call.Args[Arg("os/exec.Command.name")],
 			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckLoopEmptyDefault(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		loop, ok := node.(*ast.ForStmt)
-		if !ok || len(loop.Body.List) != 1 || loop.Cond != nil || loop.Init != nil {
-			return true
+	fn := func(node ast.Node) {
+		loop := node.(*ast.ForStmt)
+		if len(loop.Body.List) != 1 || loop.Cond != nil || loop.Init != nil {
+			return
 		}
 		sel, ok := loop.Body.List[0].(*ast.SelectStmt)
 		if !ok {
-			return true
+			return
 		}
 		for _, c := range sel.Body.List {
 			if comm, ok := c.(*ast.CommClause); ok && comm.Comm == nil && len(comm.Body) == 0 {
 				j.Errorf(comm, "should not have an empty default case in a for+select loop. The loop will spin.")
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		op, ok := node.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		op := node.(*ast.BinaryExpr)
 		switch op.Op {
 		case token.EQL, token.NEQ:
 			if basic, ok := TypeOf(j, op.X).Underlying().(*types.Basic); ok {
 				if kind := basic.Kind(); kind == types.Float32 || kind == types.Float64 {
 					// f == f and f != f might be used to check for NaN
-					return true
+					return
 				}
 			}
 		case token.SUB, token.QUO, token.AND, token.REM, token.OR, token.XOR, token.AND_NOT,
@@ -1014,22 +962,19 @@ func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
 		default:
 			// For some ops, such as + and *, it can make sense to
 			// have identical operands
-			return true
+			return
 		}
 
 		if Render(j, op.X) != Render(j, op.Y) {
-			return true
+			return
 		}
 		j.Errorf(op, "identical expressions on the left and right side of the '%s' operator", op.Op)
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckScopedBreak(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node) {
 		var body *ast.BlockStmt
 		switch node := node.(type) {
 		case *ast.ForStmt:
@@ -1037,7 +982,7 @@ func (c *Checker) CheckScopedBreak(j *lint.Job) {
 		case *ast.RangeStmt:
 			body = node.Body
 		default:
-			return true
+			panic(fmt.Sprintf("unreachable: %T", node))
 		}
 		for _, stmt := range body.List {
 			var blocks [][]ast.Stmt
@@ -1082,52 +1027,40 @@ func (c *Checker) CheckScopedBreak(j *lint.Job) {
 				}
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.RangeStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckUnsafePrintf(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		var arg int
 		if IsCallToAnyAST(j, call, "fmt.Printf", "fmt.Sprintf", "log.Printf") {
 			arg = Arg("fmt.Printf.format")
 		} else if IsCallToAnyAST(j, call, "fmt.Fprintf") {
 			arg = Arg("fmt.Fprintf.format")
 		} else {
-			return true
+			return
 		}
 		if len(call.Args) != arg+1 {
-			return true
+			return
 		}
 		switch call.Args[arg].(type) {
 		case *ast.CallExpr, *ast.Ident:
 		default:
-			return true
+			return
 		}
 		j.Errorf(call.Args[arg],
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckEarlyDefer(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		block, ok := node.(*ast.BlockStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		block := node.(*ast.BlockStmt)
 		if len(block.List) < 2 {
-			return true
+			return
 		}
 		for i, stmt := range block.List {
 			if i == len(block.List)-1 {
@@ -1187,11 +1120,8 @@ func (c *Checker) CheckEarlyDefer(j *lint.Job) {
 			}
 			j.Errorf(def, "should check returned error before deferring %s", Render(j, def.Call))
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 }
 
 func selectorX(sel *ast.SelectorExpr) ast.Node {
@@ -1241,13 +1171,10 @@ func (c *Checker) CheckEmptyCriticalSection(j *lint.Job) {
 		return sel.X, fn.Name(), true
 	}
 
-	fn := func(node ast.Node) bool {
-		block, ok := node.(*ast.BlockStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		block := node.(*ast.BlockStmt)
 		if len(block.List) < 2 {
-			return true
+			return
 		}
 		for i := range block.List[:len(block.List)-1] {
 			sel1, method1, ok1 := mutexParams(block.List[i])
@@ -1261,11 +1188,8 @@ func (c *Checker) CheckEmptyCriticalSection(j *lint.Job) {
 				j.Errorf(block.List[i+1], "empty critical section")
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 }
 
 // cgo produces code like fn(&*_Cvar_kSomeCallbacks) which we don't
@@ -1273,7 +1197,7 @@ func (c *Checker) CheckEmptyCriticalSection(j *lint.Job) {
 var cgoIdent = regexp.MustCompile(`^_C(func|var)_.+$`)
 
 func (c *Checker) CheckIneffectiveCopy(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node) {
 		if unary, ok := node.(*ast.UnaryExpr); ok {
 			if star, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
 				ident, ok := star.X.(*ast.Ident)
@@ -1288,11 +1212,8 @@ func (c *Checker) CheckIneffectiveCopy(j *lint.Job) {
 				j.Errorf(star, "*&x will be simplified to x. It will not copy x.")
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.StarExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckDiffSizeComparison(j *lint.Job) {
@@ -1326,7 +1247,7 @@ func (c *Checker) CheckDiffSizeComparison(j *lint.Job) {
 }
 
 func (c *Checker) CheckCanonicalHeaderKey(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node, _ bool) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if ok {
 			// TODO(dh): This risks missing some Header reads, for
@@ -1360,36 +1281,28 @@ func (c *Checker) CheckCanonicalHeaderKey(j *lint.Job) {
 		j.Errorf(op, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Nodes([]ast.Node{(*ast.AssignStmt)(nil), (*ast.IndexExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckBenchmarkN(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		assign := node.(*ast.AssignStmt)
 		if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
-			return true
+			return
 		}
 		sel, ok := assign.Lhs[0].(*ast.SelectorExpr)
 		if !ok {
-			return true
+			return
 		}
 		if sel.Sel.Name != "N" {
-			return true
+			return
 		}
 		if !hasType(j, sel.X, "*testing.B") {
-			return true
+			return
 		}
 		j.Errorf(assign, "should not assign to %s", Render(j, sel))
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckUnreadVariableValues(j *lint.Job) {
@@ -1536,15 +1449,12 @@ func (c *Checker) CheckExtremeComparison(j *lint.Job) {
 		return IsObject(ObjectOf(j, sel.Sel), name)
 	}
 
-	fn := func(node ast.Node) bool {
-		expr, ok := node.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		expr := node.(*ast.BinaryExpr)
 		tx := TypeOf(j, expr.X)
 		basic, ok := tx.Underlying().(*types.Basic)
 		if !ok {
-			return true
+			return
 		}
 
 		var max string
@@ -1608,11 +1518,8 @@ func (c *Checker) CheckExtremeComparison(j *lint.Job) {
 			}
 		}
 
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ssa.Const, bool) {
@@ -1799,7 +1706,7 @@ func (c *Checker) CheckIneffectiveLoop(j *lint.Job) {
 	//
 	// - any nested, unlabelled continue, even if it is in another
 	// loop or closure.
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node) {
 		var body *ast.BlockStmt
 		switch fn := node.(type) {
 		case *ast.FuncDecl:
@@ -1807,10 +1714,10 @@ func (c *Checker) CheckIneffectiveLoop(j *lint.Job) {
 		case *ast.FuncLit:
 			body = fn.Body
 		default:
-			return true
+			panic(fmt.Sprintf("unreachable: %T", node))
 		}
 		if body == nil {
-			return true
+			return
 		}
 		labels := map[*ast.Object]ast.Stmt{}
 		ast.Inspect(body, func(node ast.Node) bool {
@@ -1894,82 +1801,67 @@ func (c *Checker) CheckIneffectiveLoop(j *lint.Job) {
 			}
 			return true
 		})
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn)
 }
 
 func (c *Checker) CheckNilContext(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		if len(call.Args) == 0 {
-			return true
+			return
 		}
 		if typ, ok := TypeOf(j, call.Args[0]).(*types.Basic); !ok || typ.Kind() != types.UntypedNil {
-			return true
+			return
 		}
 		sig, ok := TypeOf(j, call.Fun).(*types.Signature)
 		if !ok {
-			return true
+			return
 		}
 		if sig.Params().Len() == 0 {
-			return true
+			return
 		}
 		if !IsType(sig.Params().At(0).Type(), "context.Context") {
-			return true
+			return
 		}
 		j.Errorf(call.Args[0],
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckSeeker(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
-			return true
+			return
 		}
 		if sel.Sel.Name != "Seek" {
-			return true
+			return
 		}
 		if len(call.Args) != 2 {
-			return true
+			return
 		}
 		arg0, ok := call.Args[Arg("(io.Seeker).Seek.offset")].(*ast.SelectorExpr)
 		if !ok {
-			return true
+			return
 		}
 		switch arg0.Sel.Name {
 		case "SeekStart", "SeekCurrent", "SeekEnd":
 		default:
-			return true
+			return
 		}
 		pkg, ok := arg0.X.(*ast.Ident)
 		if !ok {
-			return true
+			return
 		}
 		if pkg.Name != "io" {
-			return true
+			return
 		}
 		j.Errorf(call, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckIneffectiveAppend(j *lint.Job) {
@@ -2301,24 +2193,18 @@ func (c *Checker) CheckLeakyTimeTick(j *lint.Job) {
 }
 
 func (c *Checker) CheckDoubleNegation(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		unary1, ok := node.(*ast.UnaryExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		unary1 := node.(*ast.UnaryExpr)
 		unary2, ok := unary1.X.(*ast.UnaryExpr)
 		if !ok {
-			return true
+			return
 		}
 		if unary1.Op != token.NOT || unary2.Op != token.NOT {
-			return true
+			return
 		}
 		j.Errorf(unary1, "negating a boolean twice has no effect; is this a typo?")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.UnaryExpr)(nil)}, fn)
 }
 
 func hasSideEffects(node ast.Node) bool {
@@ -2354,21 +2240,18 @@ func (c *Checker) CheckRepeatedIfElse(j *lint.Job) {
 		}
 		return inits, conds
 	}
-	fn := func(node ast.Node) bool {
-		ifstmt, ok := node.(*ast.IfStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		ifstmt := node.(*ast.IfStmt)
 		if seen[ifstmt] {
-			return true
+			return
 		}
 		inits, conds := collectConds(ifstmt, nil, nil)
 		if len(inits) > 0 {
-			return true
+			return
 		}
 		for _, cond := range conds {
 			if hasSideEffects(cond) {
-				return true
+				return
 			}
 		}
 		counts := map[string]int{}
@@ -2379,11 +2262,8 @@ func (c *Checker) CheckRepeatedIfElse(j *lint.Job) {
 				j.Errorf(cond, "this condition occurs multiple times in this if/else if chain")
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckSillyBitwiseOps(j *lint.Job) {
@@ -2425,14 +2305,11 @@ func (c *Checker) CheckSillyBitwiseOps(j *lint.Job) {
 }
 
 func (c *Checker) CheckNonOctalFileMode(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 		sig, ok := TypeOf(j, call.Fun).(*types.Signature)
 		if !ok {
-			return true
+			return
 		}
 		n := sig.Params().Len()
 		var args []int
@@ -2460,11 +2337,8 @@ func (c *Checker) CheckNonOctalFileMode(j *lint.Job) {
 				j.Errorf(call.Args[i], "file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value)
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckPureFunctions(j *lint.Job) {
@@ -2525,8 +2399,8 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 
 	var ssafn *ssa.Function
 	stack := 0
-	fn := func(node ast.Node) bool {
-		if node == nil {
+	fn := func(node ast.Node, push bool) bool {
+		if !push {
 			stack--
 		} else {
 			stack++
@@ -2590,9 +2464,7 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			})
 		}
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Nodes(nil, fn)
 }
 
 func (c *Checker) callChecker(rules map[string]CallCheck) func(j *lint.Job) {
@@ -2826,13 +2698,10 @@ func (c *Checker) CheckRangeStringRunes(j *lint.Job) {
 }
 
 func (c *Checker) CheckSelfAssignment(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		assign := node.(*ast.AssignStmt)
 		if assign.Tok != token.ASSIGN || len(assign.Lhs) != len(assign.Rhs) {
-			return true
+			return
 		}
 		for i, stmt := range assign.Lhs {
 			rlh := Render(j, stmt)
@@ -2841,11 +2710,8 @@ func (c *Checker) CheckSelfAssignment(j *lint.Job) {
 				j.Errorf(assign, "self-assignment of %s to %s", rrh, rlh)
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func buildTagsIdentical(s1, s2 []string) bool {
@@ -2918,16 +2784,13 @@ func (c *Checker) CheckSillyRegexp(j *lint.Job) {
 }
 
 func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		decl, ok := node.(*ast.GenDecl)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		decl := node.(*ast.GenDecl)
 		if !decl.Lparen.IsValid() {
-			return true
+			return
 		}
 		if decl.Tok != token.CONST {
-			return true
+			return
 		}
 
 		groups := GroupSpecs(j, decl.Specs)
@@ -2965,11 +2828,8 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 			}
 			j.Errorf(group[0], "only the first constant in this group has an explicit type")
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.GenDecl)(nil)}, fn)
 }
 
 func (c *Checker) CheckTimerResetReturnValue(j *lint.Job) {
@@ -3035,11 +2895,8 @@ func (c *Checker) CheckTimerResetReturnValue(j *lint.Job) {
 }
 
 func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		binExpr, ok := node.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		binExpr := node.(*ast.BinaryExpr)
 
 		var negative bool
 		switch binExpr.Op {
@@ -3048,7 +2905,7 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 		case token.NEQ:
 			negative = true
 		default:
-			return true
+			return
 		}
 
 		const (
@@ -3062,7 +2919,7 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 		} else if IsCallToAST(j, binExpr.X, up) && IsCallToAST(j, binExpr.Y, up) {
 			call = up
 		} else {
-			return true
+			return
 		}
 
 		bang := ""
@@ -3071,12 +2928,9 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 		}
 
 		j.Errorf(binExpr, "should use %sstrings.EqualFold(a, b) instead of %s(a) %s %s(b)", bang, call, binExpr.Op, call)
-		return true
 	}
 
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
@@ -3102,11 +2956,8 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		return nil, nil, false
 	}
 
-	fn := func(node ast.Node) bool {
-		tsStmt, ok := node.(*ast.TypeSwitchStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		tsStmt := node.(*ast.TypeSwitchStmt)
 
 		type ccAndTypes struct {
 			cc    *ast.CaseClause
@@ -3133,7 +2984,7 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 
 		if len(ccs) <= 1 {
 			// Zero or one case clauses, nothing to check.
-			return true
+			return
 		}
 
 		// Check if case clauses following cc have types that are subsumed by cc.
@@ -3144,28 +2995,21 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 				}
 			}
 		}
-
-		return true
 	}
 
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckSingleArgAppend(j *lint.Job) {
-	fn := func(node ast.Node) bool {
+	fn := func(node ast.Node) {
 		if !IsCallToAST(j, node, "append") {
-			return true
+			return
 		}
-		call, _ := node.(*ast.CallExpr)
+		call := node.(*ast.CallExpr)
 		if len(call.Args) != 1 {
-			return true
+			return
 		}
 		j.Errorf(call, "x = append(y) is equivalent to x = y")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 }

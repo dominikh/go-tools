@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/ssa"
@@ -112,6 +113,7 @@ type Program struct {
 	AllPackages      []*packages.Package
 	AllFunctions     []*ssa.Function
 	Files            []*ast.File
+	Inspector        *inspector.Inspector
 	GoVersion        int
 
 	tokenFileMap map[*token.File]*ast.File
@@ -334,6 +336,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			prog.astFileMap[f] = pkgMap[ssapkg]
 		}
 	}
+	prog.Inspector = inspector.New(prog.Files)
 
 	for _, pkg := range allPkgs {
 		for _, f := range pkg.Syntax {

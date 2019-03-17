@@ -178,14 +178,14 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 	// 	x += 2
 	// 	...
 	// 	x += 1
-	fn := func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok || (assign.Tok != token.ADD_ASSIGN && assign.Tok != token.SUB_ASSIGN) {
-			return true
+	fn := func(node ast.Node) {
+		assign := node.(*ast.AssignStmt)
+		if assign.Tok != token.ADD_ASSIGN && assign.Tok != token.SUB_ASSIGN {
+			return
 		}
 		if (len(assign.Lhs) != 1 || len(assign.Rhs) != 1) ||
 			!IsIntLiteral(assign.Rhs[0], "1") {
-			return true
+			return
 		}
 
 		suffix := ""
@@ -197,11 +197,8 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 		}
 
 		j.Errorf(assign, "should replace %s with %s%s", Render(j, assign), Render(j, assign.Lhs[0]), suffix)
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckErrorReturn(j *lint.Job) {
@@ -604,11 +601,8 @@ func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
 }
 
 func (c *Checker) CheckDefaultCaseOrder(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		stmt, ok := node.(*ast.SwitchStmt)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		stmt := node.(*ast.SwitchStmt)
 		list := stmt.Body.List
 		for i, c := range list {
 			if c.(*ast.CaseClause).List == nil && i != 0 && i != len(list)-1 {
@@ -616,42 +610,33 @@ func (c *Checker) CheckDefaultCaseOrder(j *lint.Job) {
 				break
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.SwitchStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckYodaConditions(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		cond, ok := node.(*ast.BinaryExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		cond := node.(*ast.BinaryExpr)
 		if cond.Op != token.EQL && cond.Op != token.NEQ {
-			return true
+			return
 		}
 		if _, ok := cond.X.(*ast.BasicLit); !ok {
-			return true
+			return
 		}
 		if _, ok := cond.Y.(*ast.BasicLit); ok {
 			// Don't flag lit == lit conditions, just in case
-			return true
+			return
 		}
 		j.Errorf(cond, "don't use Yoda conditions")
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
-	fn := func(node ast.Node) bool {
-		lit, ok := node.(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
-			return true
+	fn := func(node ast.Node) {
+		lit := node.(*ast.BasicLit)
+		if lit.Kind != token.STRING {
+			return
 		}
 		for _, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
@@ -660,9 +645,6 @@ func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
 				j.Errorf(lit, "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
 			}
 		}
-		return true
 	}
-	for _, f := range j.Program.Files {
-		ast.Inspect(f, fn)
-	}
+	j.Program.Inspector.Preorder([]ast.Node{(*ast.BasicLit)(nil)}, fn)
 }
