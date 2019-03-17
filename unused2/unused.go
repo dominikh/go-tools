@@ -520,8 +520,10 @@ usesLoop:
 			if g.implements(t, iface) {
 				for i := 0; i < iface.NumMethods(); i++ {
 					// get the chain of embedded types that lead to the function implementing the interface
-					// OPT(dh): use method set cache
-					obj, path, _ := types.LookupFieldOrMethod(t, false, g.pkg.Pkg, iface.Method(i).Name())
+					ms := g.msCache.MethodSet(t)
+					sel := ms.Lookup(g.pkg.Pkg, iface.Method(i).Name())
+					obj := sel.Obj()
+					path := sel.Index()
 					assert(obj != nil)
 					if len(path) > 1 {
 						base := lintdsl.Dereference(t).Underlying().(*types.Struct)
