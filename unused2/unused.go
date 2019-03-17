@@ -7,7 +7,7 @@ import (
 	"go/types"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
