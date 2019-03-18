@@ -12,14 +12,6 @@ import (
 	"honnef.co/go/tools/ssa"
 )
 
-// OPT(dh): optimize graph by not storing irrelevant nodes. storing
-// basic types, empty signatures etc doesn't add any information to
-// the graph.
-//
-// OPT(dh): deduplicate edges
-//
-// OPT(dh): don't track function calls into external packages
-
 // TODO(dh): conversions between structs mark fields as used, but the
 // conversion itself isn't part of that subgraph. even if the function
 // containing the conversion is unused, the fields will be marked as
@@ -28,9 +20,6 @@ import (
 const debug = false
 
 /*
-
-TODO known reflect
-TODO error interface
 
 - packages use:
   - (1.1) exported named types
@@ -99,7 +88,7 @@ TODO error interface
   - (9.4) types use their underlying and element types
   - (9.5) conversions use the type they convert to
 
-- things named _ are used
+- TODO things named _ are used
 */
 
 func assert(b bool) {
