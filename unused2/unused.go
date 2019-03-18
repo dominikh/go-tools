@@ -362,6 +362,14 @@ func (n *Node) use(node *Node) (new bool) {
 }
 
 func isIrrelevantType(obj interface{}) bool {
+	if obj, ok := obj.(types.Object); ok {
+		switch obj := obj.(type) {
+		case *types.Var:
+			return !obj.IsField() && isIrrelevantType(obj.Type())
+		default:
+			return false
+		}
+	}
 	if T, ok := obj.(types.Type); ok {
 		T = lintdsl.Dereference(T)
 		switch T := T.(type) {
@@ -372,9 +380,27 @@ func isIrrelevantType(obj interface{}) bool {
 		case *types.Basic:
 			return true
 		case *types.Tuple:
-			return T.Len() == 0
+			for i := 0; i < T.Len(); i++ {
+				if !isIrrelevantType(T.At(i).Type()) {
+					return false
+				}
+			}
+			return true
 		case *types.Signature:
-			return T.Recv() == nil && T.Params().Len() == 0 && T.Results().Len() == 0
+			if T.Recv() != nil {
+				return false
+			}
+			for i := 0; i < T.Params().Len(); i++ {
+				if !isIrrelevantType(T.Params().At(i)) {
+					return false
+				}
+			}
+			for i := 0; i < T.Results().Len(); i++ {
+				if !isIrrelevantType(T.Results().At(i)) {
+					return false
+				}
+			}
+			return true
 		case *types.Interface:
 			return T.NumMethods() == 0
 		default:
