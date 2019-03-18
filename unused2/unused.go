@@ -87,7 +87,9 @@ const debug = true
   - (9.2) variables use their types
   - (9.3) types use their underlying and element types
   - (9.4) conversions use the type they convert to
-  - (9.5) dereferences use variables
+  - (9.5) instructions use their operands
+  - (9.6) instructions use their operands' types
+  - (9.7) variable _reads_ use variables, writes do not
 
 - TODO things named _ are used
 */
@@ -872,6 +874,28 @@ func (g *Graph) instructions(fn *ssa.Function) {
 
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
+			ops := instr.Operands(nil)
+			switch instr.(type) {
+			case *ssa.Store:
+				// (9.7) variable _reads_ use variables, writes do not
+				ops = ops[1:]
+			case *ssa.DebugRef:
+				ops = nil
+			}
+			for _, arg := range ops {
+				walkPhi(*arg, func(v ssa.Value) {
+					switch v := v.(type) {
+					case *ssa.Const:
+						// (9.6) instructions use their operands' types
+						g.seeAndUse(v.Type(), fn, "constant's type")
+					case *ssa.Global:
+						if v.Object() != nil {
+							// (9.5) instructions use their operands
+							g.seeAndUse(v.Object(), fn, "instruction operand")
+						}
+					}
+				})
+			}
 			if v, ok := instr.(ssa.Value); ok {
 				if _, ok := v.(*ssa.Range); !ok {
 					// See https://github.com/golang/go/issues/19670
@@ -983,7 +1007,9 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					}
 				}
 			case *ssa.MakeInterface:
+				// nothing to doX
 			case *ssa.Slice:
+				// nothing to do
 			case *ssa.RunDefers:
 				// XXX use deferred functions
 			case *ssa.Convert:
@@ -1030,14 +1056,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.Alloc:
 				// nothing to do
 			case *ssa.UnOp:
-				if instr.Op == token.MUL {
-					if v, ok := instr.X.(*ssa.Global); ok {
-						if v.Object() != nil {
-							// (9.5) dereferences use variables
-							g.seeAndUse(v.Object(), fn, "variable read")
-						}
-					}
-				}
+				// nothing to do
 			case *ssa.BinOp:
 				// nothing to do
 			case *ssa.If:
@@ -1053,8 +1072,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.DebugRef:
 				// nothing to do
 			case *ssa.BlankStore:
-				// catch `_ = typedConst`
-				g.seeAndUse(instr.Val.Type(), fn, "blank store")
+				// nothing to do
 			case *ssa.Phi:
 				// nothing to do
 			case *ssa.MakeMap:
@@ -1121,4 +1139,29 @@ func isNoCopyType(typ types.Type) bool {
 		return false
 	}
 	return true
+}
+
+func walkPhi(v ssa.Value, fn func(v ssa.Value)) {
+	phi, ok := v.(*ssa.Phi)
+	if !ok {
+		fn(v)
+		return
+	}
+
+	seen := map[ssa.Value]struct{}{}
+	var impl func(v *ssa.Phi)
+	impl = func(v *ssa.Phi) {
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		for _, e := range v.Edges {
+			if ev, ok := e.(*ssa.Phi); ok {
+				impl(ev)
+			} else {
+				fn(e)
+			}
+		}
+	}
+	impl(phi)
 }
