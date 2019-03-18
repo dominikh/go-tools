@@ -32,5 +32,5 @@ type codeNode struct {
 }
 
 func init() {
-	var _ codeResponse
+	_ = codeResponse{}
 }

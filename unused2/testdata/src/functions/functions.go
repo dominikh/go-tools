@@ -26,7 +26,7 @@ func fn4() {
 	type bar int
 
 	_ = x
-	var _ bar
+	_ = bar(0)
 }
 
 func init() {
