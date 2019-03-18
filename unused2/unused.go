@@ -17,7 +17,7 @@ import (
 // containing the conversion is unused, the fields will be marked as
 // used.
 
-const debug = false
+const debug = true
 
 /*
 
@@ -257,7 +257,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 					}
 				}
 			case types.Object:
-				if obj.Pkg() == pkg.Package.Types {
+				if obj.Pkg() == pkg.Package.Types && obj.Name() != "_" {
 					pos := prog.Fset().Position(obj.Pos())
 					out = append(out, Unused{
 						Obj:      obj,
