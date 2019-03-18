@@ -162,10 +162,19 @@ func NewChecker() *Checker {
 type Checker struct{}
 
 func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
+	scopes := map[*types.Scope]*ssa.Function{}
+	for _, fn := range j.Program.InitialFunctions {
+		if fn.Object() != nil {
+			scope := fn.Object().(*types.Func).Scope()
+			scopes[scope] = fn
+		}
+	}
+
 	var out []Unused
 	for _, pkg := range prog.InitialPackages {
 		graph := NewGraph(pkg.SSA)
 		graph.job = j
+		graph.scopes = scopes
 		graph.entry(pkg.TypesInfo)
 
 		graph.color(graph.Root)
@@ -259,6 +268,7 @@ type Graph struct {
 	job     *lint.Job
 	pkg     *ssa.Package
 	msCache typeutil.MethodSetCache
+	scopes  map[*types.Scope]*ssa.Function
 
 	nodeCounter int
 
@@ -403,21 +413,10 @@ func (g *Graph) seeAndUse(used, by interface{}, reason string) {
 func (g *Graph) entry(tinfo *types.Info) {
 	// TODO rename Entry
 
-	scopes := map[*types.Scope]*ssa.Function{}
-	for _, fn := range g.job.Program.InitialFunctions {
-		if fn.Pkg != g.pkg {
-			continue
-		}
-		if fn.Object() != nil {
-			scope := fn.Object().(*types.Func).Scope()
-			scopes[scope] = fn
-		}
-	}
-
 	surroundingFunc := func(obj types.Object) *ssa.Function {
 		scope := obj.Parent()
 		for scope != nil {
-			if fn := scopes[scope]; fn != nil {
+			if fn := g.scopes[scope]; fn != nil {
 				return fn
 			}
 			scope = scope.Parent()
