@@ -86,8 +86,7 @@ const debug = false
   - (9.2) variables use their types
   - (9.3) types use their underlying and element types
   - (9.4) conversions use the type they convert to
-
-- (10.1) dereferences use variables
+  - (9.5) dereferences use variables
 
 - TODO things named _ are used
 */
@@ -376,7 +375,7 @@ func isIrrelevant(obj interface{}) bool {
 				// We need to track package fields
 				return false
 			}
-			if obj.Parent() == obj.Pkg().Scope() {
+			if obj.Pkg() != nil && obj.Parent() == obj.Pkg().Scope() {
 				// We need to track package-level variables
 				return false
 			}
@@ -990,7 +989,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				if instr.Op == token.MUL {
 					if v, ok := instr.X.(*ssa.Global); ok {
 						if v.Object() != nil {
-							// (10.1) dereferences use variables
+							// (9.5) dereferences use variables
 							g.seeAndUse(v.Object(), fn, "variable read")
 						}
 					}
