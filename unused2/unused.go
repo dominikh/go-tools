@@ -361,11 +361,19 @@ func (n *Node) use(node *Node) (new bool) {
 	return true
 }
 
-func isIrrelevantType(obj interface{}) bool {
+// isIrrelevant reports whether an object's presence in the graph is
+// of any relevance. A lot of objects will never have outgoing edges,
+// nor meaningful incoming ones. Examples are basic types and empty
+// signatures, among many others.
+//
+// Dropping these objects should have no effect on correctness, but
+// may improve performance. It also helps with debugging, as it
+// greatly reduces the size of the graph.
+func isIrrelevant(obj interface{}) bool {
 	if obj, ok := obj.(types.Object); ok {
 		switch obj := obj.(type) {
 		case *types.Var:
-			return !obj.IsField() && isIrrelevantType(obj.Type())
+			return !obj.IsField() && isIrrelevant(obj.Type())
 		default:
 			return false
 		}
@@ -374,14 +382,14 @@ func isIrrelevantType(obj interface{}) bool {
 		T = lintdsl.Dereference(T)
 		switch T := T.(type) {
 		case *types.Array:
-			return isIrrelevantType(T.Elem())
+			return isIrrelevant(T.Elem())
 		case *types.Slice:
-			return isIrrelevantType(T.Elem())
+			return isIrrelevant(T.Elem())
 		case *types.Basic:
 			return true
 		case *types.Tuple:
 			for i := 0; i < T.Len(); i++ {
-				if !isIrrelevantType(T.At(i).Type()) {
+				if !isIrrelevant(T.At(i).Type()) {
 					return false
 				}
 			}
@@ -391,12 +399,12 @@ func isIrrelevantType(obj interface{}) bool {
 				return false
 			}
 			for i := 0; i < T.Params().Len(); i++ {
-				if !isIrrelevantType(T.Params().At(i)) {
+				if !isIrrelevant(T.Params().At(i)) {
 					return false
 				}
 			}
 			for i := 0; i < T.Results().Len(); i++ {
-				if !isIrrelevantType(T.Results().At(i)) {
+				if !isIrrelevant(T.Results().At(i)) {
 					return false
 				}
 			}
@@ -411,7 +419,7 @@ func isIrrelevantType(obj interface{}) bool {
 }
 
 func (g *Graph) see(obj interface{}) {
-	if isIrrelevantType(obj) {
+	if isIrrelevant(obj) {
 		return
 	}
 
@@ -430,7 +438,7 @@ func (g *Graph) see(obj interface{}) {
 }
 
 func (g *Graph) use(used, by interface{}, reason string) {
-	if isIrrelevantType(used) {
+	if isIrrelevant(used) {
 		return
 	}
 
@@ -646,7 +654,7 @@ func (g *Graph) typ(t types.Type) {
 		}
 	}
 	g.seenTypes.Set(t, struct{}{})
-	if isIrrelevantType(t) {
+	if isIrrelevant(t) {
 		return
 	}
 
