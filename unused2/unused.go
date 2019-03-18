@@ -33,55 +33,61 @@ TODO known reflect
 TODO error interface
 
 - packages use:
-  - exported named types
-  - exported functions
+  - (2525) exported named types
+  - (5252) exported functions
   - exported variables
-  - exported constants
-  - init functions
+  - (321) exported constants
+  - (6719) init functions
   - TODO functions exported to cgo
+  - (4644) the main function iff in the main package
 
 - named types use:
-  - exported methods
+  - (9728) exported methods
 
 - variables and constants use:
   - their types
 
 - functions use:
-  - all their arguments, return parameters and receivers
-  - anonymous functions defined beneath them
-  - functions they return. we assume that someone else will call the returned function
-  - functions/interface methods they call
+  - (1663) all their arguments, return parameters and receivers
+  - (9567) anonymous functions defined beneath them
+  - (2521) closures and bound methods.
+    this implements a simplified model where a function is used merely by being referenced, even if it is never called.
+    that way we don't have to keep track of closures escaping functions.
+  - (8103) functions they return. we assume that someone else will call the returned function
+  - (9681) functions/interface methods they call
   - types they instantiate or convert to
-  - fields they read or write
-  - fields whose addresses they return
+  - (1323) fields they access
   - types of all instructions
 
 - conversions use:
-  - when converting between two equivalent structs, the fields in
+  - (6885) when converting between two equivalent structs, the fields in
     either struct use each other. the fields are relevant for the
     conversion, but only if the fields are also accessed outside the
     conversion.
-  - when converting to or from unsafe.Pointer, mark all fields as used.
+  - (4029) when converting to or from unsafe.Pointer, mark all fields as used.
 
 - structs use:
-  - fields of type NoCopy sentinel
-  - exported fields
+  - (4946) fields of type NoCopy sentinel
+  - (2701) exported fields
   - embedded fields that help implement interfaces (either fully implements it, or contributes required methods) (recursively)
-  - embedded fields that have exported methods (recursively)
-  - embedded structs that have exported fields (recursively)
+  - (6090) embedded fields that have exported methods (recursively)
+  - (8728) embedded structs that have exported fields (recursively)
 
 - field accesses use fields
 
 - interfaces use:
-  - all their methods. we really have no idea what is going on with interfaces.
+  - (3393) all their methods. we really have no idea what is going on with interfaces.
   - matching methods on types that implement this interface.
     we assume that types are meant to implement as many interfaces as possible.
     takes into consideration embedding into possibly unnamed types.
 
-- interface calls use:
-  - the called interface method
 
-- thunks and other generated wrappers call the real function
+- Inherent uses:
+  - thunks and other generated wrappers call the real function
+  - (254) instructions use their types
+  - (5749) variables use their types
+  - (6108) types use their underlying and element types
+  - (853) conversions use the type they convert to
 
 - things named _ are used
 */
@@ -510,6 +516,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 			g.see(obj)
 			fn := surroundingFunc(obj)
 			if fn == nil && obj.Exported() {
+				// (321) packages use exported constants
 				g.use(obj, nil, "exported constant")
 			}
 			g.typ(obj.Type())
@@ -566,13 +573,16 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *ssa.Function:
 			g.see(m)
 			if m.Name() == "init" {
+				// (6719) packages use init functions
 				g.use(m, nil, "init function")
 			}
 			// This branch catches top-level functions, not methods.
 			if m.Object() != nil && m.Object().Exported() {
+				// (5252) packages use exported functions
 				g.use(m, nil, "exported top-level function")
 			}
 			if m.Name() == "main" && g.pkg.Pkg.Name() == "main" {
+				// (4644) packages use the main function iff in the main package
 				g.use(m, nil, "main function")
 			}
 			g.function(m)
@@ -580,6 +590,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 			if m.Object() != nil {
 				g.see(m.Object())
 				if m.Object().Exported() {
+					// (2525) packages use exported named types
 					g.use(m.Object(), nil, "exported top-level type")
 				}
 			}
@@ -635,10 +646,12 @@ func (g *Graph) entry(tinfo *types.Info) {
 }
 
 func (g *Graph) function(fn *ssa.Function) {
+	// (1663) functions use all their arguments, return parameters and receivers
 	g.seeAndUse(fn.Signature, fn, "function signature")
 	g.signature(fn.Signature)
 	g.instructions(fn)
 	for _, anon := range fn.AnonFuncs {
+		// (9567) functions use anonymous functions defined beneath them
 		g.seeAndUse(anon, fn, "anonymous function")
 		g.function(anon)
 	}
@@ -664,8 +677,10 @@ func (g *Graph) typ(t types.Type) {
 		for i := 0; i < t.NumFields(); i++ {
 			g.see(t.Field(i))
 			if t.Field(i).Exported() {
+				// (2701) structs use exported fields
 				g.use(t.Field(i), t, "exported struct field")
 			} else if isNoCopyType(t.Field(i).Type()) {
+				// (4946) structs use fields of type NoCopy sentinel
 				g.use(t.Field(i), t, "NoCopy sentinel")
 			}
 			if t.Field(i).Anonymous() {
@@ -673,6 +688,7 @@ func (g *Graph) typ(t types.Type) {
 				ms := g.msCache.MethodSet(t.Field(i).Type())
 				for j := 0; j < ms.Len(); j++ {
 					if ms.At(j).Obj().Exported() {
+						// (6090) structs use embedded fields that have exported methods (recursively)
 						g.use(t.Field(i), t, "extends exported method set")
 						break
 					}
@@ -702,6 +718,7 @@ func (g *Graph) typ(t types.Type) {
 				}
 				// does the embedded field contribute exported fields?
 				if hasExportedField(t.Field(i).Type()) {
+					// (8728) structs use embedded structs that have exported fields (recursively)
 					g.use(t.Field(i), t, "extends exported fields")
 				}
 
@@ -711,6 +728,7 @@ func (g *Graph) typ(t types.Type) {
 	case *types.Basic:
 		// Nothing to do
 	case *types.Named:
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Underlying(), t, "underlying type")
 		g.seeAndUse(t.Obj(), t, "type name")
 		g.seeAndUse(t, t.Obj(), "named type")
@@ -719,6 +737,7 @@ func (g *Graph) typ(t types.Type) {
 			meth := g.pkg.Prog.FuncValue(t.Method(i))
 			g.see(meth)
 			if meth.Object() != nil && meth.Object().Exported() {
+				// (9728) named types use exported methods
 				g.use(meth, t, "exported method")
 			}
 			g.function(meth)
@@ -726,10 +745,13 @@ func (g *Graph) typ(t types.Type) {
 
 		g.typ(t.Underlying())
 	case *types.Slice:
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Map:
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Key(), t, "key type")
 		g.typ(t.Elem())
 		g.typ(t.Key())
@@ -738,21 +760,26 @@ func (g *Graph) typ(t types.Type) {
 	case *types.Interface:
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
+			// (3393) interfaces use all their methods. we really have no idea what is going on with interfaces.
 			g.seeAndUse(m, t, "interface method")
 			g.seeAndUse(m.Type().(*types.Signature), m, "signature")
 			g.signature(m.Type().(*types.Signature))
 		}
 	case *types.Array:
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Pointer:
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Chan:
+		// (6108) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Tuple:
 		for i := 0; i < t.Len(); i++ {
+			// (6108) types use their underlying and element types
 			g.seeAndUse(t.At(i), t, "tuple element")
 			g.variable(t.At(i))
 		}
@@ -762,6 +789,7 @@ func (g *Graph) typ(t types.Type) {
 }
 
 func (g *Graph) variable(v *types.Var) {
+	// (5749) variables use their types
 	g.seeAndUse(v.Type(), v, "variable type")
 	g.typ(v.Type())
 }
@@ -795,6 +823,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				if _, ok := v.(*ssa.Range); !ok {
 					// See https://github.com/golang/go/issues/19670
 
+					// (254) instructions use their types
 					g.seeAndUse(v.Type(), fn, "instruction")
 					g.typ(v.Type())
 				}
@@ -803,10 +832,12 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.Field:
 				st := instr.X.Type().Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
+				// (1323) functions use fields they access
 				g.seeAndUse(field, fn, "field access")
 			case *ssa.FieldAddr:
 				st := lintdsl.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
+				// (1323) functions use fields they access
 				g.seeAndUse(field, fn, "field access")
 			case *ssa.Store:
 			case *ssa.Call:
@@ -821,6 +852,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 						seen[v] = struct{}{}
 						switch v := v.(type) {
 						case *ssa.Function:
+							// (9681) functions use functions/interface methods they call
 							g.seeAndUse(v, fn, "function call")
 							if obj := v.Object(); obj != nil {
 								if cfn := g.pkg.Prog.FuncValue(obj.(*types.Func)); cfn != v {
@@ -846,6 +878,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					// non-interface call
 					useCall(c.Value)
 				} else {
+					// (9681) functions use functions/interface methods they call
 					g.seeAndUse(c.Method, fn, "interface call")
 				}
 			case *ssa.Return:
@@ -858,9 +891,10 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					seen[v] = struct{}{}
 					switch v := v.(type) {
 					case *ssa.Function:
+						// (8103) functions use functions they return. we assume that someone else will call the returned function
 						g.seeAndUse(v, fn, "returning function")
 					case *ssa.MakeClosure:
-						g.seeAndUse(v.Fn, fn, "returning closure")
+						// nothing to do. 8103 doesn't apply because this case is covered by 2521.
 					case *ssa.Phi:
 						for _, e := range v.Edges {
 							handleReturn(e)
@@ -871,6 +905,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					handleReturn(v)
 				}
 			case *ssa.ChangeType:
+				// (853) conversions use the type they convert to
 				g.seeAndUse(instr.Type(), fn, "conversion")
 				g.typ(instr.Type())
 
@@ -886,6 +921,10 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					for i := 0; i < s1.NumFields(); i++ {
 						g.see(s1.Field(i))
 						g.see(s2.Field(i))
+						// (6885) when converting between two equivalent structs, the fields in
+						// either struct use each other. the fields are relevant for the
+						// conversion, but only if the fields are also accessed outside the
+						// conversion.
 						g.seeAndUse(s1.Field(i), s2.Field(i), "struct conversion")
 						g.seeAndUse(s2.Field(i), s1.Field(i), "struct conversion")
 					}
@@ -900,6 +939,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					if ptr, ok := instr.X.Type().Underlying().(*types.Pointer); ok {
 						if st, ok := ptr.Elem().Underlying().(*types.Struct); ok {
 							for i := 0; i < st.NumFields(); i++ {
+								// (4029) when converting to or from unsafe.Pointer, mark all fields as used.
 								g.seeAndUse(st.Field(i), fn, "unsafe conversion")
 							}
 						}
@@ -910,6 +950,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					if ptr, ok := instr.Type().Underlying().(*types.Pointer); ok {
 						if st, ok := ptr.Elem().Underlying().(*types.Struct); ok {
 							for i := 0; i < st.NumFields(); i++ {
+								// (4029) when converting to or from unsafe.Pointer, mark all fields as used.
 								g.seeAndUse(st.Field(i), fn, "unsafe conversion")
 							}
 						}
@@ -919,6 +960,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				g.seeAndUse(instr.AssertedType, fn, "type assert")
 				g.typ(instr.AssertedType)
 			case *ssa.MakeClosure:
+				// (2521) functions use closures and bound methods.
 				g.seeAndUse(instr.Fn, fn, "make closure")
 				v := instr.Fn.(*ssa.Function)
 				if obj := v.Object(); obj != nil {
