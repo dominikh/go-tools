@@ -369,6 +369,10 @@ func isIrrelevantType(obj interface{}) bool {
 			return true
 		case *types.Tuple:
 			return T.Len() == 0
+		case *types.Signature:
+			return T.Recv() == nil && T.Params().Len() == 0 && T.Results().Len() == 0
+		case *types.Interface:
+			return T.NumMethods() == 0
 		}
 	}
 	return false
@@ -606,6 +610,9 @@ func (g *Graph) typ(t types.Type) {
 		}
 	}
 	g.seenTypes.Set(t, struct{}{})
+	if isIrrelevantType(t) {
+		return
+	}
 
 	g.see(t)
 	switch t := t.(type) {
