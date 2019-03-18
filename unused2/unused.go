@@ -83,10 +83,9 @@ const debug = false
 
 - Inherent uses:
   - thunks and other generated wrappers call the real function
-  - (9.2) instructions use their types
-  - (9.3) variables use their types
-  - (9.4) types use their underlying and element types
-  - (9.5) conversions use the type they convert to
+  - (9.2) variables use their types
+  - (9.3) types use their underlying and element types
+  - (9.4) conversions use the type they convert to
 
 - (10.1) dereferences use variables
 
@@ -739,7 +738,7 @@ func (g *Graph) typ(t types.Type) {
 	case *types.Basic:
 		// Nothing to do
 	case *types.Named:
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Underlying(), t, "underlying type")
 		g.seeAndUse(t.Obj(), t, "type name")
 		g.seeAndUse(t, t.Obj(), "named type")
@@ -756,13 +755,13 @@ func (g *Graph) typ(t types.Type) {
 
 		g.typ(t.Underlying())
 	case *types.Slice:
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Map:
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Key(), t, "key type")
 		g.typ(t.Elem())
 		g.typ(t.Key())
@@ -777,20 +776,20 @@ func (g *Graph) typ(t types.Type) {
 			g.signature(m.Type().(*types.Signature))
 		}
 	case *types.Array:
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Pointer:
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Chan:
-		// (9.4) types use their underlying and element types
+		// (9.3) types use their underlying and element types
 		g.seeAndUse(t.Elem(), t, "element type")
 		g.typ(t.Elem())
 	case *types.Tuple:
 		for i := 0; i < t.Len(); i++ {
-			// (9.4) types use their underlying and element types
+			// (9.3) types use their underlying and element types
 			g.seeAndUse(t.At(i), t, "tuple element")
 			g.variable(t.At(i))
 		}
@@ -800,7 +799,7 @@ func (g *Graph) typ(t types.Type) {
 }
 
 func (g *Graph) variable(v *types.Var) {
-	// (9.3) variables use their types
+	// (9.2) variables use their types
 	g.seeAndUse(v.Type(), v, "variable type")
 	g.typ(v.Type())
 }
@@ -834,7 +833,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				if _, ok := v.(*ssa.Range); !ok {
 					// See https://github.com/golang/go/issues/19670
 
-					// (9.2) instructions use their types
+					// (4.8) instructions use their types
 					g.seeAndUse(v.Type(), fn, "instruction")
 					g.typ(v.Type())
 				}
@@ -916,7 +915,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					handleReturn(v)
 				}
 			case *ssa.ChangeType:
-				// (9.5) conversions use the type they convert to
+				// (9.4) conversions use the type they convert to
 				g.seeAndUse(instr.Type(), fn, "conversion")
 				g.typ(instr.Type())
 
