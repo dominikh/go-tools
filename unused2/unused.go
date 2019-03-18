@@ -307,7 +307,7 @@ func (g *Graph) color(root *Node) {
 type Node struct {
 	obj  interface{}
 	id   int
-	used map[*Node]struct{}
+	used map[*Node]string
 
 	seen  bool
 	quiet bool
@@ -348,16 +348,16 @@ func (g *Graph) newNode(obj interface{}) *Node {
 	return &Node{
 		obj:  obj,
 		id:   g.nodeCounter,
-		used: map[*Node]struct{}{},
+		used: map[*Node]string{},
 	}
 }
 
-func (n *Node) use(node *Node) (new bool) {
+func (n *Node) use(node *Node, reason string) (new bool) {
 	assert(node != nil)
-	if _, ok := n.used[node]; ok {
+	if s, ok := n.used[node]; ok && s == reason {
 		return false
 	}
-	n.used[node] = struct{}{}
+	n.used[node] = reason
 	return true
 }
 
@@ -462,14 +462,14 @@ func (g *Graph) use(used, by interface{}, reason string) {
 	usedNode, new := g.node(used)
 	assert(!new)
 	if by == nil {
-		new := g.Root.use(usedNode)
+		new := g.Root.use(usedNode, reason)
 		if debug && new {
 			fmt.Printf("n%d -> n%d [label=%q];\n", g.Root.id, usedNode.id, reason)
 		}
 	} else {
 		byNode, new := g.node(by)
 		assert(!new)
-		new = byNode.use(usedNode)
+		new = byNode.use(usedNode, reason)
 		if debug && new {
 			fmt.Printf("n%d -> n%d [label=%q];\n", byNode.id, usedNode.id, reason)
 		}
