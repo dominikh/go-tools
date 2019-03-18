@@ -22,10 +22,10 @@ const debug = false
 /*
 
 - packages use:
-  - (1.1) exported named types
-  - (1.2) exported functions
-  - exported variables
-  - (1.4) exported constants
+  - (1.1) exported named types (unless in package main)
+  - (1.2) exported functions (unless in package main)
+  - TODO exported variables (TODO unless in package main)
+  - (1.4) exported constants (unless in package main)
   - (1.5) init functions
   - TODO functions exported to cgo
   - (1.7) the main function iff in the main package
@@ -514,8 +514,8 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *types.Const:
 			g.see(obj)
 			fn := surroundingFunc(obj)
-			if fn == nil && obj.Exported() {
-				// (1.4) packages use exported constants
+			if fn == nil && obj.Exported() && g.pkg.Pkg.Name() != "main" {
+				// (1.4) packages use exported constants (unless in package main)
 				g.use(obj, nil, "exported constant")
 			}
 			g.typ(obj.Type())
@@ -576,8 +576,8 @@ func (g *Graph) entry(tinfo *types.Info) {
 				g.use(m, nil, "init function")
 			}
 			// This branch catches top-level functions, not methods.
-			if m.Object() != nil && m.Object().Exported() {
-				// (1.2) packages use exported functions
+			if m.Object() != nil && m.Object().Exported() && g.pkg.Pkg.Name() != "main" {
+				// (1.2) packages use exported functions (unless in package main)
 				g.use(m, nil, "exported top-level function")
 			}
 			if m.Name() == "main" && g.pkg.Pkg.Name() == "main" {
@@ -588,8 +588,8 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *ssa.Type:
 			if m.Object() != nil {
 				g.see(m.Object())
-				if m.Object().Exported() {
-					// (1.1) packages use exported named types
+				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" {
+					// (1.1) packages use exported named types (unless in package main)
 					g.use(m.Object(), nil, "exported top-level type")
 				}
 			}
