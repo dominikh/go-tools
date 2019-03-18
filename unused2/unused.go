@@ -24,7 +24,7 @@ const debug = false
 - packages use:
   - (1.1) exported named types (unless in package main)
   - (1.2) exported functions (unless in package main)
-  - TODO exported variables (TODO unless in package main)
+  - (1.3) exported variables (unless in package main)
   - (1.4) exported constants (unless in package main)
   - (1.5) init functions
   - TODO functions exported to cgo
@@ -46,7 +46,7 @@ const debug = false
   - (4.5) functions/interface methods they call
   - types they instantiate or convert to
   - (4.7) fields they access
-  - types of all instructions
+  - (4.8) types of all instructions
 
 - conversions use:
   - (5.1) when converting between two equivalent structs, the fields in
@@ -87,6 +87,8 @@ const debug = false
   - (9.3) variables use their types
   - (9.4) types use their underlying and element types
   - (9.5) conversions use the type they convert to
+
+- (10.1) dereferences use variables
 
 - TODO things named _ are used
 */
@@ -188,13 +190,6 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 				return
 			}
 			switch obj := node.obj.(type) {
-			case *types.Var:
-				if !obj.IsField() {
-					// Only flag fields. Variables are either
-					// arguments or local variables, neither of which
-					// should ever be reported.
-					node.quiet = true
-				}
 			case *types.Named:
 				for i := 0; i < obj.NumMethods(); i++ {
 					m := pkg.SSA.Prog.FuncValue(obj.Method(i))
@@ -378,7 +373,15 @@ func isIrrelevant(obj interface{}) bool {
 	if obj, ok := obj.(types.Object); ok {
 		switch obj := obj.(type) {
 		case *types.Var:
-			return !obj.IsField() && isIrrelevant(obj.Type())
+			if obj.IsField() {
+				// We need to track package fields
+				return false
+			}
+			if obj.Parent() == obj.Pkg().Scope() {
+				// We need to track package-level variables
+				return false
+			}
+			return isIrrelevant(obj.Type())
 		default:
 			return false
 		}
@@ -568,7 +571,13 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *ssa.NamedConst:
 			// XXX
 		case *ssa.Global:
-			// XXX
+			if m.Object() != nil {
+				g.see(m.Object())
+				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" {
+					// (1.3) packages use exported variables (unless in package main)
+					g.use(m.Object(), nil, "exported top-level variable")
+				}
+			}
 		case *ssa.Function:
 			g.see(m)
 			if m.Name() == "init" {
@@ -979,7 +988,14 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.Alloc:
 				// nothing to do
 			case *ssa.UnOp:
-				// nothing to do
+				if instr.Op == token.MUL {
+					if v, ok := instr.X.(*ssa.Global); ok {
+						if v.Object() != nil {
+							// (10.1) dereferences use variables
+							g.seeAndUse(v.Object(), fn, "variable read")
+						}
+					}
+				}
 			case *ssa.BinOp:
 				// nothing to do
 			case *ssa.If:
