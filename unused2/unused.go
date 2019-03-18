@@ -326,21 +326,21 @@ func (g *Graph) nodeMaybe(obj interface{}) (*Node, bool) {
 	return nil, false
 }
 
-func (g *Graph) node(obj interface{}) *Node {
+func (g *Graph) node(obj interface{}) (node *Node, new bool) {
 	if t, ok := obj.(types.Type); ok {
 		if v := g.TypeNodes.At(t); v != nil {
-			return v.(*Node)
+			return v.(*Node), false
 		}
 		node := g.newNode(obj)
 		g.TypeNodes.Set(t, node)
-		return node
+		return node, true
 	}
 	if node, ok := g.Nodes[obj]; ok {
-		return node
+		return node, false
 	}
-	node := g.newNode(obj)
+	node = g.newNode(obj)
 	g.Nodes[obj] = node
-	return node
+	return node, true
 }
 
 func (g *Graph) newNode(obj interface{}) *Node {
@@ -352,9 +352,13 @@ func (g *Graph) newNode(obj interface{}) *Node {
 	}
 }
 
-func (n *Node) use(node *Node) {
+func (n *Node) use(node *Node) (new bool) {
 	assert(node != nil)
+	if _, ok := n.used[node]; ok {
+		return false
+	}
 	n.used[node] = struct{}{}
+	return true
 }
 
 func isIrrelevantType(obj interface{}) bool {
@@ -373,6 +377,8 @@ func isIrrelevantType(obj interface{}) bool {
 			return T.Recv() == nil && T.Params().Len() == 0 && T.Results().Len() == 0
 		case *types.Interface:
 			return T.NumMethods() == 0
+		default:
+			return false
 		}
 	}
 	return false
@@ -391,8 +397,8 @@ func (g *Graph) see(obj interface{}) {
 	}
 
 	// add new node to graph
-	node := g.node(obj)
-	if debug {
+	node, new := g.node(obj)
+	if debug && new {
 		fmt.Printf("n%d [label=%q];\n", node.id, obj)
 	}
 }
@@ -419,18 +425,19 @@ func (g *Graph) use(used, by interface{}, reason string) {
 			return
 		}
 	}
-	usedNode := g.node(used)
+	usedNode, _ := g.node(used)
 	if by == nil {
-		g.Root.use(usedNode)
-		if debug {
+		new := g.Root.use(usedNode)
+		if debug && new {
 			fmt.Printf("n%d -> n%d [label=%q];\n", g.Root.id, usedNode.id, reason)
 		}
 	} else {
-		byNode := g.node(by)
-		if debug {
+		byNode, _ := g.node(by)
+		new := byNode.use(usedNode)
+		if debug && new {
 			fmt.Printf("n%d -> n%d [label=%q];\n", byNode.id, usedNode.id, reason)
 		}
-		byNode.use(usedNode)
+
 	}
 }
 
