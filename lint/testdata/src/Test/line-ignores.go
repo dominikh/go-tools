@@ -6,6 +6,7 @@ package pkg
 func fn1() {} // MATCH "test problem"
 
 //lint:ignore TEST1000 This should be ignored, because ...
+//lint:ignore XXX1000 Testing that multiple linter directives work correctly
 func fn2() {}
 
 //lint:ignore TEST1000
@@ -17,5 +18,5 @@ func fn4() {
 	var _ int
 }
 
-// MATCH:11 "malformed linter directive"
-// MATCH:16 "this linter directive didn't match anything"
+// MATCH:12 "malformed linter directive"
+// MATCH:17 "this linter directive didn't match anything"
