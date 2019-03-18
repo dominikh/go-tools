@@ -357,7 +357,28 @@ func (n *Node) use(node *Node) {
 	n.used[node] = struct{}{}
 }
 
+func isIrrelevantType(obj interface{}) bool {
+	if T, ok := obj.(types.Type); ok {
+		T = lintdsl.Dereference(T)
+		switch T := T.(type) {
+		case *types.Array:
+			return isIrrelevantType(T.Elem())
+		case *types.Slice:
+			return isIrrelevantType(T.Elem())
+		case *types.Basic:
+			return true
+		case *types.Tuple:
+			return T.Len() == 0
+		}
+	}
+	return false
+}
+
 func (g *Graph) see(obj interface{}) {
+	if isIrrelevantType(obj) {
+		return
+	}
+
 	assert(obj != nil)
 	if obj, ok := obj.(types.Object); ok {
 		if obj.Pkg() != g.pkg.Pkg {
@@ -373,6 +394,10 @@ func (g *Graph) see(obj interface{}) {
 }
 
 func (g *Graph) use(used, by interface{}, reason string) {
+	if isIrrelevantType(used) {
+		return
+	}
+
 	assert(used != nil)
 	if _, ok := used.(*types.Func); ok {
 		assert(g.pkg.Prog.FuncValue(used.(*types.Func)) == nil)
