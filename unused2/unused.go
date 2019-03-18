@@ -390,7 +390,7 @@ func (g *Graph) see(obj interface{}) {
 	}
 
 	assert(obj != nil)
-	if obj, ok := obj.(types.Object); ok {
+	if obj, ok := obj.(types.Object); ok && obj.Pkg() != nil {
 		if obj.Pkg() != g.pkg.Pkg {
 			return
 		}
@@ -415,25 +415,27 @@ func (g *Graph) use(used, by interface{}, reason string) {
 	if _, ok := by.(*types.Func); ok {
 		assert(g.pkg.Prog.FuncValue(by.(*types.Func)) == nil)
 	}
-	if obj, ok := used.(types.Object); ok {
+	if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
 		if obj.Pkg() != g.pkg.Pkg {
 			return
 		}
 	}
-	if obj, ok := by.(types.Object); ok {
+	if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
 		if obj.Pkg() != g.pkg.Pkg {
 			return
 		}
 	}
-	usedNode, _ := g.node(used)
+	usedNode, new := g.node(used)
+	assert(!new)
 	if by == nil {
 		new := g.Root.use(usedNode)
 		if debug && new {
 			fmt.Printf("n%d -> n%d [label=%q];\n", g.Root.id, usedNode.id, reason)
 		}
 	} else {
-		byNode, _ := g.node(by)
-		new := byNode.use(usedNode)
+		byNode, new := g.node(by)
+		assert(!new)
+		new = byNode.use(usedNode)
 		if debug && new {
 			fmt.Printf("n%d -> n%d [label=%q];\n", byNode.id, usedNode.id, reason)
 		}
@@ -487,6 +489,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 		if fn.Pkg != g.pkg {
 			continue
 		}
+		g.see(fn)
 		node := fn.Syntax()
 		if node == nil {
 			continue
@@ -611,7 +614,7 @@ func (g *Graph) typ(t types.Type) {
 	if g.seenTypes.At(t) != nil {
 		return
 	}
-	if t, ok := t.(*types.Named); ok {
+	if t, ok := t.(*types.Named); ok && t.Obj().Pkg() != nil {
 		if t.Obj().Pkg() != g.pkg.Pkg {
 			return
 		}
@@ -758,7 +761,6 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				if _, ok := v.(*ssa.Range); !ok {
 					// See https://github.com/golang/go/issues/19670
 
-					g.see(v.Type())
 					g.seeAndUse(v.Type(), fn, "instruction")
 					g.typ(v.Type())
 				}
