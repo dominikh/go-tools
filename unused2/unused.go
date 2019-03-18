@@ -69,18 +69,28 @@ TODO error interface
 - structs use:
   - (4946) fields of type NoCopy sentinel
   - (2701) exported fields
-  - embedded fields that help implement interfaces (either fully implements it, or contributes required methods) (recursively)
+  - (7540) embedded fields that help implement interfaces (either fully implements it, or contributes required methods) (recursively)
   - (6090) embedded fields that have exported methods (recursively)
   - (8728) embedded structs that have exported fields (recursively)
 
 - field accesses use fields
 
-- interfaces use:
-  - (3393) all their methods. we really have no idea what is going on with interfaces.
-  - matching methods on types that implement this interface.
-    we assume that types are meant to implement as many interfaces as possible.
-    takes into consideration embedding into possibly unnamed types.
+- (6020) How we handle interfaces:
+  - (8080) We do not technically care about interfaces that only consist of
+    exported methods. Exported methods on concrete types are always
+    marked as used.
+  - Any concrete type implements all known interfaces. Even if it isn't
+    assigned to any interfaces in our code, the user may receive a value
+    of the type and expect to pass it back to us through an interface.
 
+    Concrete types use their methods that implement interfaces. If the
+    type is used, it uses those methods. Otherwise, it doesn't. This
+    way, types aren't incorrectly marked reachable through the edge
+    from method to type.
+
+  - (3393) All interface methods are marked as used, even if they never get
+    called. This is to accomodate sum types (unexported interface
+    method that must exist but never gets called.)
 
 - Inherent uses:
   - thunks and other generated wrappers call the real function
@@ -606,6 +616,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 	g.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 		switch t := t.(type) {
 		case *types.Interface:
+			// OPT(dh): (8080) we only need interfaces that have unexported methods
 			ifaces = append(ifaces, t)
 		default:
 			if _, ok := t.Underlying().(*types.Interface); !ok {
@@ -614,6 +625,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 		}
 	})
 
+	// (6020) handle interfaces
 	for _, iface := range ifaces {
 		for _, t := range notIfaces {
 			if g.implements(t, iface) {
@@ -628,16 +640,17 @@ func (g *Graph) entry(tinfo *types.Info) {
 						base := lintdsl.Dereference(t).Underlying().(*types.Struct)
 						for _, idx := range path[:len(path)-1] {
 							next := base.Field(idx)
+							// (7540) structs use embedded fields that help implement interfaces
 							g.seeAndUse(next, base, "helps implement")
 							base, _ = lintdsl.Dereference(next.Type()).Underlying().(*types.Struct)
 						}
 					}
 					if fn := g.pkg.Prog.FuncValue(obj.(*types.Func)); fn != nil {
 						// actual function
-						g.seeAndUse(fn, iface, "implements")
+						g.seeAndUse(fn, t, "implements")
 					} else {
 						// interface method
-						g.seeAndUse(obj, iface, "implements")
+						g.seeAndUse(obj, t, "implements")
 					}
 				}
 			}
@@ -760,7 +773,7 @@ func (g *Graph) typ(t types.Type) {
 	case *types.Interface:
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
-			// (3393) interfaces use all their methods. we really have no idea what is going on with interfaces.
+			// (3393) All interface methods are marked as used
 			g.seeAndUse(m, t, "interface method")
 			g.seeAndUse(m.Type().(*types.Signature), m, "signature")
 			g.signature(m.Type().(*types.Signature))
