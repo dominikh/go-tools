@@ -1041,7 +1041,8 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.DebugRef:
 				// nothing to do
 			case *ssa.BlankStore:
-				// nothing to do
+				// catch `_ = typedConst`
+				g.seeAndUse(instr.Val.Type(), fn, "blank store")
 			case *ssa.Phi:
 				// nothing to do
 			case *ssa.MakeMap:
