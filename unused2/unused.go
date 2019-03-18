@@ -183,11 +183,32 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 		graph.entry(pkg.TypesInfo)
 
 		graph.color(graph.Root)
+		// if a node is unused, don't report any of the node's
+		// children as unused. for example, if a function is unused,
+		// don't flag its receiver. if a named type is unused, don't
+		// flag its methods.
 		quieten := func(node *Node) {
 			if node.seen {
 				return
 			}
 			switch obj := node.obj.(type) {
+			case *ssa.Function:
+				sig := obj.Type().(*types.Signature)
+				if sig.Recv() != nil {
+					if node, ok := graph.nodeMaybe(sig.Recv()); ok {
+						node.quiet = true
+					}
+				}
+				for i := 0; i < sig.Params().Len(); i++ {
+					if node, ok := graph.nodeMaybe(sig.Params().At(i)); ok {
+						node.quiet = true
+					}
+				}
+				for i := 0; i < sig.Results().Len(); i++ {
+					if node, ok := graph.nodeMaybe(sig.Results().At(i)); ok {
+						node.quiet = true
+					}
+				}
 			case *types.Named:
 				for i := 0; i < obj.NumMethods(); i++ {
 					m := pkg.SSA.Prog.FuncValue(obj.Method(i))
