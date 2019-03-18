@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"strings"
 
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/lint"
@@ -27,7 +28,7 @@ const debug = true
   - (1.3) exported variables (unless in package main)
   - (1.4) exported constants (unless in package main)
   - (1.5) init functions
-  - TODO functions exported to cgo
+  - (1.6) functions exported to cgo
   - (1.7) the main function iff in the main package
 
 - named types use:
@@ -622,6 +623,17 @@ func (g *Graph) entry(tinfo *types.Info) {
 			if m.Name() == "main" && g.pkg.Pkg.Name() == "main" {
 				// (1.7) packages use the main function iff in the main package
 				g.use(m, nil, "main function")
+			}
+			if m.Syntax() != nil {
+				doc := m.Syntax().(*ast.FuncDecl).Doc
+				if doc != nil {
+					for _, cmt := range doc.List {
+						if strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
+							// (1.6) packages use functions exported to cgo
+							g.use(m, nil, "cgo exported")
+						}
+					}
+				}
 			}
 			g.function(m)
 		case *ssa.Type:
