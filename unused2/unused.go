@@ -245,6 +245,17 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 				fmt.Printf("n%d [color=red];\n", node.id)
 			}
 			switch obj := node.obj.(type) {
+			case *types.Var:
+				// don't report unnamed variables (receivers, interface embedding)
+				if obj.Name() != "" || obj.IsField() {
+					if obj.Pkg() == pkg.Package.Types {
+						pos := prog.Fset().Position(obj.Pos())
+						out = append(out, Unused{
+							Obj:      obj,
+							Position: pos,
+						})
+					}
+				}
 			case types.Object:
 				if obj.Pkg() == pkg.Package.Types {
 					pos := prog.Fset().Position(obj.Pos())
