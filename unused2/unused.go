@@ -701,6 +701,14 @@ func (g *Graph) entry(tinfo *types.Info) {
 }
 
 func (g *Graph) function(fn *ssa.Function) {
+	if fn.Package() != nil && fn.Package() != g.pkg {
+		return
+	}
+	if _, ok := g.seenFns[fn]; ok {
+		return
+	}
+	g.seenFns[fn] = struct{}{}
+
 	// (4.1) functions use all their arguments, return parameters and receivers
 	g.seeAndUse(fn.Signature, fn, "function signature")
 	g.signature(fn.Signature)
@@ -867,11 +875,6 @@ func (g *Graph) signature(sig *types.Signature) {
 }
 
 func (g *Graph) instructions(fn *ssa.Function) {
-	if _, ok := g.seenFns[fn]; ok {
-		return
-	}
-	g.seenFns[fn] = struct{}{}
-
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			ops := instr.Operands(nil)
