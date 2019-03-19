@@ -609,7 +609,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 	for _, m := range g.pkg.Members {
 		switch m := m.(type) {
 		case *ssa.NamedConst:
-			// XXX
+			// nothing to do, we collect all constants from Defs
 		case *ssa.Global:
 			if m.Object() != nil {
 				g.see(m.Object())
@@ -974,7 +974,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.Slice:
 				// nothing to do, handled generically by operands
 			case *ssa.RunDefers:
-				// XXX use deferred functions
+				// nothing to do, the deferred functions are already marked use by defering them.
 			case *ssa.Convert:
 				// to unsafe.Pointer
 				if typ, ok := instr.Type().(*types.Basic); ok && typ.Kind() == types.UnsafePointer {
@@ -1048,11 +1048,11 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			case *ssa.Select:
 				// nothing to do
 			case *ssa.ChangeInterface:
-				// XXX
+				// nothing to do
 			case *ssa.Go:
-				// XXX
+				// nothing to do, handled generically by operands
 			case *ssa.Defer:
-				// XXX
+				// nothing to do, handled generically by operands
 			default:
 				panic(fmt.Sprintf("unreachable: %T", instr))
 			}
