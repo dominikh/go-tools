@@ -885,6 +885,13 @@ func (g *Graph) instructions(fn *ssa.Function) {
 			for _, arg := range ops {
 				walkPhi(*arg, func(v ssa.Value) {
 					switch v := v.(type) {
+					case *ssa.Function:
+						// (4.3) functions use closures and bound methods.
+						// (4.5) functions use functions they call
+						// (9.5) instructions use their operands
+						// (4.4) functions use functions they return. we assume that someone else will call the returned function
+						g.seeAndUse(v, fn, "instruction operand")
+						g.function(v)
 					case *ssa.Const:
 						// (9.6) instructions use their operands' types
 						g.seeAndUse(v.Type(), fn, "constant's type")
@@ -901,6 +908,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					// See https://github.com/golang/go/issues/19670
 
 					// (4.8) instructions use their types
+					// (9.4) conversions use the type they convert to
 					g.seeAndUse(v.Type(), fn, "instruction")
 					g.typ(v.Type())
 				}
@@ -917,74 +925,19 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				// (4.7) functions use fields they access
 				g.seeAndUse(field, fn, "field access")
 			case *ssa.Store:
+				// nothing to do, handled generically by operands
 			case *ssa.Call:
 				c := instr.Common()
 				if !c.IsInvoke() {
-					seen := map[ssa.Value]struct{}{}
-					var useCall func(v ssa.Value)
-					useCall = func(v ssa.Value) {
-						if _, ok := seen[v]; ok {
-							return
-						}
-						seen[v] = struct{}{}
-						switch v := v.(type) {
-						case *ssa.Function:
-							// (4.5) functions use functions/interface methods they call
-							g.seeAndUse(v, fn, "function call")
-							if obj := v.Object(); obj != nil {
-								if cfn := g.pkg.Prog.FuncValue(obj.(*types.Func)); cfn != v {
-									// The called function is a thunk (or similar),
-									// process its instructions to get the call to the real function.
-									// Alternatively, we could mark the function as used by the thunk.
-									//
-									// We can detect the thunk because ssa.Function -> types.Object -> ssa.Function
-									// leads from the thunk to the real function.
-									g.instructions(v)
-								}
-							}
-						case *ssa.MakeClosure:
-							useCall(v.Fn)
-						case *ssa.Builtin:
-							// nothing to do
-						case *ssa.Phi:
-							for _, e := range v.Edges {
-								useCall(e)
-							}
-						}
-					}
-					// non-interface call
-					useCall(c.Value)
+					// handled generically as an instruction operand
 				} else {
 					// (4.5) functions use functions/interface methods they call
 					g.seeAndUse(c.Method, fn, "interface call")
 				}
 			case *ssa.Return:
-				seen := map[ssa.Value]struct{}{}
-				var handleReturn func(v ssa.Value)
-				handleReturn = func(v ssa.Value) {
-					if _, ok := seen[v]; ok {
-						return
-					}
-					seen[v] = struct{}{}
-					switch v := v.(type) {
-					case *ssa.Function:
-						// (4.4) functions use functions they return. we assume that someone else will call the returned function
-						g.seeAndUse(v, fn, "returning function")
-					case *ssa.MakeClosure:
-						// nothing to do. 4.4 doesn't apply because this case is covered by 4.3.
-					case *ssa.Phi:
-						for _, e := range v.Edges {
-							handleReturn(e)
-						}
-					}
-				}
-				for _, v := range instr.Results {
-					handleReturn(v)
-				}
+				// nothing to do, handled generically by operands
 			case *ssa.ChangeType:
-				// (9.4) conversions use the type they convert to
-				g.seeAndUse(instr.Type(), fn, "conversion")
-				g.typ(instr.Type())
+				// conversion type handled generically
 
 				s1, ok1 := lintdsl.Dereference(instr.Type()).Underlying().(*types.Struct)
 				s2, ok2 := lintdsl.Dereference(instr.X.Type()).Underlying().(*types.Struct)
@@ -1007,9 +960,9 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					}
 				}
 			case *ssa.MakeInterface:
-				// nothing to doX
+				// nothing to do, handled generically by operands
 			case *ssa.Slice:
-				// nothing to do
+				// nothing to do, handled generically by operands
 			case *ssa.RunDefers:
 				// XXX use deferred functions
 			case *ssa.Convert:
@@ -1036,23 +989,12 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					}
 				}
 			case *ssa.TypeAssert:
-				g.seeAndUse(instr.AssertedType, fn, "type assert")
-				g.typ(instr.AssertedType)
+				// nothing to do, handled generically by instruction
+				// type (possibly a tuple, which contains the asserted
+				// to type). redundantly handled by the type of
+				// ssa.Extract, too
 			case *ssa.MakeClosure:
-				// (4.3) functions use closures and bound methods.
-				g.seeAndUse(instr.Fn, fn, "make closure")
-				v := instr.Fn.(*ssa.Function)
-				if obj := v.Object(); obj != nil {
-					if cfn := g.pkg.Prog.FuncValue(obj.(*types.Func)); cfn != v {
-						// The called function is a $bound (or similar),
-						// process its instructions to get the call to the real function.
-						// Alternatively, we could mark the function as used by the $bound.
-						//
-						// We can detect the $bound because ssa.Function -> types.Object -> ssa.Function
-						// leads from the thunk to the real function.
-						g.instructions(v)
-					}
-				}
+				// nothing to do, handled generically by operands
 			case *ssa.Alloc:
 				// nothing to do
 			case *ssa.UnOp:
