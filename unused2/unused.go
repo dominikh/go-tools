@@ -225,6 +225,13 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 						node.quiet = true
 					}
 				}
+			case *types.Interface:
+				for i := 0; i < obj.NumExplicitMethods(); i++ {
+					m := obj.ExplicitMethod(i)
+					if node, ok := graph.nodeMaybe(m); ok {
+						node.quiet = true
+					}
+				}
 			}
 		}
 		for _, node := range graph.Nodes {
