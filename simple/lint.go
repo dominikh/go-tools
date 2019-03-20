@@ -103,7 +103,7 @@ func (c *Checker) LintSingleCaseSelect(j *lint.Job) {
 			j.Errorf(node, "should use a simple channel send/receive instead of select with a single case")
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.SelectStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil), (*ast.SelectStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintLoopCopy(j *lint.Job) {
@@ -178,7 +178,7 @@ func (c *Checker) LintLoopCopy(j *lint.Job) {
 		}
 		j.Errorf(loop, "should use copy() instead of a loop")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.RangeStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintIfBoolCmp(j *lint.Job) {
@@ -220,7 +220,7 @@ func (c *Checker) LintIfBoolCmp(j *lint.Job) {
 		}
 		j.Errorf(expr, "should omit comparison to bool constant, can be simplified to %s", r)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintBytesBufferConversions(j *lint.Job) {
@@ -247,7 +247,7 @@ func (c *Checker) LintBytesBufferConversions(j *lint.Job) {
 		}
 
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintStringsContains(j *lint.Job) {
@@ -312,7 +312,7 @@ func (c *Checker) LintStringsContains(j *lint.Job) {
 		}
 		j.Errorf(node, "should use %s%s.%s(%s) instead", prefix, pkgIdent.Name, newFunc, RenderArgs(j, call.Args))
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintBytesCompare(j *lint.Job) {
@@ -339,7 +339,7 @@ func (c *Checker) LintBytesCompare(j *lint.Job) {
 		}
 		j.Errorf(node, "should use %sbytes.Equal(%s) instead", prefix, args)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintForTrue(j *lint.Job) {
@@ -353,7 +353,7 @@ func (c *Checker) LintForTrue(j *lint.Job) {
 		}
 		j.Errorf(loop, "should use for {} instead of for true {}")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintRegexpRaw(j *lint.Job) {
@@ -410,7 +410,7 @@ func (c *Checker) LintRegexpRaw(j *lint.Job) {
 
 		j.Errorf(call, "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintIfReturn(j *lint.Job) {
@@ -471,7 +471,7 @@ func (c *Checker) LintIfReturn(j *lint.Job) {
 		}
 		j.Errorf(n1, "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BlockStmt)(nil)}, fn)
 }
 
 // LintRedundantNilCheckWithLen checks for the following reduntant nil-checks:
@@ -597,7 +597,7 @@ func (c *Checker) LintRedundantNilCheckWithLen(j *lint.Job) {
 		}
 		j.Errorf(expr, "should omit nil check; len() for %s is defined as zero", nilType)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintSlicing(j *lint.Job) {
@@ -627,7 +627,7 @@ func (c *Checker) LintSlicing(j *lint.Job) {
 		}
 		j.Errorf(n, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.SliceExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.SliceExpr)(nil)}, fn)
 }
 
 func refersTo(j *lint.Job, expr ast.Expr, ident *ast.Ident) bool {
@@ -712,7 +712,7 @@ func (c *Checker) LintLoopAppend(j *lint.Job) {
 		j.Errorf(loop, "should replace loop with %s = append(%s, %s...)",
 			Render(j, stmt.Lhs[0]), Render(j, call.Args[Arg("append.slice")]), Render(j, loop.X))
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.RangeStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintTimeSince(j *lint.Job) {
@@ -730,7 +730,7 @@ func (c *Checker) LintTimeSince(j *lint.Job) {
 		}
 		j.Errorf(call, "should use time.Since instead of time.Now().Sub")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintTimeUntil(j *lint.Job) {
@@ -747,7 +747,7 @@ func (c *Checker) LintTimeUntil(j *lint.Job) {
 		}
 		j.Errorf(call, "should use time.Until instead of t.Sub(time.Now())")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
@@ -812,10 +812,10 @@ func (c *Checker) LintUnnecessaryBlank(j *lint.Job) {
 		}
 	}
 
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn1)
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn2)
+	InspectPreorder(j, []ast.Node{(*ast.AssignStmt)(nil)}, fn1)
+	InspectPreorder(j, []ast.Node{(*ast.AssignStmt)(nil)}, fn2)
 	if IsGoVersion(j, 4) {
-		j.Program.Inspector.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn3)
+		InspectPreorder(j, []ast.Node{(*ast.RangeStmt)(nil)}, fn3)
 	}
 }
 
@@ -938,7 +938,7 @@ func (c *Checker) LintSimplerStructConversion(j *lint.Job) {
 		j.Errorf(node, "should convert %s (type %s) to %s instead of using struct literal",
 			ident.Name, typ2.Obj().Name(), typ1.Obj().Name())
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil)}, fn)
 }
 
 func (c *Checker) LintTrim(j *lint.Job) {
@@ -1139,7 +1139,7 @@ func (c *Checker) LintTrim(j *lint.Job) {
 			j.Errorf(ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.IfStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintLoopSlide(j *lint.Job) {
@@ -1241,7 +1241,7 @@ func (c *Checker) LintLoopSlide(j *lint.Job) {
 
 		j.Errorf(loop, "should use copy(%s[:%s], %s[%s:]) instead", Render(j, bs1), Render(j, biny), Render(j, bs1), Render(j, add1))
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintMakeLenCap(j *lint.Job) {
@@ -1269,7 +1269,7 @@ func (c *Checker) LintMakeLenCap(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintAssertNotNil(j *lint.Job) {
@@ -1378,8 +1378,8 @@ func (c *Checker) LintAssertNotNil(j *lint.Job) {
 		}
 		j.Errorf(ifstmt, "when %s is true, %s can't be nil", Render(j, assignIdent), Render(j, assertIdent))
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn1)
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn2)
+	InspectPreorder(j, []ast.Node{(*ast.IfStmt)(nil)}, fn1)
+	InspectPreorder(j, []ast.Node{(*ast.IfStmt)(nil)}, fn2)
 }
 
 func (c *Checker) LintDeclareAssign(j *lint.Job) {
@@ -1450,7 +1450,7 @@ func (c *Checker) LintDeclareAssign(j *lint.Job) {
 			j.Errorf(decl, "should merge variable declaration with assignment on next line")
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BlockStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintRedundantBreak(j *lint.Job) {
@@ -1492,8 +1492,8 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 		// checked x.Type.Results to be nil.
 		j.Errorf(rst, "redundant return statement")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CaseClause)(nil)}, fn1)
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn2)
+	InspectPreorder(j, []ast.Node{(*ast.CaseClause)(nil)}, fn1)
+	InspectPreorder(j, []ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn2)
 }
 
 func (c *Checker) Implements(j *lint.Job, typ types.Type, iface string) bool {
@@ -1553,7 +1553,7 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
@@ -1567,7 +1567,7 @@ func (c *Checker) LintErrorsNewSprintf(j *lint.Job) {
 		}
 		j.Errorf(node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) LintRangeStringRunes(j *lint.Job) {
@@ -1606,7 +1606,7 @@ func (c *Checker) LintNilCheckAroundRange(j *lint.Job) {
 			j.Errorf(node, "unnecessary nil check around range")
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.IfStmt)(nil)}, fn)
 }
 
 func isPermissibleSort(j *lint.Job, node ast.Node) bool {
@@ -1687,7 +1687,7 @@ func (c *Checker) LintSortHelpers(j *lint.Job) {
 		}
 		return
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.FuncLit)(nil), (*ast.FuncDecl)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.FuncLit)(nil), (*ast.FuncDecl)(nil)}, fn)
 }
 
 func (c *Checker) LintGuardedDelete(j *lint.Job) {
@@ -1749,7 +1749,7 @@ func (c *Checker) LintGuardedDelete(j *lint.Job) {
 		}
 		j.Errorf(stmt, "unnecessary guard around call to delete")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.IfStmt)(nil)}, fn)
 }
 
 func (c *Checker) LintSimplifyTypeSwitch(j *lint.Job) {
@@ -1818,5 +1818,5 @@ func (c *Checker) LintSimplifyTypeSwitch(j *lint.Job) {
 			j.Errorf(expr, "assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate the following type assertions:%s", Render(j, ident), Render(j, ident), at)
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
 }

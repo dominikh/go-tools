@@ -113,7 +113,6 @@ type Program struct {
 	AllPackages      []*packages.Package
 	AllFunctions     []*ssa.Function
 	Files            []*ast.File
-	Inspector        *inspector.Inspector
 	GoVersion        int
 
 	tokenFileMap map[*token.File]*ast.File
@@ -297,6 +296,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			Package: pkg,
 			Config:  cfg,
 		}
+		pkg.Inspector = inspector.New(pkg.Syntax)
 		pkgMap[ssapkg] = pkg
 		pkgs = append(pkgs, pkg)
 	}
@@ -336,7 +336,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			prog.astFileMap[f] = pkgMap[ssapkg]
 		}
 	}
-	prog.Inspector = inspector.New(prog.Files)
 
 	for _, pkg := range allPkgs {
 		for _, f := range pkg.Syntax {
@@ -623,7 +622,8 @@ func (prog *Program) Package(path string) *packages.Package {
 type Pkg struct {
 	SSA *ssa.Package
 	*packages.Package
-	Config config.Config
+	Config    config.Config
+	Inspector *inspector.Inspector
 }
 
 type Positioner interface {

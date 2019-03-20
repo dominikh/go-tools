@@ -377,3 +377,15 @@ func flattenFields(T *types.Struct, path []int, seen map[types.Type]bool) []Fiel
 	}
 	return out
 }
+
+func InspectPreorder(j *lint.Job, types []ast.Node, fn func(ast.Node)) {
+	for _, pkg := range j.Program.InitialPackages {
+		pkg.Inspector.Preorder(types, fn)
+	}
+}
+
+func InspectNodes(j *lint.Job, types []ast.Node, fn func(node ast.Node, push bool) (prune bool)) {
+	for _, pkg := range j.Program.InitialPackages {
+		pkg.Inspector.Nodes(types, fn)
+	}
+}

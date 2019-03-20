@@ -198,7 +198,7 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 
 		j.Errorf(assign, "should replace %s with %s%s", Render(j, assign), Render(j, assign.Lhs[0]), suffix)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckErrorReturn(j *lint.Job) {
@@ -611,7 +611,7 @@ func (c *Checker) CheckDefaultCaseOrder(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.SwitchStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.SwitchStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckYodaConditions(j *lint.Job) {
@@ -629,7 +629,7 @@ func (c *Checker) CheckYodaConditions(j *lint.Job) {
 		}
 		j.Errorf(cond, "don't use Yoda conditions")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
@@ -646,5 +646,5 @@ func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BasicLit)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BasicLit)(nil)}, fn)
 }

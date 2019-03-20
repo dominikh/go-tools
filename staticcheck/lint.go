@@ -629,7 +629,7 @@ func (c *Checker) CheckUntrappableSignal(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckTemplate(j *lint.Job) {
@@ -670,7 +670,7 @@ func (c *Checker) CheckTemplate(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
@@ -700,7 +700,7 @@ func (c *Checker) CheckTimeSleepConstant(j *lint.Job) {
 		j.Errorf(call.Args[Arg("time.Sleep.d")],
 			"sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckWaitgroupAdd(j *lint.Job) {
@@ -734,7 +734,7 @@ func (c *Checker) CheckWaitgroupAdd(j *lint.Job) {
 				Render(j, stmt))
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.GoStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.GoStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckInfiniteEmptyLoop(j *lint.Job) {
@@ -777,7 +777,7 @@ func (c *Checker) CheckInfiniteEmptyLoop(j *lint.Job) {
 		}
 		j.Errorf(loop, "this loop will spin, using 100%% CPU")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckDeferInInfiniteLoop(j *lint.Job) {
@@ -816,7 +816,7 @@ func (c *Checker) CheckDeferInInfiniteLoop(j *lint.Job) {
 			j.Errorf(stmt, "defers in this infinite loop will never run")
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckDubiousDeferInChannelRangeLoop(j *lint.Job) {
@@ -839,7 +839,7 @@ func (c *Checker) CheckDubiousDeferInChannelRangeLoop(j *lint.Job) {
 		}
 		ast.Inspect(loop.Body, fn2)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.RangeStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckTestMainExit(j *lint.Job) {
@@ -887,7 +887,7 @@ func (c *Checker) CheckTestMainExit(j *lint.Job) {
 			j.Errorf(node, "TestMain should call os.Exit to set exit code")
 		}
 	}
-	j.Program.Inspector.Preorder(nil, fn)
+	InspectPreorder(j, nil, fn)
 }
 
 func isTestMain(j *lint.Job, node ast.Node) bool {
@@ -924,7 +924,7 @@ func (c *Checker) CheckExec(j *lint.Job) {
 		j.Errorf(call.Args[Arg("os/exec.Command.name")],
 			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckLoopEmptyDefault(j *lint.Job) {
@@ -943,7 +943,7 @@ func (c *Checker) CheckLoopEmptyDefault(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
@@ -970,7 +970,7 @@ func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
 		}
 		j.Errorf(op, "identical expressions on the left and right side of the '%s' operator", op.Op)
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckScopedBreak(j *lint.Job) {
@@ -1028,7 +1028,7 @@ func (c *Checker) CheckScopedBreak(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.RangeStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.ForStmt)(nil), (*ast.RangeStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckUnsafePrintf(j *lint.Job) {
@@ -1053,7 +1053,7 @@ func (c *Checker) CheckUnsafePrintf(j *lint.Job) {
 		j.Errorf(call.Args[arg],
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckEarlyDefer(j *lint.Job) {
@@ -1121,7 +1121,7 @@ func (c *Checker) CheckEarlyDefer(j *lint.Job) {
 			j.Errorf(def, "should check returned error before deferring %s", Render(j, def.Call))
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BlockStmt)(nil)}, fn)
 }
 
 func selectorX(sel *ast.SelectorExpr) ast.Node {
@@ -1189,7 +1189,7 @@ func (c *Checker) CheckEmptyCriticalSection(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BlockStmt)(nil)}, fn)
 }
 
 // cgo produces code like fn(&*_Cvar_kSomeCallbacks) which we don't
@@ -1213,7 +1213,7 @@ func (c *Checker) CheckIneffectiveCopy(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.StarExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.UnaryExpr)(nil), (*ast.StarExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckDiffSizeComparison(j *lint.Job) {
@@ -1281,7 +1281,7 @@ func (c *Checker) CheckCanonicalHeaderKey(j *lint.Job) {
 		j.Errorf(op, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		return true
 	}
-	j.Program.Inspector.Nodes([]ast.Node{(*ast.AssignStmt)(nil), (*ast.IndexExpr)(nil)}, fn)
+	InspectNodes(j, []ast.Node{(*ast.AssignStmt)(nil), (*ast.IndexExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckBenchmarkN(j *lint.Job) {
@@ -1302,7 +1302,7 @@ func (c *Checker) CheckBenchmarkN(j *lint.Job) {
 		}
 		j.Errorf(assign, "should not assign to %s", Render(j, sel))
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckUnreadVariableValues(j *lint.Job) {
@@ -1519,7 +1519,7 @@ func (c *Checker) CheckExtremeComparison(j *lint.Job) {
 		}
 
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ssa.Const, bool) {
@@ -1802,7 +1802,7 @@ func (c *Checker) CheckIneffectiveLoop(j *lint.Job) {
 			return true
 		})
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn)
 }
 
 func (c *Checker) CheckNilContext(j *lint.Job) {
@@ -1827,7 +1827,7 @@ func (c *Checker) CheckNilContext(j *lint.Job) {
 		j.Errorf(call.Args[0],
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckSeeker(j *lint.Job) {
@@ -1861,7 +1861,7 @@ func (c *Checker) CheckSeeker(j *lint.Job) {
 		}
 		j.Errorf(call, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckIneffectiveAppend(j *lint.Job) {
@@ -2204,7 +2204,7 @@ func (c *Checker) CheckDoubleNegation(j *lint.Job) {
 		}
 		j.Errorf(unary1, "negating a boolean twice has no effect; is this a typo?")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.UnaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.UnaryExpr)(nil)}, fn)
 }
 
 func hasSideEffects(node ast.Node) bool {
@@ -2263,7 +2263,7 @@ func (c *Checker) CheckRepeatedIfElse(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.IfStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckSillyBitwiseOps(j *lint.Job) {
@@ -2338,7 +2338,7 @@ func (c *Checker) CheckNonOctalFileMode(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckPureFunctions(j *lint.Job) {
@@ -2464,7 +2464,7 @@ func (c *Checker) CheckDeprecated(j *lint.Job) {
 			})
 		}
 	}
-	j.Program.Inspector.Nodes(nil, fn)
+	InspectNodes(j, nil, fn)
 }
 
 func (c *Checker) callChecker(rules map[string]CallCheck) func(j *lint.Job) {
@@ -2711,7 +2711,7 @@ func (c *Checker) CheckSelfAssignment(j *lint.Job) {
 			}
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func buildTagsIdentical(s1, s2 []string) bool {
@@ -2829,7 +2829,7 @@ func (c *Checker) CheckMissingEnumTypesInDeclaration(j *lint.Job) {
 			j.Errorf(group[0], "only the first constant in this group has an explicit type")
 		}
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.GenDecl)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.GenDecl)(nil)}, fn)
 }
 
 func (c *Checker) CheckTimerResetReturnValue(j *lint.Job) {
@@ -2930,7 +2930,7 @@ func (c *Checker) CheckToLowerToUpperComparison(j *lint.Job) {
 		j.Errorf(binExpr, "should use %sstrings.EqualFold(a, b) instead of %s(a) %s %s(b)", bang, call, binExpr.Op, call)
 	}
 
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
@@ -2997,7 +2997,7 @@ func (c *Checker) CheckUnreachableTypeCases(j *lint.Job) {
 		}
 	}
 
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckSingleArgAppend(j *lint.Job) {
@@ -3011,5 +3011,5 @@ func (c *Checker) CheckSingleArgAppend(j *lint.Job) {
 		}
 		j.Errorf(call, "x = append(y) is equivalent to x = y")
 	}
-	j.Program.Inspector.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
 }
