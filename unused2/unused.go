@@ -108,22 +108,20 @@ func assert(b bool) {
 	}
 }
 
-func NewLintChecker(c *Checker) *LintChecker {
-	l := &LintChecker{
-		c: c,
-	}
-	return l
+type Unused struct {
+	Obj      types.Object
+	Position token.Position
 }
 
-type LintChecker struct {
-	c *Checker
+type Checker struct {
+	WholeProgram bool
 }
 
-func (*LintChecker) Name() string   { return "unused" }
-func (*LintChecker) Prefix() string { return "U" }
+func (*Checker) Name() string   { return "unused" }
+func (*Checker) Prefix() string { return "U" }
 
-func (l *LintChecker) Init(*lint.Program) {}
-func (l *LintChecker) Checks() []lint.Check {
+func (l *Checker) Init(*lint.Program) {}
+func (l *Checker) Checks() []lint.Check {
 	return []lint.Check{
 		{ID: "U1000", FilterGenerated: true, Fn: l.Lint},
 	}
@@ -147,8 +145,8 @@ func typString(obj types.Object) string {
 	}
 }
 
-func (l *LintChecker) Lint(j *lint.Job) {
-	unused := l.c.Check(j.Program, j)
+func (c *Checker) Lint(j *lint.Job) {
+	unused := c.Check(j.Program, j)
 	for _, u := range unused {
 		name := u.Obj.Name()
 		if sig, ok := u.Obj.Type().(*types.Signature); ok && sig.Recv() != nil {
@@ -164,19 +162,6 @@ func (l *LintChecker) Lint(j *lint.Job) {
 		}
 		j.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), name)
 	}
-}
-
-type Unused struct {
-	Obj      types.Object
-	Position token.Position
-}
-
-func NewChecker() *Checker {
-	return &Checker{}
-}
-
-type Checker struct {
-	WholeProgram bool
 }
 
 func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {

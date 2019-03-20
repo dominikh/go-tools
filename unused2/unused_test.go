@@ -13,7 +13,6 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	checker := NewChecker()
-	l := NewLintChecker(checker)
-	testutil.TestAll(t, l, "")
+	c := &Checker{}
+	testutil.TestAll(t, c, "")
 }
