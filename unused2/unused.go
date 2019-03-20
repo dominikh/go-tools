@@ -18,7 +18,7 @@ import (
 // containing the conversion is unused, the fields will be marked as
 // used.
 
-const debug = true
+const debug = false
 
 /*
 
@@ -91,7 +91,15 @@ const debug = true
   - (9.6) instructions use their operands' types
   - (9.7) variable _reads_ use variables, writes do not
 
-- TODO things named _ are used
+
+- Differences in whole program mode:
+  - (e1) all packages share a single graph
+  - (e2) types aim to implement all exported interfaces from all packages
+  - (e3) exported identifiers aren't automatically used. for fields and
+    methods this poses extra issues due to reflection. We assume
+    that all exported fields are used. We also maintain a list of
+    known reflection-based method callers.
+
 */
 
 func assert(b bool) {
@@ -167,7 +175,9 @@ func NewChecker() *Checker {
 	return &Checker{}
 }
 
-type Checker struct{}
+type Checker struct {
+	WholeProgram bool
+}
 
 func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 	scopes := map[*types.Scope]*ssa.Function{}
@@ -179,11 +189,51 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 	}
 
 	var out []Unused
-	for _, pkg := range prog.InitialPackages {
-		graph := NewGraph(pkg.SSA)
+	processPkgs := func(pkgs ...*lint.Pkg) {
+		graph := NewGraph()
+		graph.wholeProgram = c.WholeProgram
 		graph.job = j
 		graph.scopes = scopes
-		graph.entry(pkg.TypesInfo)
+
+		for _, pkg := range pkgs {
+			if pkg.PkgPath == "unsafe" {
+				continue
+			}
+			graph.entry(pkg.SSA, pkg.TypesInfo)
+		}
+
+		if c.WholeProgram {
+			var ifaces []*types.Interface
+			var notIfaces []types.Type
+
+			// implement as many interfaces as possible
+			graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+				switch t := t.(type) {
+				case *types.Interface:
+					ifaces = append(ifaces, t)
+				default:
+					if _, ok := t.Underlying().(*types.Interface); !ok {
+						notIfaces = append(notIfaces, t)
+					}
+				}
+			})
+
+			for _, pkg := range prog.AllPackages {
+				ifaces = append(ifaces, interfacesFromExportData(pkg.Types)...)
+			}
+
+			// (8.0) handle interfaces
+			// (e2) types aim to implement all exported interfaces from all packages
+			for _, iface := range ifaces {
+				for _, t := range notIfaces {
+					if sels, ok := graph.implements(t, iface); ok {
+						for _, sel := range sels {
+							graph.useMethod(t, sel, t, "implements")
+						}
+					}
+				}
+			}
+		}
 
 		graph.color(graph.Root)
 		// if a node is unused, don't report any of the node's
@@ -214,7 +264,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 				}
 			case *types.Named:
 				for i := 0; i < obj.NumMethods(); i++ {
-					m := pkg.SSA.Prog.FuncValue(obj.Method(i))
+					m := pkgs[0].SSA.Prog.FuncValue(obj.Method(i))
 					if node, ok := graph.nodeMaybe(m); ok {
 						node.quiet = true
 					}
@@ -251,6 +301,44 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 				}
 				return
 			}
+
+			type packager1 interface {
+				Pkg() *types.Package
+			}
+			type packager2 interface {
+				Package() *ssa.Package
+			}
+
+			// do not report objects from packages we aren't checking.
+		checkPkg:
+			switch obj := node.obj.(type) {
+			case packager1:
+				for _, pkg := range pkgs {
+					if pkg.Types == obj.Pkg() {
+						break checkPkg
+					}
+				}
+				if debug {
+					fmt.Printf("n%d [color=yellow];\n", node.id)
+				}
+				return
+			case packager2:
+				// This happens to filter $bound and $thunk, which
+				// should be fine, since we wouldn't want to report
+				// them, anyway. Remember that this filtering is only
+				// for the output, it doesn't affect the reachability
+				// of nodes in the graph.
+				for _, pkg := range pkgs {
+					if pkg.SSA == obj.Package() {
+						break checkPkg
+					}
+				}
+				if debug {
+					fmt.Printf("n%d [color=yellow];\n", node.id)
+				}
+				return
+			}
+
 			if debug {
 				fmt.Printf("n%d [color=red];\n", node.id)
 			}
@@ -258,16 +346,14 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			case *types.Var:
 				// don't report unnamed variables (receivers, interface embedding)
 				if obj.Name() != "" || obj.IsField() {
-					if obj.Pkg() == pkg.Package.Types {
-						pos := prog.Fset().Position(obj.Pos())
-						out = append(out, Unused{
-							Obj:      obj,
-							Position: pos,
-						})
-					}
+					pos := prog.Fset().Position(obj.Pos())
+					out = append(out, Unused{
+						Obj:      obj,
+						Position: pos,
+					})
 				}
 			case types.Object:
-				if obj.Pkg() == pkg.Package.Types && obj.Name() != "_" {
+				if obj.Name() != "_" {
 					pos := prog.Fset().Position(obj.Pos())
 					out = append(out, Unused{
 						Obj:      obj,
@@ -279,15 +365,15 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 					// TODO(dh): how does this happen?
 					return
 				}
-
-				// OPT(dh): objects in other packages should never make it into the graph
-				if obj.Object() != nil && obj.Object().Pkg() == pkg.Types {
-					pos := prog.Fset().Position(obj.Pos())
-					out = append(out, Unused{
-						Obj:      obj.Object(),
-						Position: pos,
-					})
+				if obj.Object() == nil {
+					// Closures
+					return
 				}
+				pos := prog.Fset().Position(obj.Pos())
+				out = append(out, Unused{
+					Obj:      obj.Object(),
+					Position: pos,
+				})
 			default:
 				if debug {
 					fmt.Printf("n%d [color=gray];\n", node.id)
@@ -301,6 +387,15 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			report(value.(*Node))
 		})
 	}
+
+	if c.WholeProgram {
+		// (e1) all packages share a single graph
+		processPkgs(prog.InitialPackages...)
+	} else {
+		for _, pkg := range prog.InitialPackages {
+			processPkgs(pkg)
+		}
+	}
 	return out
 }
 
@@ -309,6 +404,8 @@ type Graph struct {
 	pkg     *ssa.Package
 	msCache typeutil.MethodSetCache
 	scopes  map[*types.Scope]*ssa.Function
+
+	wholeProgram bool
 
 	nodeCounter int
 
@@ -320,9 +417,8 @@ type Graph struct {
 	seenFns   map[*ssa.Function]struct{}
 }
 
-func NewGraph(pkg *ssa.Package) *Graph {
+func NewGraph() *Graph {
 	g := &Graph{
-		pkg:     pkg,
 		Nodes:   map[interface{}]*Node{},
 		seenFns: map[*ssa.Function]struct{}{},
 	}
@@ -530,8 +626,9 @@ func (g *Graph) seeAndUse(used, by interface{}, reason string) {
 	g.use(used, by, reason)
 }
 
-func (g *Graph) entry(tinfo *types.Info) {
+func (g *Graph) entry(pkg *ssa.Package, tinfo *types.Info) {
 	// TODO rename Entry
+	g.pkg = pkg
 
 	surroundingFunc := func(obj types.Object) *ssa.Function {
 		scope := obj.Parent()
@@ -557,7 +654,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *types.Const:
 			g.see(obj)
 			fn := surroundingFunc(obj)
-			if fn == nil && obj.Exported() && g.pkg.Pkg.Name() != "main" {
+			if fn == nil && obj.Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
 				// (1.4) packages use exported constants (unless in package main)
 				g.use(obj, nil, "exported constant")
 			}
@@ -613,7 +710,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *ssa.Global:
 			if m.Object() != nil {
 				g.see(m.Object())
-				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" {
+				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
 					// (1.3) packages use exported variables (unless in package main)
 					g.use(m.Object(), nil, "exported top-level variable")
 				}
@@ -625,7 +722,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 				g.use(m, nil, "init function")
 			}
 			// This branch catches top-level functions, not methods.
-			if m.Object() != nil && m.Object().Exported() && g.pkg.Pkg.Name() != "main" {
+			if m.Object() != nil && m.Object().Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
 				// (1.2) packages use exported functions (unless in package main)
 				g.use(m, nil, "exported top-level function")
 			}
@@ -648,7 +745,7 @@ func (g *Graph) entry(tinfo *types.Info) {
 		case *ssa.Type:
 			if m.Object() != nil {
 				g.see(m.Object())
-				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" {
+				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
 					// (1.1) packages use exported named types (unless in package main)
 					g.use(m.Object(), nil, "exported top-level type")
 				}
@@ -659,51 +756,62 @@ func (g *Graph) entry(tinfo *types.Info) {
 		}
 	}
 
-	var ifaces []*types.Interface
-	var notIfaces []types.Type
+	if !g.wholeProgram {
+		// When not in whole program mode we process one package per
+		// graph, which means g.seenTypes only contains types of
+		// interest to us. In whole program mode, we're better off
+		// processing all interfaces at once, globally, both for
+		// performance reasons and because in whole program mode we
+		// actually care about all interfaces, not just the subset
+		// that has unexported methods.
 
-	g.seenTypes.Iterate(func(t types.Type, _ interface{}) {
-		switch t := t.(type) {
-		case *types.Interface:
-			// OPT(dh): (8.1) we only need interfaces that have unexported methods
-			ifaces = append(ifaces, t)
-		default:
-			if _, ok := t.Underlying().(*types.Interface); !ok {
-				notIfaces = append(notIfaces, t)
+		var ifaces []*types.Interface
+		var notIfaces []types.Type
+
+		g.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+			switch t := t.(type) {
+			case *types.Interface:
+				// OPT(dh): (8.1) we only need interfaces that have unexported methods
+				ifaces = append(ifaces, t)
+			default:
+				if _, ok := t.Underlying().(*types.Interface); !ok {
+					notIfaces = append(notIfaces, t)
+				}
 			}
-		}
-	})
+		})
 
-	// (8.0) handle interfaces
-	for _, iface := range ifaces {
-		for _, t := range notIfaces {
-			if g.implements(t, iface) {
-				for i := 0; i < iface.NumMethods(); i++ {
-					// get the chain of embedded types that lead to the function implementing the interface
-					ms := g.msCache.MethodSet(t)
-					sel := ms.Lookup(g.pkg.Pkg, iface.Method(i).Name())
-					obj := sel.Obj()
-					path := sel.Index()
-					assert(obj != nil)
-					if len(path) > 1 {
-						base := lintdsl.Dereference(t).Underlying().(*types.Struct)
-						for _, idx := range path[:len(path)-1] {
-							next := base.Field(idx)
-							// (6.3) structs use embedded fields that help implement interfaces
-							g.seeAndUse(next, base, "helps implement")
-							base, _ = lintdsl.Dereference(next.Type()).Underlying().(*types.Struct)
-						}
-					}
-					if fn := g.pkg.Prog.FuncValue(obj.(*types.Func)); fn != nil {
-						// actual function
-						g.seeAndUse(fn, t, "implements")
-					} else {
-						// interface method
-						g.seeAndUse(obj, t, "implements")
+		// (8.0) handle interfaces
+		for _, iface := range ifaces {
+			for _, t := range notIfaces {
+				if sels, ok := g.implements(t, iface); ok {
+					for _, sel := range sels {
+						g.useMethod(t, sel, t, "implements")
 					}
 				}
 			}
 		}
+	}
+}
+
+func (g *Graph) useMethod(t types.Type, sel *types.Selection, by interface{}, reason string) {
+	obj := sel.Obj()
+	path := sel.Index()
+	assert(obj != nil)
+	if len(path) > 1 {
+		base := lintdsl.Dereference(t).Underlying().(*types.Struct)
+		for _, idx := range path[:len(path)-1] {
+			next := base.Field(idx)
+			// (6.3) structs use embedded fields that help implement interfaces
+			g.seeAndUse(next, base, "provides method")
+			base, _ = lintdsl.Dereference(next.Type()).Underlying().(*types.Struct)
+		}
+	}
+	if fn := g.pkg.Prog.FuncValue(obj.(*types.Func)); fn != nil {
+		// actual function
+		g.seeAndUse(fn, by, reason)
+	} else {
+		// interface method
+		g.seeAndUse(obj, by, reason)
 	}
 }
 
@@ -754,13 +862,16 @@ func (g *Graph) typ(t types.Type) {
 				g.use(t.Field(i), t, "NoCopy sentinel")
 			}
 			if t.Field(i).Anonymous() {
-				// does the embedded field contribute exported methods to the method set?
-				ms := g.msCache.MethodSet(t.Field(i).Type())
-				for j := 0; j < ms.Len(); j++ {
-					if ms.At(j).Obj().Exported() {
-						// (6.4) structs use embedded fields that have exported methods (recursively)
-						g.use(t.Field(i), t, "extends exported method set")
-						break
+				// (e3) exported identifiers aren't automatically used.
+				if !g.wholeProgram {
+					// does the embedded field contribute exported methods to the method set?
+					ms := g.msCache.MethodSet(t.Field(i).Type())
+					for j := 0; j < ms.Len(); j++ {
+						if ms.At(j).Obj().Exported() {
+							// (6.4) structs use embedded fields that have exported methods (recursively)
+							g.use(t.Field(i), t, "extends exported method set")
+							break
+						}
 					}
 				}
 
@@ -806,7 +917,7 @@ func (g *Graph) typ(t types.Type) {
 		for i := 0; i < t.NumMethods(); i++ {
 			meth := g.pkg.Prog.FuncValue(t.Method(i))
 			g.see(meth)
-			if meth.Object() != nil && meth.Object().Exported() {
+			if meth.Object() != nil && meth.Object().Exported() && !g.wholeProgram {
 				// (2.1) named types use exported methods
 				g.use(meth, t, "exported method")
 			}
@@ -940,6 +1051,36 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				c := instr.Common()
 				if !c.IsInvoke() {
 					// handled generically as an instruction operand
+
+					if g.wholeProgram {
+						// (e3) special case known reflection-based method callers
+						switch lintdsl.CallName(c) {
+						case "net/rpc.Register", "net/rpc.RegisterName", "(*net/rpc.Server).Register", "(*net/rpc.Server).RegisterName":
+							var arg ssa.Value
+							switch lintdsl.CallName(c) {
+							case "net/rpc.Register":
+								arg = c.Args[0]
+							case "net/rpc.RegisterName":
+								arg = c.Args[1]
+							case "(*net/rpc.Server).Register":
+								arg = c.Args[1]
+							case "(*net/rpc.Server).RegisterName":
+								arg = c.Args[2]
+							}
+							walkPhi(arg, func(v ssa.Value) {
+								if v, ok := v.(*ssa.MakeInterface); ok {
+									walkPhi(v.X, func(vv ssa.Value) {
+										ms := g.msCache.MethodSet(vv.Type())
+										for i := 0; i < ms.Len(); i++ {
+											if ms.At(i).Obj().Exported() {
+												g.useMethod(vv.Type(), ms.At(i), fn, "net/rpc.Register")
+											}
+										}
+									})
+								}
+							})
+						}
+					}
 				} else {
 					// (4.5) functions use functions/interface methods they call
 					g.seeAndUse(c.Method, fn, "interface call")
@@ -1116,4 +1257,50 @@ func walkPhi(v ssa.Value, fn func(v ssa.Value)) {
 		}
 	}
 	impl(phi)
+}
+
+func interfacesFromExportData(pkg *types.Package) []*types.Interface {
+	var out []*types.Interface
+	scope := pkg.Scope()
+	for _, name := range scope.Names() {
+		obj := scope.Lookup(name)
+		out = append(out, interfacesFromObject(obj)...)
+	}
+	return out
+}
+
+func interfacesFromObject(obj types.Object) []*types.Interface {
+	var out []*types.Interface
+	switch obj := obj.(type) {
+	case *types.Func:
+		sig := obj.Type().(*types.Signature)
+		for i := 0; i < sig.Results().Len(); i++ {
+			out = append(out, interfacesFromObject(sig.Results().At(i))...)
+		}
+		for i := 0; i < sig.Params().Len(); i++ {
+			out = append(out, interfacesFromObject(sig.Params().At(i))...)
+		}
+	case *types.TypeName:
+		if named, ok := obj.Type().(*types.Named); ok {
+			for i := 0; i < named.NumMethods(); i++ {
+				out = append(out, interfacesFromObject(named.Method(i))...)
+			}
+
+			if iface, ok := named.Underlying().(*types.Interface); ok {
+				out = append(out, iface)
+			}
+		}
+	case *types.Var:
+		// No call to Underlying here. We want unnamed interfaces
+		// only. Named interfaces are gotten directly from the
+		// package's scope.
+		if iface, ok := obj.Type().(*types.Interface); ok {
+			out = append(out, iface)
+		}
+	case *types.Const:
+	case *types.Builtin:
+	default:
+		panic(fmt.Sprintf("unhandled type: %T", obj))
+	}
+	return out
 }

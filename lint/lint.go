@@ -473,6 +473,9 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			stats.Jobs = append(stats.Jobs, JobStat{j.check.ID, j.duration})
 		}
 		for _, p := range j.problems {
+			if p.Package == nil {
+				panic(fmt.Sprintf("internal error: problem at position %s has nil package", p.Position))
+			}
 			allowedChecks := FilterChecks(allChecks, p.Package.Config.Checks)
 
 			if l.ignore(p) {
