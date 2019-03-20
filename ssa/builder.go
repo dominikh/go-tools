@@ -995,39 +995,10 @@ func (b *builder) localValueSpec(fn *Function, spec *ast.ValueSpec) {
 		// e.g. var x, y int
 		// Locals are implicitly zero-initialized.
 		for _, id := range spec.Names {
-			lhs := fn.addLocalForIdent(id)
-			if fn.debugInfo() {
-				emitDebugRef(fn, id, lhs, true)
-			}
-			// create explicit zero initialisation for blank
-			// identifiers so that we get BlankStores and the locals
-			// don't get optimized away
-			if isBlankIdent(id) {
-				// We don't need explicit code for structs and arrays,
-				// their locals don't get optimized away.
-				T := fn.Pkg.typeOf(spec.Type)
-				switch U := T.Underlying().(type) {
-				case *types.Pointer, *types.Slice, *types.Map, *types.Chan, *types.Signature, *types.Interface:
-					lval := b.addr(fn, id, false)
-					lval.store(fn, NewConst(nil, T))
-				case *types.Basic:
-					n := U.Info()
-
-					var k exact.Value
-					switch {
-					case (n & types.IsBoolean) != 0:
-						k = exact.MakeBool(false)
-					case (n & types.IsInteger) != 0:
-						k = exact.MakeInt64(0)
-					case (n & types.IsFloat) != 0:
-						k = exact.MakeFloat64(0)
-					case (n & types.IsComplex) != 0:
-						k = exact.MakeImag(exact.MakeInt64(0))
-					case (n & types.IsString) != 0:
-						k = exact.MakeString("")
-					}
-					lval := b.addr(fn, id, false)
-					lval.store(fn, NewConst(k, T))
+			if !isBlankIdent(id) {
+				lhs := fn.addLocalForIdent(id)
+				if fn.debugInfo() {
+					emitDebugRef(fn, id, lhs, true)
 				}
 			}
 		}
