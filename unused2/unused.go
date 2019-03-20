@@ -184,7 +184,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			if pkg.PkgPath == "unsafe" {
 				continue
 			}
-			graph.entry(pkg.SSA, pkg.TypesInfo)
+			graph.entry(pkg)
 		}
 
 		if c.WholeProgram {
@@ -611,9 +611,9 @@ func (g *Graph) seeAndUse(used, by interface{}, reason string) {
 	g.use(used, by, reason)
 }
 
-func (g *Graph) entry(pkg *ssa.Package, tinfo *types.Info) {
+func (g *Graph) entry(pkg *lint.Pkg) {
 	// TODO rename Entry
-	g.pkg = pkg
+	g.pkg = pkg.SSA
 
 	surroundingFunc := func(obj types.Object) *ssa.Function {
 		scope := obj.Parent()
@@ -631,7 +631,7 @@ func (g *Graph) entry(pkg *ssa.Package, tinfo *types.Info) {
 	//
 	// SSA form also won't tell us about constants; use Defs and Uses
 	// to determine which constants exist and which are being used.
-	for _, obj := range tinfo.Defs {
+	for _, obj := range pkg.TypesInfo.Defs {
 		switch obj := obj.(type) {
 		case *types.TypeName:
 			g.see(obj)
@@ -665,7 +665,7 @@ func (g *Graph) entry(pkg *ssa.Package, tinfo *types.Info) {
 				return true
 			}
 
-			obj, ok := tinfo.Uses[ident]
+			obj, ok := pkg.TypesInfo.Uses[ident]
 			if !ok {
 				return true
 			}
@@ -677,7 +677,7 @@ func (g *Graph) entry(pkg *ssa.Package, tinfo *types.Info) {
 		})
 	}
 	// Find constants being used in non-function contexts
-	for ident, obj := range tinfo.Uses {
+	for ident, obj := range pkg.TypesInfo.Uses {
 		_, ok := obj.(*types.Const)
 		if !ok {
 			continue
@@ -687,6 +687,36 @@ func (g *Graph) entry(pkg *ssa.Package, tinfo *types.Info) {
 		}
 		g.seeAndUse(obj, nil, "used constant")
 	}
+
+	var fn *ssa.Function
+	pkg.Inspector.Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.GenDecl)(nil)}, func(n ast.Node) {
+		switch n := n.(type) {
+		case *ast.FuncDecl:
+			fn = pkg.SSA.Prog.FuncValue(lintdsl.ObjectOf(g.job, n.Name).(*types.Func))
+			if fn != nil {
+				g.see(fn)
+			}
+		case *ast.GenDecl:
+			if n.Tok != token.VAR {
+				return
+			}
+			for _, spec := range n.Specs {
+				v := spec.(*ast.ValueSpec)
+				if v.Type == nil {
+					continue
+				}
+				T := lintdsl.TypeOf(g.job, v.Type)
+				if fn != nil {
+					g.seeAndUse(T, fn, "var decl")
+				} else {
+					g.seeAndUse(T, nil, "var decl")
+				}
+				g.typ(T)
+			}
+		default:
+			panic(fmt.Sprintf("unreachable: %T", n))
+		}
+	})
 
 	for _, m := range g.pkg.Members {
 		switch m := m.(type) {
