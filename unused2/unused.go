@@ -227,32 +227,26 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 		}
 
 		if c.Debug != nil {
+			debugNode := func(node *Node) {
+				if node.obj == nil {
+					c.debugf("n%d [label=\"Root\"];\n", node.id)
+				} else {
+					c.debugf("n%d [label=%q];\n", node.id, node.obj)
+				}
+				for used, reasons := range node.used {
+					for _, reason := range reasons {
+						c.debugf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
+					}
+				}
+			}
+
 			c.debugf("digraph{\n")
-			c.debugf("n%d [label=\"Root\"];\n", graph.Root.id)
-			for used, reasons := range graph.Root.used {
-				for _, reason := range reasons {
-					c.debugf("n%d -> n%d [label=%q];\n", graph.Root.id, used.id, reason)
-				}
-			}
+			debugNode(graph.Root)
 			for _, node := range graph.Nodes {
-				c.debugf("n%d [label=%q];\n", node.id, node.obj)
-
-				for used, reasons := range node.used {
-					for _, reason := range reasons {
-						c.debugf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
-					}
-				}
+				debugNode(node)
 			}
-
 			graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
-				node := value.(*Node)
-				c.debugf("n%d [label=%q];\n", node.id, node.obj)
-
-				for used, reasons := range node.used {
-					for _, reason := range reasons {
-						c.debugf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
-					}
-				}
+				debugNode(value.(*Node))
 			})
 			c.debugf("}\n")
 		}
