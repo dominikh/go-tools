@@ -3,7 +3,9 @@ package pkg
 import _ "fmt"
 
 type t1 struct{} // MATCH /t1 is unused/
-type t2 struct{}
+type t2 struct {
+	_ int
+}
 type t3 struct{}
 type t4 struct{}
 type t5 struct{}

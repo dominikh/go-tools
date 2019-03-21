@@ -875,6 +875,8 @@ func (g *Graph) typ(t types.Type) {
 			if t.Field(i).Exported() {
 				// (6.2) structs use exported fields
 				g.use(t.Field(i), t, "exported struct field")
+			} else if t.Field(i).Name() == "_" {
+				g.use(t.Field(i), t, "blank field")
 			} else if isNoCopyType(t.Field(i).Type()) {
 				// (6.1) structs use fields of type NoCopy sentinel
 				g.use(t.Field(i), t, "NoCopy sentinel")
