@@ -9,7 +9,7 @@ import (
 	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
 	"honnef.co/go/tools/stylecheck"
-	"honnef.co/go/tools/unused"
+	"honnef.co/go/tools/unused2"
 )
 
 func main() {
@@ -22,9 +22,8 @@ func main() {
 		stylecheck.NewChecker(),
 	}
 
-	uc := unused.NewChecker(unused.CheckAll)
-	uc.ConsiderReflection = true
-	checkers = append(checkers, unused.NewLintChecker(uc))
+	uc := &unused.Checker{}
+	checkers = append(checkers, uc)
 
 	lintutil.ProcessFlagSet(checkers, fs)
 }

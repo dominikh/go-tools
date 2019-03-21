@@ -9,7 +9,7 @@ import (
 
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
-	"honnef.co/go/tools/unused"
+	"honnef.co/go/tools/unused2"
 )
 
 var (
@@ -23,9 +23,8 @@ var (
 	fReflection   bool
 )
 
-func newChecker(mode unused.CheckMode) *unused.Checker {
-	checker := unused.NewChecker(mode)
-
+func newChecker() *unused.Checker {
+	checker := &unused.Checker{}
 	if fDebug != "" {
 		debug, err := os.Create(fDebug)
 		if err != nil {
@@ -35,7 +34,6 @@ func newChecker(mode unused.CheckMode) *unused.Checker {
 	}
 
 	checker.WholeProgram = fWholeProgram
-	checker.ConsiderReflection = fReflection
 	return checker
 }
 
@@ -54,24 +52,6 @@ func main() {
 	fs.BoolVar(&fReflection, "reflect", true, "Consider identifiers as used when it's likely they'll be accessed via reflection")
 	fs.Parse(os.Args[1:])
 
-	var mode unused.CheckMode
-	if fConstants {
-		mode |= unused.CheckConstants
-	}
-	if fFields {
-		mode |= unused.CheckFields
-	}
-	if fFunctions {
-		mode |= unused.CheckFunctions
-	}
-	if fTypes {
-		mode |= unused.CheckTypes
-	}
-	if fVariables {
-		mode |= unused.CheckVariables
-	}
-
-	checker := newChecker(mode)
-	l := unused.NewLintChecker(checker)
-	lintutil.ProcessFlagSet([]lint.Checker{l}, fs)
+	c := newChecker()
+	lintutil.ProcessFlagSet([]lint.Checker{c}, fs)
 }
