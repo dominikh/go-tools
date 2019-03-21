@@ -220,6 +220,37 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			}
 		}
 
+		if debug {
+			fmt.Println("digraph{")
+			fmt.Printf("n%d [label=\"Root\"];\n", graph.Root.id)
+			for used, reasons := range graph.Root.used {
+				for _, reason := range reasons {
+					fmt.Printf("n%d -> n%d [label=%q];\n", graph.Root.id, used.id, reason)
+				}
+			}
+			for _, node := range graph.Nodes {
+				fmt.Printf("n%d [label=%q];\n", node.id, node.obj)
+
+				for used, reasons := range node.used {
+					for _, reason := range reasons {
+						fmt.Printf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
+					}
+				}
+			}
+
+			graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
+				node := value.(*Node)
+				fmt.Printf("n%d [label=%q];\n", node.id, node.obj)
+
+				for used, reasons := range node.used {
+					for _, reason := range reasons {
+						fmt.Printf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
+					}
+				}
+			})
+			fmt.Println("}")
+		}
+
 		graph.color(graph.Root)
 		// if a node is unused, don't report any of the node's
 		// children as unused. for example, if a function is unused,
@@ -408,10 +439,6 @@ func NewGraph() *Graph {
 		seenFns: map[*ssa.Function]struct{}{},
 	}
 	g.Root = g.newNode(nil)
-	if debug {
-		fmt.Printf("n%d [label=\"Root\"];\n", g.Root.id)
-	}
-
 	return g
 }
 
@@ -428,7 +455,7 @@ func (g *Graph) color(root *Node) {
 type Node struct {
 	obj  interface{}
 	id   int
-	used map[*Node]string
+	used map[*Node][]string
 
 	seen  bool
 	quiet bool
@@ -469,17 +496,13 @@ func (g *Graph) newNode(obj interface{}) *Node {
 	return &Node{
 		obj:  obj,
 		id:   g.nodeCounter,
-		used: map[*Node]string{},
+		used: map[*Node][]string{},
 	}
 }
 
-func (n *Node) use(node *Node, reason string) (new bool) {
+func (n *Node) use(node *Node, reason string) {
 	assert(node != nil)
-	if s, ok := n.used[node]; ok && s == reason {
-		return false
-	}
-	n.used[node] = reason
-	return true
+	n.used[node] = append(n.used[node], reason)
 }
 
 // isIrrelevant reports whether an object's presence in the graph is
@@ -560,10 +583,7 @@ func (g *Graph) see(obj interface{}) {
 	}
 
 	// add new node to graph
-	node, new := g.node(obj)
-	if debug && new {
-		fmt.Printf("n%d [label=%q];\n", node.id, obj)
-	}
+	g.node(obj)
 }
 
 func (g *Graph) use(used, by interface{}, reason string) {
@@ -591,18 +611,11 @@ func (g *Graph) use(used, by interface{}, reason string) {
 	usedNode, new := g.node(used)
 	assert(!new)
 	if by == nil {
-		new := g.Root.use(usedNode, reason)
-		if debug && new {
-			fmt.Printf("n%d -> n%d [label=%q];\n", g.Root.id, usedNode.id, reason)
-		}
+		g.Root.use(usedNode, reason)
 	} else {
 		byNode, new := g.node(by)
 		assert(!new)
-		new = byNode.use(usedNode, reason)
-		if debug && new {
-			fmt.Printf("n%d -> n%d [label=%q];\n", byNode.id, usedNode.id, reason)
-		}
-
+		byNode.use(usedNode, reason)
 	}
 }
 
