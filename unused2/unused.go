@@ -885,7 +885,13 @@ func (g *Graph) typ(t types.Type) {
 				// (e3) exported identifiers aren't automatically used.
 				if !g.wholeProgram {
 					// does the embedded field contribute exported methods to the method set?
-					ms := g.msCache.MethodSet(t.Field(i).Type())
+					T := t.Field(i).Type()
+					if _, ok := T.Underlying().(*types.Pointer); !ok {
+						// An embedded field is addressable, so check
+						// the pointer type to get the full method set
+						T = types.NewPointer(T)
+					}
+					ms := g.msCache.MethodSet(T)
 					for j := 0; j < ms.Len(); j++ {
 						if ms.At(j).Obj().Exported() {
 							// (6.4) structs use embedded fields that have exported methods (recursively)

@@ -62,3 +62,11 @@ type t8 struct{ t7 }
 type t9 struct{ t8 }
 
 var _ = t9{}
+
+type t10 struct{}
+
+func (*t10) Foo() {}
+
+type t11 struct{ t10 }
+
+var _ = t11{}
