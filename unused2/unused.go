@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"io"
 	"strings"
 
 	"honnef.co/go/tools/go/types/typeutil"
@@ -17,8 +18,6 @@ import (
 // conversion itself isn't part of that subgraph. even if the function
 // containing the conversion is unused, the fields will be marked as
 // used.
-
-const debug = false
 
 /*
 
@@ -115,6 +114,7 @@ type Unused struct {
 
 type Checker struct {
 	WholeProgram bool
+	Debug        io.Writer
 }
 
 func (*Checker) Name() string   { return "unused" }
@@ -161,6 +161,12 @@ func (c *Checker) Lint(j *lint.Job) {
 			}
 		}
 		j.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), name)
+	}
+}
+
+func (c *Checker) debugf(f string, v ...interface{}) {
+	if c.Debug != nil {
+		fmt.Fprintf(c.Debug, f, v...)
 	}
 }
 
@@ -220,35 +226,35 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			}
 		}
 
-		if debug {
-			fmt.Println("digraph{")
-			fmt.Printf("n%d [label=\"Root\"];\n", graph.Root.id)
+		if c.Debug != nil {
+			c.debugf("digraph{\n")
+			c.debugf("n%d [label=\"Root\"];\n", graph.Root.id)
 			for used, reasons := range graph.Root.used {
 				for _, reason := range reasons {
-					fmt.Printf("n%d -> n%d [label=%q];\n", graph.Root.id, used.id, reason)
+					c.debugf("n%d -> n%d [label=%q];\n", graph.Root.id, used.id, reason)
 				}
 			}
 			for _, node := range graph.Nodes {
-				fmt.Printf("n%d [label=%q];\n", node.id, node.obj)
+				c.debugf("n%d [label=%q];\n", node.id, node.obj)
 
 				for used, reasons := range node.used {
 					for _, reason := range reasons {
-						fmt.Printf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
+						c.debugf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
 					}
 				}
 			}
 
 			graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
 				node := value.(*Node)
-				fmt.Printf("n%d [label=%q];\n", node.id, node.obj)
+				c.debugf("n%d [label=%q];\n", node.id, node.obj)
 
 				for used, reasons := range node.used {
 					for _, reason := range reasons {
-						fmt.Printf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
+						c.debugf("n%d -> n%d [label=%q];\n", node.id, used.id, reason)
 					}
 				}
 			})
-			fmt.Println("}")
+			c.debugf("}\n")
 		}
 
 		graph.color(graph.Root)
@@ -312,9 +318,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 				return
 			}
 			if node.quiet {
-				if debug {
-					fmt.Printf("n%d [color=purple];\n", node.id)
-				}
+				c.debugf("n%d [color=purple];\n", node.id)
 				return
 			}
 
@@ -334,9 +338,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 						break checkPkg
 					}
 				}
-				if debug {
-					fmt.Printf("n%d [color=yellow];\n", node.id)
-				}
+				c.debugf("n%d [color=yellow];\n", node.id)
 				return
 			case packager2:
 				// This happens to filter $bound and $thunk, which
@@ -349,15 +351,11 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 						break checkPkg
 					}
 				}
-				if debug {
-					fmt.Printf("n%d [color=yellow];\n", node.id)
-				}
+				c.debugf("n%d [color=yellow];\n", node.id)
 				return
 			}
 
-			if debug {
-				fmt.Printf("n%d [color=red];\n", node.id)
-			}
+			c.debugf("n%d [color=red];\n", node.id)
 			switch obj := node.obj.(type) {
 			case *types.Var:
 				// don't report unnamed variables (receivers, interface embedding)
@@ -391,9 +389,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 					Position: pos,
 				})
 			default:
-				if debug {
-					fmt.Printf("n%d [color=gray];\n", node.id)
-				}
+				c.debugf("n%d [color=gray];\n", node.id)
 			}
 		}
 		for _, node := range graph.Nodes {
