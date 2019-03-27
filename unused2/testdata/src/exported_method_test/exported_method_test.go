@@ -26,3 +26,13 @@ func TestFoo(t *testing.T) {
 		t.Errorf("got %d, want 13", cr.N)
 	}
 }
+
+var sink int
+
+func BenchmarkFoo(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sink = fn()
+	}
+}
+
+func fn() int { return 0 }

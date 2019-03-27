@@ -19,6 +19,8 @@ import (
 // containing the conversion is unused, the fields will be marked as
 // used.
 
+// TODO(dh): we cannot observe function calls in assembly files.
+
 /*
 
 - packages use:
@@ -29,6 +31,8 @@ import (
   - (1.5) init functions
   - (1.6) functions exported to cgo
   - (1.7) the main function iff in the main package
+  - (1.8) symbols linked via go:linkname
+
 
 - named types use:
   - (2.1) exported methods
@@ -47,6 +51,7 @@ import (
   - types they instantiate or convert to
   - (4.7) fields they access
   - (4.8) types of all instructions
+  - (4.9) package-level variables they assign to iff in tests (sinks for benchmarks)
 
 - conversions use:
   - (5.1) when converting between two equivalent structs, the fields in
@@ -88,7 +93,8 @@ import (
   - (9.4) conversions use the type they convert to
   - (9.5) instructions use their operands
   - (9.6) instructions use their operands' types
-  - (9.7) variable _reads_ use variables, writes do not
+  - (9.7) variable _reads_ use variables, writes do not, except in tests
+  - (9.8) runtime functions that may be called from user code via the compiler
 
 
 - Differences in whole program mode:
@@ -143,6 +149,248 @@ func typString(obj types.Object) string {
 	default:
 		return "identifier"
 	}
+}
+
+// /usr/lib/go/src/runtime/proc.go:433:6: func badmorestackg0 is unused (U1000)
+
+// Functions defined in the Go runtime that may be called through
+// compiler magic or via assembly.
+var runtimeFuncs = map[string]bool{
+	// The first part of the list is copied from
+	// cmd/compile/internal/gc/builtin.go, var runtimeDecls
+	"newobject":            true,
+	"panicindex":           true,
+	"panicslice":           true,
+	"panicdivide":          true,
+	"panicmakeslicelen":    true,
+	"throwinit":            true,
+	"panicwrap":            true,
+	"gopanic":              true,
+	"gorecover":            true,
+	"goschedguarded":       true,
+	"printbool":            true,
+	"printfloat":           true,
+	"printint":             true,
+	"printhex":             true,
+	"printuint":            true,
+	"printcomplex":         true,
+	"printstring":          true,
+	"printpointer":         true,
+	"printiface":           true,
+	"printeface":           true,
+	"printslice":           true,
+	"printnl":              true,
+	"printsp":              true,
+	"printlock":            true,
+	"printunlock":          true,
+	"concatstring2":        true,
+	"concatstring3":        true,
+	"concatstring4":        true,
+	"concatstring5":        true,
+	"concatstrings":        true,
+	"cmpstring":            true,
+	"intstring":            true,
+	"slicebytetostring":    true,
+	"slicebytetostringtmp": true,
+	"slicerunetostring":    true,
+	"stringtoslicebyte":    true,
+	"stringtoslicerune":    true,
+	"slicecopy":            true,
+	"slicestringcopy":      true,
+	"decoderune":           true,
+	"countrunes":           true,
+	"convI2I":              true,
+	"convT16":              true,
+	"convT32":              true,
+	"convT64":              true,
+	"convTstring":          true,
+	"convTslice":           true,
+	"convT2E":              true,
+	"convT2Enoptr":         true,
+	"convT2I":              true,
+	"convT2Inoptr":         true,
+	"assertE2I":            true,
+	"assertE2I2":           true,
+	"assertI2I":            true,
+	"assertI2I2":           true,
+	"panicdottypeE":        true,
+	"panicdottypeI":        true,
+	"panicnildottype":      true,
+	"ifaceeq":              true,
+	"efaceeq":              true,
+	"fastrand":             true,
+	"makemap64":            true,
+	"makemap":              true,
+	"makemap_small":        true,
+	"mapaccess1":           true,
+	"mapaccess1_fast32":    true,
+	"mapaccess1_fast64":    true,
+	"mapaccess1_faststr":   true,
+	"mapaccess1_fat":       true,
+	"mapaccess2":           true,
+	"mapaccess2_fast32":    true,
+	"mapaccess2_fast64":    true,
+	"mapaccess2_faststr":   true,
+	"mapaccess2_fat":       true,
+	"mapassign":            true,
+	"mapassign_fast32":     true,
+	"mapassign_fast32ptr":  true,
+	"mapassign_fast64":     true,
+	"mapassign_fast64ptr":  true,
+	"mapassign_faststr":    true,
+	"mapiterinit":          true,
+	"mapdelete":            true,
+	"mapdelete_fast32":     true,
+	"mapdelete_fast64":     true,
+	"mapdelete_faststr":    true,
+	"mapiternext":          true,
+	"mapclear":             true,
+	"makechan64":           true,
+	"makechan":             true,
+	"chanrecv1":            true,
+	"chanrecv2":            true,
+	"chansend1":            true,
+	"closechan":            true,
+	"writeBarrier":         true,
+	"typedmemmove":         true,
+	"typedmemclr":          true,
+	"typedslicecopy":       true,
+	"selectnbsend":         true,
+	"selectnbrecv":         true,
+	"selectnbrecv2":        true,
+	"selectsetpc":          true,
+	"selectgo":             true,
+	"block":                true,
+	"makeslice":            true,
+	"makeslice64":          true,
+	"growslice":            true,
+	"memmove":              true,
+	"memclrNoHeapPointers": true,
+	"memclrHasPointers":    true,
+	"memequal":             true,
+	"memequal8":            true,
+	"memequal16":           true,
+	"memequal32":           true,
+	"memequal64":           true,
+	"memequal128":          true,
+	"int64div":             true,
+	"uint64div":            true,
+	"int64mod":             true,
+	"uint64mod":            true,
+	"float64toint64":       true,
+	"float64touint64":      true,
+	"float64touint32":      true,
+	"int64tofloat64":       true,
+	"uint64tofloat64":      true,
+	"uint32tofloat64":      true,
+	"complex128div":        true,
+	"racefuncenter":        true,
+	"racefuncenterfp":      true,
+	"racefuncexit":         true,
+	"raceread":             true,
+	"racewrite":            true,
+	"racereadrange":        true,
+	"racewriterange":       true,
+	"msanread":             true,
+	"msanwrite":            true,
+	"x86HasPOPCNT":         true,
+	"x86HasSSE41":          true,
+	"arm64HasATOMICS":      true,
+
+	// The second part of the list is extracted from assembly code in
+	// the standard library, with the exception of the runtime package itself
+	"abort":                 true,
+	"aeshashbody":           true,
+	"args":                  true,
+	"asminit":               true,
+	"badctxt":               true,
+	"badmcall2":             true,
+	"badmcall":              true,
+	"badmorestackg0":        true,
+	"badmorestackgsignal":   true,
+	"badsignal2":            true,
+	"callbackasm1":          true,
+	"callCfunction":         true,
+	"cgocallback_gofunc":    true,
+	"cgocallbackg":          true,
+	"checkgoarm":            true,
+	"check":                 true,
+	"debugCallCheck":        true,
+	"debugCallWrap":         true,
+	"emptyfunc":             true,
+	"entersyscall":          true,
+	"exit":                  true,
+	"exits":                 true,
+	"exitsyscall":           true,
+	"externalthreadhandler": true,
+	"findnull":              true,
+	"goexit1":               true,
+	"gostring":              true,
+	"i386_set_ldt":          true,
+	"_initcgo":              true,
+	"init_thread_tls":       true,
+	"ldt0setup":             true,
+	"libpreinit":            true,
+	"load_g":                true,
+	"morestack":             true,
+	"mstart":                true,
+	"nacl_sysinfo":          true,
+	"nanotimeQPC":           true,
+	"nanotime":              true,
+	"newosproc0":            true,
+	"newproc":               true,
+	"newstack":              true,
+	"noted":                 true,
+	"nowQPC":                true,
+	"osinit":                true,
+	"printf":                true,
+	"racecallback":          true,
+	"reflectcallmove":       true,
+	"reginit":               true,
+	"rt0_go":                true,
+	"save_g":                true,
+	"schedinit":             true,
+	"setldt":                true,
+	"settls":                true,
+	"sighandler":            true,
+	"sigprofNonGo":          true,
+	"sigtrampgo":            true,
+	"_sigtramp":             true,
+	"sigtramp":              true,
+	"stackcheck":            true,
+	"syscall_chdir":         true,
+	"syscall_chroot":        true,
+	"syscall_close":         true,
+	"syscall_dup2":          true,
+	"syscall_execve":        true,
+	"syscall_exit":          true,
+	"syscall_fcntl":         true,
+	"syscall_forkx":         true,
+	"syscall_gethostname":   true,
+	"syscall_getpid":        true,
+	"syscall_ioctl":         true,
+	"syscall_pipe":          true,
+	"syscall_rawsyscall6":   true,
+	"syscall_rawSyscall6":   true,
+	"syscall_rawsyscall":    true,
+	"syscall_RawSyscall":    true,
+	"syscall_rawsysvicall6": true,
+	"syscall_setgid":        true,
+	"syscall_setgroups":     true,
+	"syscall_setpgid":       true,
+	"syscall_setsid":        true,
+	"syscall_setuid":        true,
+	"syscall_syscall6":      true,
+	"syscall_syscall":       true,
+	"syscall_Syscall":       true,
+	"syscall_sysvicall6":    true,
+	"syscall_wait4":         true,
+	"syscall_write":         true,
+	"traceback":             true,
+	"tstart":                true,
+	"usplitR0":              true,
+	"wbBufFlush":            true,
+	"write":                 true,
 }
 
 func (c *Checker) Lint(j *lint.Job) {
@@ -614,6 +862,29 @@ func (g *Graph) seeAndUse(used, by interface{}, reason string) {
 	g.use(used, by, reason)
 }
 
+func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
+	if !obj.Exported() {
+		// object isn't exported, the question is moot
+		return false
+	}
+	if g.wholeProgram {
+		// whole program mode tracks exported identifiers accurately
+		return false
+	}
+	if g.pkg.Pkg.Name() == "main" {
+		// exported identifiers in package main can't be imported
+		return false
+	}
+
+	// at one point we only considered exported identifiers in
+	// *_test.go files if they were Benchmark, Example or Test
+	// functions. However, this doesn't work when we look at one
+	// package at a time, because objects exported in a test variant
+	// of a package may be used by the xtest package. The only
+	// solution would be to look at multiple packages at once
+	return true
+}
+
 func (g *Graph) entry(pkg *lint.Pkg) {
 	// TODO rename Entry
 	g.pkg = pkg.SSA
@@ -642,7 +913,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 		case *types.Const:
 			g.see(obj)
 			fn := surroundingFunc(obj)
-			if fn == nil && obj.Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
+			if fn == nil && g.trackExportedIdentifier(obj) {
 				// (1.4) packages use exported constants (unless in package main)
 				g.use(obj, nil, "exported constant")
 			}
@@ -651,7 +922,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 		}
 	}
 
-	// Find constants being used inside functions
+	// Find constants being used inside functions, find sinks in tests
 	handledConsts := map[*ast.Ident]struct{}{}
 	for _, fn := range g.job.Program.InitialFunctions {
 		if fn.Pkg != g.pkg {
@@ -663,19 +934,40 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 			continue
 		}
 		ast.Inspect(node, func(node ast.Node) bool {
-			ident, ok := node.(*ast.Ident)
-			if !ok {
-				return true
+			switch node := node.(type) {
+			case *ast.Ident:
+				obj, ok := pkg.TypesInfo.Uses[node]
+				if !ok {
+					return true
+				}
+				switch obj := obj.(type) {
+				case *types.Const:
+					g.seeAndUse(obj, fn, "used constant")
+				}
+			case *ast.AssignStmt:
+				for _, expr := range node.Lhs {
+					ident, ok := expr.(*ast.Ident)
+					if !ok {
+						continue
+					}
+					obj := pkg.TypesInfo.ObjectOf(ident)
+					if obj == nil {
+						continue
+					}
+					path := g.pkg.Prog.Fset.File(obj.Pos()).Name()
+					if strings.HasSuffix(path, "_test.go") {
+						if obj.Parent() != nil && obj.Parent().Parent() != nil && obj.Parent().Parent().Parent() == nil {
+							// object's scope is the package, whose
+							// parent is the file, whose parent is nil
+
+							// (4.9) functions use package-level variables they assign to iff in tests (sinks for benchmarks)
+							// (9.7) variable _reads_ use variables, writes do not, except in tests
+							g.seeAndUse(obj, fn, "test sink")
+						}
+					}
+				}
 			}
 
-			obj, ok := pkg.TypesInfo.Uses[ident]
-			if !ok {
-				return true
-			}
-			switch obj := obj.(type) {
-			case *types.Const:
-				g.seeAndUse(obj, fn, "used constant")
-			}
 			return true
 		})
 	}
@@ -728,7 +1020,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 		case *ssa.Global:
 			if m.Object() != nil {
 				g.see(m.Object())
-				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
+				if g.trackExportedIdentifier(m.Object()) {
 					// (1.3) packages use exported variables (unless in package main)
 					g.use(m.Object(), nil, "exported top-level variable")
 				}
@@ -740,13 +1032,17 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 				g.use(m, nil, "init function")
 			}
 			// This branch catches top-level functions, not methods.
-			if m.Object() != nil && m.Object().Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
+			if m.Object() != nil && g.trackExportedIdentifier(m.Object()) {
 				// (1.2) packages use exported functions (unless in package main)
 				g.use(m, nil, "exported top-level function")
 			}
 			if m.Name() == "main" && g.pkg.Pkg.Name() == "main" {
 				// (1.7) packages use the main function iff in the main package
 				g.use(m, nil, "main function")
+			}
+			if g.pkg.Pkg.Path() == "runtime" && runtimeFuncs[m.Name()] {
+				// (9.8) runtime functions that may be called from user code via the compiler
+				g.use(m, nil, "runtime function")
 			}
 			if m.Syntax() != nil {
 				doc := m.Syntax().(*ast.FuncDecl).Doc
@@ -755,6 +1051,9 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 						if strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
 							// (1.6) packages use functions exported to cgo
 							g.use(m, nil, "cgo exported")
+						} else if strings.HasPrefix(cmt.Text, "//go:linkname ") {
+							// (1.8) packages use symbols linked via go:linkname
+							g.use(m, nil, "go:linkname")
 						}
 					}
 				}
@@ -763,7 +1062,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 		case *ssa.Type:
 			if m.Object() != nil {
 				g.see(m.Object())
-				if m.Object().Exported() && g.pkg.Pkg.Name() != "main" && !g.wholeProgram {
+				if g.trackExportedIdentifier(m.Object()) {
 					// (1.1) packages use exported named types (unless in package main)
 					g.use(m.Object(), nil, "exported top-level type")
 				}
@@ -943,6 +1242,8 @@ func (g *Graph) typ(t types.Type) {
 		for i := 0; i < t.NumMethods(); i++ {
 			meth := g.pkg.Prog.FuncValue(t.Method(i))
 			g.see(meth)
+			// don't use trackExportedIdentifier here, we care about
+			// all exported methods, even in package main or in tests.
 			if meth.Object() != nil && meth.Object().Exported() && !g.wholeProgram {
 				// (2.1) named types use exported methods
 				g.use(meth, t, "exported method")
