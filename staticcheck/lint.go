@@ -968,6 +968,21 @@ func (c *Checker) CheckLhsRhsIdentical(j *lint.Job) {
 		if Render(j, op.X) != Render(j, op.Y) {
 			return
 		}
+		l1, ok1 := op.X.(*ast.BasicLit)
+		l2, ok2 := op.Y.(*ast.BasicLit)
+		if ok1 && ok2 && l1.Kind == token.INT && l2.Kind == l1.Kind && l1.Value == "0" && l2.Value == l1.Value && IsGenerated(j.File(l1)) {
+			// cgo generates the following function call:
+			// _cgoCheckPointer(_cgoBase0, 0 == 0) – it uses 0 == 0
+			// instead of true in case the user shadowed the
+			// identifier. Ideally we'd restrict this exception to
+			// calls of _cgoCheckPointer, but it's not worth the
+			// hassle of keeping track of the stack. <lit> <op> <lit>
+			// are very rare to begin with, and we're mostly checking
+			// for them to catch typos such as 1 == 1 where the user
+			// meant to type i == 1. The odds of a false negative for
+			// 0 == 0 are slim.
+			return
+		}
 		j.Errorf(op, "identical expressions on the left and right side of the '%s' operator", op.Op)
 	}
 	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)

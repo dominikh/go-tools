@@ -3,6 +3,9 @@ package pkg
 type Float float64
 
 func fn(a int, s []int, f1 float64, f2 Float) {
+	if 0 == 0 { // MATCH /identical expressions/
+		println()
+	}
 	if 1 == 1 { // MATCH /identical expressions/
 		println()
 	}
