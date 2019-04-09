@@ -33,7 +33,6 @@ import (
   - (1.7) the main function iff in the main package
   - (1.8) symbols linked via go:linkname
 
-
 - named types use:
   - (2.1) exported methods
 
@@ -95,6 +94,14 @@ import (
   - (9.6) instructions use their operands' types
   - (9.7) variable _reads_ use variables, writes do not, except in tests
   - (9.8) runtime functions that may be called from user code via the compiler
+
+
+- const groups:
+  (10.1) if one constant out of a block of constants is used, mark all
+  of them used. a lot of the time, unused constants exist for the sake
+  of completeness. See also
+  https://github.com/dominikh/go-tools/issues/365
+
 
 
 - Differences in whole program mode:
@@ -690,6 +697,13 @@ func (g *Graph) color(root *Node) {
 	}
 }
 
+type ConstGroup struct {
+	// give the struct a size to get unique pointers
+	_ byte
+}
+
+func (ConstGroup) String() string { return "const group" }
+
 type Node struct {
 	obj  interface{}
 	id   int
@@ -992,21 +1006,37 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 				g.see(fn)
 			}
 		case *ast.GenDecl:
-			if n.Tok != token.VAR {
-				return
-			}
-			for _, spec := range n.Specs {
-				v := spec.(*ast.ValueSpec)
-				if v.Type == nil {
-					continue
+			switch n.Tok {
+			case token.CONST:
+				groups := lintdsl.GroupSpecs(g.job, n.Specs)
+				for _, specs := range groups {
+					if len(specs) > 1 {
+						cg := &ConstGroup{}
+						g.see(cg)
+						for _, spec := range specs {
+							for _, name := range spec.(*ast.ValueSpec).Names {
+								obj := pkg.TypesInfo.ObjectOf(name)
+								// (10.1) const groups
+								g.seeAndUse(obj, cg, "const group")
+								g.use(cg, obj, "const group")
+							}
+						}
+					}
 				}
-				T := lintdsl.TypeOf(g.job, v.Type)
-				if fn != nil {
-					g.seeAndUse(T, fn, "var decl")
-				} else {
-					g.seeAndUse(T, nil, "var decl")
+			case token.VAR:
+				for _, spec := range n.Specs {
+					v := spec.(*ast.ValueSpec)
+					if v.Type == nil {
+						continue
+					}
+					T := lintdsl.TypeOf(g.job, v.Type)
+					if fn != nil {
+						g.seeAndUse(T, fn, "var decl")
+					} else {
+						g.seeAndUse(T, nil, "var decl")
+					}
+					g.typ(T)
 				}
-				g.typ(T)
 			}
 		default:
 			panic(fmt.Sprintf("unreachable: %T", n))
