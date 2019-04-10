@@ -9,7 +9,7 @@ import (
 	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
-	"honnef.co/go/tools/unused"
+	"honnef.co/go/tools/unused2"
 )
 
 func main() {
@@ -84,26 +84,9 @@ func main() {
 	}
 
 	if flags.unused.enabled {
-		var mode unused.CheckMode
-		if flags.unused.constants {
-			mode |= unused.CheckConstants
-		}
-		if flags.unused.fields {
-			mode |= unused.CheckFields
-		}
-		if flags.unused.functions {
-			mode |= unused.CheckFunctions
-		}
-		if flags.unused.types {
-			mode |= unused.CheckTypes
-		}
-		if flags.unused.variables {
-			mode |= unused.CheckVariables
-		}
-		uc := unused.NewChecker(mode)
+		uc := &unused.Checker{}
 		uc.WholeProgram = flags.unused.wholeProgram
-		uc.ConsiderReflection = flags.unused.reflection
-		checkers = append(checkers, unused.NewLintChecker(uc))
+		checkers = append(checkers, uc)
 	}
 
 	lintutil.ProcessFlagSet(checkers, fs)
