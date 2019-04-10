@@ -7,6 +7,7 @@ type t3 struct{}
 type alias1 = t1
 type alias2 = t2 // MATCH "alias2 is unused"
 type alias3 = t3
+type alias4 = int
 
 func main() {
 	var _ alias1

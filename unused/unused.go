@@ -1065,7 +1065,17 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 					if v.Assign != 0 {
 						aliasFor := obj.(*types.TypeName).Type()
 						// (2.3) named types use all their aliases. we can't easily track uses of aliases
-						g.seeAndUse(obj, aliasFor, "alias")
+						if isIrrelevant(aliasFor) {
+							// We do not track the type this is an
+							// alias for (for example builtins), so
+							// just mark the alias used.
+							//
+							// FIXME(dh): what about aliases declared inside functions?
+							g.use(obj, nil, "alias")
+						} else {
+							g.see(aliasFor)
+							g.seeAndUse(obj, aliasFor, "alias")
+						}
 					}
 				}
 			}
