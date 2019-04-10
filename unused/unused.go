@@ -888,8 +888,12 @@ func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 		// whole program mode tracks exported identifiers accurately
 		return false
 	}
-	if g.pkg.Pkg.Name() == "main" {
-		// exported identifiers in package main can't be imported
+
+	path := g.pkg.Prog.Fset.Position(obj.Pos()).Filename
+	if g.pkg.Pkg.Name() == "main" && !strings.HasSuffix(path, "_test.go") {
+		// exported identifiers in package main can't be imported.
+		// However, test functions can be called, and xtest packages
+		// even have access to exported identifiers.
 		return false
 	}
 
