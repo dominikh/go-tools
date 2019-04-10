@@ -9,7 +9,7 @@ import (
 
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
-	"honnef.co/go/tools/unused2"
+	"honnef.co/go/tools/unused"
 )
 
 var (

@@ -9,7 +9,7 @@ import (
 	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
 	"honnef.co/go/tools/stylecheck"
-	"honnef.co/go/tools/unused2"
+	"honnef.co/go/tools/unused"
 )
 
 func main() {
