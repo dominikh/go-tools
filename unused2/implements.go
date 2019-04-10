@@ -44,6 +44,7 @@ func (g *Graph) implements(V types.Type, T *types.Interface, msV *types.MethodSe
 	}
 
 	if ityp, _ := V.Underlying().(*types.Interface); ityp != nil {
+		// TODO(dh): is this code reachable?
 		for i := 0; i < T.NumMethods(); i++ {
 			m := T.Method(i)
 			_, obj := lookupMethod(ityp, m.Pkg(), m.Name())
