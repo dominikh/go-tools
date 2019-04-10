@@ -121,9 +121,8 @@ func assert(b bool) {
 	}
 }
 
-type Object struct {
-	Obj  types.Object
-	seen bool
+type Unused struct {
+	Obj types.Object
 }
 
 type Checker struct {
@@ -426,7 +425,7 @@ func (c *Checker) debugf(f string, v ...interface{}) {
 	}
 }
 
-func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
+func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 	scopes := map[*types.Scope]*ssa.Function{}
 	for _, fn := range j.Program.InitialFunctions {
 		if fn.Object() != nil {
@@ -435,7 +434,8 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 		}
 	}
 
-	out := map[token.Position]Object{}
+	seen := map[token.Position]struct{}{}
+	var out []Unused
 	processPkgs := func(pkgs ...*lint.Pkg) {
 		graph := NewGraph()
 		graph.wholeProgram = c.WholeProgram
@@ -575,7 +575,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 				}
 
 				if pos != 0 {
-					out[prog.Fset().Position(pos)] = Object{seen: true}
+					seen[prog.Fset().Position(pos)] = struct{}{}
 				}
 				return
 			}
@@ -622,21 +622,15 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 			case *types.Var:
 				// don't report unnamed variables (receivers, interface embedding)
 				if obj.Name() != "" || obj.IsField() {
-					pos := prog.Fset().Position(obj.Pos())
-					if _, ok := out[pos]; !ok {
-						out[pos] = Object{
-							Obj: obj,
-						}
-					}
+					out = append(out, Unused{
+						Obj: obj,
+					})
 				}
 			case types.Object:
 				if obj.Name() != "_" {
-					pos := prog.Fset().Position(obj.Pos())
-					if _, ok := out[pos]; !ok {
-						out[pos] = Object{
-							Obj: obj,
-						}
-					}
+					out = append(out, Unused{
+						Obj: obj,
+					})
 				}
 			case *ssa.Function:
 				if obj == nil {
@@ -647,12 +641,9 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 					// Closures
 					return
 				}
-				pos := prog.Fset().Position(obj.Pos())
-				if _, ok := out[pos]; !ok {
-					out[pos] = Object{
-						Obj: obj.Object(),
-					}
-				}
+				out = append(out, Unused{
+					Obj: obj.Object(),
+				})
 			default:
 				c.debugf("n%d [color=gray];\n", node.id)
 			}
@@ -673,9 +664,9 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 			processPkgs(pkg)
 		}
 	}
-	out2 := make([]Object, 0, len(out))
+	out2 := make([]Unused, 0, len(out))
 	for _, v := range out {
-		if !v.seen {
+		if _, ok := seen[prog.Fset().Position(v.Obj.Pos())]; !ok {
 			out2 = append(out2, v)
 		}
 	}
