@@ -122,9 +122,8 @@ func assert(b bool) {
 }
 
 type Object struct {
-	Obj      types.Object
-	Position token.Position
-	seen     bool
+	Obj  types.Object
+	seen bool
 }
 
 type Checker struct {
@@ -626,8 +625,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 					pos := prog.Fset().Position(obj.Pos())
 					if _, ok := out[pos]; !ok {
 						out[pos] = Object{
-							Obj:      obj,
-							Position: pos,
+							Obj: obj,
 						}
 					}
 				}
@@ -636,8 +634,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 					pos := prog.Fset().Position(obj.Pos())
 					if _, ok := out[pos]; !ok {
 						out[pos] = Object{
-							Obj:      obj,
-							Position: pos,
+							Obj: obj,
 						}
 					}
 				}
@@ -653,8 +650,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Object {
 				pos := prog.Fset().Position(obj.Pos())
 				if _, ok := out[pos]; !ok {
 					out[pos] = Object{
-						Obj:      obj.Object(),
-						Position: pos,
+						Obj: obj.Object(),
 					}
 				}
 			default:
