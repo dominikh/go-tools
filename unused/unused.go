@@ -1032,16 +1032,15 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 			case token.VAR:
 				for _, spec := range n.Specs {
 					v := spec.(*ast.ValueSpec)
-					if v.Type == nil {
-						continue
+					for _, name := range v.Names {
+						T := lintdsl.TypeOf(g.job, name)
+						if fn != nil {
+							g.seeAndUse(T, fn, "var decl")
+						} else {
+							g.seeAndUse(T, nil, "var decl")
+						}
+						g.typ(T)
 					}
-					T := lintdsl.TypeOf(g.job, v.Type)
-					if fn != nil {
-						g.seeAndUse(T, fn, "var decl")
-					} else {
-						g.seeAndUse(T, nil, "var decl")
-					}
-					g.typ(T)
 				}
 			case token.TYPE:
 				for _, spec := range n.Specs {
