@@ -37,7 +37,7 @@ func sameId(obj types.Object, pkg *types.Package, name string) bool {
 	return pkg.Path() == obj.Pkg().Path()
 }
 
-func (g *Graph) implements(V types.Type, T *types.Interface) ([]*types.Selection, bool) {
+func (g *Graph) implements(V types.Type, T *types.Interface, msV *types.MethodSet) ([]*types.Selection, bool) {
 	// fast path for common case
 	if T.Empty() {
 		return nil, true
@@ -58,11 +58,10 @@ func (g *Graph) implements(V types.Type, T *types.Interface) ([]*types.Selection
 	}
 
 	// A concrete type implements T if it implements all methods of T.
-	ms := g.msCache.MethodSet(V)
 	var sels []*types.Selection
 	for i := 0; i < T.NumMethods(); i++ {
 		m := T.Method(i)
-		sel := ms.Lookup(m.Pkg(), m.Name())
+		sel := msV.Lookup(m.Pkg(), m.Name())
 		if sel == nil {
 			return nil, false
 		}

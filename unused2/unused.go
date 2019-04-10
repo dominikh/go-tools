@@ -471,9 +471,10 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 
 			// (8.0) handle interfaces
 			// (e2) types aim to implement all exported interfaces from all packages
-			for _, iface := range ifaces {
-				for _, t := range notIfaces {
-					if sels, ok := graph.implements(t, iface); ok {
+			for _, t := range notIfaces {
+				ms := graph.msCache.MethodSet(t)
+				for _, iface := range ifaces {
+					if sels, ok := graph.implements(t, iface, ms); ok {
 						for _, sel := range sels {
 							graph.useMethod(t, sel, t, "implements")
 						}
@@ -1145,9 +1146,10 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 		})
 
 		// (8.0) handle interfaces
-		for _, iface := range ifaces {
-			for _, t := range notIfaces {
-				if sels, ok := g.implements(t, iface); ok {
+		for _, t := range notIfaces {
+			ms := g.msCache.MethodSet(t)
+			for _, iface := range ifaces {
+				if sels, ok := g.implements(t, iface, ms); ok {
 					for _, sel := range sels {
 						g.useMethod(t, sel, t, "implements")
 					}
