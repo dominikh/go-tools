@@ -165,6 +165,7 @@ type Check struct {
 	Fn              Func
 	ID              string
 	FilterGenerated bool
+	Doc             string
 }
 
 // A Linter lints Go source code.
