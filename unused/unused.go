@@ -913,6 +913,37 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 	// TODO rename Entry
 	g.pkg = pkg.SSA
 
+	for _, f := range pkg.Syntax {
+		for _, cg := range f.Comments {
+			for _, c := range cg.List {
+				if strings.HasPrefix(c.Text, "//go:linkname ") {
+					// FIXME(dh): we're looking at all comments. The
+					// compiler only looks at comments in the
+					// left-most column. The intention probably is to
+					// only look at top-level comments.
+
+					// (1.8) packages use symbols linked via go:linkname
+					fields := strings.Fields(c.Text)
+					if len(fields) == 3 {
+						if m, ok := pkg.SSA.Members[fields[1]]; ok {
+							var obj interface{}
+							switch m := m.(type) {
+							case *ssa.Global:
+								obj = m.Object()
+							case *ssa.Function:
+								obj = m
+							default:
+								panic(fmt.Sprintf("unhandled type: %T", m))
+							}
+							assert(obj != nil)
+							g.seeAndUse(obj, nil, "go:linkname")
+						}
+					}
+				}
+			}
+		}
+	}
+
 	surroundingFunc := func(obj types.Object) *ssa.Function {
 		scope := obj.Parent()
 		for scope != nil {
@@ -1122,9 +1153,6 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 						if strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
 							// (1.6) packages use functions exported to cgo
 							g.use(m, nil, "cgo exported")
-						} else if strings.HasPrefix(cmt.Text, "//go:linkname ") {
-							// (1.8) packages use symbols linked via go:linkname
-							g.use(m, nil, "go:linkname")
 						}
 					}
 				}
