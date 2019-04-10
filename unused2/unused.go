@@ -121,10 +121,6 @@ func assert(b bool) {
 	}
 }
 
-type Unused struct {
-	Obj types.Object
-}
-
 type Checker struct {
 	WholeProgram bool
 	Debug        io.Writer
@@ -403,19 +399,19 @@ var runtimeFuncs = map[string]bool{
 func (c *Checker) Lint(j *lint.Job) {
 	unused := c.Check(j.Program, j)
 	for _, u := range unused {
-		name := u.Obj.Name()
-		if sig, ok := u.Obj.Type().(*types.Signature); ok && sig.Recv() != nil {
+		name := u.Name()
+		if sig, ok := u.Type().(*types.Signature); ok && sig.Recv() != nil {
 			switch sig.Recv().Type().(type) {
 			case *types.Named, *types.Pointer:
 				typ := types.TypeString(sig.Recv().Type(), func(*types.Package) string { return "" })
 				if len(typ) > 0 && typ[0] == '*' {
-					name = fmt.Sprintf("(%s).%s", typ, u.Obj.Name())
+					name = fmt.Sprintf("(%s).%s", typ, u.Name())
 				} else if len(typ) > 0 {
-					name = fmt.Sprintf("%s.%s", typ, u.Obj.Name())
+					name = fmt.Sprintf("%s.%s", typ, u.Name())
 				}
 			}
 		}
-		j.Errorf(u.Obj, "%s %s is unused", typString(u.Obj), name)
+		j.Errorf(u, "%s %s is unused", typString(u), name)
 	}
 }
 
@@ -425,7 +421,7 @@ func (c *Checker) debugf(f string, v ...interface{}) {
 	}
 }
 
-func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
+func (c *Checker) Check(prog *lint.Program, j *lint.Job) []types.Object {
 	scopes := map[*types.Scope]*ssa.Function{}
 	for _, fn := range j.Program.InitialFunctions {
 		if fn.Object() != nil {
@@ -435,7 +431,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 	}
 
 	seen := map[token.Position]struct{}{}
-	var out []Unused
+	var out []types.Object
 	processPkgs := func(pkgs ...*lint.Pkg) {
 		graph := NewGraph()
 		graph.wholeProgram = c.WholeProgram
@@ -622,15 +618,11 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			case *types.Var:
 				// don't report unnamed variables (receivers, interface embedding)
 				if obj.Name() != "" || obj.IsField() {
-					out = append(out, Unused{
-						Obj: obj,
-					})
+					out = append(out, obj)
 				}
 			case types.Object:
 				if obj.Name() != "_" {
-					out = append(out, Unused{
-						Obj: obj,
-					})
+					out = append(out, obj)
 				}
 			case *ssa.Function:
 				if obj == nil {
@@ -641,9 +633,7 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 					// Closures
 					return
 				}
-				out = append(out, Unused{
-					Obj: obj.Object(),
-				})
+				out = append(out, obj.Object())
 			default:
 				c.debugf("n%d [color=gray];\n", node.id)
 			}
@@ -664,9 +654,9 @@ func (c *Checker) Check(prog *lint.Program, j *lint.Job) []Unused {
 			processPkgs(pkg)
 		}
 	}
-	out2 := make([]Unused, 0, len(out))
+	out2 := make([]types.Object, 0, len(out))
 	for _, v := range out {
-		if _, ok := seen[prog.Fset().Position(v.Obj.Pos())]; !ok {
+		if _, ok := seen[prog.Fset().Position(v.Pos())]; !ok {
 			out2 = append(out2, v)
 		}
 	}
