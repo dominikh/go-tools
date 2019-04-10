@@ -35,6 +35,7 @@ import (
 
 - named types use:
   - (2.1) exported methods
+  - (2.2) the type they're based on
 
 - variables and constants use:
   - their types
@@ -922,8 +923,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 	for _, obj := range pkg.TypesInfo.Defs {
 		switch obj := obj.(type) {
 		case *types.TypeName:
-			g.see(obj)
-			g.typ(obj.Type())
+			// types are being handled by walking the AST
 		case *types.Const:
 			g.see(obj)
 			fn := surroundingFunc(obj)
@@ -1035,6 +1035,23 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 					} else {
 						g.seeAndUse(T, nil, "var decl")
 					}
+					g.typ(T)
+				}
+			case token.TYPE:
+				for _, spec := range n.Specs {
+					// go/types doesn't provide a way to go from a
+					// types.Named to the named type it was based on
+					// (the t1 in type t2 t1). Therefore we walk the
+					// AST and process GenDecls.
+					//
+					// (2.2) named types use the type they're based on
+					v := spec.(*ast.TypeSpec)
+					T := pkg.TypesInfo.TypeOf(v.Type)
+					obj := pkg.TypesInfo.ObjectOf(v.Name)
+					g.see(obj)
+					g.see(T)
+					g.use(T, obj, "type")
+					g.typ(obj.Type())
 					g.typ(T)
 				}
 			}
