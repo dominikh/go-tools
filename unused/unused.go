@@ -36,6 +36,9 @@ import (
 - named types use:
   - (2.1) exported methods
   - (2.2) the type they're based on
+  - (2.3) all their aliases. we can't easily track uses of aliases
+    because go/types turns them into uses of the aliased types. assume
+    that if a type is used, so are all of its aliases.
 
 - variables and constants use:
   - their types
@@ -1058,6 +1061,12 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 					g.use(T, obj, "type")
 					g.typ(obj.Type())
 					g.typ(T)
+
+					if v.Assign != 0 {
+						aliasFor := obj.(*types.TypeName).Type()
+						// (2.3) named types use all their aliases. we can't easily track uses of aliases
+						g.seeAndUse(obj, aliasFor, "alias")
+					}
 				}
 			}
 		default:
