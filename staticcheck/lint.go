@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	texttemplate "text/template"
+	"unicode"
 
 	. "honnef.co/go/tools/arg"
 	"honnef.co/go/tools/deprecated"
@@ -392,6 +393,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA5004", FilterGenerated: false, Fn: c.CheckLoopEmptyDefault, Doc: docSA5004},
 		{ID: "SA5005", FilterGenerated: false, Fn: c.CheckCyclicFinalizer, Doc: docSA5005},
 		{ID: "SA5007", FilterGenerated: false, Fn: c.CheckInfiniteRecursion, Doc: docSA5007},
+		{ID: "SA5008", FilterGenerated: false, Fn: c.CheckStructTags, Doc: ``},
 
 		{ID: "SA6000", FilterGenerated: false, Fn: c.callChecker(checkRegexpMatchLoopRules), Doc: docSA6000},
 		{ID: "SA6001", FilterGenerated: false, Fn: c.CheckMapBytesKey, Doc: docSA6001},
@@ -3027,4 +3029,101 @@ func (c *Checker) CheckSingleArgAppend(j *lint.Job) {
 		j.Errorf(call, "x = append(y) is equivalent to x = y")
 	}
 	InspectPreorder(j, []ast.Node{(*ast.CallExpr)(nil)}, fn)
+}
+
+func (c *Checker) CheckStructTags(j *lint.Job) {
+	fn := func(node ast.Node) {
+		for _, field := range node.(*ast.StructType).Fields.List {
+			if field.Tag == nil {
+				continue
+			}
+			tags, err := parseStructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
+			if err != nil {
+				j.Errorf(field.Tag, "unparseable struct tag: %s", err)
+				continue
+			}
+			for k, v := range tags {
+				if len(v) > 1 {
+					j.Errorf(field.Tag, "duplicate struct tag %q", k)
+					continue
+				}
+
+				switch k {
+				case "json":
+					checkJSONTag(j, field, v[0])
+				case "xml":
+					checkXMLTag(j, field, v[0])
+				}
+			}
+		}
+	}
+	InspectPreorder(j, []ast.Node{(*ast.StructType)(nil)}, fn)
+}
+
+func checkJSONTag(j *lint.Job, field *ast.Field, tag string) {
+	if len(tag) == 0 {
+		// TODO(dh): should we flag empty tags?
+	}
+	fields := strings.Split(tag, ",")
+	for _, r := range fields[0] {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("!#$%&()*+-./:<=>?@[]^_{|}~ ", r) {
+			j.Errorf(field.Tag, "invalid JSON field name %q", fields[0])
+		}
+	}
+	var co, cs int
+	for _, s := range fields[1:] {
+		switch s {
+		case "omitempty":
+			co++
+		case "":
+			// allow stuff like "-,"
+		case "string":
+			cs++
+			// only for string, floating point, integer and bool
+			T := Dereference(TypeOf(j, field.Type).Underlying()).Underlying()
+			basic, ok := T.(*types.Basic)
+			if !ok || (basic.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString)) == 0 {
+				j.Errorf(field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
+			}
+		default:
+			j.Errorf(field.Tag, "unknown JSON option %q", s)
+		}
+	}
+	if co > 1 {
+		j.Errorf(field.Tag, `duplicate JSON option "omitempty"`)
+	}
+	if cs > 1 {
+		j.Errorf(field.Tag, `duplicate JSON option "string"`)
+	}
+}
+
+func checkXMLTag(j *lint.Job, field *ast.Field, tag string) {
+	if len(tag) == 0 {
+		// TODO(dh): should we flag empty tags?
+	}
+	fields := strings.Split(tag, ",")
+	counts := map[string]int{}
+	var exclusives []string
+	for _, s := range fields[1:] {
+		switch s {
+		case "attr", "chardata", "cdata", "innerxml", "comment":
+			counts[s]++
+			if counts[s] == 1 {
+				exclusives = append(exclusives, s)
+			}
+		case "omitempty", "any":
+			counts[s]++
+		case "":
+		default:
+			j.Errorf(field.Tag, "unknown XML option %q", s)
+		}
+	}
+	for k, v := range counts {
+		if v > 1 {
+			j.Errorf(field.Tag, "duplicate XML option %q", k)
+		}
+	}
+	if len(exclusives) > 1 {
+		j.Errorf(field.Tag, "XML options %s are mutually exclusive", strings.Join(exclusives, " and "))
+	}
 }
