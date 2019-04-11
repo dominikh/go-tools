@@ -230,7 +230,46 @@ var (
 		"(*encoding/json.Encoder).Encode": checkUnsupportedMarshalImpl(Arg("(*encoding/json.Encoder).Encode.v"), "json", "MarshalJSON", "MarshalText"),
 		"(*encoding/xml.Encoder).Encode":  checkUnsupportedMarshalImpl(Arg("(*encoding/xml.Encoder).Encode.v"), "xml", "MarshalXML", "MarshalText"),
 	}
+
+	checkAtomicAlignment = map[string]CallCheck{
+		"sync/atomic.AddInt64":             checkAtomicAlignmentImpl,
+		"sync/atomic.AddUint64":            checkAtomicAlignmentImpl,
+		"sync/atomic.CompareAndSwapInt64":  checkAtomicAlignmentImpl,
+		"sync/atomic.CompareAndSwapUint64": checkAtomicAlignmentImpl,
+		"sync/atomic.LoadInt64":            checkAtomicAlignmentImpl,
+		"sync/atomic.LoadUint64":           checkAtomicAlignmentImpl,
+		"sync/atomic.StoreInt64":           checkAtomicAlignmentImpl,
+		"sync/atomic.StoreUint64":          checkAtomicAlignmentImpl,
+		"sync/atomic.SwapInt64":            checkAtomicAlignmentImpl,
+		"sync/atomic.SwapUint64":           checkAtomicAlignmentImpl,
+	}
 )
+
+func checkAtomicAlignmentImpl(call *Call) {
+	sizes := call.Job.Program.InitialPackages[0].TypesSizes
+	if sizes.Sizeof(types.Typ[types.Uintptr]) != 4 {
+		// Not running on a 32-bit platform
+		return
+	}
+	v, ok := call.Args[0].Value.Value.(*ssa.FieldAddr)
+	if !ok {
+		// TODO(dh): also check indexing into arrays and slices
+		return
+	}
+	T := v.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct)
+	fields := make([]*types.Var, 0, T.NumFields())
+	for i := 0; i < T.NumFields() && i <= v.Field; i++ {
+		fields = append(fields, T.Field(i))
+	}
+
+	off := sizes.Offsetsof(fields)[v.Field]
+	if off%8 != 0 {
+		msg := fmt.Sprintf("address of non 64-bit aligned field %s passed to %s",
+			T.Field(v.Field).Name(),
+			CallName(call.Instr.Common()))
+		call.Invalid(msg)
+	}
+}
 
 func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 	return func(call *Call) {
@@ -356,6 +395,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA1024", FilterGenerated: false, Fn: c.callChecker(checkUniqueCutsetRules), Doc: docSA1024},
 		{ID: "SA1025", FilterGenerated: false, Fn: c.CheckTimerResetReturnValue, Doc: docSA1025},
 		{ID: "SA1026", FilterGenerated: false, Fn: c.callChecker(checkUnsupportedMarshal), Doc: ``},
+		{ID: "SA1027", FilterGenerated: false, Fn: c.callChecker(checkAtomicAlignment), Doc: ``},
 
 		{ID: "SA2000", FilterGenerated: false, Fn: c.CheckWaitgroupAdd, Doc: docSA2000},
 		{ID: "SA2001", FilterGenerated: false, Fn: c.CheckEmptyCriticalSection, Doc: docSA2001},
