@@ -89,6 +89,11 @@ import (
     called. This is to accomodate sum types (unexported interface
     method that must exist but never gets called.)
 
+  - (8.4) All embedded interfaces are marked as used. This is an
+    extension of 8.3, but we have to explicitly track embedded
+    interfaces because in a chain C->B->A, B wouldn't be marked as
+    used by 8.3 just because it contributes A's methods to C.
+
 - Inherent uses:
   - thunks and other generated wrappers call the real function
   - (9.2) variables use their types
@@ -1372,6 +1377,11 @@ func (g *Graph) typ(t types.Type) {
 			g.seeAndUse(m, t, "interface method")
 			g.seeAndUse(m.Type().(*types.Signature), m, "signature")
 			g.signature(m.Type().(*types.Signature))
+		}
+		for i := 0; i < t.NumEmbeddeds(); i++ {
+			tt := t.EmbeddedType(i)
+			// (8.4) All embedded interfaces are marked as used
+			g.seeAndUse(tt, t, "embedded interface")
 		}
 	case *types.Array:
 		// (9.3) types use their underlying and element types
