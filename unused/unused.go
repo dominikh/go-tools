@@ -70,7 +70,8 @@ import (
   - (6.4) embedded fields that have exported methods (recursively)
   - (6.5) embedded structs that have exported fields (recursively)
 
-- field accesses use fields
+- (7.1) field accesses use fields
+- (7.2) fields use their types
 
 - (8.0) How we handle interfaces:
   - (8.1) We do not technically care about interfaces that only consist of
@@ -794,7 +795,6 @@ func isIrrelevant(obj interface{}) bool {
 		}
 	}
 	if T, ok := obj.(types.Type); ok {
-		T = lintdsl.Dereference(T)
 		switch T := T.(type) {
 		case *types.Array:
 			return isIrrelevant(T.Elem())

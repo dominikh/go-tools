@@ -11,3 +11,7 @@ var typeOfWkt = reflect.TypeOf((*wkt)(nil)).Elem()
 func Fn() {
 	_ = typeOfWkt
 }
+
+type t *int
+
+var _ t
