@@ -1453,6 +1453,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					case *ssa.Const:
 						// (9.6) instructions use their operands' types
 						g.seeAndUse(v.Type(), fn, "constant's type")
+						g.typ(v.Type())
 					case *ssa.Global:
 						if v.Object() != nil {
 							// (9.5) instructions use their operands
