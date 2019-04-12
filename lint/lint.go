@@ -353,6 +353,19 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	l.automaticIgnores = nil
 	for _, pkg := range initial {
 		for _, f := range pkg.Syntax {
+			found := false
+		commentLoop:
+			for _, cg := range f.Comments {
+				for _, c := range cg.List {
+					if strings.Contains(c.Text, "//lint:") {
+						found = true
+						break commentLoop
+					}
+				}
+			}
+			if !found {
+				continue
+			}
 			cm := ast.NewCommentMap(pkg.Fset, f, f.Comments)
 			for node, cgs := range cm {
 				for _, cg := range cgs {
