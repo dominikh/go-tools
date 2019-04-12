@@ -306,6 +306,7 @@ func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, erro
 		return nil, err
 	}
 	stats.PackageLoading = time.Since(t)
+	runtime.GC()
 
 	var problems []lint.Problem
 	workingPkgs := make([]*packages.Package, 0, len(pkgs))

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -268,6 +269,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	if stats != nil {
 		stats.SSABuild = time.Since(t)
 	}
+	runtime.GC()
 
 	t = time.Now()
 	pkgMap := map[*ssa.Package]*Pkg{}
