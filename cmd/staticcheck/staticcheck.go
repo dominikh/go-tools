@@ -20,10 +20,8 @@ func main() {
 		simple.NewChecker(),
 		staticcheck.NewChecker(),
 		stylecheck.NewChecker(),
+		&unused.Checker{},
 	}
-
-	uc := &unused.Checker{}
-	checkers = append(checkers, uc)
 
 	lintutil.ProcessFlagSet(checkers, fs)
 }

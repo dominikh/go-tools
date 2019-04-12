@@ -677,10 +677,7 @@ func (prog *Program) isGenerated(path string) bool {
 }
 
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
-	tf := j.Program.SSA.Fset.File(n.Pos())
-	f := j.Program.tokenFileMap[tf]
-	pkg := j.Program.astFileMap[f]
-
+	pkg := j.NodePackage(n)
 	pos := j.Program.DisplayPosition(n.Pos())
 	if j.Program.isGenerated(pos.Filename) && j.check.FilterGenerated {
 		return nil
