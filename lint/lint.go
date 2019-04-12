@@ -2,6 +2,7 @@
 package lint // import "honnef.co/go/tools/lint"
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -708,4 +709,52 @@ func allPackages(pkgs []*packages.Package) []*packages.Package {
 		nil,
 	)
 	return out
+}
+
+var bufferPool = &sync.Pool{
+	New: func() interface{} {
+		buf := bytes.NewBuffer(nil)
+		buf.Grow(64)
+		return buf
+	},
+}
+
+func FuncName(f *types.Func) string {
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	if f.Type() != nil {
+		sig := f.Type().(*types.Signature)
+		if recv := sig.Recv(); recv != nil {
+			buf.WriteByte('(')
+			if _, ok := recv.Type().(*types.Interface); ok {
+				// gcimporter creates abstract methods of
+				// named interfaces using the interface type
+				// (not the named type) as the receiver.
+				// Don't print it in full.
+				buf.WriteString("interface")
+			} else {
+				types.WriteType(buf, recv.Type(), nil)
+			}
+			buf.WriteByte(')')
+			buf.WriteByte('.')
+		} else if f.Pkg() != nil {
+			writePackage(buf, f.Pkg())
+		}
+	}
+	buf.WriteString(f.Name())
+	s := buf.String()
+	bufferPool.Put(buf)
+	return s
+}
+
+func writePackage(buf *bytes.Buffer, pkg *types.Package) {
+	if pkg == nil {
+		return
+	}
+	var s string
+	s = pkg.Path()
+	if s != "" {
+		buf.WriteString(s)
+		buf.WriteByte('.')
+	}
 }

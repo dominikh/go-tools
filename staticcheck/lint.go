@@ -771,7 +771,7 @@ func (c *Checker) CheckWaitgroupAdd(j *lint.Job) {
 		if !ok {
 			return
 		}
-		if fn.FullName() == "(*sync.WaitGroup).Add" {
+		if lint.FuncName(fn) == "(*sync.WaitGroup).Add" {
 			j.Errorf(sel, "should call %s before starting the goroutine to avoid a race",
 				Render(j, stmt))
 		}
@@ -2540,7 +2540,7 @@ func (c *Checker) checkCalls(j *lint.Job, rules map[string]CallCheck) {
 				continue
 			}
 
-			r, ok := rules[obj.FullName()]
+			r, ok := rules[lint.FuncName(obj)]
 			if !ok {
 				continue
 			}

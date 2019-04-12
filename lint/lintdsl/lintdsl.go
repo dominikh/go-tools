@@ -30,7 +30,7 @@ func CallName(call *ssa.CallCommon) string {
 		if !ok {
 			return ""
 		}
-		return fn.FullName()
+		return lint.FuncName(fn)
 	case *ssa.Builtin:
 		return v.Name()
 	}
@@ -239,12 +239,12 @@ func CallNameAST(j *lint.Job, call *ast.CallExpr) string {
 		if !ok {
 			return ""
 		}
-		return fn.FullName()
+		return lint.FuncName(fn)
 	case *ast.Ident:
 		obj := ObjectOf(j, fun)
 		switch obj := obj.(type) {
 		case *types.Func:
-			return obj.FullName()
+			return lint.FuncName(obj)
 		case *types.Builtin:
 			return obj.Name()
 		default:

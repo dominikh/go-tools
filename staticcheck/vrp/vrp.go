@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
 )
 
@@ -291,7 +292,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 			case *ssa.Call:
 				if static := ins.Common().StaticCallee(); static != nil {
 					if fn, ok := static.Object().(*types.Func); ok {
-						switch fn.FullName() {
+						switch lint.FuncName(fn) {
 						case "bytes.Index", "bytes.IndexAny", "bytes.IndexByte",
 							"bytes.IndexFunc", "bytes.IndexRune", "bytes.LastIndex",
 							"bytes.LastIndexAny", "bytes.LastIndexByte", "bytes.LastIndexFunc",
