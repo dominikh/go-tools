@@ -107,6 +107,11 @@ func (gi *GlobIgnore) Match(p Problem) bool {
 	return false
 }
 
+type tokenFileMapEntry struct {
+	af  *ast.File
+	pkg *Pkg
+}
+
 type Program struct {
 	SSA              *ssa.Program
 	InitialPackages  []*Pkg
@@ -116,8 +121,7 @@ type Program struct {
 	Files            []*ast.File
 	GoVersion        int
 
-	tokenFileMap map[*token.File]*ast.File
-	astFileMap   map[*ast.File]*Pkg
+	tokenFileMap map[*token.File]tokenFileMapEntry
 	packagesMap  map[string]*packages.Package
 
 	genMu        sync.RWMutex
@@ -209,7 +213,7 @@ func (l *Linter) ignore(p Problem) bool {
 }
 
 func (prog *Program) File(node Positioner) *ast.File {
-	return prog.tokenFileMap[prog.SSA.Fset.File(node.Pos())]
+	return prog.tokenFileMap[prog.SSA.Fset.File(node.Pos())].af
 }
 
 func (j *Job) File(node Positioner) *ast.File {
@@ -309,8 +313,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		InitialPackages: pkgs,
 		AllPackages:     allPkgs,
 		GoVersion:       l.GoVersion,
-		tokenFileMap:    map[*token.File]*ast.File{},
-		astFileMap:      map[*ast.File]*Pkg{},
+		tokenFileMap:    map[*token.File]tokenFileMapEntry{},
 		generatedMap:    map[string]bool{},
 	}
 	prog.packagesMap = map[string]*packages.Package{}
@@ -333,17 +336,16 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	}
 	for _, pkg := range pkgs {
 		prog.Files = append(prog.Files, pkg.Syntax...)
-
-		ssapkg := ssaprog.Package(pkg.Types)
-		for _, f := range pkg.Syntax {
-			prog.astFileMap[f] = pkgMap[ssapkg]
-		}
 	}
 
 	for _, pkg := range allPkgs {
 		for _, f := range pkg.Syntax {
 			tf := pkg.Fset.File(f.Pos())
-			prog.tokenFileMap[tf] = f
+			ssapkg := ssaprog.Package(pkg.Types)
+			prog.tokenFileMap[tf] = tokenFileMapEntry{
+				af:  f,
+				pkg: pkgMap[ssapkg],
+			}
 		}
 	}
 
@@ -489,7 +491,9 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		}
 
 		couldveMatched := false
-		for f, pkg := range prog.astFileMap {
+		for _, v := range prog.tokenFileMap {
+			f := v.af
+			pkg := v.pkg
 			if prog.Fset().Position(f.Pos()).Filename != ig.File {
 				continue
 			}
@@ -677,8 +681,7 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 }
 
 func (j *Job) NodePackage(node Positioner) *Pkg {
-	f := j.File(node)
-	return j.Program.astFileMap[f]
+	return j.Program.tokenFileMap[j.Program.SSA.Fset.File(node.Pos())].pkg
 }
 
 func allPackages(pkgs []*packages.Package) []*packages.Package {
