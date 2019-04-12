@@ -17,6 +17,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -144,6 +145,10 @@ func findCheck(cs []lint.Checker, check string) (lint.Check, bool) {
 }
 
 func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
+	if _, ok := os.LookupEnv("GOGC"); !ok {
+		debug.SetGCPercent(50)
+	}
+
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
