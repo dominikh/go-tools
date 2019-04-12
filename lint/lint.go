@@ -401,23 +401,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		}
 	}
 
-	sizes := struct {
-		types      int
-		defs       int
-		uses       int
-		implicits  int
-		selections int
-		scopes     int
-	}{}
-	for _, pkg := range pkgs {
-		sizes.types += len(pkg.TypesInfo.Types)
-		sizes.defs += len(pkg.TypesInfo.Defs)
-		sizes.uses += len(pkg.TypesInfo.Uses)
-		sizes.implicits += len(pkg.TypesInfo.Implicits)
-		sizes.selections += len(pkg.TypesInfo.Selections)
-		sizes.scopes += len(pkg.TypesInfo.Scopes)
-	}
-
 	if stats != nil {
 		stats.OtherInitWork = time.Since(t)
 	}
