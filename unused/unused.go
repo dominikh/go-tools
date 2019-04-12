@@ -833,6 +833,18 @@ func isIrrelevant(obj interface{}) bool {
 	return false
 }
 
+func (g *Graph) isInterestingPackage(pkg *types.Package) bool {
+	if g.wholeProgram {
+		for _, opkg := range g.job.Program.InitialPackages {
+			if opkg.Types == pkg {
+				return true
+			}
+		}
+		return false
+	}
+	return pkg == g.pkg.Pkg
+}
+
 func (g *Graph) see(obj interface{}) {
 	if isIrrelevant(obj) {
 		return
@@ -840,7 +852,7 @@ func (g *Graph) see(obj interface{}) {
 
 	assert(obj != nil)
 	if obj, ok := obj.(types.Object); ok && obj.Pkg() != nil {
-		if obj.Pkg() != g.pkg.Pkg {
+		if !g.isInterestingPackage(obj.Pkg()) {
 			return
 		}
 	}
@@ -861,16 +873,14 @@ func (g *Graph) use(used, by interface{}, reason string) {
 	if _, ok := by.(*types.Func); ok {
 		assert(g.pkg.Prog.FuncValue(by.(*types.Func)) == nil)
 	}
-	if !g.wholeProgram {
-		if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
-			if obj.Pkg() != g.pkg.Pkg {
-				return
-			}
+	if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
+		if !g.isInterestingPackage(obj.Pkg()) {
+			return
 		}
-		if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
-			if obj.Pkg() != g.pkg.Pkg {
-				return
-			}
+	}
+	if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
+		if !g.isInterestingPackage(obj.Pkg()) {
+			return
 		}
 	}
 	usedNode, new := g.node(used)
