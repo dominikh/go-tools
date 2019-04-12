@@ -394,8 +394,8 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA1023", FilterGenerated: false, Fn: c.CheckWriterBufferModified, Doc: docSA1023},
 		{ID: "SA1024", FilterGenerated: false, Fn: c.callChecker(checkUniqueCutsetRules), Doc: docSA1024},
 		{ID: "SA1025", FilterGenerated: false, Fn: c.CheckTimerResetReturnValue, Doc: docSA1025},
-		{ID: "SA1026", FilterGenerated: false, Fn: c.callChecker(checkUnsupportedMarshal), Doc: ``},
-		{ID: "SA1027", FilterGenerated: false, Fn: c.callChecker(checkAtomicAlignment), Doc: ``},
+		{ID: "SA1026", FilterGenerated: false, Fn: c.callChecker(checkUnsupportedMarshal), Doc: docSA1026},
+		{ID: "SA1027", FilterGenerated: false, Fn: c.callChecker(checkAtomicAlignment), Doc: docSA1027},
 
 		{ID: "SA2000", FilterGenerated: false, Fn: c.CheckWaitgroupAdd, Doc: docSA2000},
 		{ID: "SA2001", FilterGenerated: false, Fn: c.CheckEmptyCriticalSection, Doc: docSA2001},

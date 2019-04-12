@@ -26,6 +26,19 @@ Available since
 
 var docSA1004 = `Suspiciously small untyped constant in time.Sleep
 
+The time.Sleep function takes a time.Duration as its only argument.
+Durations are expressed in nanoseconds. Thus, calling time.Sleep(1)
+will sleep for 1 nanosecond. This is a common source of bugs, as sleep
+functions in other languages often accept seconds or milliseconds.
+
+The time package provides constants such as time.Second to express
+large durations. These can be combined with arithmetic to express
+arbitrary durations, for example '5 * time.Second' for 5 seconds.
+
+If you truly meant to sleep for a tiny amount of time, use
+'n * time.Nanosecond" to signal to staticcheck that you did mean to sleep
+for some amount of nanoseconds.
+
 Available since
     2017.1
 `
@@ -183,10 +196,30 @@ Available since
     2017.1
 `
 
-var docSA1025 = `it is not possible to use Reset's return value correctly
+var docSA1025 = `It is not possible to use Reset's return value correctly
 
 Available since
     2019.1
+`
+
+var docSA1026 = `Cannot marshal channels or functions
+
+Available since
+    Unreleased
+`
+
+var docSA1027 = `Atomic access to 64-bit variable must be 64-bit aligned
+
+On ARM, x86-32, and 32-bit MIPS, it is the caller's responsibility to
+arrange for 64-bit alignment of 64-bit words accessed atomically. The
+first word in a variable or in an allocated struct, array, or slice
+can be relied upon to be 64-bit aligned.
+
+You can use the structlayout tool to inspect the alignment of fields
+in a struct.
+
+Available since
+    Unreleased
 `
 
 var docSA2000 = `sync.WaitGroup.Add called inside the goroutine, leading to a race condition
@@ -438,6 +471,10 @@ Available since
 
 var docSA5003 = `Defers in infinite loops will never execute
 
+Defers are scoped to the surrounding function, not the surrounding
+block. In a function that never returns, i.e. one containing an
+infinite loop, defers will never execute.
+
 Available since
     2017.1
 `
@@ -594,7 +631,7 @@ Available since
     Unreleased
 `
 
-var docSA9001 = `defers in for range loops may not run when you expect them to
+var docSA9001 = `Defers in 'for range' loops may not run when you expect them to
 
 Available since
     2017.1
