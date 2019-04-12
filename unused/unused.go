@@ -861,14 +861,16 @@ func (g *Graph) use(used, by interface{}, reason string) {
 	if _, ok := by.(*types.Func); ok {
 		assert(g.pkg.Prog.FuncValue(by.(*types.Func)) == nil)
 	}
-	if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
-		if obj.Pkg() != g.pkg.Pkg {
-			return
+	if !g.wholeProgram {
+		if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
+			if obj.Pkg() != g.pkg.Pkg {
+				return
+			}
 		}
-	}
-	if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
-		if obj.Pkg() != g.pkg.Pkg {
-			return
+		if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
+			if obj.Pkg() != g.pkg.Pkg {
+				return
+			}
 		}
 	}
 	usedNode, new := g.node(used)
