@@ -20,6 +20,13 @@ Available since
 
 var docSA1003 = `Unsupported argument to functions in encoding/binary
 
+The encoding/binary package can only serialize types with known sizes.
+This precludes the use of the 'int' and 'uint' types, as their sizes
+differ on different architectures. Furthermore, it doesn't support
+serializing maps, channels, strings, or functions.
+
+Before Go 1.8, bool wasn't supported, either.
+
 Available since
     2017.1
 `
@@ -144,11 +151,24 @@ Available since
 
 var docSA1016 = `Trapping a signal that cannot be trapped
 
+Not all signals can be intercepted by a process. Speficially, on
+UNIX-like systems, the syscall.SIGKILL and syscall.SIGSTOP signals are
+never passed to the process, but instead handled directly by the
+kernel. It is therefore pointless to try and handle these signals.
+
 Available since
     2017.1
 `
 
-var docSA1017 = `Channels used with signal.Notify should be buffered
+var docSA1017 = `Channels used with os/signal.Notify should be buffered
+
+The os/signal package uses non-blocking channel sends when delivering
+signals. If the receiving end of the channel isn't ready and the
+channel is either unbuffered or full, the signal will be dropped. To
+avoid missing signals, the channel should be buffered and of the
+appropriate size. For a channel used for notification of just one
+signal value, a buffer of size 1 is sufficient.
+
 
 Available since
     2017.1
@@ -185,6 +205,8 @@ Available since
 `
 
 var docSA1023 = `Modifying the buffer in an io.Writer implementation
+
+Write must not modify the slice data, even temporarily.
 
 Available since
     2017.1
@@ -253,6 +275,11 @@ Available since
 `
 
 var docSA3001 = `Assigning to b.N in benchmarks distorts the results
+
+The testing package dynamically sets b.N to improve the reliability of
+benchmarks and uses it in computations to determine the duration of a
+single operation. Benchmark code must not alter b.N as this would
+falsify results.
 
 Available since
     2017.1
