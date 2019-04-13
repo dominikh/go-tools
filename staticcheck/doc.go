@@ -115,6 +115,9 @@ Available since
 
 var docSA1010 = `(*regexp.Regexp).FindAll called with n == 0, which will always return zero results
 
+If n >= 0, the function returns at most n matches/submatches. To
+return all results, specify a negative number.
+
 Available since
     2017.1
 `
@@ -175,6 +178,9 @@ Available since
 `
 
 var docSA1018 = `strings.Replace called with n == 0, which does nothing
+
+With n == 0, zero instances will be replaced. To replace all
+instances, use a negative number, or use strings.ReplaceAll.
 
 Available since
     2017.1
@@ -269,6 +275,13 @@ Available since
 `
 
 var docSA3000 = `TestMain doesn't call os.Exit, hiding test failures
+
+Test executables (and in turn 'go test') exit with a non-zero status
+code if any tests failed. When specifying your own TestMain function,
+it is your responsibility to arrange for this, by calling os.Exit with
+the correct code. The correct code is returned by (*testing.M).Run, so
+the usual way of implementing TestMain is to end it with
+os.Exit(m.Run()).
 
 Available since
     2017.1
