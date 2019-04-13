@@ -25,6 +25,7 @@ import (
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/printf"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssautil"
 	"honnef.co/go/tools/staticcheck/vrp"
@@ -243,7 +244,383 @@ var (
 		"sync/atomic.SwapInt64":            checkAtomicAlignmentImpl,
 		"sync/atomic.SwapUint64":           checkAtomicAlignmentImpl,
 	}
+
+	// TODO(dh): detect printf wrappers
+	checkPrintfRules = map[string]CallCheck{
+		"fmt.Errorf":  func(call *Call) { checkPrintfCall(call, 0, 1) },
+		"fmt.Printf":  func(call *Call) { checkPrintfCall(call, 0, 1) },
+		"fmt.Sprintf": func(call *Call) { checkPrintfCall(call, 0, 1) },
+		"fmt.Fprintf": func(call *Call) { checkPrintfCall(call, 1, 2) },
+	}
 )
+
+func checkPrintfCall(call *Call, fIdx, vIdx int) {
+	f := call.Args[fIdx]
+	var args []ssa.Value
+	switch v := call.Args[vIdx].Value.Value.(type) {
+	case *ssa.Slice:
+		var ok bool
+		args, ok = ssautil.Vararg(v)
+		if !ok {
+			// We don't know what the actual arguments to the function are
+			return
+		}
+	case *ssa.Const:
+		// nil, i.e. no arguments
+	default:
+		// We don't know what the actual arguments to the function are
+		return
+	}
+	checkPrintfCallImpl(call, f.Value.Value, args)
+}
+
+type verbFlag int
+
+const (
+	isInt verbFlag = 1 << iota
+	isBool
+	isFP
+	isString
+	isPointer
+	isPseudoPointer
+	isSlice
+	isAny
+	noRecurse
+)
+
+var verbs = [...]verbFlag{
+	'b': isPseudoPointer | isInt | isFP,
+	'c': isInt,
+	'd': isPseudoPointer | isInt,
+	'e': isFP,
+	'E': isFP,
+	'f': isFP,
+	'F': isFP,
+	'g': isFP,
+	'G': isFP,
+	'o': isPseudoPointer | isInt,
+	'p': isSlice | isPointer | noRecurse,
+	'q': isInt | isString,
+	's': isString,
+	't': isBool,
+	'T': isAny,
+	'U': isInt,
+	'v': isAny,
+	'X': isPseudoPointer | isInt | isString,
+	'x': isPseudoPointer | isInt | isString,
+}
+
+func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
+	var elem func(T types.Type, verb rune) ([]types.Type, bool)
+	elem = func(T types.Type, verb rune) ([]types.Type, bool) {
+		if verbs[verb]&noRecurse != 0 {
+			return []types.Type{T}, false
+		}
+		switch T := T.(type) {
+		case *types.Slice:
+			if verbs[verb]&isSlice != 0 {
+				return []types.Type{T}, false
+			}
+			if verbs[verb]&isString != 0 && IsType(T.Elem().Underlying(), "byte") {
+				return []types.Type{T}, false
+			}
+			return []types.Type{T.Elem()}, true
+		case *types.Map:
+			key := T.Key()
+			val := T.Elem()
+			return []types.Type{key, val}, true
+		case *types.Struct:
+			out := make([]types.Type, 0, T.NumFields())
+			for i := 0; i < T.NumFields(); i++ {
+				out = append(out, T.Field(i).Type())
+			}
+			return out, true
+		case *types.Array:
+			return []types.Type{T.Elem()}, true
+		default:
+			return []types.Type{T}, false
+		}
+	}
+	isInfo := func(T types.Type, info types.BasicInfo) bool {
+		basic, ok := T.Underlying().(*types.Basic)
+		return ok && basic.Info()&info != 0
+	}
+
+	isStringer := func(T types.Type, ms *types.MethodSet) bool {
+		sel := ms.Lookup(nil, "String")
+		if sel == nil {
+			return false
+		}
+		fn, ok := sel.Obj().(*types.Func)
+		if !ok {
+			// should be unreachable
+			return false
+		}
+		sig := fn.Type().(*types.Signature)
+		if sig.Params().Len() != 0 {
+			return false
+		}
+		if sig.Results().Len() != 1 {
+			return false
+		}
+		if !IsType(sig.Results().At(0).Type(), "string") {
+			return false
+		}
+		return true
+	}
+	isError := func(T types.Type, ms *types.MethodSet) bool {
+		sel := ms.Lookup(nil, "Error")
+		if sel == nil {
+			return false
+		}
+		fn, ok := sel.Obj().(*types.Func)
+		if !ok {
+			// should be unreachable
+			return false
+		}
+		sig := fn.Type().(*types.Signature)
+		if sig.Params().Len() != 0 {
+			return false
+		}
+		if sig.Results().Len() != 1 {
+			return false
+		}
+		if !IsType(sig.Results().At(0).Type(), "string") {
+			return false
+		}
+		return true
+	}
+
+	isFormatter := func(T types.Type, ms *types.MethodSet) bool {
+		sel := ms.Lookup(nil, "Format")
+		if sel == nil {
+			return false
+		}
+		fn, ok := sel.Obj().(*types.Func)
+		if !ok {
+			// should be unreachable
+			return false
+		}
+		sig := fn.Type().(*types.Signature)
+		if sig.Params().Len() != 2 {
+			return false
+		}
+		// TODO(dh): check the types of the arguments for more
+		// precision
+		if sig.Results().Len() != 0 {
+			return false
+		}
+		return true
+	}
+
+	seen := map[types.Type]bool{}
+	var checkType func(verb rune, T types.Type, top bool) bool
+	checkType = func(verb rune, T types.Type, top bool) bool {
+		if top {
+			for k := range seen {
+				delete(seen, k)
+			}
+		}
+		if seen[T] {
+			return true
+		}
+		seen[T] = true
+		if int(verb) >= len(verbs) {
+			// Unknown verb
+			return true
+		}
+
+		flags := verbs[verb]
+		if flags == 0 {
+			// Unknown verb
+			return true
+		}
+
+		ms := types.NewMethodSet(T)
+		if isFormatter(T, ms) {
+			// the value is responsible for formatting itself
+			return true
+		}
+
+		if flags&isString != 0 && (isStringer(T, ms) || isError(T, ms)) {
+			// Check for stringer early because we're about to dereference
+			return true
+		}
+
+		T = T.Underlying()
+		if flags&(isPointer|isPseudoPointer) == 0 && top {
+			T = Dereference(T)
+		}
+		if flags&isPseudoPointer != 0 && top {
+			t := Dereference(T)
+			if _, ok := t.Underlying().(*types.Struct); ok {
+				T = t
+			}
+		}
+
+		if _, ok := T.(*types.Interface); ok {
+			// We don't know what's in the interface
+			return true
+		}
+
+		var info types.BasicInfo
+		if flags&isInt != 0 {
+			info |= types.IsInteger
+		}
+		if flags&isBool != 0 {
+			info |= types.IsBoolean
+		}
+		if flags&isFP != 0 {
+			info |= types.IsFloat | types.IsComplex
+		}
+		if flags&isString != 0 {
+			info |= types.IsString
+		}
+
+		if info != 0 && isInfo(T, info) {
+			return true
+		}
+
+		if flags&isString != 0 && (IsType(T, "[]byte") || isStringer(T, ms) || isError(T, ms)) {
+			return true
+		}
+
+		if flags&isPointer != 0 && IsPointerLike(T) {
+			return true
+		}
+		if flags&isPseudoPointer != 0 {
+			switch U := T.Underlying().(type) {
+			case *types.Pointer:
+				if !top {
+					return true
+				}
+
+				if _, ok := U.Elem().Underlying().(*types.Struct); !ok {
+					return true
+				}
+			case *types.Chan, *types.Signature:
+				return true
+			}
+		}
+
+		if flags&isSlice != 0 {
+			if _, ok := T.(*types.Slice); ok {
+				return true
+			}
+		}
+
+		if flags&isAny != 0 {
+			return true
+		}
+
+		elems, ok := elem(T.Underlying(), verb)
+		if !ok {
+			return false
+		}
+		for _, elem := range elems {
+			if !checkType(verb, elem, false) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	k, ok := f.(*ssa.Const)
+	if !ok {
+		return
+	}
+	actions, err := printf.Parse(constant.StringVal(k.Value))
+	if err != nil {
+		call.Invalid("couldn't parse format string")
+		return
+	}
+
+	ptr := 1
+	hasExplicit := false
+
+	checkStar := func(verb printf.Verb, star printf.Argument) bool {
+		if star, ok := star.(printf.Star); ok {
+			idx := 0
+			if star.Index == -1 {
+				idx = ptr
+				ptr++
+			} else {
+				hasExplicit = true
+				idx = star.Index
+				ptr = star.Index + 1
+			}
+			if idx == 0 {
+				call.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
+				return false
+			}
+			if idx > len(args) {
+				call.Invalid(
+					fmt.Sprintf("Printf format %s reads arg #%d, but call has only %d args",
+						verb.Raw, idx, len(args)))
+				return false
+			}
+			if arg, ok := args[idx-1].(*ssa.MakeInterface); ok {
+				if !isInfo(arg.X.Type(), types.IsInteger) {
+					call.Invalid(fmt.Sprintf("Printf format %s reads non-int arg #%d as argument of *", verb.Raw, idx))
+				}
+			}
+		}
+		return true
+	}
+
+	// We only report one problem per format string. Making a
+	// mistake with an index tends to invalidate all future
+	// implicit indices.
+	for _, action := range actions {
+		verb, ok := action.(printf.Verb)
+		if !ok {
+			continue
+		}
+
+		if !checkStar(verb, verb.Width) || !checkStar(verb, verb.Precision) {
+			return
+		}
+
+		off := ptr
+		if verb.Value != -1 {
+			hasExplicit = true
+			off = verb.Value
+		}
+		if off > len(args) {
+			call.Invalid(
+				fmt.Sprintf("Printf format %s reads arg #%d, but call has only %d args",
+					verb.Raw, off, len(args)))
+			return
+		} else if verb.Value == 0 && verb.Letter != '%' {
+			call.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
+			return
+		} else if off != 0 {
+			arg, ok := args[off-1].(*ssa.MakeInterface)
+			if ok {
+				if !checkType(verb.Letter, arg.X.Type(), true) {
+					call.Invalid(fmt.Sprintf("Printf format %s has arg #%d of wrong type %s",
+						verb.Raw, ptr, args[ptr-1].(*ssa.MakeInterface).X.Type()))
+					return
+				}
+			}
+		}
+
+		switch verb.Value {
+		case -1:
+			// Consume next argument
+			ptr++
+		case 0:
+			// Don't consume any arguments
+		default:
+			ptr = verb.Value + 1
+		}
+	}
+
+	if !hasExplicit && ptr <= len(args) {
+		call.Invalid(fmt.Sprintf("Printf call needs %d args but has %d args", ptr-1, len(args)))
+	}
+}
 
 func checkAtomicAlignmentImpl(call *Call) {
 	sizes := call.Job.Program.InitialPackages[0].TypesSizes
@@ -434,6 +811,7 @@ func (c *Checker) Checks() []lint.Check {
 		{ID: "SA5005", FilterGenerated: false, Fn: c.CheckCyclicFinalizer, Doc: docSA5005},
 		{ID: "SA5007", FilterGenerated: false, Fn: c.CheckInfiniteRecursion, Doc: docSA5007},
 		{ID: "SA5008", FilterGenerated: false, Fn: c.CheckStructTags, Doc: ``},
+		{ID: "SA5009", FilterGenerated: false, Fn: c.callChecker(checkPrintfRules), Doc: ``},
 
 		{ID: "SA6000", FilterGenerated: false, Fn: c.callChecker(checkRegexpMatchLoopRules), Doc: docSA6000},
 		{ID: "SA6001", FilterGenerated: false, Fn: c.CheckMapBytesKey, Doc: docSA6001},

@@ -39,3 +39,20 @@ func Walk(b *ssa.BasicBlock, fn func(*ssa.BasicBlock) bool) {
 		wl = append(wl, b.Succs...)
 	}
 }
+
+func Vararg(x *ssa.Slice) ([]ssa.Value, bool) {
+	var out []ssa.Value
+	slice, ok := x.X.(*ssa.Alloc)
+	if !ok || slice.Comment != "varargs" {
+		return nil, false
+	}
+	for _, ref := range *slice.Referrers() {
+		idx, ok := ref.(*ssa.IndexAddr)
+		if !ok {
+			continue
+		}
+		v := (*idx.Referrers())[0].(*ssa.Store).Val
+		out = append(out, v)
+	}
+	return out, true
+}

@@ -63,7 +63,7 @@ func IsExample(fn *ssa.Function) bool {
 
 func IsPointerLike(T types.Type) bool {
 	switch T := T.Underlying().(type) {
-	case *types.Interface, *types.Chan, *types.Map, *types.Pointer:
+	case *types.Interface, *types.Chan, *types.Map, *types.Signature, *types.Pointer:
 		return true
 	case *types.Basic:
 		return T.Kind() == types.UnsafePointer

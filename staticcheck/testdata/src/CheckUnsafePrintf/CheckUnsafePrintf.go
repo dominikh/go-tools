@@ -6,8 +6,7 @@ import (
 	"os"
 )
 
-func fn() {
-	var s string
+func fn(s string) {
 	fn2 := func() string { return "" }
 	fmt.Printf(fn2())      // MATCH /should use print-style function/
 	_ = fmt.Sprintf(fn2()) // MATCH /should use print-style function/
@@ -19,5 +18,5 @@ func fn() {
 
 	fmt.Printf(fn2(), "")
 	fmt.Printf("")
-	fmt.Printf("", "")
+	fmt.Printf("%s", "")
 }
