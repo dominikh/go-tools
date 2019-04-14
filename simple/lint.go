@@ -1496,33 +1496,28 @@ func (c *Checker) LintRedundantBreak(j *lint.Job) {
 	InspectPreorder(j, []ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn2)
 }
 
-func (c *Checker) Implements(j *lint.Job, typ types.Type, iface string) bool {
-	// OPT(dh): we can cache the type lookup
-	idx := strings.IndexRune(iface, '.')
-	var scope *types.Scope
-	var ifaceName string
-	if idx == -1 {
-		scope = types.Universe
-		ifaceName = iface
-	} else {
-		pkgName := iface[:idx]
-		pkg := j.Program.Package(pkgName)
-		if pkg == nil {
-			return false
-		}
-		scope = pkg.Types.Scope()
-		ifaceName = iface[idx+1:]
-	}
-
-	obj := scope.Lookup(ifaceName)
-	if obj == nil {
+func isStringer(T types.Type) bool {
+	ms := types.NewMethodSet(T)
+	sel := ms.Lookup(nil, "String")
+	if sel == nil {
 		return false
 	}
-	i, ok := obj.Type().Underlying().(*types.Interface)
+	fn, ok := sel.Obj().(*types.Func)
 	if !ok {
+		// should be unreachable
 		return false
 	}
-	return types.Implements(typ, i)
+	sig := fn.Type().(*types.Signature)
+	if sig.Params().Len() != 0 {
+		return false
+	}
+	if sig.Results().Len() != 1 {
+		return false
+	}
+	if !IsType(sig.Results().At(0).Type(), "string") {
+		return false
+	}
+	return true
 }
 
 func (c *Checker) LintRedundantSprintf(j *lint.Job) {
@@ -1540,7 +1535,7 @@ func (c *Checker) LintRedundantSprintf(j *lint.Job) {
 		arg := call.Args[Arg("fmt.Sprintf.a[0]")]
 		typ := TypeOf(j, arg)
 
-		if c.Implements(j, typ, "fmt.Stringer") {
+		if isStringer(typ) {
 			j.Errorf(call, "should use String() instead of fmt.Sprintf")
 			return
 		}

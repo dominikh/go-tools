@@ -123,7 +123,6 @@ type Program struct {
 	GoVersion        int
 
 	tokenFileMap map[*token.File]tokenFileMapEntry
-	packagesMap  map[string]*packages.Package
 
 	genMu        sync.RWMutex
 	generatedMap map[string]bool
@@ -316,10 +315,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		GoVersion:       l.GoVersion,
 		tokenFileMap:    map[*token.File]tokenFileMapEntry{},
 		generatedMap:    map[string]bool{},
-	}
-	prog.packagesMap = map[string]*packages.Package{}
-	for _, pkg := range allPkgs {
-		prog.packagesMap[pkg.Types.Path()] = pkg
 	}
 
 	isInitial := map[*types.Package]struct{}{}
@@ -616,10 +611,6 @@ func FilterChecks(allChecks []string, checks []string) map[string]bool {
 		}
 	}
 	return allowedChecks
-}
-
-func (prog *Program) Package(path string) *packages.Package {
-	return prog.packagesMap[path]
 }
 
 // Pkg represents a package being linted.
