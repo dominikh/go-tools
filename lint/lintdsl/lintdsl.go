@@ -103,26 +103,14 @@ func IsZero(expr ast.Expr) bool {
 	return IsIntLiteral(expr, "0")
 }
 
-func TypeOf(j *lint.Job, expr ast.Expr) types.Type {
-	if expr == nil {
-		return nil
-	}
-	return j.NodePackage(expr).TypesInfo.TypeOf(expr)
-}
-
-func IsOfType(j *lint.Job, expr ast.Expr, name string) bool { return IsType(TypeOf(j, expr), name) }
-
-func ObjectOf(j *lint.Job, ident *ast.Ident) types.Object {
-	if ident == nil {
-		return nil
-	}
-	return j.NodePackage(ident).TypesInfo.ObjectOf(ident)
+func IsOfType(j *lint.Job, expr ast.Expr, name string) bool {
+	return IsType(j.Pkg.TypesInfo.TypeOf(expr), name)
 }
 
 func IsInTest(j *lint.Job, node lint.Positioner) bool {
 	// FIXME(dh): this doesn't work for global variables with
 	// initializers
-	f := j.Program.SSA.Fset.File(node.Pos())
+	f := j.Pkg.Fset.File(node.Pos())
 	return f != nil && strings.HasSuffix(f.Name(), "_test.go")
 }
 
@@ -130,15 +118,11 @@ func IsInMain(j *lint.Job, node lint.Positioner) bool {
 	if node, ok := node.(packager); ok {
 		return node.Package().Pkg.Name() == "main"
 	}
-	pkg := j.NodePackage(node)
-	if pkg == nil {
-		return false
-	}
-	return pkg.Types.Name() == "main"
+	return j.Pkg.Types.Name() == "main"
 }
 
 func SelectorName(j *lint.Job, expr *ast.SelectorExpr) string {
-	info := j.NodePackage(expr).TypesInfo
+	info := j.Pkg.TypesInfo
 	sel := info.Selections[expr]
 	if sel == nil {
 		if x, ok := expr.X.(*ast.Ident); ok {
@@ -155,11 +139,11 @@ func SelectorName(j *lint.Job, expr *ast.SelectorExpr) string {
 }
 
 func IsNil(j *lint.Job, expr ast.Expr) bool {
-	return j.NodePackage(expr).TypesInfo.Types[expr].IsNil()
+	return j.Pkg.TypesInfo.Types[expr].IsNil()
 }
 
 func BoolConst(j *lint.Job, expr ast.Expr) bool {
-	val := j.NodePackage(expr).TypesInfo.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
+	val := j.Pkg.TypesInfo.ObjectOf(expr.(*ast.Ident)).(*types.Const).Val()
 	return constant.BoolVal(val)
 }
 
@@ -172,7 +156,7 @@ func IsBoolConst(j *lint.Job, expr ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	obj := j.NodePackage(expr).TypesInfo.ObjectOf(ident)
+	obj := j.Pkg.TypesInfo.ObjectOf(ident)
 	c, ok := obj.(*types.Const)
 	if !ok {
 		return false
@@ -188,7 +172,7 @@ func IsBoolConst(j *lint.Job, expr ast.Expr) bool {
 }
 
 func ExprToInt(j *lint.Job, expr ast.Expr) (int64, bool) {
-	tv := j.NodePackage(expr).TypesInfo.Types[expr]
+	tv := j.Pkg.TypesInfo.Types[expr]
 	if tv.Value == nil {
 		return 0, false
 	}
@@ -199,7 +183,7 @@ func ExprToInt(j *lint.Job, expr ast.Expr) (int64, bool) {
 }
 
 func ExprToString(j *lint.Job, expr ast.Expr) (string, bool) {
-	val := j.NodePackage(expr).TypesInfo.Types[expr].Value
+	val := j.Pkg.TypesInfo.Types[expr].Value
 	if val == nil {
 		return "", false
 	}
@@ -229,19 +213,19 @@ func DereferenceR(T types.Type) types.Type {
 }
 
 func IsGoVersion(j *lint.Job, minor int) bool {
-	return j.Program.GoVersion >= minor
+	return j.GoVersion >= minor
 }
 
 func CallNameAST(j *lint.Job, call *ast.CallExpr) string {
 	switch fun := call.Fun.(type) {
 	case *ast.SelectorExpr:
-		fn, ok := ObjectOf(j, fun.Sel).(*types.Func)
+		fn, ok := j.Pkg.TypesInfo.ObjectOf(fun.Sel).(*types.Func)
 		if !ok {
 			return ""
 		}
 		return lint.FuncName(fn)
 	case *ast.Ident:
-		obj := ObjectOf(j, fun)
+		obj := j.Pkg.TypesInfo.ObjectOf(fun)
 		switch obj := obj.(type) {
 		case *types.Func:
 			return lint.FuncName(obj)
@@ -273,9 +257,8 @@ func IsCallToAnyAST(j *lint.Job, node ast.Node, names ...string) bool {
 }
 
 func Render(j *lint.Job, x interface{}) string {
-	fset := j.Program.SSA.Fset
 	var buf bytes.Buffer
-	if err := printer.Fprint(&buf, fset, x); err != nil {
+	if err := printer.Fprint(&buf, j.Pkg.Fset, x); err != nil {
 		panic(err)
 	}
 	return buf.String()
@@ -311,11 +294,10 @@ func Inspect(node ast.Node, fn func(node ast.Node) bool) {
 	ast.Inspect(node, fn)
 }
 
-func GroupSpecs(j *lint.Job, specs []ast.Spec) [][]ast.Spec {
+func GroupSpecs(fset *token.FileSet, specs []ast.Spec) [][]ast.Spec {
 	if len(specs) == 0 {
 		return nil
 	}
-	fset := j.Program.SSA.Fset
 	groups := make([][]ast.Spec, 1)
 	groups[0] = append(groups[0], specs[0])
 
@@ -376,16 +358,4 @@ func flattenFields(T *types.Struct, path []int, seen map[types.Type]bool) []Fiel
 		}
 	}
 	return out
-}
-
-func InspectPreorder(j *lint.Job, types []ast.Node, fn func(ast.Node)) {
-	for _, pkg := range j.Program.InitialPackages {
-		pkg.Inspector.Preorder(types, fn)
-	}
-}
-
-func InspectNodes(j *lint.Job, types []ast.Node, fn func(node ast.Node, push bool) (prune bool)) {
-	for _, pkg := range j.Program.InitialPackages {
-		pkg.Inspector.Nodes(types, fn)
-	}
 }

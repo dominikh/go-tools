@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"os"
 )
 
 var (
@@ -15,8 +16,13 @@ var (
 	crnl   = []byte("\r\n")
 )
 
-func isGenerated(r io.Reader) bool {
-	br := bufio.NewReader(r)
+func isGenerated(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
 	for {
 		s, err := br.ReadBytes('\n')
 		if err != nil && err != io.EOF {

@@ -25,7 +25,8 @@ import (
 )
 
 type Job struct {
-	Program *Program
+	Pkg       *Pkg
+	GoVersion int
 
 	checker  string
 	check    Check
@@ -108,24 +109,11 @@ func (gi *GlobIgnore) Match(p Problem) bool {
 	return false
 }
 
-type tokenFileMapEntry struct {
-	af  *ast.File
-	pkg *Pkg
-}
-
 type Program struct {
-	SSA              *ssa.Program
-	InitialPackages  []*Pkg
-	InitialFunctions []*ssa.Function
-	AllPackages      []*packages.Package
-	AllFunctions     []*ssa.Function
-	Files            []*ast.File
-	GoVersion        int
-
-	tokenFileMap map[*token.File]tokenFileMapEntry
-
-	genMu        sync.RWMutex
-	generatedMap map[string]bool
+	SSA             *ssa.Program
+	InitialPackages []*Pkg
+	AllPackages     []*packages.Package
+	AllFunctions    []*ssa.Function
 }
 
 func (prog *Program) Fset() *token.FileSet {
@@ -212,12 +200,8 @@ func (l *Linter) ignore(p Problem) bool {
 	return false
 }
 
-func (prog *Program) File(node Positioner) *ast.File {
-	return prog.tokenFileMap[prog.SSA.Fset.File(node.Pos())].af
-}
-
 func (j *Job) File(node Positioner) *ast.File {
-	return j.Program.File(node)
+	return j.Pkg.tokenFileMap[j.Pkg.Fset.File(node.Pos())]
 }
 
 func parseDirective(s string) (cmd string, args []string) {
@@ -299,11 +283,20 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		}
 
 		pkg := &Pkg{
-			SSA:     ssapkg,
-			Package: pkg,
-			Config:  cfg,
+			SSA:          ssapkg,
+			Package:      pkg,
+			Config:       cfg,
+			Generated:    map[string]bool{},
+			tokenFileMap: map[*token.File]*ast.File{},
 		}
 		pkg.Inspector = inspector.New(pkg.Syntax)
+		for _, f := range pkg.Syntax {
+			tf := pkg.Fset.File(f.Pos())
+			pkg.tokenFileMap[tf] = f
+
+			path := DisplayPosition(pkg.Fset, f.Pos()).Filename
+			pkg.Generated[path] = isGenerated(path)
+		}
 		pkgMap[ssapkg] = pkg
 		pkgs = append(pkgs, pkg)
 	}
@@ -312,36 +305,15 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		SSA:             ssaprog,
 		InitialPackages: pkgs,
 		AllPackages:     allPkgs,
-		GoVersion:       l.GoVersion,
-		tokenFileMap:    map[*token.File]tokenFileMapEntry{},
-		generatedMap:    map[string]bool{},
 	}
 
-	isInitial := map[*types.Package]struct{}{}
-	for _, pkg := range pkgs {
-		isInitial[pkg.Types] = struct{}{}
-	}
 	for fn := range ssautil.AllFunctions(ssaprog) {
+		prog.AllFunctions = append(prog.AllFunctions, fn)
 		if fn.Pkg == nil {
 			continue
 		}
-		prog.AllFunctions = append(prog.AllFunctions, fn)
-		if _, ok := isInitial[fn.Pkg.Pkg]; ok {
-			prog.InitialFunctions = append(prog.InitialFunctions, fn)
-		}
-	}
-	for _, pkg := range pkgs {
-		prog.Files = append(prog.Files, pkg.Syntax...)
-	}
-
-	for _, pkg := range allPkgs {
-		for _, f := range pkg.Syntax {
-			tf := pkg.Fset.File(f.Pos())
-			ssapkg := ssaprog.Package(pkg.Types)
-			prog.tokenFileMap[tf] = tokenFileMapEntry{
-				af:  f,
-				pkg: pkgMap[ssapkg],
-			}
+		if pkg, ok := pkgMap[fn.Pkg]; ok {
+			pkg.InitialFunctions = append(pkg.InitialFunctions, fn)
 		}
 	}
 
@@ -375,7 +347,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 							if len(args) < 2 {
 								// FIXME(dh): this causes duplicated warnings when using megacheck
 								p := Problem{
-									Position: prog.DisplayPosition(c.Pos()),
+									Position: DisplayPosition(prog.Fset(), c.Pos()),
 									Text:     "malformed linter directive; missing the required reason field?",
 									Check:    "",
 									Checker:  "lint",
@@ -389,7 +361,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 							continue
 						}
 						checks := strings.Split(args[0], ",")
-						pos := prog.DisplayPosition(node.Pos())
+						pos := DisplayPosition(prog.Fset(), node.Pos())
 						var ig Ignore
 						switch cmd {
 						case "ignore":
@@ -427,41 +399,32 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 	var jobs []*Job
 	var allChecks []string
 
+	var wg sync.WaitGroup
 	for _, checker := range l.Checkers {
-		checks := checker.Checks()
-		for _, check := range checks {
+		for _, check := range checker.Checks() {
 			allChecks = append(allChecks, check.ID)
-			j := &Job{
-				Program: prog,
-				checker: checker.Name(),
-				check:   check,
+			if check.Fn == nil {
+				continue
 			}
-			jobs = append(jobs, j)
+			for _, pkg := range pkgs {
+				j := &Job{
+					Pkg:       pkg,
+					checker:   checker.Name(),
+					check:     check,
+					GoVersion: l.GoVersion,
+				}
+				jobs = append(jobs, j)
+				wg.Add(1)
+				go func(check Check, j *Job) {
+					t := time.Now()
+					check.Fn(j)
+					j.duration = time.Since(t)
+					wg.Done()
+				}(check, j)
+			}
 		}
 	}
 
-	max := len(jobs)
-	if l.MaxConcurrentJobs > 0 {
-		max = l.MaxConcurrentJobs
-	}
-
-	sem := make(chan struct{}, max)
-	wg := &sync.WaitGroup{}
-	for _, j := range jobs {
-		wg.Add(1)
-		go func(j *Job) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			fn := j.check.Fn
-			if fn == nil {
-				return
-			}
-			t := time.Now()
-			fn(j)
-			j.duration = time.Since(t)
-		}(j)
-	}
 	wg.Wait()
 
 	for _, j := range jobs {
@@ -500,21 +463,21 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 		}
 
 		couldveMatched := false
-		for _, v := range prog.tokenFileMap {
-			f := v.af
-			pkg := v.pkg
-			if prog.Fset().Position(f.Pos()).Filename != ig.File {
-				continue
-			}
-			allowedChecks := FilterChecks(allChecks, pkg.Config.Checks)
-			for _, c := range ig.Checks {
-				if !allowedChecks[c] {
+		for _, pkg := range pkgs {
+			for _, f := range pkg.tokenFileMap {
+				if prog.Fset().Position(f.Pos()).Filename != ig.File {
 					continue
 				}
-				couldveMatched = true
+				allowedChecks := FilterChecks(allChecks, pkg.Config.Checks)
+				for _, c := range ig.Checks {
+					if !allowedChecks[c] {
+						continue
+					}
+					couldveMatched = true
+					break
+				}
 				break
 			}
-			break
 		}
 
 		if !couldveMatched {
@@ -523,7 +486,7 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			continue
 		}
 		p := Problem{
-			Position: prog.DisplayPosition(ig.pos),
+			Position: DisplayPosition(prog.Fset(), ig.pos),
 			Text:     "this linter directive didn't match anything; should it be removed?",
 			Check:    "",
 			Checker:  "lint",
@@ -615,23 +578,28 @@ func FilterChecks(allChecks []string, checks []string) map[string]bool {
 
 // Pkg represents a package being linted.
 type Pkg struct {
-	SSA *ssa.Package
+	SSA              *ssa.Package
+	InitialFunctions []*ssa.Function
 	*packages.Package
 	Config    config.Config
 	Inspector *inspector.Inspector
+	// TODO(dh): this map should probably map from *ast.File, not string
+	Generated map[string]bool
+
+	tokenFileMap map[*token.File]*ast.File
 }
 
 type Positioner interface {
 	Pos() token.Pos
 }
 
-func (prog *Program) DisplayPosition(p token.Pos) token.Position {
+func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
 	// Only use the adjusted position if it points to another Go file.
 	// This means we'll point to the original file for cgo files, but
 	// we won't point to a YACC grammar file.
 
-	pos := prog.Fset().PositionFor(p, false)
-	adjPos := prog.Fset().PositionFor(p, true)
+	pos := fset.PositionFor(p, false)
+	adjPos := fset.PositionFor(p, true)
 
 	if filepath.Ext(adjPos.Filename) == ".go" {
 		return adjPos
@@ -639,39 +607,9 @@ func (prog *Program) DisplayPosition(p token.Pos) token.Position {
 	return pos
 }
 
-func (prog *Program) isGenerated(path string) bool {
-	// This function isn't very efficient in terms of lock contention
-	// and lack of parallelism, but it really shouldn't matter.
-	// Projects consists of thousands of files, and have hundreds of
-	// errors. That's not a lot of calls to isGenerated.
-
-	prog.genMu.RLock()
-	if b, ok := prog.generatedMap[path]; ok {
-		prog.genMu.RUnlock()
-		return b
-	}
-	prog.genMu.RUnlock()
-	prog.genMu.Lock()
-	defer prog.genMu.Unlock()
-	// recheck to avoid doing extra work in case of race
-	if b, ok := prog.generatedMap[path]; ok {
-		return b
-	}
-
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	b := isGenerated(f)
-	prog.generatedMap[path] = b
-	return b
-}
-
 func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem {
-	pkg := j.NodePackage(n)
-	pos := j.Program.DisplayPosition(n.Pos())
-	if j.Program.isGenerated(pos.Filename) && j.check.FilterGenerated {
+	pos := DisplayPosition(j.Pkg.Fset, n.Pos())
+	if j.Pkg.Generated[pos.Filename] && j.check.FilterGenerated {
 		return nil
 	}
 	problem := Problem{
@@ -679,14 +617,10 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 		Text:     fmt.Sprintf(format, args...),
 		Check:    j.check.ID,
 		Checker:  j.checker,
-		Package:  pkg,
+		Package:  j.Pkg,
 	}
 	j.problems = append(j.problems, problem)
 	return &j.problems[len(j.problems)-1]
-}
-
-func (j *Job) NodePackage(node Positioner) *Pkg {
-	return j.Program.tokenFileMap[j.Program.SSA.Fset.File(node.Pos())].pkg
 }
 
 func allPackages(pkgs []*packages.Package) []*packages.Package {

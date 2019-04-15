@@ -21,7 +21,7 @@ func (testChecker) Checks() []Check {
 
 func testLint(j *Job) {
 	// Flag all functions
-	for _, fn := range j.Program.InitialFunctions {
+	for _, fn := range j.Pkg.InitialFunctions {
 		if fn.Synthetic == "" {
 			j.Errorf(fn, "This is a test problem")
 		}

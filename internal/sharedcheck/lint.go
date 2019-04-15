@@ -10,7 +10,7 @@ import (
 )
 
 func CheckRangeStringRunes(j *lint.Job) {
-	for _, ssafn := range j.Program.InitialFunctions {
+	for _, ssafn := range j.Pkg.InitialFunctions {
 		fn := func(node ast.Node) bool {
 			rng, ok := node.(*ast.RangeStmt)
 			if !ok || !IsBlank(rng.Key) {

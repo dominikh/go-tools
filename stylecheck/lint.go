@@ -62,60 +62,56 @@ func (c *Checker) CheckPackageComment(j *lint.Job) {
 	// which case they get appended. But that doesn't happen a lot in
 	// the real world.
 
-	for _, pkg := range j.Program.InitialPackages {
-		if pkg.Name == "main" {
+	if j.Pkg.Name == "main" {
+		return
+	}
+	hasDocs := false
+	for _, f := range j.Pkg.Syntax {
+		if IsInTest(j, f) {
 			continue
 		}
-		hasDocs := false
-		for _, f := range pkg.Syntax {
+		if f.Doc != nil && len(f.Doc.List) > 0 {
+			hasDocs = true
+			prefix := "Package " + f.Name.Name + " "
+			if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
+				j.Errorf(f.Doc, `package comment should be of the form "%s..."`, prefix)
+			}
+			f.Doc.Text()
+		}
+	}
+
+	if !hasDocs {
+		for _, f := range j.Pkg.Syntax {
 			if IsInTest(j, f) {
 				continue
 			}
-			if f.Doc != nil && len(f.Doc.List) > 0 {
-				hasDocs = true
-				prefix := "Package " + f.Name.Name + " "
-				if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
-					j.Errorf(f.Doc, `package comment should be of the form "%s..."`, prefix)
-				}
-				f.Doc.Text()
-			}
-		}
-
-		if !hasDocs {
-			for _, f := range pkg.Syntax {
-				if IsInTest(j, f) {
-					continue
-				}
-				j.Errorf(f, "at least one file in a package should have a package comment")
-			}
+			j.Errorf(f, "at least one file in a package should have a package comment")
 		}
 	}
 }
 
 func (c *Checker) CheckDotImports(j *lint.Job) {
-	for _, pkg := range j.Program.InitialPackages {
-		for _, f := range pkg.Syntax {
-		imports:
-			for _, imp := range f.Imports {
-				path := imp.Path.Value
-				path = path[1 : len(path)-1]
-				for _, w := range pkg.Config.DotImportWhitelist {
-					if w == path {
-						continue imports
-					}
+	for _, f := range j.Pkg.Syntax {
+	imports:
+		for _, imp := range f.Imports {
+			path := imp.Path.Value
+			path = path[1 : len(path)-1]
+			for _, w := range j.Pkg.Config.DotImportWhitelist {
+				if w == path {
+					continue imports
 				}
+			}
 
-				if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
-					j.Errorf(imp, "should not use dot imports")
-				}
+			if imp.Name != nil && imp.Name.Name == "." && !IsInTest(j, f) {
+				j.Errorf(imp, "should not use dot imports")
 			}
 		}
 	}
 }
 
 func (c *Checker) CheckBlankImports(j *lint.Job) {
-	fset := j.Program.Fset()
-	for _, f := range j.Program.Files {
+	fset := j.Pkg.Fset
+	for _, f := range j.Pkg.Syntax {
 		if IsInMain(j, f) || IsInTest(j, f) {
 			continue
 		}
@@ -198,12 +194,12 @@ func (c *Checker) CheckIncDec(j *lint.Job) {
 
 		j.Errorf(assign, "should replace %s with %s%s", Render(j, assign), Render(j, assign.Lhs[0]), suffix)
 	}
-	InspectPreorder(j, []ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	j.Pkg.Inspector.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckErrorReturn(j *lint.Job) {
 fnLoop:
-	for _, fn := range j.Program.InitialFunctions {
+	for _, fn := range j.Pkg.InitialFunctions {
 		sig := fn.Type().(*types.Signature)
 		rets := sig.Results()
 		if rets == nil || rets.Len() < 2 {
@@ -227,7 +223,7 @@ fnLoop:
 // CheckUnexportedReturn checks that exported functions on exported
 // types do not return unexported types.
 func (c *Checker) CheckUnexportedReturn(j *lint.Job) {
-	for _, fn := range j.Program.InitialFunctions {
+	for _, fn := range j.Pkg.InitialFunctions {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
@@ -250,23 +246,21 @@ func (c *Checker) CheckUnexportedReturn(j *lint.Job) {
 }
 
 func (c *Checker) CheckReceiverNames(j *lint.Job) {
-	for _, pkg := range j.Program.InitialPackages {
-		for _, m := range pkg.SSA.Members {
-			if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
-				ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
-				for _, sel := range ms {
-					fn := sel.Obj().(*types.Func)
-					recv := fn.Type().(*types.Signature).Recv()
-					if Dereference(recv.Type()) != T.Type() {
-						// skip embedded methods
-						continue
-					}
-					if recv.Name() == "self" || recv.Name() == "this" {
-						j.Errorf(recv, `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
-					}
-					if recv.Name() == "_" {
-						j.Errorf(recv, "receiver name should not be an underscore, omit the name if it is unused")
-					}
+	for _, m := range j.Pkg.SSA.Members {
+		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
+			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
+			for _, sel := range ms {
+				fn := sel.Obj().(*types.Func)
+				recv := fn.Type().(*types.Signature).Recv()
+				if Dereference(recv.Type()) != T.Type() {
+					// skip embedded methods
+					continue
+				}
+				if recv.Name() == "self" || recv.Name() == "this" {
+					j.Errorf(recv, `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
+				}
+				if recv.Name() == "_" {
+					j.Errorf(recv, "receiver name should not be an underscore, omit the name if it is unused")
 				}
 			}
 		}
@@ -274,37 +268,35 @@ func (c *Checker) CheckReceiverNames(j *lint.Job) {
 }
 
 func (c *Checker) CheckReceiverNamesIdentical(j *lint.Job) {
-	for _, pkg := range j.Program.InitialPackages {
-		for _, m := range pkg.SSA.Members {
-			names := map[string]int{}
+	for _, m := range j.Pkg.SSA.Members {
+		names := map[string]int{}
 
-			var firstFn *types.Func
-			if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
-				ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
-				for _, sel := range ms {
-					fn := sel.Obj().(*types.Func)
-					recv := fn.Type().(*types.Signature).Recv()
-					if Dereference(recv.Type()) != T.Type() {
-						// skip embedded methods
-						continue
-					}
-					if firstFn == nil {
-						firstFn = fn
-					}
-					if recv.Name() != "" && recv.Name() != "_" {
-						names[recv.Name()]++
-					}
+		var firstFn *types.Func
+		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
+			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
+			for _, sel := range ms {
+				fn := sel.Obj().(*types.Func)
+				recv := fn.Type().(*types.Signature).Recv()
+				if Dereference(recv.Type()) != T.Type() {
+					// skip embedded methods
+					continue
+				}
+				if firstFn == nil {
+					firstFn = fn
+				}
+				if recv.Name() != "" && recv.Name() != "_" {
+					names[recv.Name()]++
 				}
 			}
+		}
 
-			if len(names) > 1 {
-				var seen []string
-				for name, count := range names {
-					seen = append(seen, fmt.Sprintf("%dx %q", count, name))
-				}
-
-				j.Errorf(firstFn, "methods on the same type should have the same receiver name (seen %s)", strings.Join(seen, ", "))
+		if len(names) > 1 {
+			var seen []string
+			for name, count := range names {
+				seen = append(seen, fmt.Sprintf("%dx %q", count, name))
 			}
+
+			j.Errorf(firstFn, "methods on the same type should have the same receiver name (seen %s)", strings.Join(seen, ", "))
 		}
 	}
 }
@@ -313,7 +305,7 @@ func (c *Checker) CheckContextFirstArg(j *lint.Job) {
 	// TODO(dh): this check doesn't apply to test helpers. Example from the stdlib:
 	// 	func helperCommandContext(t *testing.T, ctx context.Context, s ...string) (cmd *exec.Cmd) {
 fnLoop:
-	for _, fn := range j.Program.InitialFunctions {
+	for _, fn := range j.Pkg.InitialFunctions {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
@@ -336,20 +328,18 @@ fnLoop:
 
 func (c *Checker) CheckErrorStrings(j *lint.Job) {
 	objNames := map[*ssa.Package]map[string]bool{}
-	for _, pkg := range j.Program.InitialPackages {
-		ssapkg := pkg.SSA
-		objNames[ssapkg] = map[string]bool{}
-		for _, m := range ssapkg.Members {
-			if typ, ok := m.(*ssa.Type); ok {
-				objNames[ssapkg][typ.Name()] = true
-			}
+	ssapkg := j.Pkg.SSA
+	objNames[ssapkg] = map[string]bool{}
+	for _, m := range ssapkg.Members {
+		if typ, ok := m.(*ssa.Type); ok {
+			objNames[ssapkg][typ.Name()] = true
 		}
 	}
-	for _, fn := range j.Program.InitialFunctions {
+	for _, fn := range j.Pkg.InitialFunctions {
 		objNames[fn.Package()][fn.Name()] = true
 	}
 
-	for _, fn := range j.Program.InitialFunctions {
+	for _, fn := range j.Pkg.InitialFunctions {
 		if IsInTest(j, fn) {
 			// We don't care about malformed error messages in tests;
 			// they're usually for direct human consumption, not part
@@ -439,15 +429,15 @@ func (c *Checker) CheckTimeNames(j *lint.Job) {
 			}
 		}
 	}
-	for _, f := range j.Program.Files {
+	for _, f := range j.Pkg.Syntax {
 		ast.Inspect(f, func(node ast.Node) bool {
 			switch node := node.(type) {
 			case *ast.ValueSpec:
-				T := TypeOf(j, node.Type)
+				T := j.Pkg.TypesInfo.TypeOf(node.Type)
 				fn(T, node.Names)
 			case *ast.FieldList:
 				for _, field := range node.List {
-					T := TypeOf(j, field.Type)
+					T := j.Pkg.TypesInfo.TypeOf(field.Type)
 					fn(T, field.Names)
 				}
 			}
@@ -457,7 +447,7 @@ func (c *Checker) CheckTimeNames(j *lint.Job) {
 }
 
 func (c *Checker) CheckErrorVarNames(j *lint.Job) {
-	for _, f := range j.Program.Files {
+	for _, f := range j.Pkg.Syntax {
 		for _, decl := range f.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.VAR {
@@ -551,52 +541,50 @@ var httpStatusCodes = map[int]string{
 }
 
 func (c *Checker) CheckHTTPStatusCodes(j *lint.Job) {
-	for _, pkg := range j.Program.InitialPackages {
-		whitelist := map[string]bool{}
-		for _, code := range pkg.Config.HTTPStatusCodeWhitelist {
-			whitelist[code] = true
-		}
-		fn := func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-
-			var arg int
-			switch CallNameAST(j, call) {
-			case "net/http.Error":
-				arg = 2
-			case "net/http.Redirect":
-				arg = 3
-			case "net/http.StatusText":
-				arg = 0
-			case "net/http.RedirectHandler":
-				arg = 1
-			default:
-				return true
-			}
-			lit, ok := call.Args[arg].(*ast.BasicLit)
-			if !ok {
-				return true
-			}
-			if whitelist[lit.Value] {
-				return true
-			}
-
-			n, err := strconv.Atoi(lit.Value)
-			if err != nil {
-				return true
-			}
-			s, ok := httpStatusCodes[n]
-			if !ok {
-				return true
-			}
-			j.Errorf(lit, "should use constant http.%s instead of numeric literal %d", s, n)
+	whitelist := map[string]bool{}
+	for _, code := range j.Pkg.Config.HTTPStatusCodeWhitelist {
+		whitelist[code] = true
+	}
+	fn := func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
 			return true
 		}
-		for _, f := range pkg.Syntax {
-			ast.Inspect(f, fn)
+
+		var arg int
+		switch CallNameAST(j, call) {
+		case "net/http.Error":
+			arg = 2
+		case "net/http.Redirect":
+			arg = 3
+		case "net/http.StatusText":
+			arg = 0
+		case "net/http.RedirectHandler":
+			arg = 1
+		default:
+			return true
 		}
+		lit, ok := call.Args[arg].(*ast.BasicLit)
+		if !ok {
+			return true
+		}
+		if whitelist[lit.Value] {
+			return true
+		}
+
+		n, err := strconv.Atoi(lit.Value)
+		if err != nil {
+			return true
+		}
+		s, ok := httpStatusCodes[n]
+		if !ok {
+			return true
+		}
+		j.Errorf(lit, "should use constant http.%s instead of numeric literal %d", s, n)
+		return true
+	}
+	for _, f := range j.Pkg.Syntax {
+		ast.Inspect(f, fn)
 	}
 }
 
@@ -611,7 +599,7 @@ func (c *Checker) CheckDefaultCaseOrder(j *lint.Job) {
 			}
 		}
 	}
-	InspectPreorder(j, []ast.Node{(*ast.SwitchStmt)(nil)}, fn)
+	j.Pkg.Inspector.Preorder([]ast.Node{(*ast.SwitchStmt)(nil)}, fn)
 }
 
 func (c *Checker) CheckYodaConditions(j *lint.Job) {
@@ -629,7 +617,7 @@ func (c *Checker) CheckYodaConditions(j *lint.Job) {
 		}
 		j.Errorf(cond, "don't use Yoda conditions")
 	}
-	InspectPreorder(j, []ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	j.Pkg.Inspector.Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 }
 
 func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
@@ -646,5 +634,5 @@ func (c *Checker) CheckInvisibleCharacters(j *lint.Job) {
 			}
 		}
 	}
-	InspectPreorder(j, []ast.Node{(*ast.BasicLit)(nil)}, fn)
+	j.Pkg.Inspector.Preorder([]ast.Node{(*ast.BasicLit)(nil)}, fn)
 }
