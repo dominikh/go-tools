@@ -379,7 +379,6 @@ func compileErrors(pkg *packages.Package) []lint.Problem {
 		p := lint.Problem{
 			Position: parsePos(err.Pos),
 			Text:     err.Msg,
-			Checker:  "compiler",
 			Check:    "compile",
 		}
 		ps = append(ps, p)

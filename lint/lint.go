@@ -28,7 +28,6 @@ type Job struct {
 	Pkg       *Pkg
 	GoVersion int
 
-	checker  string
 	check    Check
 	problems []Problem
 
@@ -135,7 +134,6 @@ type Problem struct {
 	Position token.Position // position in source file
 	Text     string         // the prose that describes the problem
 	Check    string
-	Checker  string
 	Package  *Pkg
 	Severity Severity
 }
@@ -350,7 +348,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 									Position: DisplayPosition(prog.Fset(), c.Pos()),
 									Text:     "malformed linter directive; missing the required reason field?",
 									Check:    "",
-									Checker:  "lint",
 									Package:  nil,
 								}
 								out = append(out, p)
@@ -409,7 +406,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			for _, pkg := range pkgs {
 				j := &Job{
 					Pkg:       pkg,
-					checker:   checker.Name(),
 					check:     check,
 					GoVersion: l.GoVersion,
 				}
@@ -489,7 +485,6 @@ func (l *Linter) Lint(initial []*packages.Package, stats *PerfStats) []Problem {
 			Position: DisplayPosition(prog.Fset(), ig.pos),
 			Text:     "this linter directive didn't match anything; should it be removed?",
 			Check:    "",
-			Checker:  "lint",
 			Package:  nil,
 		}
 		out = append(out, p)
@@ -616,7 +611,6 @@ func (j *Job) Errorf(n Positioner, format string, args ...interface{}) *Problem 
 		Position: pos,
 		Text:     fmt.Sprintf(format, args...),
 		Check:    j.check.ID,
-		Checker:  j.checker,
 		Package:  j.Pkg,
 	}
 	j.problems = append(j.problems, problem)
