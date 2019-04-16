@@ -9,7 +9,7 @@ func fn1() {
 }
 
 func fn2() {
-	for range time.Tick(0) { // MATCH /leaks the underlying ticker/
+	for range time.Tick(0) { // want `leaks the underlying ticker`
 		println("")
 		if true {
 			break
@@ -18,7 +18,7 @@ func fn2() {
 }
 
 func fn3() {
-	for range time.Tick(0) { // MATCH /leaks the underlying ticker/
+	for range time.Tick(0) { // want `leaks the underlying ticker`
 		println("")
 		if true {
 			return

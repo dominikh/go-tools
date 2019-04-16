@@ -2,7 +2,7 @@ package pkg
 
 func fn1(x int) bool {
 	println(x)
-	return fn1(x + 1) // MATCH /infinite recursive call/
+	return fn1(x + 1) // want `infinite recursive call`
 	return true
 }
 
@@ -38,7 +38,7 @@ func fn4(p *int, n int) {
 
 func fn5(p *int, n int) {
 	x := 0
-	fn5(&x, n-1) // MATCH /infinite recursive call/
+	fn5(&x, n-1) // want `infinite recursive call`
 	if x != n {
 		panic("stack is corrupted")
 	}
@@ -53,12 +53,12 @@ type T struct {
 }
 
 func (t T) Fn1() {
-	t.Fn1() // MATCH /infinite recursive call/
+	t.Fn1() // want `infinite recursive call`
 }
 
 func (t T) Fn2() {
 	x := T{}
-	x.Fn2() // MATCH /infinite recursive call/
+	x.Fn2() // want `infinite recursive call`
 }
 
 func (t T) Fn3() {

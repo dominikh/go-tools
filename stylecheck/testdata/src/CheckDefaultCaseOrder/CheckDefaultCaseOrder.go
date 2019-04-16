@@ -30,7 +30,7 @@ func fn(x int) {
 
 	switch x {
 	case 1:
-	default: // MATCH "default case should be first or last in switch statement"
+	default: // want `default case should be first or last in switch statement`
 	case 2:
 	}
 }

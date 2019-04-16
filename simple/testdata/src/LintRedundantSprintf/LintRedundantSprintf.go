@@ -21,14 +21,14 @@ func fn() {
 	var t4 T4
 	var t5 T5
 	var t6 T6
-	_ = fmt.Sprintf("%s", "test")      // MATCH "is already a string"
-	_ = fmt.Sprintf("%s", t1)          // MATCH "is a string"
-	_ = fmt.Sprintf("%s", t2)          // MATCH "is a string"
-	_ = fmt.Sprintf("%s", t3)          // MATCH "should use String() instead of fmt.Sprintf"
-	_ = fmt.Sprintf("%s", t3.String()) // MATCH "is already a string"
+	_ = fmt.Sprintf("%s", "test")      // want `is already a string`
+	_ = fmt.Sprintf("%s", t1)          // want `is a string`
+	_ = fmt.Sprintf("%s", t2)          // want `is a string`
+	_ = fmt.Sprintf("%s", t3)          // want `should use String\(\) instead of fmt\.Sprintf`
+	_ = fmt.Sprintf("%s", t3.String()) // want `is already a string`
 	_ = fmt.Sprintf("%s", t4)
 	_ = fmt.Sprintf("%s", t5)
 	_ = fmt.Sprintf("%s %s", t1, t2)
 	_ = fmt.Sprintf("%v", t1)
-	_ = fmt.Sprintf("%s", t6) // MATCH "should use String() instead of fmt.Sprintf"
+	_ = fmt.Sprintf("%s", t6) // want `should use String\(\) instead of fmt\.Sprintf`
 }

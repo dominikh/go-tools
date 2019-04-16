@@ -10,17 +10,17 @@ func (s MyIntSlice) Swap(i, j int)      {}
 
 func fn1() {
 	var a []int
-	sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
+	sort.Sort(sort.IntSlice(a)) // want `sort\.Ints`
 }
 
 func fn2() {
 	var b []float64
-	sort.Sort(sort.Float64Slice(b)) // MATCH "sort.Float64s"
+	sort.Sort(sort.Float64Slice(b)) // want `sort\.Float64s`
 }
 
 func fn3() {
 	var c []string
-	sort.Sort(sort.StringSlice(c)) // MATCH "sort.Strings"
+	sort.Sort(sort.StringSlice(c)) // want `sort\.Strings`
 }
 
 func fn4() {
@@ -49,18 +49,18 @@ func fn7() {
 
 func fn8() {
 	var a []int
-	sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
-	sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
+	sort.Sort(sort.IntSlice(a)) // want `sort\.Ints`
+	sort.Sort(sort.IntSlice(a)) // want `sort\.Ints`
 }
 
 func fn9() {
 	func() {
 		var a []int
-		sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
+		sort.Sort(sort.IntSlice(a)) // want `sort\.Ints`
 	}()
 }
 
 func fn10() {
 	var a MyIntSlice
-	sort.Sort(sort.IntSlice(a)) // MATCH "sort.Ints"
+	sort.Sort(sort.IntSlice(a)) // want `sort\.Ints`
 }

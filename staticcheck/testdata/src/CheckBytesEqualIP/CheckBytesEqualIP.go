@@ -11,7 +11,7 @@ func fn() {
 	var b1, b2 []byte
 	var t1, t2 T
 
-	bytes.Equal(i1, i2) // MATCH /use net.IP.Equal to compare net.IPs, not bytes.Equal/
+	bytes.Equal(i1, i2) // want `use net\.IP\.Equal to compare net\.IPs, not bytes\.Equal`
 	bytes.Equal(b1, b2)
 	bytes.Equal(t1, t2)
 

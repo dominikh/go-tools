@@ -13,7 +13,7 @@ func fn1() {
 	}
 
 	var a, b []int
-	for _, v := range a { // MATCH /should replace loop/
+	for _, v := range a { // want `should replace loop`
 		b = append(b, v)
 	}
 

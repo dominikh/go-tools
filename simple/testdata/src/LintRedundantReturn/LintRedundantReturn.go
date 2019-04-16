@@ -1,11 +1,11 @@
 package pkg
 
 func fn1() {
-	return // MATCH /redundant return/
+	return // want `redundant return`
 }
 
 func fn2(a int) {
-	return // MATCH /redundant return/
+	return // want `redundant return`
 }
 
 func fn3() int {
@@ -30,11 +30,11 @@ func fn6() {
 func fn7() {
 	return
 	println("foo")
-	return // MATCH /redundant return/
+	return // want `redundant return`
 }
 
 func fn8() {
 	_ = func() {
-		return // MATCH /redundant return/
+		return // want `redundant return`
 	}
 }

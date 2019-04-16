@@ -5,16 +5,16 @@ func fn() {
 	for {
 		switch {
 		case true:
-			break // MATCH /ineffective break statement/
+			break // want `ineffective break statement`
 		default:
-			break // MATCH /ineffective break statement/
+			break // want `ineffective break statement`
 		}
 	}
 
 	for {
 		select {
 		case <-ch:
-			break // MATCH /ineffective break statement/
+			break // want `ineffective break statement`
 		}
 	}
 
@@ -25,7 +25,7 @@ func fn() {
 
 		switch {
 		case true:
-			break // MATCH /ineffective break statement/
+			break // want `ineffective break statement`
 		}
 
 		switch {
@@ -37,9 +37,9 @@ func fn() {
 		switch {
 		case true:
 			if true {
-				break // MATCH /ineffective break statement/
+				break // want `ineffective break statement`
 			} else {
-				break // MATCH /ineffective break statement/
+				break // want `ineffective break statement`
 			}
 		}
 	}
@@ -66,7 +66,7 @@ label:
 	for range ([]int)(nil) {
 		switch {
 		default:
-			break // MATCH /ineffective break statement/
+			break // want `ineffective break statement`
 		}
 	}
 }

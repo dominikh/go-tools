@@ -5,7 +5,7 @@ func fn(s string) {
 		println(r)
 	}
 
-	for _, r := range []rune(s) { // MATCH "should range over string"
+	for _, r := range []rune(s) { // want `should range over string`
 		println(r)
 	}
 
@@ -15,7 +15,7 @@ func fn(s string) {
 	}
 
 	x := []rune(s)
-	for _, r := range x { // MATCH "should range over string"
+	for _, r := range x { // want `should range over string`
 		println(r)
 	}
 

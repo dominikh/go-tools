@@ -5,7 +5,7 @@ import "sync"
 func fn1() {
 	var x sync.Mutex
 	x.Lock()
-	x.Unlock() // MATCH /empty critical section/
+	x.Unlock() // want `empty critical section`
 }
 
 func fn2() {
@@ -16,16 +16,16 @@ func fn2() {
 	}{}
 
 	x.m1.m2.Lock()
-	x.m1.m2.Unlock() // MATCH /empty critical section/
+	x.m1.m2.Unlock() // want `empty critical section`
 }
 
 func fn3() {
 	var x sync.RWMutex
 	x.Lock()
-	x.Unlock() // MATCH /empty critical section/
+	x.Unlock() // want `empty critical section`
 
 	x.RLock()
-	x.RUnlock() // MATCH /empty critical section/
+	x.RUnlock() // want `empty critical section`
 
 	x.Lock()
 	defer x.Unlock()
@@ -41,7 +41,7 @@ func fn4() {
 	}
 
 	x.m().Lock()
-	x.m().Unlock() // MATCH /empty critical section/
+	x.m().Unlock() // want `empty critical section`
 }
 
 func fn5() {
@@ -55,7 +55,7 @@ func fn5() {
 func fn6() {
 	x := &sync.Mutex{}
 	x.Lock()
-	x.Unlock() // MATCH /empty critical section/
+	x.Unlock() // want `empty critical section`
 }
 
 func fn7() {
@@ -64,7 +64,7 @@ func fn7() {
 	}{}
 
 	x.Lock()
-	x.Unlock() // MATCH /empty critical section/
+	x.Unlock() // want `empty critical section`
 }
 
 func fn8() {
@@ -72,7 +72,7 @@ func fn8() {
 	x = new(sync.Mutex)
 
 	x.Lock()
-	x.Unlock() // MATCH /empty critical section/
+	x.Unlock() // want `empty critical section`
 }
 
 func fn9() {
@@ -80,7 +80,7 @@ func fn9() {
 		sync.Locker
 	}{&sync.Mutex{}}
 	x.Lock()
-	x.Unlock() // MATCH /empty critical section/
+	x.Unlock() // want `empty critical section`
 }
 
 type T struct{}

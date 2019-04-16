@@ -1,21 +1,21 @@
 package pkg
 
-type iface interface { // MATCH "type iface is unused"
+type iface interface { // want `iface`
 	foo()
 }
 
-type t1 struct{} // MATCH "type t1 is unused"
+type t1 struct{} // want `t1`
 func (t1) foo()  {}
 
 type t2 struct{}
 
-func (t t2) bar(arg int) (ret int) { return 0 } // MATCH "func t2.bar is unused"
+func (t t2) bar(arg int) (ret int) { return 0 } // want `bar`
 
 func init() {
 	_ = t2{}
 }
 
-type t3 struct { // MATCH "type t3 is unused"
+type t3 struct { // want `t3`
 	a int
 	b int
 }

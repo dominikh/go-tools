@@ -3,7 +3,7 @@ package pkg
 import "testing"
 
 func TestFoo(t *testing.T) {
-	if true { // MATCH "empty branch"
+	if true { // want `empty branch`
 		// TODO
 	}
 }

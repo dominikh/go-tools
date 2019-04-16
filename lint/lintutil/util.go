@@ -8,28 +8,66 @@
 package lintutil // import "honnef.co/go/tools/lint/lintutil"
 
 import (
+	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
 	"go/build"
 	"go/token"
+	"io"
 	"log"
 	"os"
 	"regexp"
 	"runtime"
-	"runtime/debug"
 	"runtime/pprof"
 	"strconv"
 	"strings"
-	"time"
 
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil/format"
 	"honnef.co/go/tools/version"
 
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
+
+func NewVersionFlag() flag.Getter {
+	tags := build.Default.ReleaseTags
+	v := tags[len(tags)-1][2:]
+	version := new(VersionFlag)
+	if err := version.Set(v); err != nil {
+		panic(fmt.Sprintf("internal error: %s", err))
+	}
+	return version
+}
+
+type VersionFlag int
+
+func (v *VersionFlag) String() string {
+	return fmt.Sprintf("1.%d", *v)
+
+}
+
+func (v *VersionFlag) Set(s string) error {
+	if len(s) < 3 {
+		return errors.New("invalid Go version")
+	}
+	if s[0] != '1' {
+		return errors.New("invalid Go version")
+	}
+	if s[1] != '.' {
+		return errors.New("invalid Go version")
+	}
+	i, err := strconv.Atoi(s[2:])
+	*v = VersionFlag(i)
+	return err
+}
+
+func (v *VersionFlag) Get() interface{} {
+	return int(*v)
+}
 
 func usage(name string, flags *flag.FlagSet) func() {
 	return func() {
@@ -41,48 +79,6 @@ func usage(name string, flags *flag.FlagSet) func() {
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flags.PrintDefaults()
 	}
-}
-
-func parseIgnore(s string) ([]lint.Ignore, error) {
-	var out []lint.Ignore
-	if len(s) == 0 {
-		return nil, nil
-	}
-	for _, part := range strings.Fields(s) {
-		p := strings.Split(part, ":")
-		if len(p) != 2 {
-			return nil, errors.New("malformed ignore string")
-		}
-		path := p[0]
-		checks := strings.Split(p[1], ",")
-		out = append(out, &lint.GlobIgnore{Pattern: path, Checks: checks})
-	}
-	return out, nil
-}
-
-type versionFlag int
-
-func (v *versionFlag) String() string {
-	return fmt.Sprintf("1.%d", *v)
-}
-
-func (v *versionFlag) Set(s string) error {
-	if len(s) < 3 {
-		return errors.New("invalid Go version")
-	}
-	if s[0] != '1' {
-		return errors.New("invalid Go version")
-	}
-	if s[1] != '.' {
-		return errors.New("invalid Go version")
-	}
-	i, err := strconv.Atoi(s[2:])
-	*v = versionFlag(i)
-	return err
-}
-
-func (v *versionFlag) Get() interface{} {
-	return int(*v)
 }
 
 type list []string
@@ -112,8 +108,6 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
 	flags.String("explain", "", "Print description of `check`")
 
-	flags.Int("debug.max-concurrent-jobs", 0, "Number of jobs to run concurrently")
-	flags.Bool("debug.print-stats", false, "Print debug statistics")
 	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
 	flags.String("debug.memprofile", "", "Write memory profile to `file`")
 
@@ -124,7 +118,7 @@ func FlagSet(name string) *flag.FlagSet {
 
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
-	version := new(versionFlag)
+	version := new(VersionFlag)
 	if err := version.Set(v); err != nil {
 		panic(fmt.Sprintf("internal error: %s", err))
 	}
@@ -133,22 +127,16 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-func findCheck(cs []lint.Checker, check string) (lint.Check, bool) {
+func findCheck(cs []*analysis.Analyzer, check string) (*analysis.Analyzer, bool) {
 	for _, c := range cs {
-		for _, cc := range c.Checks() {
-			if cc.ID == check {
-				return cc, true
-			}
+		if c.Name == check {
+			return c, true
 		}
 	}
-	return lint.Check{}, false
+	return nil, false
 }
 
-func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
-	if _, ok := os.LookupEnv("GOGC"); !ok {
-		debug.SetGCPercent(50)
-	}
-
+func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
@@ -158,8 +146,6 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
 	explain := fs.Lookup("explain").Value.(flag.Getter).Get().(string)
 
-	maxConcurrentJobs := fs.Lookup("debug.max-concurrent-jobs").Value.(flag.Getter).Get().(int)
-	printStats := fs.Lookup("debug.print-stats").Value.(flag.Getter).Get().(bool)
 	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
 
@@ -194,7 +180,12 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	}
 
 	if explain != "" {
-		check, ok := findCheck(cs, explain)
+		var haystack []*analysis.Analyzer
+		haystack = append(haystack, cs...)
+		for _, cum := range cums {
+			haystack = append(haystack, cum.Analyzer())
+		}
+		check, ok := findCheck(haystack, explain)
 		if !ok {
 			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
 			exit(1)
@@ -207,16 +198,12 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 		exit(0)
 	}
 
-	ps, err := Lint(cs, fs.Args(), &Options{
-		Tags:          strings.Fields(tags),
-		LintTests:     tests,
-		Ignores:       ignore,
-		GoVersion:     goVersion,
-		ReturnIgnored: showIgnored,
-		Config:        cfg,
-
-		MaxConcurrentJobs: maxConcurrentJobs,
-		PrintStats:        printStats,
+	ps, err := Lint(cs, cums, fs.Args(), &Options{
+		Tags:      strings.Fields(tags),
+		LintTests: tests,
+		Ignores:   ignore,
+		GoVersion: goVersion,
+		Config:    cfg,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -243,15 +230,19 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 	)
 
 	fail := *fs.Lookup("fail").Value.(*list)
-	var allChecks []string
-	for _, p := range ps {
-		allChecks = append(allChecks, p.Check)
+	analyzers := make([]*analysis.Analyzer, len(cs), len(cs)+len(cums))
+	copy(analyzers, cs)
+	for _, cum := range cums {
+		analyzers = append(analyzers, cum.Analyzer())
 	}
-
-	shouldExit := lint.FilterChecks(allChecks, fail)
+	shouldExit := lint.FilterChecks(analyzers, fail)
+	shouldExit["compile"] = true
 
 	total = len(ps)
 	for _, p := range ps {
+		if p.Severity == lint.Ignored && !showIgnored {
+			continue
+		}
 		if shouldExit[p.Check] {
 			errors++
 		} else {
@@ -271,75 +262,54 @@ func ProcessFlagSet(cs []lint.Checker, fs *flag.FlagSet) {
 type Options struct {
 	Config config.Config
 
-	Tags          []string
-	LintTests     bool
-	Ignores       string
-	GoVersion     int
-	ReturnIgnored bool
-
-	MaxConcurrentJobs int
-	PrintStats        bool
+	Tags      []string
+	LintTests bool
+	Ignores   string
+	GoVersion int
 }
 
-func Lint(cs []lint.Checker, paths []string, opt *Options) ([]lint.Problem, error) {
-	stats := lint.PerfStats{
-		CheckerInits: map[string]time.Duration{},
+func computeSalt() ([]byte, error) {
+	if version.Version != "devel" {
+		return []byte(version.Version), nil
 	}
+	p, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
+func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string, opt *Options) ([]lint.Problem, error) {
+	salt, err := computeSalt()
+	if err != nil {
+		return nil, fmt.Errorf("could not compute salt for cache: %s", err)
+	}
+	cache.SetSalt(salt)
 
 	if opt == nil {
 		opt = &Options{}
 	}
-	ignores, err := parseIgnore(opt.Ignores)
-	if err != nil {
-		return nil, err
-	}
-
-	conf := &packages.Config{
-		Mode:  packages.LoadAllSyntax,
-		Tests: opt.LintTests,
-		BuildFlags: []string{
-			"-tags=" + strings.Join(opt.Tags, " "),
-		},
-	}
-
-	t := time.Now()
-	if len(paths) == 0 {
-		paths = []string{"."}
-	}
-	pkgs, err := packages.Load(conf, paths...)
-	if err != nil {
-		return nil, err
-	}
-	stats.PackageLoading = time.Since(t)
-	runtime.GC()
-
-	var problems []lint.Problem
-	workingPkgs := make([]*packages.Package, 0, len(pkgs))
-	for _, pkg := range pkgs {
-		if pkg.IllTyped {
-			problems = append(problems, compileErrors(pkg)...)
-		} else {
-			workingPkgs = append(workingPkgs, pkg)
-		}
-	}
-
-	if len(workingPkgs) == 0 {
-		return problems, nil
-	}
 
 	l := &lint.Linter{
-		Checkers:      cs,
-		Ignores:       ignores,
-		GoVersion:     opt.GoVersion,
-		ReturnIgnored: opt.ReturnIgnored,
-		Config:        opt.Config,
-
-		MaxConcurrentJobs: opt.MaxConcurrentJobs,
-		PrintStats:        opt.PrintStats,
+		Checkers:           cs,
+		CumulativeCheckers: cums,
+		GoVersion:          opt.GoVersion,
+		Config:             opt.Config,
 	}
-	problems = append(problems, l.Lint(workingPkgs, &stats)...)
-
-	return problems, nil
+	cfg := &packages.Config{}
+	if opt.LintTests {
+		cfg.Tests = true
+	}
+	return l.Lint(cfg, paths)
 }
 
 var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?$`)
@@ -360,35 +330,4 @@ func parsePos(pos string) token.Position {
 		Line:     line,
 		Column:   col,
 	}
-}
-
-func compileErrors(pkg *packages.Package) []lint.Problem {
-	if !pkg.IllTyped {
-		return nil
-	}
-	if len(pkg.Errors) == 0 {
-		// transitively ill-typed
-		var ps []lint.Problem
-		for _, imp := range pkg.Imports {
-			ps = append(ps, compileErrors(imp)...)
-		}
-		return ps
-	}
-	var ps []lint.Problem
-	for _, err := range pkg.Errors {
-		p := lint.Problem{
-			Position: parsePos(err.Pos),
-			Text:     err.Msg,
-			Check:    "compile",
-		}
-		ps = append(ps, p)
-	}
-	return ps
-}
-
-func ProcessArgs(name string, cs []lint.Checker, args []string) {
-	flags := FlagSet(name)
-	flags.Parse(args)
-
-	ProcessFlagSet(cs, flags)
 }

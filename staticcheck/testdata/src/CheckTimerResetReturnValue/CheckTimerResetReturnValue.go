@@ -26,7 +26,7 @@ func fn4() {
 
 func fn5() {
 	t := time.NewTimer(time.Second)
-	if t.Reset(time.Second) { // MATCH "it is not possible to use Reset's return value correctly"
+	if t.Reset(time.Second) { // want `it is not possible to use Reset's return value correctly`
 		<-t.C
 	}
 }
@@ -53,7 +53,7 @@ func fn7(x bool) {
 
 func fn8() {
 	t := time.NewTimer(time.Second)
-	abc := t.Reset(time.Second) // MATCH "it is not possible to use Reset's return value correctly"
+	abc := t.Reset(time.Second) // want `it is not possible to use Reset's return value correctly`
 	if abc {
 		<-t.C
 	}
@@ -69,7 +69,7 @@ func fn9() {
 
 func fn10() {
 	t := time.NewTimer(time.Second)
-	if !t.Reset(time.Second) { // MATCH "it is not possible to use Reset's return value correctly"
+	if !t.Reset(time.Second) { // want `it is not possible to use Reset's return value correctly`
 		<-t.C
 	}
 }

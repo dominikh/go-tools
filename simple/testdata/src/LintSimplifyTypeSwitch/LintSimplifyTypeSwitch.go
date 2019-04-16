@@ -14,7 +14,7 @@ func fn(x, y interface{}) {
 	case int:
 		fmt.Println(x.(int), y.(int))
 	}
-	switch x.(type) { // MATCH "assigning the result of this type assertion"
+	switch x.(type) { // want `assigning the result of this type assertion`
 	case int:
 		fmt.Println(x.(int))
 	}

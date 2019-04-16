@@ -17,6 +17,6 @@ type t3 struct {
 
 func fn() {
 	v1 := t1{1, 2}
-	_ = t2{v1.a, v1.b}       // MATCH /should convert v1/
+	_ = t2{v1.a, v1.b} // want `should convert v1`
 	_ = t3{v1.a, v1.b}
 }

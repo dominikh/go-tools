@@ -51,7 +51,7 @@ type Text struct {
 }
 
 func (o Text) Format(p lint.Problem) {
-	fmt.Fprintf(o.W, "%v: %s\n", relativePositionString(p.Position), p.String())
+	fmt.Fprintf(o.W, "%v: %s\n", relativePositionString(p.Pos), p.String())
 }
 
 type JSON struct {
@@ -85,11 +85,11 @@ func (o JSON) Format(p lint.Problem) {
 		Code:     p.Check,
 		Severity: severity(p.Severity),
 		Location: location{
-			File:   p.Position.Filename,
-			Line:   p.Position.Line,
-			Column: p.Position.Column,
+			File:   p.Pos.Filename,
+			Line:   p.Pos.Line,
+			Column: p.Pos.Column,
 		},
-		Message: p.Text,
+		Message: p.Message,
 	}
 	_ = json.NewEncoder(o.W).Encode(jp)
 }
@@ -102,20 +102,21 @@ type Stylish struct {
 }
 
 func (o *Stylish) Format(p lint.Problem) {
-	if p.Position.Filename == "" {
-		p.Position.Filename = "-"
+	pos := p.Pos
+	if pos.Filename == "" {
+		pos.Filename = "-"
 	}
 
-	if p.Position.Filename != o.prevFile {
+	if pos.Filename != o.prevFile {
 		if o.prevFile != "" {
 			o.tw.Flush()
 			fmt.Fprintln(o.W)
 		}
-		fmt.Fprintln(o.W, p.Position.Filename)
-		o.prevFile = p.Position.Filename
+		fmt.Fprintln(o.W, pos.Filename)
+		o.prevFile = pos.Filename
 		o.tw = tabwriter.NewWriter(o.W, 0, 4, 2, ' ', 0)
 	}
-	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", p.Position.Line, p.Position.Column, p.Check, p.Text)
+	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Check, p.Message)
 }
 
 func (o *Stylish) Stats(total, errors, warnings int) {

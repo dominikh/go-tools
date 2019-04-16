@@ -11,18 +11,18 @@ func main() {
 	_ = st()
 }
 
-type t1 struct{} // MATCH /t1 is unused/
+type t1 struct{} // want `t1`
 type t2 struct{}
 type t3 struct{}
 
-func fn1() t1     { return t1{} } // MATCH /fn1 is unused/
+func fn1() t1     { return t1{} } // want `fn1`
 func fn2() (x t2) { return }
 func fn3() *t3    { return nil }
 
 func fn4() {
 	const x = 1
-	const y = 2  // MATCH /y is unused/
-	type foo int // MATCH /foo is unused/
+	const y = 2  // want `y`
+	type foo int // want `foo`
 	type bar int
 
 	_ = x

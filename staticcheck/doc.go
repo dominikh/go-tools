@@ -328,6 +328,7 @@ Available since
     2017.1
 `
 
+//lint:ignore U1000 This check is currently disabled
 var docSA4005 = `Field assignment that will never be observed. Did you mean to use a pointer receiver?
 
 Available since
@@ -543,6 +544,7 @@ Available since
     2017.1
 `
 
+//lint:ignore U1000 This check is currently disabled
 var docSA5006 = `Slice index out of bounds
 
 Available since
@@ -563,6 +565,18 @@ should be used instead.
 
 Available since
     2017.1
+`
+
+var docSA5008 = `Invalid struct tag
+
+Available since
+	Unreleased
+`
+
+var docSA5009 = `Invalid Printf call
+
+Available since
+	Unreleased
 `
 
 var docSA6000 = `Using regexp.Match or related in a loop, should use regexp.Compile

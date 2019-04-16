@@ -6,8 +6,8 @@ const c1 = 1
 const c2 = 200
 
 func fn() {
-	time.Sleep(1)  // MATCH /sleeping for 1/
-	time.Sleep(42) // MATCH /sleeping for 42/
+	time.Sleep(1)  // want `sleeping for 1`
+	time.Sleep(42) // want `sleeping for 42`
 	time.Sleep(201)
 	time.Sleep(c1)
 	time.Sleep(c2)

@@ -4,19 +4,19 @@ func fn() {
 	var m map[string]int
 
 	// with :=
-	for x, _ := range m { // MATCH /should omit value from range/
+	for x, _ := range m { // want `should omit value from range`
 		_ = x
 	}
 	// with =
 	var y string
 	_ = y
-	for y, _ = range m { // MATCH /should omit value from range/
+	for y, _ = range m { // want `should omit value from range`
 	}
 
-	for _ = range m { // MATCH /should omit values.*range.*equivalent.*for range/
+	for _ = range m { // want `should omit values.*range.*equivalent.*for range`
 	}
 
-	for _, _ = range m { // MATCH /should omit values.*range.*equivalent.*for range/
+	for _, _ = range m { // want `should omit values.*range.*equivalent.*for range`
 	}
 
 	// all OK:

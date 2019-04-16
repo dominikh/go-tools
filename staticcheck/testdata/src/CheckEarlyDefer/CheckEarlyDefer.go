@@ -16,7 +16,7 @@ func fn3() (T, error) {
 
 func fn2() {
 	rc, err := fn1()
-	defer rc.Close() // MATCH /should check returned error before deferring rc.Close/
+	defer rc.Close() // want `should check returned error before deferring rc\.Close`
 	if err != nil {
 		println()
 	}
@@ -31,7 +31,7 @@ func fn2() {
 	defer rc.Close()
 
 	t, err := fn3()
-	defer t.rc.Close() // MATCH /should check returned error before deferring t.rc.Close/
+	defer t.rc.Close() // want `should check returned error before deferring t\.rc\.Close`
 	if err != nil {
 		println()
 	}

@@ -2,8 +2,8 @@ package main
 
 type myNoCopy1 struct{}
 type myNoCopy2 struct{}
-type locker struct{}            // MATCH "locker is unused"
-type someStruct struct{ x int } // MATCH "someStruct is unused"
+type locker struct{}            // want `locker`
+type someStruct struct{ x int } // want `someStruct`
 
 func (myNoCopy1) Lock()      {}
 func (recv myNoCopy2) Lock() {}
@@ -14,9 +14,9 @@ func (someStruct) Lock()     {}
 type T struct {
 	noCopy1 myNoCopy1
 	noCopy2 myNoCopy2
-	field1  someStruct // MATCH "field1 is unused"
-	field2  locker     // MATCH "field2 is unused"
-	field3  int        // MATCH "field3 is unused"
+	field1  someStruct // want `field1`
+	field2  locker     // want `field2`
+	field3  int        // want `field3`
 }
 
 func main() {

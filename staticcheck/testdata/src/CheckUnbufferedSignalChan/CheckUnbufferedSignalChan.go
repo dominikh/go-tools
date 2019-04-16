@@ -8,7 +8,7 @@ import (
 
 func fn(b bool) {
 	c0 := make(chan os.Signal)
-	signal.Notify(c0, os.Interrupt) // MATCH /the channel used with signal.Notify should be buffered/
+	signal.Notify(c0, os.Interrupt) // want `the channel used with signal\.Notify should be buffered`
 
 	c1 := make(chan os.Signal, 1)
 	signal.Notify(c1, os.Interrupt, syscall.SIGHUP)

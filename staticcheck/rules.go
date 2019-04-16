@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"honnef.co/go/tools/lint"
+	"golang.org/x/tools/go/analysis"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/staticcheck/vrp"
@@ -26,12 +26,11 @@ const (
 )
 
 type Call struct {
-	Job   *lint.Job
+	Pass  *analysis.Pass
 	Instr ssa.CallInstruction
 	Args  []*Argument
 
-	Checker *Checker
-	Parent  *ssa.Function
+	Parent *ssa.Function
 
 	invalids []string
 }
@@ -184,7 +183,7 @@ func ConvertedFromInt(v Value) bool {
 	return true
 }
 
-func validEncodingBinaryType(j *lint.Job, typ types.Type) bool {
+func validEncodingBinaryType(pass *analysis.Pass, typ types.Type) bool {
 	typ = typ.Underlying()
 	switch typ := typ.(type) {
 	case *types.Basic:
@@ -194,19 +193,19 @@ func validEncodingBinaryType(j *lint.Job, typ types.Type) bool {
 			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
 			return true
 		case types.Bool:
-			return IsGoVersion(j, 8)
+			return IsGoVersion(pass, 8)
 		}
 		return false
 	case *types.Struct:
 		n := typ.NumFields()
 		for i := 0; i < n; i++ {
-			if !validEncodingBinaryType(j, typ.Field(i).Type()) {
+			if !validEncodingBinaryType(pass, typ.Field(i).Type()) {
 				return false
 			}
 		}
 		return true
 	case *types.Array:
-		return validEncodingBinaryType(j, typ.Elem())
+		return validEncodingBinaryType(pass, typ.Elem())
 	case *types.Interface:
 		// we can't determine if it's a valid type or not
 		return true
@@ -214,7 +213,7 @@ func validEncodingBinaryType(j *lint.Job, typ types.Type) bool {
 	return false
 }
 
-func CanBinaryMarshal(j *lint.Job, v Value) bool {
+func CanBinaryMarshal(pass *analysis.Pass, v Value) bool {
 	typ := v.Value.Type().Underlying()
 	if ttyp, ok := typ.(*types.Pointer); ok {
 		typ = ttyp.Elem().Underlying()
@@ -227,7 +226,7 @@ func CanBinaryMarshal(j *lint.Job, v Value) bool {
 		}
 	}
 
-	return validEncodingBinaryType(j, typ)
+	return validEncodingBinaryType(pass, typ)
 }
 
 func RepeatZeroTimes(name string, arg int) CallCheck {

@@ -12,7 +12,7 @@ func foo() {}
 var bar int
 
 var (
-	baz int // MATCH "baz is unused"
+	baz int // want `baz`
 	//go:linkname qux other3
 	qux int
 )

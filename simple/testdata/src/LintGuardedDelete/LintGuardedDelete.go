@@ -2,7 +2,7 @@
 package pkg
 
 func fn(m map[int]int) {
-	if _, ok := m[0]; ok { // MATCH "unnecessary guard"
+	if _, ok := m[0]; ok { // want `unnecessary guard`
 		delete(m, 0)
 	}
 	if _, ok := m[0]; !ok {
@@ -17,7 +17,7 @@ func fn(m map[int]int) {
 	}
 
 	var key int
-	if _, ok := m[key]; ok { // MATCH "unnecessary guard"
+	if _, ok := m[key]; ok { // want `unnecessary guard`
 		delete(m, key)
 	}
 	if _, ok := m[key]; ok {

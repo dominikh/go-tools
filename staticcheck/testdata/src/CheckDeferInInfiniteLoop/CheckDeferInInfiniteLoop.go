@@ -2,10 +2,10 @@ package pkg
 
 func fn() {
 	for {
-		defer println() // MATCH /will never run/
+		defer println() // want `will never run`
 	}
 	for {
-		defer println() // MATCH /will never run/
+		defer println() // want `will never run`
 		go func() {
 			return
 		}()

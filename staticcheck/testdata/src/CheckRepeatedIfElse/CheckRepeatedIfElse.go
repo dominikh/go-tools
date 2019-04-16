@@ -3,8 +3,8 @@ package pkg
 func fn1(b1, b2 bool) {
 	if b1 && !b2 {
 	} else if b1 {
-	} else if b1 && !b2 { // MATCH /condition occurs multiple times/
-	} else if b1 { // MATCH /condition occurs multiple times/
+	} else if b1 && !b2 { // want `condition occurs multiple times`
+	} else if b1 { // want `condition occurs multiple times`
 	} else {
 		println()
 	}

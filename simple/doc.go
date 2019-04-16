@@ -424,3 +424,15 @@ sort.Strings(x)
 Available since
     2019.1
 `
+
+var docS1033 = `Unnecessary guard around call to delete
+
+Available since:
+	Unreleased
+`
+
+var docS1034 = `Use result of type assertion to simplify cases
+
+Available since:
+	Unreleased
+`

@@ -4,13 +4,14 @@ import (
 	"go/ast"
 	"go/types"
 
-	"honnef.co/go/tools/lint"
+	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/internal/passes/buildssa"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 )
 
-func CheckRangeStringRunes(j *lint.Job) {
-	for _, ssafn := range j.Pkg.InitialFunctions {
+func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
+	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
 		fn := func(node ast.Node) bool {
 			rng, ok := node.(*ast.RangeStmt)
 			if !ok || !IsBlank(rng.Key) {
@@ -59,10 +60,11 @@ func CheckRangeStringRunes(j *lint.Job) {
 				return true
 			}
 
-			j.Errorf(rng, "should range over string, not []rune(string)")
+			pass.Reportf(rng.Pos(), "should range over string, not []rune(string)")
 
 			return true
 		}
 		Inspect(ssafn.Syntax(), fn)
 	}
+	return nil, nil
 }

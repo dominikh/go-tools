@@ -8,14 +8,14 @@ import (
 	"syscall"
 )
 
-var _ = syscall.StringByteSlice("") // MATCH /Use ByteSliceFromString instead/
+var _ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
 
 func fn1(err error) {
 	var r *http.Request
-	_ = r.Cancel                    // MATCH /Use the Context and WithContext methods/
-	_ = syscall.StringByteSlice("") // MATCH /Use ByteSliceFromString instead/
+	_ = r.Cancel                    // want `Use the Context and WithContext methods`
+	_ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
 	_ = os.SEEK_SET
-	if err == http.ErrWriteAfterFlush { // MATCH /ErrWriteAfterFlush is no longer/
+	if err == http.ErrWriteAfterFlush { // want `ErrWriteAfterFlush is no longer`
 		println()
 	}
 	var _ flate.ReadError
@@ -28,7 +28,7 @@ func fn1(err error) {
 }
 
 // Deprecated: Don't use this.
-func fn2() {
+func fn2() { // want fn2:`Deprecated: Don't use this\.`
 	_ = syscall.StringByteSlice("")
 
 	anon := func(x int) {

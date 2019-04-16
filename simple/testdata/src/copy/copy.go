@@ -2,11 +2,11 @@ package pkg
 
 func fn() {
 	var b1, b2 []byte
-	for i, v := range b1 { // MATCH /should use copy/
+	for i, v := range b1 { // want `should use copy`
 		b2[i] = v
 	}
 
-	for i := range b1 { // MATCH /should use copy/
+	for i := range b1 { // want `should use copy`
 		b2[i] = b1[i]
 	}
 
@@ -18,7 +18,7 @@ func fn() {
 	}
 
 	var b3, b4 []*byte
-	for i := range b3 { // MATCH /should use copy/
+	for i := range b3 { // want `should use copy`
 		b4[i] = b3[i]
 	}
 

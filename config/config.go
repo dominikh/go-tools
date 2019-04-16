@@ -3,9 +3,33 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/BurntSushi/toml"
+	"golang.org/x/tools/go/analysis"
 )
+
+var Analyzer = &analysis.Analyzer{
+	Name: "config",
+	Doc:  "loads configuration for the current package tree",
+	Run: func(pass *analysis.Pass) (interface{}, error) {
+		if len(pass.Files) == 0 {
+			cfg := DefaultConfig
+			return &cfg, nil
+		}
+		// FIXME(dh): this may yield the wrong path for generated files in the build cache
+		path := pass.Fset.PositionFor(pass.Files[0].Pos(), true).Filename
+		dir := filepath.Dir(path)
+		cfg, err := Load(dir)
+		return &cfg, err
+	},
+	RunDespiteErrors: true,
+	ResultType:       reflect.TypeOf((*Config)(nil)),
+}
+
+func For(pass *analysis.Pass) *Config {
+	return pass.ResultOf[Analyzer].(*Config)
+}
 
 func mergeLists(a, b []string) []string {
 	out := make([]string, 0, len(a)+len(b))
@@ -73,7 +97,7 @@ type Config struct {
 	HTTPStatusCodeWhitelist []string `toml:"http_status_code_whitelist"`
 }
 
-var defaultConfig = Config{
+var DefaultConfig = Config{
 	Checks: []string{"all", "-ST1000", "-ST1003", "-ST1016"},
 	Initialisms: []string{
 		"ACL", "API", "ASCII", "CPU", "CSS", "DNS",
@@ -120,7 +144,7 @@ func parseConfigs(dir string) ([]Config, error) {
 		}
 		dir = ndir
 	}
-	out = append(out, defaultConfig)
+	out = append(out, DefaultConfig)
 	if len(out) < 2 {
 		return out, nil
 	}

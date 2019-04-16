@@ -23,9 +23,8 @@ type a1 [1]t14
 type t15 struct{ f151 int }
 type a2 [1]t15
 type t16 struct{ f161 int }
-type t17 struct{ f171, f172 int } // MATCH /t17 is unused/
-// MATCH:28 /f183 is unused/
-type t18 struct{ f181, f182, f183 int } // MATCH /f182 is unused/
+type t17 struct{ f171, f172 int }       // want `t17`
+type t18 struct{ f181, f182, f183 int } // want `f182` `f183`
 
 type t19 struct{ f191 int }
 type m2 map[string]t19
@@ -33,7 +32,7 @@ type m2 map[string]t19
 type t20 struct{ f201 int }
 type m3 map[string]t20
 
-type t21 struct{ f211, f212 int } // MATCH /f211 is unused/
+type t21 struct{ f211, f212 int } // want `f211`
 
 func foo() {
 	_ = t10{1}
@@ -58,7 +57,7 @@ func foo() {
 	_ = a1{{1}}
 	_ = a2{0: {1}}
 	_ = map[[1]t16]int{{{1}}: 1}
-	y := struct{ x int }{} // MATCH /x is unused/
+	y := struct{ x int }{} // want `x`
 	_ = y
 	_ = t18{f181: 1}
 	_ = []m2{{"a": {1}}}

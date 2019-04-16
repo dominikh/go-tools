@@ -8,5 +8,5 @@ import (
 
 func fn() {
 	var x bool
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x)) // MATCH "cannot be used with binary.Write"
+	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x)) // want `cannot be used with binary\.Write`
 }

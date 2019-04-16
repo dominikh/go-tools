@@ -2,7 +2,7 @@ package pkg
 
 import _ "fmt"
 
-type t1 struct{} // MATCH /t1 is unused/
+type t1 struct{} // want `t1`
 type t2 struct {
 	_ int
 }
@@ -12,7 +12,7 @@ type t5 struct{}
 
 var _ = t2{}
 
-func fn1() { // MATCH /fn1 is unused/
+func fn1() { // want `fn1`
 	_ = t1{}
 	var _ = t1{}
 }

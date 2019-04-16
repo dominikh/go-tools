@@ -27,8 +27,8 @@ type I2 interface {
 
 type t3 struct{}
 type t4 struct {
-	x int // MATCH /x is unused/
-	y int // MATCH /y is unused/
+	x int // want `x`
+	y int // want `y`
 	t3
 }
 

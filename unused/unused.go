@@ -9,7 +9,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
@@ -128,28 +130,6 @@ import (
 func assert(b bool) {
 	if !b {
 		panic("failed assertion")
-	}
-}
-
-type Checker struct {
-	WholeProgram bool
-	Debug        io.Writer
-
-	interfaces      []*types.Interface
-	initialPackages []*lint.Pkg
-	scopes          map[*types.Scope]*ssa.Function
-
-	seenMu sync.Mutex
-	seen   map[token.Position]struct{}
-	out    []types.Object
-}
-
-func (*Checker) Name() string   { return "unused" }
-func (*Checker) Prefix() string { return "U" }
-
-func (l *Checker) Checks() []lint.Check {
-	return []lint.Check{
-		{ID: "U1000", FilterGenerated: true, Fn: l.Lint},
 	}
 }
 
@@ -413,77 +393,135 @@ var runtimeFuncs = map[string]bool{
 	"write":                 true,
 }
 
-func (c *Checker) Init(prog *lint.Program) {
-	for _, pkg := range prog.AllPackages {
-		c.interfaces = append(c.interfaces, interfacesFromExportData(pkg.Types)...)
-	}
-	c.initialPackages = prog.InitialPackages
-	c.seen = map[token.Position]struct{}{}
+type pkg struct {
+	Fset       *token.FileSet
+	Files      []*ast.File
+	Pkg        *types.Package
+	TypesInfo  *types.Info
+	TypesSizes types.Sizes
+	SSA        *ssa.Package
+	SrcFuncs   []*ssa.Function
+}
 
-	c.scopes = map[*types.Scope]*ssa.Function{}
-	for _, pkg := range prog.InitialPackages {
-		for _, fn := range pkg.InitialFunctions {
-			if fn.Object() != nil {
-				scope := fn.Object().(*types.Func).Scope()
-				c.scopes[scope] = fn
+type Checker struct {
+	mu sync.Mutex
+
+	WholeProgram bool
+	Debug        io.Writer
+
+	initialPackages map[*types.Package]struct{}
+	allPackages     map[*types.Package]struct{}
+
+	seenMu sync.Mutex
+	seen   map[token.Position]struct{}
+
+	graph *Graph
+	out   []types.Object
+	fset  *token.FileSet
+}
+
+func NewChecker() *Checker {
+	c := &Checker{
+		seen:            map[token.Position]struct{}{},
+		initialPackages: map[*types.Package]struct{}{},
+	}
+
+	return c
+}
+
+func (c *Checker) Analyzer() *analysis.Analyzer {
+	return &analysis.Analyzer{
+		Name:     "U1000",
+		Doc:      "Unused code",
+		Run:      c.Run,
+		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	}
+}
+
+func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var visit func(pkg *types.Package)
+	visit = func(pkg *types.Package) {
+		if _, ok := c.allPackages[pkg]; ok {
+			return
+		}
+		c.allPackages[pkg] = struct{}{}
+		for _, imp := range pkg.Imports() {
+			visit(imp)
+		}
+	}
+
+	c.fset = pass.Fset
+	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	pkg := &pkg{
+		Fset:       pass.Fset,
+		Files:      pass.Files,
+		Pkg:        pass.Pkg,
+		TypesInfo:  pass.TypesInfo,
+		TypesSizes: pass.TypesSizes,
+		SSA:        ssapkg.Pkg,
+		SrcFuncs:   ssapkg.SrcFuncs,
+	}
+
+	c.initialPackages[pkg.Pkg] = struct{}{}
+
+	if c.WholeProgram {
+		// (e1) all packages share a single graph
+		if c.graph == nil {
+			c.graph = NewGraph()
+			c.graph.wholeProgram = true
+		}
+		c.processPkg(pkg)
+	} else {
+		c.graph = NewGraph()
+		c.graph.wholeProgram = false
+
+		c.processPkg(pkg)
+		c.out = append(c.out, c.results()...)
+	}
+
+	return nil, nil
+}
+
+func (c *Checker) ProblemObject(fset *token.FileSet, obj types.Object) lint.Problem {
+	name := obj.Name()
+	if sig, ok := obj.Type().(*types.Signature); ok && sig.Recv() != nil {
+		switch sig.Recv().Type().(type) {
+		case *types.Named, *types.Pointer:
+			typ := types.TypeString(sig.Recv().Type(), func(*types.Package) string { return "" })
+			if len(typ) > 0 && typ[0] == '*' {
+				name = fmt.Sprintf("(%s).%s", typ, obj.Name())
+			} else if len(typ) > 0 {
+				name = fmt.Sprintf("%s.%s", typ, obj.Name())
 			}
 		}
 	}
 
-	// This is a hack to work in the confines of "one package per
-	// job". We do all the actual work in the Init function, and only
-	// report results in the actual checker function.
-	var out []types.Object
-	if c.WholeProgram {
-		// (e1) all packages share a single graph
-		out = c.processPkgs(prog.InitialPackages...)
-	} else {
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		for _, pkg := range prog.InitialPackages {
-			pkg := pkg
-			wg.Add(1)
-			go func() {
-				res := c.processPkgs(pkg)
-				mu.Lock()
-				out = append(out, res...)
-				mu.Unlock()
-				wg.Done()
-			}()
-		}
-		wg.Wait()
+	return lint.Problem{
+		Pos:     lint.DisplayPosition(fset, obj.Pos()),
+		Message: fmt.Sprintf("%s %s is unused", typString(obj), name),
+		Check:   "U1000",
 	}
-	out2 := make([]types.Object, 0, len(out))
-	for _, v := range out {
-		if _, ok := c.seen[prog.Fset().Position(v.Pos())]; !ok {
+}
+
+func (c *Checker) Result() []types.Object {
+	if c.WholeProgram {
+		c.out = c.results()
+	}
+
+	out2 := make([]types.Object, 0, len(c.out))
+	for _, v := range c.out {
+		if _, ok := c.initialPackages[v.Pkg()]; !ok {
+			continue
+		}
+		position := c.fset.PositionFor(v.Pos(), false)
+		if _, ok := c.seen[position]; !ok {
 			out2 = append(out2, v)
 		}
 	}
-	c.out = out2
-}
-
-func (c *Checker) Lint(j *lint.Job) {
-	// The actual work is being done in Init. We only report existing
-	// results here.
-	unused := c.out
-	for _, u := range unused {
-		if u.Pkg() != j.Pkg.Types {
-			continue
-		}
-		name := u.Name()
-		if sig, ok := u.Type().(*types.Signature); ok && sig.Recv() != nil {
-			switch sig.Recv().Type().(type) {
-			case *types.Named, *types.Pointer:
-				typ := types.TypeString(sig.Recv().Type(), func(*types.Package) string { return "" })
-				if len(typ) > 0 && typ[0] == '*' {
-					name = fmt.Sprintf("(%s).%s", typ, u.Name())
-				} else if len(typ) > 0 {
-					name = fmt.Sprintf("%s.%s", typ, u.Name())
-				}
-			}
-		}
-		j.Errorf(u, "%s %s is unused", typString(u), name)
-	}
+	return out2
 }
 
 func (c *Checker) debugf(f string, v ...interface{}) {
@@ -537,27 +575,15 @@ func (graph *Graph) quieten(node *Node) {
 	}
 }
 
-func (c *Checker) processPkgs(pkgs ...*lint.Pkg) []types.Object {
-	graph := NewGraph()
-	graph.wholeProgram = c.WholeProgram
-	graph.scopes = c.scopes
-	graph.initialPackages = c.initialPackages
-
+func (c *Checker) results() []types.Object {
 	var out []types.Object
-
-	for _, pkg := range pkgs {
-		if pkg.PkgPath == "unsafe" {
-			continue
-		}
-		graph.entry(pkg)
-	}
 
 	if c.WholeProgram {
 		var ifaces []*types.Interface
 		var notIfaces []types.Type
 
 		// implement as many interfaces as possible
-		graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+		c.graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 			switch t := t.(type) {
 			case *types.Interface:
 				ifaces = append(ifaces, t)
@@ -568,17 +594,18 @@ func (c *Checker) processPkgs(pkgs ...*lint.Pkg) []types.Object {
 			}
 		})
 
-		// OPT(dh): this is not terribly efficient
-		ifaces = append(ifaces, c.interfaces...)
+		for pkg := range c.allPackages {
+			ifaces = append(ifaces, interfacesFromExportData(pkg)...)
+		}
 
 		// (8.0) handle interfaces
 		// (e2) types aim to implement all exported interfaces from all packages
 		for _, t := range notIfaces {
-			ms := graph.msCache.MethodSet(t)
+			ms := c.graph.msCache.MethodSet(t)
 			for _, iface := range ifaces {
-				if sels, ok := graph.implements(t, iface, ms); ok {
+				if sels, ok := c.graph.implements(t, iface, ms); ok {
 					for _, sel := range sels {
-						graph.useMethod(t, sel, t, "implements")
+						c.graph.useMethod(t, sel, t, "implements")
 					}
 				}
 			}
@@ -600,27 +627,27 @@ func (c *Checker) processPkgs(pkgs ...*lint.Pkg) []types.Object {
 		}
 
 		c.debugf("digraph{\n")
-		debugNode(graph.Root)
-		for _, node := range graph.Nodes {
+		debugNode(c.graph.Root)
+		for _, node := range c.graph.Nodes {
 			debugNode(node)
 		}
-		graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
+		c.graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
 			debugNode(value.(*Node))
 		})
 		c.debugf("}\n")
 	}
 
-	graph.color(graph.Root)
+	c.graph.color(c.graph.Root)
 	// if a node is unused, don't report any of the node's
 	// children as unused. for example, if a function is unused,
 	// don't flag its receiver. if a named type is unused, don't
 	// flag its methods.
 
-	for _, node := range graph.Nodes {
-		graph.quieten(node)
+	for _, node := range c.graph.Nodes {
+		c.graph.quieten(node)
 	}
-	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
-		graph.quieten(value.(*Node))
+	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+		c.graph.quieten(value.(*Node))
 	})
 
 	report := func(node *Node) {
@@ -634,47 +661,15 @@ func (c *Checker) processPkgs(pkgs ...*lint.Pkg) []types.Object {
 			}
 
 			if pos != 0 {
+				position := c.fset.PositionFor(pos, false)
 				c.seenMu.Lock()
-				c.seen[pkgs[0].Fset.Position(pos)] = struct{}{}
+				c.seen[position] = struct{}{}
 				c.seenMu.Unlock()
 			}
 			return
 		}
 		if node.quiet {
 			c.debugf("n%d [color=purple];\n", node.id)
-			return
-		}
-
-		type packager1 interface {
-			Pkg() *types.Package
-		}
-		type packager2 interface {
-			Package() *ssa.Package
-		}
-
-		// do not report objects from packages we aren't checking.
-	checkPkg:
-		switch obj := node.obj.(type) {
-		case packager1:
-			for _, pkg := range pkgs {
-				if pkg.Types == obj.Pkg() {
-					break checkPkg
-				}
-			}
-			c.debugf("n%d [color=yellow];\n", node.id)
-			return
-		case packager2:
-			// This happens to filter $bound and $thunk, which
-			// should be fine, since we wouldn't want to report
-			// them, anyway. Remember that this filtering is only
-			// for the output, it doesn't affect the reachability
-			// of nodes in the graph.
-			for _, pkg := range pkgs {
-				if pkg.SSA == obj.Package() {
-					break checkPkg
-				}
-			}
-			c.debugf("n%d [color=yellow];\n", node.id)
 			return
 		}
 
@@ -703,20 +698,26 @@ func (c *Checker) processPkgs(pkgs ...*lint.Pkg) []types.Object {
 			c.debugf("n%d [color=gray];\n", node.id)
 		}
 	}
-	for _, node := range graph.Nodes {
+	for _, node := range c.graph.Nodes {
 		report(node)
 	}
-	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
 		report(value.(*Node))
 	})
 
 	return out
 }
 
+func (c *Checker) processPkg(pkg *pkg) {
+	if pkg.Pkg.Path() == "unsafe" {
+		return
+	}
+	c.graph.entry(pkg)
+}
+
 type Graph struct {
 	pkg     *ssa.Package
 	msCache typeutil.MethodSetCache
-	scopes  map[*types.Scope]*ssa.Function
 
 	wholeProgram bool
 
@@ -728,8 +729,6 @@ type Graph struct {
 
 	seenTypes typeutil.Map
 	seenFns   map[*ssa.Function]struct{}
-
-	initialPackages []*lint.Pkg
 }
 
 func NewGraph() *Graph {
@@ -877,12 +876,7 @@ func isIrrelevant(obj interface{}) bool {
 
 func (g *Graph) isInterestingPackage(pkg *types.Package) bool {
 	if g.wholeProgram {
-		for _, opkg := range g.initialPackages {
-			if opkg.Types == pkg {
-				return true
-			}
-		}
-		return false
+		return true
 	}
 	return pkg == g.pkg.Pkg
 }
@@ -968,11 +962,19 @@ func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 	return true
 }
 
-func (g *Graph) entry(pkg *lint.Pkg) {
+func (g *Graph) entry(pkg *pkg) {
 	// TODO rename Entry
 	g.pkg = pkg.SSA
 
-	for _, f := range pkg.Syntax {
+	scopes := map[*types.Scope]*ssa.Function{}
+	for _, fn := range pkg.SrcFuncs {
+		if fn.Object() != nil {
+			scope := fn.Object().(*types.Func).Scope()
+			scopes[scope] = fn
+		}
+	}
+
+	for _, f := range pkg.Files {
 		for _, cg := range f.Comments {
 			for _, c := range cg.List {
 				if strings.HasPrefix(c.Text, "//go:linkname ") {
@@ -1006,7 +1008,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 	surroundingFunc := func(obj types.Object) *ssa.Function {
 		scope := obj.Parent()
 		for scope != nil {
-			if fn := g.scopes[scope]; fn != nil {
+			if fn := scopes[scope]; fn != nil {
 				return fn
 			}
 			scope = scope.Parent()
@@ -1037,7 +1039,7 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 
 	// Find constants being used inside functions, find sinks in tests
 	handledConsts := map[*ast.Ident]struct{}{}
-	for _, fn := range pkg.InitialFunctions {
+	for _, fn := range pkg.SrcFuncs {
 		g.see(fn)
 		node := fn.Syntax()
 		if node == nil {
@@ -1094,82 +1096,83 @@ func (g *Graph) entry(pkg *lint.Pkg) {
 	}
 
 	var fn *ssa.Function
-	pkg.Inspector.Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.GenDecl)(nil)}, func(n ast.Node) {
-		switch n := n.(type) {
-		case *ast.FuncDecl:
-			fn = pkg.SSA.Prog.FuncValue(pkg.TypesInfo.ObjectOf(n.Name).(*types.Func))
-			if fn != nil {
-				g.see(fn)
-			}
-		case *ast.GenDecl:
-			switch n.Tok {
-			case token.CONST:
-				groups := lintdsl.GroupSpecs(pkg.Fset, n.Specs)
-				for _, specs := range groups {
-					if len(specs) > 1 {
-						cg := &ConstGroup{}
-						g.see(cg)
-						for _, spec := range specs {
-							for _, name := range spec.(*ast.ValueSpec).Names {
-								obj := pkg.TypesInfo.ObjectOf(name)
-								// (10.1) const groups
-								g.seeAndUse(obj, cg, "const group")
-								g.use(cg, obj, "const group")
+	for _, f := range pkg.Files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.FuncDecl:
+				fn = pkg.SSA.Prog.FuncValue(pkg.TypesInfo.ObjectOf(n.Name).(*types.Func))
+				if fn != nil {
+					g.see(fn)
+				}
+			case *ast.GenDecl:
+				switch n.Tok {
+				case token.CONST:
+					groups := lintdsl.GroupSpecs(pkg.Fset, n.Specs)
+					for _, specs := range groups {
+						if len(specs) > 1 {
+							cg := &ConstGroup{}
+							g.see(cg)
+							for _, spec := range specs {
+								for _, name := range spec.(*ast.ValueSpec).Names {
+									obj := pkg.TypesInfo.ObjectOf(name)
+									// (10.1) const groups
+									g.seeAndUse(obj, cg, "const group")
+									g.use(cg, obj, "const group")
+								}
+							}
+						}
+					}
+				case token.VAR:
+					for _, spec := range n.Specs {
+						v := spec.(*ast.ValueSpec)
+						for _, name := range v.Names {
+							T := pkg.TypesInfo.TypeOf(name)
+							if fn != nil {
+								g.seeAndUse(T, fn, "var decl")
+							} else {
+								g.seeAndUse(T, nil, "var decl")
+							}
+							g.typ(T)
+						}
+					}
+				case token.TYPE:
+					for _, spec := range n.Specs {
+						// go/types doesn't provide a way to go from a
+						// types.Named to the named type it was based on
+						// (the t1 in type t2 t1). Therefore we walk the
+						// AST and process GenDecls.
+						//
+						// (2.2) named types use the type they're based on
+						v := spec.(*ast.TypeSpec)
+						T := pkg.TypesInfo.TypeOf(v.Type)
+						obj := pkg.TypesInfo.ObjectOf(v.Name)
+						g.see(obj)
+						g.see(T)
+						g.use(T, obj, "type")
+						g.typ(obj.Type())
+						g.typ(T)
+
+						if v.Assign != 0 {
+							aliasFor := obj.(*types.TypeName).Type()
+							// (2.3) named types use all their aliases. we can't easily track uses of aliases
+							if isIrrelevant(aliasFor) {
+								// We do not track the type this is an
+								// alias for (for example builtins), so
+								// just mark the alias used.
+								//
+								// FIXME(dh): what about aliases declared inside functions?
+								g.use(obj, nil, "alias")
+							} else {
+								g.see(aliasFor)
+								g.seeAndUse(obj, aliasFor, "alias")
 							}
 						}
 					}
 				}
-			case token.VAR:
-				for _, spec := range n.Specs {
-					v := spec.(*ast.ValueSpec)
-					for _, name := range v.Names {
-						T := pkg.TypesInfo.TypeOf(name)
-						if fn != nil {
-							g.seeAndUse(T, fn, "var decl")
-						} else {
-							g.seeAndUse(T, nil, "var decl")
-						}
-						g.typ(T)
-					}
-				}
-			case token.TYPE:
-				for _, spec := range n.Specs {
-					// go/types doesn't provide a way to go from a
-					// types.Named to the named type it was based on
-					// (the t1 in type t2 t1). Therefore we walk the
-					// AST and process GenDecls.
-					//
-					// (2.2) named types use the type they're based on
-					v := spec.(*ast.TypeSpec)
-					T := pkg.TypesInfo.TypeOf(v.Type)
-					obj := pkg.TypesInfo.ObjectOf(v.Name)
-					g.see(obj)
-					g.see(T)
-					g.use(T, obj, "type")
-					g.typ(obj.Type())
-					g.typ(T)
-
-					if v.Assign != 0 {
-						aliasFor := obj.(*types.TypeName).Type()
-						// (2.3) named types use all their aliases. we can't easily track uses of aliases
-						if isIrrelevant(aliasFor) {
-							// We do not track the type this is an
-							// alias for (for example builtins), so
-							// just mark the alias used.
-							//
-							// FIXME(dh): what about aliases declared inside functions?
-							g.use(obj, nil, "alias")
-						} else {
-							g.see(aliasFor)
-							g.seeAndUse(obj, aliasFor, "alias")
-						}
-					}
-				}
 			}
-		default:
-			panic(fmt.Sprintf("unreachable: %T", n))
-		}
-	})
+			return true
+		})
+	}
 
 	for _, m := range g.pkg.Members {
 		switch m := m.(type) {

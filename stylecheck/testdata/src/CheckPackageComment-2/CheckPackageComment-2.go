@@ -1,4 +1,2 @@
-// This package is great
+// This package is great // want `package comment should be of the form`
 package pkg
-
-// MATCH:1 "package comment should be of the form"

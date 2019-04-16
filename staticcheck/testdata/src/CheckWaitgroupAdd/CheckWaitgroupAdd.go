@@ -12,7 +12,7 @@ func fn() {
 	}()
 
 	go func() {
-		wg.Add(1) // MATCH "should call wg.Add(1) before starting"
+		wg.Add(1) // want `should call wg\.Add\(1\) before starting`
 		wg.Done()
 	}()
 

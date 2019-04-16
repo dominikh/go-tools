@@ -9,42 +9,42 @@ func fn() {
 	const t T = false
 	if x == t {
 	}
-	if fn1() == true { // MATCH "simplified to fn1()"
+	if fn1() == true { // want `simplified to fn1\(\)`
 	}
-	if fn1() != true { // MATCH "simplified to !fn1()"
+	if fn1() != true { // want `simplified to !fn1\(\)`
 	}
-	if fn1() == false { // MATCH "simplified to !fn1()"
+	if fn1() == false { // want `simplified to !fn1\(\)`
 	}
-	if fn1() != false { // MATCH "simplified to fn1()"
+	if fn1() != false { // want `simplified to fn1\(\)`
 	}
-	if fn1() && (fn1() || fn1()) || (fn1() && fn1()) == true { // MATCH "simplified to (fn1() && fn1())"
+	if fn1() && (fn1() || fn1()) || (fn1() && fn1()) == true { // want `simplified to \(fn1\(\) && fn1\(\)\)`
 	}
 
-	if (fn1() && fn2()) == false { // MATCH "simplified to !(fn1() && fn2())"
+	if (fn1() && fn2()) == false { // want `simplified to !\(fn1\(\) && fn2\(\)\)`
 	}
 
 	var y bool
-	for y != true { // MATCH /simplified to !y/
+	for y != true { // want `simplified to !y`
 	}
-	if !y == true { // MATCH /simplified to !y/
+	if !y == true { // want `simplified to !y`
 	}
-	if !y == false { // MATCH /simplified to y/
+	if !y == false { // want `simplified to y`
 	}
-	if !y != true { // MATCH /simplified to y/
+	if !y != true { // want `simplified to y`
 	}
-	if !y != false { // MATCH /simplified to !y/
+	if !y != false { // want `simplified to !y`
 	}
-	if !!y == false { // MATCH /simplified to !y/
+	if !!y == false { // want `simplified to !y`
 	}
-	if !!!y == false { // MATCH /simplified to y/
+	if !!!y == false { // want `simplified to y`
 	}
-	if !!y == true { // MATCH /simplified to y/
+	if !!y == true { // want `simplified to y`
 	}
-	if !!!y == true { // MATCH /simplified to !y/
+	if !!!y == true { // want `simplified to !y`
 	}
-	if !!y != true { // MATCH /simplified to !y/
+	if !!y != true { // want `simplified to !y`
 	}
-	if !!!y != true { // MATCH /simplified to y/
+	if !!!y != true { // want `simplified to y`
 	}
 	if !y == !false { // not matched because we expect true/false on one side, not !false
 	}

@@ -65,68 +65,68 @@ func fn() {
 	fmt.Printf("%g", 1+2i)
 	fmt.Printf("%#e %#E %#f %#F %#g %#G", 1.2, 1.2, 1.2, 1.2, 1.2, 1.2) // OK since Go 1.9
 	// Some bad format/argTypes
-	fmt.Printf("%b", "hi")                      // MATCH "Printf format %b has arg #1 of wrong type string"
-	_ = fmt.Sprintf("%b", "hi")                 // MATCH "Printf format %b has arg #1 of wrong type string"
-	fmt.Fprintf(os.Stdout, "%b", "hi")          // MATCH "Printf format %b has arg #1 of wrong type string"
-	fmt.Printf("%t", c)                         // MATCH "Printf format %t has arg #1 of wrong type complex64"
-	fmt.Printf("%t", 1+2i)                      // MATCH "Printf format %t has arg #1 of wrong type complex128"
-	fmt.Printf("%c", 2.3)                       // MATCH "Printf format %c has arg #1 of wrong type float64"
-	fmt.Printf("%d", 2.3)                       // MATCH "Printf format %d has arg #1 of wrong type float64"
-	fmt.Printf("%e", "hi")                      // MATCH "Printf format %e has arg #1 of wrong type string"
-	fmt.Printf("%E", true)                      // MATCH "Printf format %E has arg #1 of wrong type bool"
-	fmt.Printf("%f", "hi")                      // MATCH "Printf format %f has arg #1 of wrong type string"
-	fmt.Printf("%F", 'x')                       // MATCH "Printf format %F has arg #1 of wrong type rune"
-	fmt.Printf("%g", "hi")                      // MATCH "Printf format %g has arg #1 of wrong type string"
-	fmt.Printf("%g", imap)                      // MATCH "Printf format %g has arg #1 of wrong type map[int]int"
-	fmt.Printf("%G", i)                         // MATCH "Printf format %G has arg #1 of wrong type int"
-	fmt.Printf("%o", x)                         // MATCH "Printf format %o has arg #1 of wrong type float64"
-	fmt.Printf("%p", 23)                        // MATCH "Printf format %p has arg #1 of wrong type int"
-	fmt.Printf("%q", x)                         // MATCH "Printf format %q has arg #1 of wrong type float64"
-	fmt.Printf("%s", b)                         // MATCH "Printf format %s has arg #1 of wrong type bool"
-	fmt.Printf("%s", byte(65))                  // MATCH "Printf format %s has arg #1 of wrong type byte"
-	fmt.Printf("%t", 23)                        // MATCH "Printf format %t has arg #1 of wrong type int"
-	fmt.Printf("%U", x)                         // MATCH "Printf format %U has arg #1 of wrong type float64"
-	fmt.Printf("%X", 2.3)                       // MATCH "Printf format %X has arg #1 of wrong type float64"
-	fmt.Printf("%s", stringerv)                 // MATCH "Printf format %s has arg #1 of wrong type CheckPrintf.ptrStringer"
-	fmt.Printf("%t", stringerv)                 // MATCH "Printf format %t has arg #1 of wrong type CheckPrintf.ptrStringer"
-	fmt.Printf("%s", embeddedStringerv)         // MATCH "Printf format %s has arg #1 of wrong type CheckPrintf.embeddedStringer"
-	fmt.Printf("%t", embeddedStringerv)         // MATCH "Printf format %t has arg #1 of wrong type CheckPrintf.embeddedStringer"
-	fmt.Printf("%q", notstringerv)              // MATCH "Printf format %q has arg #1 of wrong type CheckPrintf.notstringer"
-	fmt.Printf("%t", notstringerv)              // MATCH "Printf format %t has arg #1 of wrong type CheckPrintf.notstringer"
-	fmt.Printf("%t", stringerarrayv)            // MATCH "Printf format %t has arg #1 of wrong type CheckPrintf.stringerarray"
-	fmt.Printf("%t", notstringerarrayv)         // MATCH "Printf format %t has arg #1 of wrong type CheckPrintf.notstringerarray"
-	fmt.Printf("%q", notstringerarrayv)         // MATCH "Printf format %q has arg #1 of wrong type CheckPrintf.notstringerarray"
-	fmt.Printf("%d", BoolFormatter(true))       // MATCH "Printf format %d has arg #1 of wrong type CheckPrintf.BoolFormatter"
+	fmt.Printf("%b", "hi")                      // want `Printf format %b has arg #1 of wrong type string`
+	_ = fmt.Sprintf("%b", "hi")                 // want `Printf format %b has arg #1 of wrong type string`
+	fmt.Fprintf(os.Stdout, "%b", "hi")          // want `Printf format %b has arg #1 of wrong type string`
+	fmt.Printf("%t", c)                         // want `Printf format %t has arg #1 of wrong type complex64`
+	fmt.Printf("%t", 1+2i)                      // want `Printf format %t has arg #1 of wrong type complex128`
+	fmt.Printf("%c", 2.3)                       // want `Printf format %c has arg #1 of wrong type float64`
+	fmt.Printf("%d", 2.3)                       // want `Printf format %d has arg #1 of wrong type float64`
+	fmt.Printf("%e", "hi")                      // want `Printf format %e has arg #1 of wrong type string`
+	fmt.Printf("%E", true)                      // want `Printf format %E has arg #1 of wrong type bool`
+	fmt.Printf("%f", "hi")                      // want `Printf format %f has arg #1 of wrong type string`
+	fmt.Printf("%F", 'x')                       // want `Printf format %F has arg #1 of wrong type rune`
+	fmt.Printf("%g", "hi")                      // want `Printf format %g has arg #1 of wrong type string`
+	fmt.Printf("%g", imap)                      // want `Printf format %g has arg #1 of wrong type map\[int\]int`
+	fmt.Printf("%G", i)                         // want `Printf format %G has arg #1 of wrong type int`
+	fmt.Printf("%o", x)                         // want `Printf format %o has arg #1 of wrong type float64`
+	fmt.Printf("%p", 23)                        // want `Printf format %p has arg #1 of wrong type int`
+	fmt.Printf("%q", x)                         // want `Printf format %q has arg #1 of wrong type float64`
+	fmt.Printf("%s", b)                         // want `Printf format %s has arg #1 of wrong type bool`
+	fmt.Printf("%s", byte(65))                  // want `Printf format %s has arg #1 of wrong type byte`
+	fmt.Printf("%t", 23)                        // want `Printf format %t has arg #1 of wrong type int`
+	fmt.Printf("%U", x)                         // want `Printf format %U has arg #1 of wrong type float64`
+	fmt.Printf("%X", 2.3)                       // want `Printf format %X has arg #1 of wrong type float64`
+	fmt.Printf("%s", stringerv)                 // want `Printf format %s has arg #1 of wrong type CheckPrintf\.ptrStringer`
+	fmt.Printf("%t", stringerv)                 // want `Printf format %t has arg #1 of wrong type CheckPrintf\.ptrStringer`
+	fmt.Printf("%s", embeddedStringerv)         // want `Printf format %s has arg #1 of wrong type CheckPrintf\.embeddedStringer`
+	fmt.Printf("%t", embeddedStringerv)         // want `Printf format %t has arg #1 of wrong type CheckPrintf\.embeddedStringer`
+	fmt.Printf("%q", notstringerv)              // want `Printf format %q has arg #1 of wrong type CheckPrintf\.notstringer`
+	fmt.Printf("%t", notstringerv)              // want `Printf format %t has arg #1 of wrong type CheckPrintf\.notstringer`
+	fmt.Printf("%t", stringerarrayv)            // want `Printf format %t has arg #1 of wrong type CheckPrintf\.stringerarray`
+	fmt.Printf("%t", notstringerarrayv)         // want `Printf format %t has arg #1 of wrong type CheckPrintf\.notstringerarray`
+	fmt.Printf("%q", notstringerarrayv)         // want `Printf format %q has arg #1 of wrong type CheckPrintf\.notstringerarray`
+	fmt.Printf("%d", BoolFormatter(true))       // want `Printf format %d has arg #1 of wrong type CheckPrintf\.BoolFormatter`
 	fmt.Printf("%z", FormatterVal(true))        // correct (the type is responsible for formatting)
 	fmt.Printf("%d", FormatterVal(true))        // correct (the type is responsible for formatting)
 	fmt.Printf("%s", nonemptyinterface)         // correct (the type is responsible for formatting)
-	fmt.Printf("%.*s %d %6g", 3, "hi", 23, 'x') // MATCH "Printf format %6g has arg #4 of wrong type rune"
-	fmt.Printf("%s", "hi", 3)                   // MATCH "Printf call needs 1 args but has 2 args"
-	fmt.Printf("%"+("s"), "hi", 3)              // MATCH "Printf call needs 1 args but has 2 args"
+	fmt.Printf("%.*s %d %6g", 3, "hi", 23, 'x') // want `Printf format %6g has arg #4 of wrong type rune`
+	fmt.Printf("%s", "hi", 3)                   // want `Printf call needs 1 args but has 2 args`
+	fmt.Printf("%"+("s"), "hi", 3)              // want `Printf call needs 1 args but has 2 args`
 	fmt.Printf("%s%%%d", "hi", 3)               // correct
 	fmt.Printf("%08s", "woo")                   // correct
 	fmt.Printf("% 8s", "woo")                   // correct
 	fmt.Printf("%.*d", 3, 3)                    // correct
-	fmt.Printf("%.*d x", 3, 3, 3, 3)            // MATCH "Printf call needs 2 args but has 4 args"
-	fmt.Printf("%.*d x", "hi", 3)               // MATCH "Printf format %.*d reads non-int arg #1 as argument of *"
+	fmt.Printf("%.*d x", 3, 3, 3, 3)            // want `Printf call needs 2 args but has 4 args`
+	fmt.Printf("%.*d x", "hi", 3)               // want `Printf format %\.\*d reads non-int arg #1 as argument of \*`
 	fmt.Printf("%.*d x", i, 3)                  // correct
-	fmt.Printf("%.*d x", s, 3)                  // MATCH "Printf format %.*d reads non-int arg #1 as argument of *"
-	fmt.Printf("%*% x", 0.22)                   // MATCH "Printf format %*% reads non-int arg #1 as argument of *"
+	fmt.Printf("%.*d x", s, 3)                  // want `Printf format %\.\*d reads non-int arg #1 as argument of \*`
+	fmt.Printf("%*% x", 0.22)                   // want `Printf format %\*% reads non-int arg #1 as argument of \*`
 	fmt.Printf("%q %q", multi()...)             // ok
 	fmt.Printf("%#q", `blah`)                   // ok
 	const format = "%s %s\n"
 	fmt.Printf(format, "hi", "there")
-	fmt.Printf(format, "hi")              // MATCH "Printf format %s reads arg #2, but call has only 1 args"
-	fmt.Printf("%s %d %.3v %q", "str", 4) // MATCH "Printf format %.3v reads arg #3, but call has only 2 args"
+	fmt.Printf(format, "hi")              // want `Printf format %s reads arg #2, but call has only 1 args`
+	fmt.Printf("%s %d %.3v %q", "str", 4) // want `Printf format %\.3v reads arg #3, but call has only 2 args`
 
 	fmt.Printf("%#s", FormatterVal(true)) // correct (the type is responsible for formatting)
-	fmt.Printf("d%", 2)                   // MATCH "couldn't parse format string"
+	fmt.Printf("d%", 2)                   // want `couldn't parse format string`
 	fmt.Printf("%d", percentDV)
 	fmt.Printf("%d", &percentDV)
-	fmt.Printf("%d", notPercentDV)  // MATCH "Printf format %d has arg #1 of wrong type CheckPrintf.notPercentDStruct"
-	fmt.Printf("%d", &notPercentDV) // MATCH "Printf format %d has arg #1 of wrong type *CheckPrintf.notPercentDStruct"
+	fmt.Printf("%d", notPercentDV)  // want `Printf format %d has arg #1 of wrong type CheckPrintf\.notPercentDStruct`
+	fmt.Printf("%d", &notPercentDV) // want `Printf format %d has arg #1 of wrong type \*CheckPrintf\.notPercentDStruct`
 	fmt.Printf("%p", &notPercentDV) // Works regardless: we print it as a pointer.
-	fmt.Printf("%q", &percentDV)    // MATCH "Printf format %q has arg #1 of wrong type *CheckPrintf.percentDStruct"
+	fmt.Printf("%q", &percentDV)    // want `Printf format %q has arg #1 of wrong type \*CheckPrintf\.percentDStruct`
 	fmt.Printf("%s", percentSV)
 	fmt.Printf("%s", &percentSV)
 	// Good argument reorderings.
@@ -136,13 +136,13 @@ func fn() {
 	fmt.Printf("%[2]*.[1]*[3]d", 2, 3, 4)
 	fmt.Fprintf(os.Stderr, "%[2]*.[1]*[3]d", 2, 3, 4) // Use Fprintf to make sure we count arguments correctly.
 	// Bad argument reorderings.
-	fmt.Printf("%[xd", 3)                      // MATCH "couldn't parse format string"
-	fmt.Printf("%[x]d x", 3)                   // MATCH "couldn't parse format string"
-	fmt.Printf("%[3]*s x", "hi", 2)            // MATCH "Printf format %[3]*s reads arg #3, but call has only 2 args"
-	fmt.Printf("%[3]d x", 2)                   // MATCH "Printf format %[3]d reads arg #3, but call has only 1 args"
-	fmt.Printf("%[2]*.[1]*[3]d x", 2, "hi", 4) // MATCH "Printf format %[2]*.[1]*[3]d reads non-int arg #2 as argument of *"
-	fmt.Printf("%[0]s x", "arg1")              // MATCH "Printf format %[0]s reads invalid arg 0; indices are 1-based"
-	fmt.Printf("%[0]d x", 1)                   // MATCH "Printf format %[0]d reads invalid arg 0; indices are 1-based"
+	fmt.Printf("%[xd", 3)                      // want `couldn't parse format string`
+	fmt.Printf("%[x]d x", 3)                   // want `couldn't parse format string`
+	fmt.Printf("%[3]*s x", "hi", 2)            // want `Printf format %\[3\]\*s reads arg #3, but call has only 2 args`
+	fmt.Printf("%[3]d x", 2)                   // want `Printf format %\[3\]d reads arg #3, but call has only 1 args`
+	fmt.Printf("%[2]*.[1]*[3]d x", 2, "hi", 4) // want `Printf format %\[2\]\*\.\[1\]\*\[3\]d reads non-int arg #2 as argument of \*`
+	fmt.Printf("%[0]s x", "arg1")              // want `Printf format %\[0\]s reads invalid arg 0; indices are 1-based`
+	fmt.Printf("%[0]d x", 1)                   // want `Printf format %\[0\]d reads invalid arg 0; indices are 1-based`
 
 	// Interfaces can be used with any verb.
 	var iface interface {
@@ -150,7 +150,7 @@ func fn() {
 	}
 	fmt.Printf("%f", iface) // ok: fmt treats interfaces as transparent and iface may well have a float concrete type
 	// Can print functions in many ways
-	fmt.Printf("%s", someFunction) // MATCH "Printf format %s has arg #1 of wrong type func()"
+	fmt.Printf("%s", someFunction) // want `Printf format %s has arg #1 of wrong type func\(\)`
 	fmt.Printf("%d", someFunction) // ok: maybe someone wants to see the pointer
 	fmt.Printf("%v", someFunction) // ok: maybe someone wants to see the pointer in decimal
 	fmt.Printf("%p", someFunction) // ok: maybe someone wants to see the pointer
@@ -163,11 +163,11 @@ func fn() {
 
 	// indexed arguments
 	fmt.Printf("%d %[3]d %d %[2]d x", 1, 2, 3, 4)             // OK
-	fmt.Printf("%d %[0]d %d %[2]d x", 1, 2, 3, 4)             // MATCH "Printf format %[0]d reads invalid arg 0; indices are 1-based"
-	fmt.Printf("%d %[3]d %d %[-2]d x", 1, 2, 3, 4)            // MATCH "couldn't parse format string"
-	fmt.Printf("%d %[3]d %d %[2234234234234]d x", 1, 2, 3, 4) // MATCH "Printf format %[2234234234234]d reads arg #2234234234234, but call has only 4 args"
-	fmt.Printf("%d %[3]d %-10d %[2]d x", 1, 2, 3)             // MATCH "Printf format %-10d reads arg #4, but call has only 3 args"
-	fmt.Printf("%[1][3]d x", 1, 2)                            // MATCH "couldn't parse format string"
+	fmt.Printf("%d %[0]d %d %[2]d x", 1, 2, 3, 4)             // want `Printf format %\[0\]d reads invalid arg 0; indices are 1-based`
+	fmt.Printf("%d %[3]d %d %[-2]d x", 1, 2, 3, 4)            // want `couldn't parse format string`
+	fmt.Printf("%d %[3]d %d %[2234234234234]d x", 1, 2, 3, 4) // want `Printf format %\[2234234234234\]d reads arg #2234234234234, but call has only 4 args`
+	fmt.Printf("%d %[3]d %-10d %[2]d x", 1, 2, 3)             // want `Printf format %-10d reads arg #4, but call has only 3 args`
+	fmt.Printf("%[1][3]d x", 1, 2)                            // want `couldn't parse format string`
 	fmt.Printf("%[1]d x", 1, 2)                               // OK
 	fmt.Printf("%d %[3]d %d %[2]d x", 1, 2, 3, 4, 5)          // OK
 
@@ -191,11 +191,11 @@ func fn() {
 		t1 := T1{&T2{"hi"}}
 
 		fmt.Printf("%s\n", &x1)
-		fmt.Printf("%s\n", t1) // MATCH "Printf format %s has arg #1 of wrong type CheckPrintf.T1"
+		fmt.Printf("%s\n", t1) // want `Printf format %s has arg #1 of wrong type CheckPrintf\.T1`
 		var x2 struct{ A *int }
-		fmt.Printf("%p\n", x2) // MATCH "Printf format %p has arg #1 of wrong type struct{A *int}"
+		fmt.Printf("%p\n", x2) // want `Printf format %p has arg #1 of wrong type struct\{A \*int\}`
 		var x3 [2]int
-		fmt.Printf("%p", x3) // MATCH "Printf format %p has arg #1 of wrong type [2]int"
+		fmt.Printf("%p", x3) // want `Printf format %p has arg #1 of wrong type \[2\]int`
 
 		ue := unexportedError{nil}
 		fmt.Printf("%s", ue)
@@ -364,20 +364,20 @@ func UnexportedStringerOrError() {
 	fmt.Printf("%s", unexportedInterface{3})     // ok; we can't see the problem
 
 	us := unexportedStringer{}
-	fmt.Printf("%s", us)  // MATCH "Printf format %s has arg #1 of wrong type CheckPrintf.unexportedStringer"
-	fmt.Printf("%s", &us) // MATCH "Printf format %s has arg #1 of wrong type *CheckPrintf.unexportedStringer"
+	fmt.Printf("%s", us)  // want `Printf format %s has arg #1 of wrong type CheckPrintf\.unexportedStringer`
+	fmt.Printf("%s", &us) // want `Printf format %s has arg #1 of wrong type \*CheckPrintf\.unexportedStringer`
 
 	usf := unexportedStringerOtherFields{
 		s: "foo",
 		S: "bar",
 	}
-	fmt.Printf("%s", usf)  // MATCH "Printf format %s has arg #1 of wrong type CheckPrintf.unexportedStringerOtherFields"
-	fmt.Printf("%s", &usf) // MATCH "Printf format %s has arg #1 of wrong type *CheckPrintf.unexportedStringerOtherFields"
+	fmt.Printf("%s", usf)  // want `Printf format %s has arg #1 of wrong type CheckPrintf\.unexportedStringerOtherFields`
+	fmt.Printf("%s", &usf) // want `Printf format %s has arg #1 of wrong type \*CheckPrintf\.unexportedStringerOtherFields`
 
 	intSlice := []int{3, 4}
-	fmt.Printf("%s", intSlice) // MATCH "Printf format %s has arg #1 of wrong type []int"
+	fmt.Printf("%s", intSlice) // want `Printf format %s has arg #1 of wrong type \[\]int`
 	nonStringerArray := [1]unexportedStringer{{}}
-	fmt.Printf("%s", nonStringerArray)  // MATCH "Printf format %s has arg #1 of wrong type [1]CheckPrintf.unexportedStringer"
+	fmt.Printf("%s", nonStringerArray)  // want `Printf format %s has arg #1 of wrong type \[1\]CheckPrintf\.unexportedStringer`
 	fmt.Printf("%s", []stringer{3, 4})  // not an error
 	fmt.Printf("%s", [2]stringer{3, 4}) // not an error
 }

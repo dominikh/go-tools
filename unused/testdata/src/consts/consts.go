@@ -12,9 +12,9 @@ const (
 	c7
 	c8
 
-	c9  // MATCH "c9 is unused"
-	c10 // MATCH "c10 is unused"
-	c11 // MATCH "c11 is unused"
+	c9  // want `c9`
+	c10 // want `c10`
+	c11 // want `c11`
 )
 
 var _ = []int{c3: 1}
@@ -31,5 +31,5 @@ func init() {
 }
 
 func Fn() {
-	const X = 1 // MATCH "X is unused"
+	const X = 1 // want `X`
 }

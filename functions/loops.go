@@ -4,7 +4,7 @@ import "honnef.co/go/tools/ssa"
 
 type Loop map[*ssa.BasicBlock]bool
 
-func findLoops(fn *ssa.Function) []Loop {
+func FindLoops(fn *ssa.Function) []Loop {
 	if fn.Blocks == nil {
 		return nil
 	}

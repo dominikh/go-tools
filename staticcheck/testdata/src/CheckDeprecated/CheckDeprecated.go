@@ -1,3 +1,3 @@
 package pkg
 
-import _ "CheckDeprecatedassist" // MATCH "Alas, it is deprecated."
+import _ "CheckDeprecatedassist" // want `Alas, it is deprecated\.`
