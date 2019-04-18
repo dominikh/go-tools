@@ -14,6 +14,7 @@ type T1 struct {
 	L **int      `json:",string"` // MATCH "the JSON string option"
 	M complex128 `json:",string"` // MATCH "the JSON string option"
 	N int        `json:"some-name"`
+	O int        `json:"some-name,inline"`
 }
 
 type T2 struct {
