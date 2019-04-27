@@ -556,6 +556,9 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 
 	depErrors := map[dependencyError]int{}
 	for _, err := range errs {
+		if err == nil {
+			continue
+		}
 		switch err := err.(type) {
 		case analysisError:
 			switch err := err.err.(type) {
