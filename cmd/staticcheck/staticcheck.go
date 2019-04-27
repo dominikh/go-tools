@@ -15,6 +15,7 @@ import (
 
 func main() {
 	fs := lintutil.FlagSet("staticcheck")
+	wholeProgram := fs.Bool("unused.whole-program", false, "Run unused in whole program mode")
 	fs.Parse(os.Args[1:])
 
 	var cs []*analysis.Analyzer
@@ -28,7 +29,10 @@ func main() {
 		cs = append(cs, v)
 	}
 
-	cums := []lint.CumulativeChecker{unused.NewChecker()}
-
+	u := unused.NewChecker()
+	if *wholeProgram {
+		u.WholeProgram = true
+	}
+	cums := []lint.CumulativeChecker{u}
 	lintutil.ProcessFlagSet(cs, cums, fs)
 }
