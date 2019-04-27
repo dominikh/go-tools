@@ -591,6 +591,10 @@ func (c *Checker) results() []types.Object {
 	var out []types.Object
 
 	if c.WholeProgram {
+		if c.graph == nil {
+			// We never analyzed any packages
+			return nil
+		}
 		var ifaces []*types.Interface
 		var notIfaces []types.Type
 
