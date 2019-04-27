@@ -209,6 +209,25 @@ func (r *Runner) loadCachedFacts(a *analysis.Analyzer, pkg *Package) ([]Fact, bo
 	return facts, true
 }
 
+type dependencyError struct {
+	dep string
+	err error
+}
+
+func (err dependencyError) nested() dependencyError {
+	if o, ok := err.err.(dependencyError); ok {
+		return o.nested()
+	}
+	return err
+}
+
+func (err dependencyError) Error() string {
+	if o, ok := err.err.(dependencyError); ok {
+		return o.Error()
+	}
+	return fmt.Sprintf("error running dependency %s: %s", err.dep, err.err)
+}
+
 func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (interface{}, error) {
 	if !ac.pkg.fromSource {
 		panic(fmt.Sprintf("internal error: %s was not loaded from source", ac.pkg))
@@ -230,7 +249,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		ret, err := r.runAnalysis(acReq)
 		if err != nil {
 			// We couldn't run a dependency, no point in going on
-			return nil, err
+			return nil, dependencyError{req.Name, err}
 		}
 
 		pass.ResultOf[req] = ret
@@ -442,6 +461,16 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 	return nil
 }
 
+type analysisError struct {
+	analyzer *analysis.Analyzer
+	pkg      *Package
+	err      error
+}
+
+func (err analysisError) Error() string {
+	return fmt.Sprintf("error running analyzer %s on %s: %s", err.analyzer, err.pkg, err.err)
+}
+
 func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	r.builtMu.Lock()
 	res := r.built[pkg]
@@ -472,11 +501,15 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	for _, imp := range pkg.Imports {
 		r.processPkg(imp, analyzers)
 		if len(imp.errs) > 0 {
-			var s string
-			for _, err := range imp.errs {
-				s += "\n\t" + err.Error()
+			if imp.initial {
+				pkg.errs = append(pkg.errs, fmt.Errorf("could not analyze dependency %s of %s", imp, pkg))
+			} else {
+				var s string
+				for _, err := range imp.errs {
+					s += "\n\t" + err.Error()
+				}
+				pkg.errs = append(pkg.errs, fmt.Errorf("could not analyze dependency %s of %s: %s", imp, pkg, s))
 			}
-			pkg.errs = append(pkg.errs, fmt.Errorf("could not analyze dependency %s of %s: %s", imp, pkg, s))
 			return
 		}
 	}
@@ -511,17 +544,31 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 			// facts will have been loaded from source.
 			if pkg.initial || len(a.FactTypes) > 0 {
 				if _, err := r.runAnalysis(ac); err != nil {
-					errs[i] = fmt.Errorf("error running analyzer %s on %s: %s", a, pkg, err)
+					errs[i] = analysisError{a, pkg, err}
 					return
 				}
 			}
 		}()
 	}
 	wg.Wait()
+
+	depErrors := map[dependencyError]int{}
 	for _, err := range errs {
-		if err != nil {
+		switch err := err.(type) {
+		case analysisError:
+			switch err := err.err.(type) {
+			case dependencyError:
+				depErrors[err.nested()]++
+			default:
+				pkg.errs = append(pkg.errs, err)
+			}
+		default:
 			pkg.errs = append(pkg.errs, err)
 		}
+	}
+	for err, count := range depErrors {
+		pkg.errs = append(pkg.errs,
+			fmt.Errorf("could not run %s@%s, preventing %d analyzers from running: %s", err.dep, pkg, count, err.err))
 	}
 
 	// We can't process ignores at this point because `unused` needs

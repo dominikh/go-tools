@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,7 +22,10 @@ var Analyzer = &analysis.Analyzer{
 		path := pass.Fset.PositionFor(pass.Files[0].Pos(), true).Filename
 		dir := filepath.Dir(path)
 		cfg, err := Load(dir)
-		return &cfg, err
+		if err != nil {
+			return nil, fmt.Errorf("error loading staticcheck.conf: %s", err)
+		}
+		return &cfg, nil
 	},
 	RunDespiteErrors: true,
 	ResultType:       reflect.TypeOf((*Config)(nil)),
