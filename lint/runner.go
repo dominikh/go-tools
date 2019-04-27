@@ -310,6 +310,8 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 		return nil, err
 	}
 
+	defer r.cache.Trim()
+
 	m := map[*packages.Package]*Package{}
 	packages.Visit(loaded, nil, func(l *packages.Package) {
 		m[l] = &Package{
