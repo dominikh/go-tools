@@ -532,7 +532,9 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	for _, ac := range acs {
 		pkg.problems = append(pkg.problems, ac.problems...)
 	}
-	pkg.cfg = pkg.results[config.Analyzer].v.(*config.Config)
+	if pkg.results[config.Analyzer].v != nil {
+		pkg.cfg = pkg.results[config.Analyzer].v.(*config.Config)
+	}
 	pkg.gen = pkg.results[IsGeneratedAnalyzer].v.(map[string]bool)
 
 	// In a previous version of the code, we would throw away all type
