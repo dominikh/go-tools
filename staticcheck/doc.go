@@ -21,7 +21,7 @@ Available since
 var docSA1003 = `Unsupported argument to functions in encoding/binary
 
 The encoding/binary package can only serialize types with known sizes.
-This precludes the use of the 'int' and 'uint' types, as their sizes
+This precludes the use of the int and uint types, as their sizes
 differ on different architectures. Furthermore, it doesn't support
 serializing maps, channels, strings, or functions.
 
@@ -43,7 +43,7 @@ large durations. These can be combined with arithmetic to express
 arbitrary durations, for example '5 * time.Second' for 5 seconds.
 
 If you truly meant to sleep for a tiny amount of time, use
-'n * time.Nanosecond" to signal to staticcheck that you did mean to sleep
+'n * time.Nanosecond' to signal to staticcheck that you did mean to sleep
 for some amount of nanoseconds.
 
 Available since
@@ -86,11 +86,11 @@ enter a string such as
 
 and you printed it with
 
-fmt.Printf(s)
+    fmt.Printf(s)
 
 it would lead to the following output:
 
-  Interest rate: 5%!(NOVERB).
+    Interest rate: 5%!(NOVERB).
 
 Similarly, forming the first parameter via string concatenation with
 user input should be avoided for the same reason. When printing user
@@ -192,7 +192,6 @@ channel is either unbuffered or full, the signal will be dropped. To
 avoid missing signals, the channel should be buffered and of the
 appropriate size. For a channel used for notification of just one
 signal value, a buffer of size 1 is sufficient.
-
 
 Available since
     2017.1
@@ -734,7 +733,7 @@ Available since
     Unreleased
 `
 
-var docSA9001 = `Defers in 'for range' loops may not run when you expect them to
+var docSA9001 = `Defers in range loops may not run when you expect them to
 
 Available since
     2017.1
@@ -790,7 +789,7 @@ Wrong type in variable declarations
 The most obvious issue with such incorrect enumerations expresses
 itself as a compile error:
 
-package pkg
+    package pkg
 
     const (
         EnumFirst  uint8 = 1

@@ -466,12 +466,12 @@ var docS1033 = `Unnecessary guard around call to delete
 
 Calling delete on a nil map is a no-op.
 
-Available since:
+Available since
     Unreleased
 `
 
 var docS1034 = `Use result of type assertion to simplify cases
 
-Available since:
+Available since
     Unreleased
 `
