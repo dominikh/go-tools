@@ -424,6 +424,7 @@ func NewChecker() *Checker {
 	c := &Checker{
 		seen:            map[token.Position]struct{}{},
 		initialPackages: map[*types.Package]struct{}{},
+		allPackages:     map[*types.Package]struct{}{},
 	}
 
 	return c
@@ -456,6 +457,7 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 			visit(imp)
 		}
 	}
+	visit(pass.Pkg)
 
 	c.fset = pass.Fset
 	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
