@@ -109,6 +109,27 @@ Available since
 
 var docSA1008 = `Non-canonical key in http.Header map
 
+Keys in http.Header maps are canonical, meaning they follow a specific
+combination of uppercase and lowercase letters. Methods such as
+http.Header.Add and http.Header.Del convert inputs into this canonical
+form before manipulating the map.
+
+When manipulating http.Header maps directly, as opposed to using the
+provided methods, care should be taken to stick to canonical form in
+order to avoid inconsistencies. The following piece of code
+demonstrates one such inconsistency:
+
+    h := http.Header{}
+    h["etag"] = []string{"1234"}
+    h.Add("etag", "5678")
+    fmt.Println(h)
+
+    // Output:
+    // map[Etag:[5678] etag:[1234]]
+
+The easiest way of obtaining the canonical form of a key is to use
+http.CanonicalHeaderKey.
+
 Available since
     2017.1
 `
@@ -218,13 +239,24 @@ Available since
     2017.1
 `
 
-var docSA1024 = `A string cutset contains duplicate characters, suggesting TrimPrefix or TrimSuffix should be used instead of TrimLeft or TrimRight
+var docSA1024 = `A string cutset contains duplicate characters
+
+The strings.TrimLeft and strings.TrimRight functions take cutsets, not
+prefixes. A cutset is treated as a set of characters to remove from a
+string. For example,
+
+    strings.TrimLeft("42133word", "1234"))
+
+will result in the string "word" – any characters that are 1, 2, 3 or
+4 are cut from the left of the string.
+
+In order to remove one string from another, use strings.TrimPrefix instead.
 
 Available since
     2017.1
 `
 
-var docSA1025 = `It is not possible to use Reset's return value correctly
+var docSA1025 = `It is not possible to use (*time.Timer).Reset's return value correctly
 
 Available since
     2019.1
@@ -257,6 +289,23 @@ Available since
 `
 
 var docSA2001 = `Empty critical section, did you mean to defer the unlock?
+
+Empty critical sections of the kind
+
+    mu.Lock()
+    mu.Unlock()
+
+are very often a typo, and the following was intended instead:
+
+    mu.Lock()
+    defer mu.Unlock()
+
+Do note that sometimes empty critical sections can be useful, as a
+form of signaling to wait on another goroutine. Many times, there are
+simpler ways of achieving the same effect. When that isn't the case,
+the code should be amply commented to avoid confusion. Combining such
+comments with a //lint:ignore directive can be used to suppress this
+rare false positive.
 
 Available since
     2017.1
@@ -570,13 +619,13 @@ Available since
 var docSA5008 = `Invalid struct tag
 
 Available since
-	Unreleased
+    Unreleased
 `
 
 var docSA5009 = `Invalid Printf call
 
 Available since
-	Unreleased
+    Unreleased
 `
 
 var docSA6000 = `Using regexp.Match or related in a loop, should use regexp.Compile
