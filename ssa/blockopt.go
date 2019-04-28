@@ -117,6 +117,10 @@ func fuseBlocks(f *Function, a *BasicBlock) bool {
 	if len(b.Preds) != 1 {
 		return false
 	}
+	if _, ok := a.Instrs[len(a.Instrs)-1].(*Panic); ok {
+		// panics aren't simple jumps, they have side effects.
+		return false
+	}
 
 	// Degenerate &&/|| ops may result in a straight-line CFG
 	// containing φ-nodes. (Ideally we'd replace such them with

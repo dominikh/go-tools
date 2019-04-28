@@ -228,9 +228,29 @@ func (f *Function) addSpilledParam(obj types.Object) {
 // Precondition: f.Type() already set.
 //
 func (f *Function) startBody() {
-	f.currentBlock = f.newBasicBlock("entry")
+	entry := f.newBasicBlock("entry")
+	f.currentBlock = entry
 	f.objects = make(map[types.Object]Value) // needed for some synthetics, e.g. init
 	f.allocMem()
+}
+
+func (f *Function) exitBlock() {
+	old := f.currentBlock
+
+	f.Exit = f.newBasicBlock("exit")
+	f.currentBlock = f.Exit
+
+	ret := f.results()
+	results := make([]Value, len(ret))
+	// Run function calls deferred in this
+	// function when explicitly returning from it.
+	f.emit(new(RunDefers))
+	for i, r := range ret {
+		results[i] = emitLoad(f, r)
+	}
+
+	f.emit(&Return{Results: results})
+	f.currentBlock = old
 }
 
 // createSyntacticParams populates f.Params and generates code (spills
@@ -276,6 +296,15 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 			// Implicit "var" decl of locals for named results.
 			for _, n := range field.Names {
 				f.namedResults = append(f.namedResults, f.addLocalForIdent(n))
+			}
+		}
+
+		if len(f.namedResults) == 0 {
+			sig := f.Signature.Results()
+			for i := 0; i < sig.Len(); i++ {
+				v := f.addLocal(sig.At(i).Type(), sig.At(i).Pos())
+				v.Comment = fmt.Sprintf("ret.%d", i)
+				f.implicitResults = append(f.implicitResults, v)
 			}
 		}
 	}
@@ -369,6 +398,7 @@ func (f *Function) finishBody() {
 	}
 
 	f.namedResults = nil // (used by lifting)
+	f.implicitResults = nil
 
 	numberNodes(f)
 

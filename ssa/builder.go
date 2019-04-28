@@ -294,6 +294,7 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 			X:   emitConv(fn, b.expr(fn, args[0]), tEface),
 			pos: pos,
 		})
+		addEdge(fn.currentBlock, fn.Exit)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 		return emitConst(fn, NewConst(constant.MakeBool(true), tBool)) // any non-nil Value will do
 	}
@@ -1612,6 +1613,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		fn.emit(&Panic{
 			X: emitConv(fn, emitConst(fn, stringConst("blocking select matched no case")), tEface),
 		})
+		addEdge(fn.currentBlock, fn.Exit)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 	}
 	emitJump(fn, done)
@@ -2034,24 +2036,13 @@ start:
 				results = append(results, v)
 			}
 		}
-		if fn.namedResults != nil {
-			// Function has named result parameters (NRPs).
-			// Perform parallel assignment of return operands to NRPs.
-			for i, r := range results {
-				emitStore(fn, fn.namedResults[i], r, s.Return)
-			}
+
+		ret := fn.results()
+		for i, r := range results {
+			emitStore(fn, ret[i], r, s.Return)
 		}
-		// Run function calls deferred in this
-		// function when explicitly returning from it.
-		fn.emit(new(RunDefers))
-		if fn.namedResults != nil {
-			// Reload NRPs to form the result tuple.
-			results = results[:0]
-			for _, r := range fn.namedResults {
-				results = append(results, emitLoad(fn, r))
-			}
-		}
-		fn.emit(&Return{Results: results, pos: s.Return})
+
+		emitJump(fn, fn.Exit)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 
 	case *ast.BranchStmt:
@@ -2180,6 +2171,7 @@ func (b *builder) buildFunction(fn *Function) {
 	}
 	fn.startBody()
 	fn.createSyntacticParams(recvField, functype)
+	fn.exitBlock()
 	b.stmt(fn, body)
 	if cb := fn.currentBlock; cb != nil && (cb == fn.Blocks[0] || cb == fn.Recover || cb.Preds != nil) {
 		// Control fell off the end of the function's body block.
@@ -2189,8 +2181,9 @@ func (b *builder) buildFunction(fn *Function) {
 		// if this no-arg return is ill-typed for
 		// fn.Signature.Results, this block must be
 		// unreachable.  The sanity checker checks this.
-		fn.emit(new(RunDefers))
-		fn.emit(new(Return))
+		// fn.emit(new(RunDefers))
+		// fn.emit(new(Return))
+		emitJump(fn, fn.Exit)
 	}
 	fn.finishBody()
 }
@@ -2278,6 +2271,7 @@ func (p *Package) build() {
 	}
 	init := p.init
 	init.startBody()
+	init.exitBlock()
 
 	var done *BasicBlock
 
@@ -2346,6 +2340,7 @@ func (p *Package) build() {
 	emitJump(init, done)
 	init.currentBlock = done
 	init.emit(new(Return))
+	addEdge(init.currentBlock, init.Exit)
 	init.finishBody()
 
 	p.info = nil // We no longer need ASTs or go/types deductions.
