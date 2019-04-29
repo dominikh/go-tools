@@ -64,31 +64,25 @@ const debugLifting = false
 type domFrontier [][]*BasicBlock
 
 func (df domFrontier) add(u, v *BasicBlock) {
-	p := &df[u.Index]
-	*p = append(*p, v)
+	df[u.Index] = append(df[u.Index], v)
 }
 
-// build builds the dominance frontier df for the dominator (sub)tree
-// rooted at u, using the Cytron et al. algorithm.
+// build builds the dominance frontier df for the dominator tree of
+// fn, using the algorithm found in A Simple, Fast Dominance
+// Algorithm, Figure 5.
 //
 // TODO(adonovan): opt: consider Berlin approach, computing pruned SSA
 // by pruning the entire IDF computation, rather than merely pruning
 // the DF -> IDF step.
-func (df domFrontier) build(u *BasicBlock) {
-	// Encounter each node u in postorder of dom tree.
-	for _, child := range u.dom.children {
-		df.build(child)
-	}
-	for _, vb := range u.Succs {
-		if v := vb.dom; v.idom != u {
-			df.add(u, vb)
-		}
-	}
-	for _, w := range u.dom.children {
-		for _, vb := range df[w.Index] {
-			// TODO(adonovan): opt: use word-parallel bitwise union.
-			if v := vb.dom; v.idom != u {
-				df.add(u, vb)
+func (df domFrontier) build(fn *Function) {
+	for _, b := range fn.Blocks {
+		if len(b.Preds) >= 2 {
+			for _, p := range b.Preds {
+				runner := p
+				for runner != b.dom.idom {
+					df.add(runner, b)
+					runner = runner.dom.idom
+				}
 			}
 		}
 	}
@@ -96,10 +90,7 @@ func (df domFrontier) build(u *BasicBlock) {
 
 func buildDomFrontier(fn *Function) domFrontier {
 	df := make(domFrontier, len(fn.Blocks))
-	df.build(fn.Blocks[0])
-	if fn.Recover != nil {
-		df.build(fn.Recover)
-	}
+	df.build(fn)
 	return df
 }
 
