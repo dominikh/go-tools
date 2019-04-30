@@ -284,11 +284,6 @@ type Node interface {
 // the disassembly.
 // To iterate over the blocks in dominance order, use DomPreorder().
 //
-// Recover is an optional second entry point to which control resumes
-// after a recovered panic.  The Recover block may contain only a return
-// statement, preceded by a load of the function's named return
-// parameters, if any.
-//
 // A nested function (Parent()!=nil) that refers to one or more
 // lexically enclosing local variables ("free variables") has FreeVars.
 // Such functions cannot be called directly but require a
@@ -329,9 +324,9 @@ type Function struct {
 	Locals    []*Alloc      // local variables of this function
 	Blocks    []*BasicBlock // basic blocks of the function; nil => external
 	Exit      *BasicBlock   // The function's exit block
-	Recover   *BasicBlock   // optional; control transfers here after recovered panic
 	AnonFuncs []*Function   // anonymous functions directly beneath this one
 	referrers []Instruction // referring instructions (iff Parent() != nil)
+	hasDefer  bool
 
 	// The following fields are set transiently during building,
 	// then cleared.

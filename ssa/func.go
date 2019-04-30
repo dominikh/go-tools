@@ -696,10 +696,6 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 		fmt.Fprintf(buf, "# Parent: %s\n", f.parent.Name())
 	}
 
-	if f.Recover != nil {
-		fmt.Fprintf(buf, "# Recover: %s\n", f.Recover)
-	}
-
 	from := f.pkg()
 
 	if f.FreeVars != nil {

@@ -275,9 +275,8 @@ func (s *sanity) checkBlock(b *BasicBlock, index int) {
 	}
 
 	// Check all blocks are reachable.
-	// (The entry block is always implicitly reachable,
-	// as is the Recover block, if any.)
-	if (index > 0 && b != b.parent.Recover) && len(b.Preds) == 0 {
+	// (The entry block is always implicitly reachable.)
+	if index > 0 && len(b.Preds) == 0 {
 		s.warnf("unreachable block")
 		if b.Instrs == nil {
 			// Since this block is about to be pruned,
@@ -495,9 +494,6 @@ func (s *sanity) checkFunction(fn *Function) bool {
 			continue
 		}
 		s.checkBlock(b, i)
-	}
-	if fn.Recover != nil && fn.Blocks[fn.Recover.Index] != fn.Recover {
-		s.errorf("Recover block is not in Blocks slice")
 	}
 
 	s.block = nil

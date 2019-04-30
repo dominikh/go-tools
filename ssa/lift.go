@@ -379,7 +379,7 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 
 	// Don't lift named return values in functions that defer
 	// calls that may recover from panic.
-	if fn := alloc.Parent(); fn.Recover != nil {
+	if fn := alloc.Parent(); fn.hasDefer {
 		for _, nr := range fn.namedResults {
 			if nr == alloc {
 				return false

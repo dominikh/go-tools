@@ -27,8 +27,7 @@ import (
 
 // Idom returns the block that immediately dominates b:
 // its parent in the dominator tree, if any.
-// Neither the entry node (b.Index==0) nor recover node
-// (b==b.Parent().Recover()) have a parent.
+// The entry node (b.Index==0) does not have a parent.
 //
 func (b *BasicBlock) Idom() *BasicBlock { return b.dom.idom }
 
@@ -101,9 +100,6 @@ func buildDomTree(fn *Function) {
 	}
 
 	idoms[fn.Blocks[0].Index] = fn.Blocks[0]
-	if fn.Recover != nil {
-		idoms[fn.Recover.Index] = fn.Recover
-	}
 	changed := true
 	for changed {
 		changed = false
@@ -147,10 +143,7 @@ func buildDomTree(fn *Function) {
 		b.dom.children = append(b.dom.children, fn.Blocks[i])
 	}
 
-	pre, post := numberDomTree(fn.Blocks[0], 0, 0)
-	if fn.Recover != nil {
-		numberDomTree(fn.Recover, pre, post)
-	}
+	numberDomTree(fn.Blocks[0], 0, 0)
 
 	// printDomTreeDot(os.Stderr, f) // debugging
 	// printDomTreeText(os.Stderr, root, 0) // debugging
@@ -196,8 +189,8 @@ func sanityCheckDomTree(f *Function) {
 	all.Set(one).Lsh(&all, uint(n)).Sub(&all, one)
 
 	// Initialization.
-	for i, b := range f.Blocks {
-		if i == 0 || b == f.Recover {
+	for i := range f.Blocks {
+		if i == 0 {
 			// A root is dominated only by itself.
 			D[i].SetBit(&D[0], 0, 1)
 		} else {
@@ -211,7 +204,7 @@ func sanityCheckDomTree(f *Function) {
 	for changed := true; changed; {
 		changed = false
 		for i, b := range f.Blocks {
-			if i == 0 || b == f.Recover {
+			if i == 0 {
 				continue
 			}
 			// Compute intersection across predecessors.
@@ -229,14 +222,10 @@ func sanityCheckDomTree(f *Function) {
 	}
 
 	// Check the entire relation.  O(n^2).
-	// The Recover block (if any) must be treated specially so we skip it.
 	ok := true
 	for i := 0; i < n; i++ {
 		for j := 0; j < n; j++ {
 			b, c := f.Blocks[i], f.Blocks[j]
-			if c == f.Recover {
-				continue
-			}
 			actual := b.Dominates(c)
 			expected := D[j].Bit(i) == 1
 			if actual != expected {
