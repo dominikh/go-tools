@@ -24,6 +24,14 @@ import (
 	"honnef.co/go/tools/loader"
 )
 
+// OPT(dh): for a dependency tree A->B->C->D, if we have cached data
+// for B, there should be no need to load C and D individually. Go's
+// export data for B contains all the data we need on types, and our
+// fact cache could store the union of B, C and D in B.
+//
+// This may change unused's behavior, however, as it may observe fewer
+// interfaces from transitive dependencies.
+
 type Package struct {
 	*packages.Package
 	Imports    map[string]*Package
@@ -279,8 +287,8 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 		for obj, facts := range pkg.facts[r.analyzerIDs.get(a)] {
 			ac.facts[obj] = facts
 		}
-		// XXX copy
-		ac.pkgFacts[pkg.Types] = pkg.pkgFacts[r.analyzerIDs.get(a)]
+		ac.pkgFacts[pkg.Types] = make([]analysis.Fact, len(pkg.pkgFacts[r.analyzerIDs.get(a)]))
+		copy(ac.pkgFacts[pkg.Types], pkg.pkgFacts[r.analyzerIDs.get(a)])
 		for _, imp := range pkg.Imports {
 			dfs(imp)
 		}
