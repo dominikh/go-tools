@@ -32,13 +32,16 @@ type Package struct {
 	hash       string
 
 	resultsMu sync.Mutex
-	results   map[*analysis.Analyzer]*result
+	results   []*result
 
 	cfg      *config.Config
 	gen      map[string]bool
 	problems []Problem
 	ignores  []Ignore
 	errs     []error
+
+	facts    []map[types.Object][]analysis.Fact
+	pkgFacts [][]analysis.Fact
 }
 
 type result struct {
@@ -55,55 +58,22 @@ type Runner struct {
 	ld    loader.Loader
 	cache *cache.Cache
 
-	factsMu  sync.RWMutex
-	facts    map[types.Object][]analysis.Fact
-	pkgFacts map[*types.Package][]analysis.Fact
-
 	builtMu sync.Mutex
 	built   map[*Package]*buildResult
+
+	analyzerIDs analyzerIDs
 }
 
-func (r *Runner) importObjectFact(obj types.Object, fact analysis.Fact) bool {
-	r.factsMu.RLock()
-	defer r.factsMu.RUnlock()
-	// OPT(dh): consider looking for the fact in the analysisAction
-	// first, to avoid lock contention
-	for _, f := range r.facts[obj] {
-		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
-			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
-			return true
-		}
+type analyzerIDs struct {
+	m map[*analysis.Analyzer]int
+}
+
+func (ids analyzerIDs) get(a *analysis.Analyzer) int {
+	n, ok := ids.m[a]
+	if !ok {
+		panic(fmt.Sprintf("no ID for analyzer %s", a))
 	}
-	return false
-}
-
-func (r *Runner) importPackageFact(pkg *types.Package, fact analysis.Fact) bool {
-	r.factsMu.RLock()
-	defer r.factsMu.RUnlock()
-	for _, f := range r.pkgFacts[pkg] {
-		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
-			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
-			return true
-		}
-	}
-	return false
-}
-
-func (r *Runner) exportObjectFact(ac *analysisAction, obj types.Object, fact analysis.Fact) {
-	r.factsMu.Lock()
-	r.facts[obj] = append(r.facts[obj], fact)
-	r.factsMu.Unlock()
-	path, err := objectpath.For(obj)
-	if err == nil {
-		ac.newFacts = append(ac.newFacts, Fact{string(path), fact})
-	}
-}
-
-func (r *Runner) exportPackageFact(ac *analysisAction, fact analysis.Fact) {
-	r.factsMu.Lock()
-	r.pkgFacts[ac.pkg.Types] = append(r.pkgFacts[ac.pkg.Types], fact)
-	r.factsMu.Unlock()
-	ac.newFacts = append(ac.newFacts, Fact{"", fact})
+	return n
 }
 
 type Fact struct {
@@ -111,11 +81,75 @@ type Fact struct {
 	Fact analysis.Fact
 }
 
+type newFact struct {
+	obj  types.Object
+	fact analysis.Fact
+}
+
 type analysisAction struct {
 	analyzer *analysis.Analyzer
 	pkg      *Package
-	newFacts []Fact
+	newFacts []newFact
 	problems []Problem
+
+	facts    map[types.Object][]analysis.Fact
+	pkgFacts map[*types.Package][]analysis.Fact
+}
+
+func (ac *analysisAction) allObjectFacts() []analysis.ObjectFact {
+	out := make([]analysis.ObjectFact, 0, len(ac.facts))
+	for obj, facts := range ac.facts {
+		for _, fact := range facts {
+			out = append(out, analysis.ObjectFact{
+				Object: obj,
+				Fact:   fact,
+			})
+		}
+	}
+	return out
+}
+
+func (ac *analysisAction) allPackageFacts() []analysis.PackageFact {
+	out := make([]analysis.PackageFact, 0, len(ac.pkgFacts))
+	for pkg, facts := range ac.pkgFacts {
+		for _, fact := range facts {
+			out = append(out, analysis.PackageFact{
+				Package: pkg,
+				Fact:    fact,
+			})
+		}
+	}
+	return out
+}
+
+func (ac *analysisAction) importObjectFact(obj types.Object, fact analysis.Fact) bool {
+	for _, f := range ac.facts[obj] {
+		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
+			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
+			return true
+		}
+	}
+	return false
+}
+
+func (ac *analysisAction) importPackageFact(pkg *types.Package, fact analysis.Fact) bool {
+	for _, f := range ac.pkgFacts[pkg] {
+		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
+			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
+			return true
+		}
+	}
+	return false
+}
+
+func (ac *analysisAction) exportObjectFact(obj types.Object, fact analysis.Fact) {
+	ac.facts[obj] = append(ac.facts[obj], fact)
+	ac.newFacts = append(ac.newFacts, newFact{obj, fact})
+}
+
+func (ac *analysisAction) exportPackageFact(fact analysis.Fact) {
+	ac.pkgFacts[ac.pkg.Types] = append(ac.pkgFacts[ac.pkg.Types], fact)
+	ac.newFacts = append(ac.newFacts, newFact{nil, fact})
 }
 
 func (ac *analysisAction) report(pass *analysis.Pass, d analysis.Diagnostic) {
@@ -129,7 +163,7 @@ func (ac *analysisAction) report(pass *analysis.Pass, d analysis.Diagnostic) {
 
 func (r *Runner) runAnalysis(ac *analysisAction) (ret interface{}, err error) {
 	ac.pkg.resultsMu.Lock()
-	res := ac.pkg.results[ac.analyzer]
+	res := ac.pkg.results[r.analyzerIDs.get(ac.analyzer)]
 	if res != nil {
 		ac.pkg.resultsMu.Unlock()
 		<-res.ready
@@ -138,7 +172,7 @@ func (r *Runner) runAnalysis(ac *analysisAction) (ret interface{}, err error) {
 		res = &result{
 			ready: make(chan struct{}),
 		}
-		ac.pkg.results[ac.analyzer] = res
+		ac.pkg.results[r.analyzerIDs.get(ac.analyzer)] = res
 		ac.pkg.resultsMu.Unlock()
 
 		defer func() {
@@ -163,17 +197,15 @@ func (r *Runner) runAnalysis(ac *analysisAction) (ret interface{}, err error) {
 			TypesInfo:         ac.pkg.TypesInfo,
 			TypesSizes:        ac.pkg.TypesSizes,
 			ResultOf:          map[*analysis.Analyzer]interface{}{},
-			ImportObjectFact:  r.importObjectFact,
-			ImportPackageFact: r.importPackageFact,
-			ExportObjectFact: func(obj types.Object, fact analysis.Fact) {
-				r.exportObjectFact(ac, obj, fact)
-			},
-			ExportPackageFact: func(fact analysis.Fact) {
-				r.exportPackageFact(ac, fact)
-			},
+			ImportObjectFact:  ac.importObjectFact,
+			ImportPackageFact: ac.importPackageFact,
+			ExportObjectFact:  ac.exportObjectFact,
+			ExportPackageFact: ac.exportPackageFact,
 			Report: func(d analysis.Diagnostic) {
 				ac.report(pass, d)
 			},
+			AllObjectFacts:  ac.allObjectFacts,
+			AllPackageFacts: ac.allPackageFacts,
 		}
 
 		if !ac.pkg.initial {
@@ -228,6 +260,36 @@ func (err dependencyError) Error() string {
 	return fmt.Sprintf("error running dependency %s: %s", err.dep, err.err)
 }
 
+func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysisAction {
+	ac := &analysisAction{
+		analyzer: a,
+		pkg:      pkg,
+		facts:    map[types.Object][]analysis.Fact{},
+		pkgFacts: map[*types.Package][]analysis.Fact{},
+	}
+
+	seen := map[*Package]struct{}{}
+	var dfs func(*Package)
+	// OPT(dh): ideally, we'd merge facts when creating the Packages
+	dfs = func(pkg *Package) {
+		if _, ok := seen[pkg]; ok {
+			return
+		}
+		seen[pkg] = struct{}{}
+		for obj, facts := range pkg.facts[r.analyzerIDs.get(a)] {
+			ac.facts[obj] = facts
+		}
+		// XXX copy
+		ac.pkgFacts[pkg.Types] = pkg.pkgFacts[r.analyzerIDs.get(a)]
+		for _, imp := range pkg.Imports {
+			dfs(imp)
+		}
+	}
+	dfs(pkg)
+
+	return ac
+}
+
 func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (interface{}, error) {
 	if !ac.pkg.fromSource {
 		panic(fmt.Sprintf("internal error: %s was not loaded from source", ac.pkg))
@@ -245,7 +307,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		req = append(req, IsGeneratedAnalyzer, config.Analyzer)
 	}
 	for _, req := range req {
-		acReq := &analysisAction{analyzer: req, pkg: ac.pkg}
+		acReq := r.makeAnalysisAction(req, ac.pkg)
 		ret, err := r.runAnalysis(acReq)
 		if err != nil {
 			// We couldn't run a dependency, no point in going on
@@ -261,10 +323,32 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		return nil, err
 	}
 
+	for _, fact := range ac.newFacts {
+		if fact.obj == nil {
+			id := r.analyzerIDs.get(ac.analyzer)
+			ac.pkg.pkgFacts[id] = append(ac.pkg.pkgFacts[id], fact.fact)
+		} else {
+			m := ac.pkg.facts[r.analyzerIDs.get(ac.analyzer)]
+			m[fact.obj] = append(m[fact.obj], fact.fact)
+		}
+	}
+
 	// Persist facts to cache
 	if len(ac.analyzer.FactTypes) > 0 {
+		facts := make([]Fact, 0, len(ac.newFacts))
+		for _, fact := range ac.newFacts {
+			if fact.obj == nil {
+				facts = append(facts, Fact{"", fact.fact})
+			} else {
+				path, err := objectpath.For(fact.obj)
+				if err != nil {
+					continue
+				}
+				facts = append(facts, Fact{string(path), fact.fact})
+			}
+		}
 		buf := &bytes.Buffer{}
-		if err := gob.NewEncoder(buf).Encode(ac.newFacts); err != nil {
+		if err := gob.NewEncoder(buf).Encode(facts); err != nil {
 			return nil, err
 		}
 		aID, err := passActionID(ac.pkg, ac.analyzer)
@@ -287,18 +371,32 @@ func NewRunner() (*Runner, error) {
 	}
 
 	return &Runner{
-		cache:    cache,
-		facts:    map[types.Object][]analysis.Fact{},
-		pkgFacts: map[*types.Package][]analysis.Fact{},
-		built:    map[*Package]*buildResult{},
+		cache: cache,
+		built: map[*Package]*buildResult{},
 	}, nil
 }
 
 func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analysis.Analyzer) ([]*Package, error) {
-	for _, a := range analyzers {
+	r.analyzerIDs = analyzerIDs{m: map[*analysis.Analyzer]int{}}
+	id := 0
+	seen := map[*analysis.Analyzer]struct{}{}
+	var dfs func(a *analysis.Analyzer)
+	dfs = func(a *analysis.Analyzer) {
+		if _, ok := seen[a]; ok {
+			return
+		}
+		seen[a] = struct{}{}
+		r.analyzerIDs.m[a] = id
+		id++
 		for _, f := range a.FactTypes {
 			gob.Register(f)
 		}
+		for _, req := range a.Requires {
+			dfs(req)
+		}
+	}
+	for _, a := range analyzers {
+		dfs(a)
 	}
 
 	var dcfg packages.Config
@@ -315,9 +413,14 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	m := map[*packages.Package]*Package{}
 	packages.Visit(loaded, nil, func(l *packages.Package) {
 		m[l] = &Package{
-			Package: l,
-			Imports: map[string]*Package{},
-			results: map[*analysis.Analyzer]*result{},
+			Package:  l,
+			Imports:  map[string]*Package{},
+			results:  make([]*result, len(r.analyzerIDs.m)),
+			facts:    make([]map[types.Object][]analysis.Fact, len(r.analyzerIDs.m)),
+			pkgFacts: make([][]analysis.Fact, len(r.analyzerIDs.m)),
+		}
+		for i := range m[l].facts {
+			m[l].facts[i] = map[types.Object][]analysis.Fact{}
 		}
 		for _, err := range l.Errors {
 			m[l].errs = append(m[l].errs, err)
@@ -385,27 +488,14 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 	if pkg.Types != nil {
 		panic(fmt.Sprintf("internal error: %s has already been loaded", pkg.Package))
 	}
+
+	for _, a := range analyzers {
+		pkg.facts[r.analyzerIDs.get(a)] = map[types.Object][]analysis.Fact{}
+	}
+
 	// Load type information
 	if pkg.initial {
 		// Load package from source
-		pkg.fromSource = true
-		return r.ld.LoadFromSource(pkg.Package)
-	}
-
-	var allFacts []Fact
-	failed := false
-	for _, a := range analyzers {
-		if len(a.FactTypes) > 0 {
-			facts, ok := r.loadCachedFacts(a, pkg)
-			if !ok {
-				failed = true
-				break
-			}
-			allFacts = append(allFacts, facts...)
-		}
-	}
-
-	if failed {
 		pkg.fromSource = true
 		return r.ld.LoadFromSource(pkg.Package)
 	}
@@ -420,6 +510,9 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 		// get the compile errors. If loading from source succeeds
 		// we discard the result, anyway. Otherwise we'll fail
 		// when trying to reload from export data later.
+		//
+		// FIXME(dh): we no longer reload from export data, so
+		// theoretically we should be able to continue
 		pkg.fromSource = true
 		if err := r.ld.LoadFromSource(pkg.Package); err != nil {
 			return err
@@ -433,33 +526,61 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 		return fmt.Errorf("could not load export data: %s", err)
 	}
 
-	for _, f := range allFacts {
-		if f.Path == "" {
-			// This is a package fact
-			r.factsMu.Lock()
-			r.pkgFacts[pkg.Types] = append(r.pkgFacts[pkg.Types], f.Fact)
-			r.factsMu.Unlock()
-			continue
+	failed := false
+	seen := map[*analysis.Analyzer]struct{}{}
+	var dfs func(*analysis.Analyzer)
+	dfs = func(a *analysis.Analyzer) {
+		if _, ok := seen[a]; ok {
+			return
 		}
-		obj, err := objectpath.Object(pkg.Types, objectpath.Path(f.Path))
-		if err != nil {
-			// Be lenient about these errors. For example, when
-			// analysing io/ioutil from source, we may get a fact
-			// for methods on the devNull type, and objectpath
-			// will happily create a path for them. However, when
-			// we later load io/ioutil from export data, the path
-			// no longer resolves.
-			//
-			// If an exported type embeds the unexported type,
-			// then (part of) the unexported type will become part
-			// of the type information and our path will resolve
-			// again.
-			continue
+		seen[a] = struct{}{}
+
+		if len(a.FactTypes) > 0 {
+			facts, ok := r.loadCachedFacts(a, pkg)
+			if !ok {
+				failed = true
+				return
+			}
+
+			for _, f := range facts {
+				if f.Path == "" {
+					// This is a package fact
+					pkg.pkgFacts[r.analyzerIDs.get(a)] = append(pkg.pkgFacts[r.analyzerIDs.get(a)], f.Fact)
+					continue
+				}
+				obj, err := objectpath.Object(pkg.Types, objectpath.Path(f.Path))
+				if err != nil {
+					// Be lenient about these errors. For example, when
+					// analysing io/ioutil from source, we may get a fact
+					// for methods on the devNull type, and objectpath
+					// will happily create a path for them. However, when
+					// we later load io/ioutil from export data, the path
+					// no longer resolves.
+					//
+					// If an exported type embeds the unexported type,
+					// then (part of) the unexported type will become part
+					// of the type information and our path will resolve
+					// again.
+					continue
+				}
+				pkg.facts[r.analyzerIDs.get(a)][obj] = append(pkg.facts[r.analyzerIDs.get(a)][obj], f.Fact)
+			}
 		}
-		r.factsMu.Lock()
-		r.facts[obj] = append(r.facts[obj], f.Fact)
-		r.factsMu.Unlock()
+
+		for _, req := range a.Requires {
+			dfs(req)
+		}
 	}
+	for _, a := range analyzers {
+		dfs(a)
+	}
+
+	if failed {
+		pkg.fromSource = true
+		// XXX we added facts to the maps, we need to get rid of those
+		return r.ld.LoadFromSource(pkg.Package)
+	}
+
 	return nil
 }
 
@@ -538,13 +659,13 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	for i, a := range analyzers {
 		i := i
 		a := a
-		ac := &analysisAction{analyzer: a, pkg: pkg}
+		ac := r.makeAnalysisAction(a, pkg)
 		acs = append(acs, ac)
 		go func() {
 			defer wg.Done()
 			// Only initial packages and packages with missing
 			// facts will have been loaded from source.
-			if pkg.initial || len(a.FactTypes) > 0 {
+			if pkg.initial || hasFacts(a) {
 				if _, err := r.runAnalysis(ac); err != nil {
 					errs[i] = analysisError{a, pkg, err}
 					return
@@ -584,10 +705,10 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	for _, ac := range acs {
 		pkg.problems = append(pkg.problems, ac.problems...)
 	}
-	if pkg.results[config.Analyzer].v != nil {
-		pkg.cfg = pkg.results[config.Analyzer].v.(*config.Config)
+	if pkg.results[r.analyzerIDs.get(config.Analyzer)].v != nil {
+		pkg.cfg = pkg.results[r.analyzerIDs.get(config.Analyzer)].v.(*config.Config)
 	}
-	pkg.gen = pkg.results[IsGeneratedAnalyzer].v.(map[string]bool)
+	pkg.gen = pkg.results[r.analyzerIDs.get(IsGeneratedAnalyzer)].v.(map[string]bool)
 
 	// In a previous version of the code, we would throw away all type
 	// information and reload it from export data. That was
@@ -595,6 +716,29 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	// live that export data wouldn't also. We only need to discard
 	// the AST and the TypesInfo maps; that happens after we return
 	// from processPkg.
+}
+
+func hasFacts(a *analysis.Analyzer) bool {
+	ret := false
+	seen := map[*analysis.Analyzer]struct{}{}
+	var dfs func(*analysis.Analyzer)
+	dfs = func(a *analysis.Analyzer) {
+		if _, ok := seen[a]; ok {
+			return
+		}
+		seen[a] = struct{}{}
+		if len(a.FactTypes) > 0 {
+			ret = true
+		}
+		for _, req := range a.Requires {
+			if ret {
+				break
+			}
+			dfs(req)
+		}
+	}
+	dfs(a)
+	return ret
 }
 
 func parseDirective(s string) (cmd string, args []string) {
