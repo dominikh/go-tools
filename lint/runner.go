@@ -527,13 +527,13 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 	}
 
 	failed := false
-	seen := map[*analysis.Analyzer]struct{}{}
+	seen := make([]bool, len(r.analyzerIDs.m))
 	var dfs func(*analysis.Analyzer)
 	dfs = func(a *analysis.Analyzer) {
-		if _, ok := seen[a]; ok {
+		if seen[r.analyzerIDs.get(a)] {
 			return
 		}
-		seen[a] = struct{}{}
+		seen[r.analyzerIDs.get(a)] = true
 
 		if len(a.FactTypes) > 0 {
 			facts, ok := r.loadCachedFacts(a, pkg)
@@ -665,7 +665,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 			defer wg.Done()
 			// Only initial packages and packages with missing
 			// facts will have been loaded from source.
-			if pkg.initial || hasFacts(a) {
+			if pkg.initial || r.hasFacts(a) {
 				if _, err := r.runAnalysis(ac); err != nil {
 					errs[i] = analysisError{a, pkg, err}
 					return
@@ -718,15 +718,15 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	// from processPkg.
 }
 
-func hasFacts(a *analysis.Analyzer) bool {
+func (r *Runner) hasFacts(a *analysis.Analyzer) bool {
 	ret := false
-	seen := map[*analysis.Analyzer]struct{}{}
+	seen := make([]bool, len(r.analyzerIDs.m))
 	var dfs func(*analysis.Analyzer)
 	dfs = func(a *analysis.Analyzer) {
-		if _, ok := seen[a]; ok {
+		if seen[r.analyzerIDs.get(a)] {
 			return
 		}
-		seen[a] = struct{}{}
+		seen[r.analyzerIDs.get(a)] = true
 		if len(a.FactTypes) > 0 {
 			ret = true
 		}
