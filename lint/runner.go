@@ -48,6 +48,7 @@ type Package struct {
 	ignores  []Ignore
 	errs     []error
 
+	// these slices are indexed by analysis
 	facts    []map[types.Object][]analysis.Fact
 	pkgFacts [][]analysis.Fact
 }
@@ -77,16 +78,13 @@ type analyzerIDs struct {
 }
 
 func (ids analyzerIDs) get(a *analysis.Analyzer) int {
-	n, ok := ids.m[a]
-	if !ok {
-		panic(fmt.Sprintf("no ID for analyzer %s", a))
-	}
-	return n
+	return ids.m[a]
 }
 
 type Fact struct {
-	Path string
-	Fact analysis.Fact
+	PkgPath string
+	ObjPath string
+	Fact    analysis.Fact
 }
 
 type newFact struct {
@@ -276,19 +274,22 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 		pkgFacts: map[*types.Package][]analysis.Fact{},
 	}
 
+	// Populate facts in analysisAction with COW versions of the facts
+	// stored in the package. A package's initial set of facts for an
+	// analysis is the union of all the facts for that analysis
+	// produced on the package's dependencies.
+	for obj, facts := range pkg.facts[r.analyzerIDs.get(a)] {
+		ac.facts[obj] = facts[0:len(facts):len(facts)]
+	}
 	seen := map[*Package]struct{}{}
 	var dfs func(*Package)
-	// OPT(dh): ideally, we'd merge facts when creating the Packages
 	dfs = func(pkg *Package) {
 		if _, ok := seen[pkg]; ok {
 			return
 		}
 		seen[pkg] = struct{}{}
-		for obj, facts := range pkg.facts[r.analyzerIDs.get(a)] {
-			ac.facts[obj] = facts
-		}
-		ac.pkgFacts[pkg.Types] = make([]analysis.Fact, len(pkg.pkgFacts[r.analyzerIDs.get(a)]))
-		copy(ac.pkgFacts[pkg.Types], pkg.pkgFacts[r.analyzerIDs.get(a)])
+		s := pkg.pkgFacts[r.analyzerIDs.get(a)]
+		ac.pkgFacts[pkg.Types] = s[0:len(s):len(s)]
 		for _, imp := range pkg.Imports {
 			dfs(imp)
 		}
@@ -331,6 +332,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		return nil, err
 	}
 
+	// Merge new facts into the package.
 	for _, fact := range ac.newFacts {
 		if fact.obj == nil {
 			id := r.analyzerIDs.get(ac.analyzer)
@@ -346,13 +348,13 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		facts := make([]Fact, 0, len(ac.newFacts))
 		for _, fact := range ac.newFacts {
 			if fact.obj == nil {
-				facts = append(facts, Fact{"", fact.fact})
+				facts = append(facts, Fact{fact.obj.Pkg().Path(), "", fact.fact})
 			} else {
 				path, err := objectpath.For(fact.obj)
 				if err != nil {
 					continue
 				}
-				facts = append(facts, Fact{string(path), fact.fact})
+				facts = append(facts, Fact{fact.obj.Pkg().Path(), string(path), fact.fact})
 			}
 		}
 		buf := &bytes.Buffer{}
@@ -492,13 +494,16 @@ func parsePos(pos string) token.Position {
 	}
 }
 
+// loadPkg loads a Go package. If the package is in the set of initial
+// packages, it will be loaded from source, otherwise it will be
+// loaded from export data. In the case that the package was loaded
+// from export data, cached facts will also be loaded.
+//
+// Currently, only cached facts for this package will be loaded, not
+// for any of its dependencies.
 func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 	if pkg.Types != nil {
 		panic(fmt.Sprintf("internal error: %s has already been loaded", pkg.Package))
-	}
-
-	for _, a := range analyzers {
-		pkg.facts[r.analyzerIDs.get(a)] = map[types.Object][]analysis.Fact{}
 	}
 
 	// Load type information
@@ -551,12 +556,19 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 			}
 
 			for _, f := range facts {
-				if f.Path == "" {
+				if pkg.PkgPath != f.PkgPath {
+					// TODO(dh): for now we load all packages in the
+					// dependency graph and don't utilize the fact
+					// that a package contains all the facts of its
+					// dependencies.
+					continue
+				}
+				if f.ObjPath == "" {
 					// This is a package fact
 					pkg.pkgFacts[r.analyzerIDs.get(a)] = append(pkg.pkgFacts[r.analyzerIDs.get(a)], f.Fact)
 					continue
 				}
-				obj, err := objectpath.Object(pkg.Types, objectpath.Path(f.Path))
+				obj, err := objectpath.Object(pkg.Types, objectpath.Path(f.ObjPath))
 				if err != nil {
 					// Be lenient about these errors. For example, when
 					// analysing io/ioutil from source, we may get a fact
@@ -602,6 +614,9 @@ func (err analysisError) Error() string {
 	return fmt.Sprintf("error running analyzer %s on %s: %s", err.analyzer, err.pkg, err.err)
 }
 
+// processPkg processes a package. This involves loading the package,
+// either from export data or from source. For packages loaded from
+// source, the provides analyzers will be run on the package.
 func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	r.builtMu.Lock()
 	res := r.built[pkg]
@@ -652,6 +667,15 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	if err := r.loadPkg(pkg, analyzers); err != nil {
 		pkg.errs = append(pkg.errs, err)
 		return
+	}
+
+	// A package's object facts is the union of all of its dependencies.
+	for _, imp := range pkg.Imports {
+		for ai, m := range imp.facts {
+			for obj, facts := range m {
+				pkg.facts[ai][obj] = facts[0:len(facts):len(facts)]
+			}
+		}
 	}
 
 	if !pkg.fromSource {
