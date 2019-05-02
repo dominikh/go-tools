@@ -271,10 +271,14 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 		analyzer:   a,
 		analyzerID: aid,
 		pkg:        pkg,
-		pkgFacts:   map[*types.Package][]analysis.Fact{},
+	}
+
+	if len(a.FactTypes) == 0 {
+		return ac
 	}
 
 	// Merge all package facts of dependencies
+	ac.pkgFacts = map[*types.Package][]analysis.Fact{}
 	seen := map[*Package]struct{}{}
 	var dfs func(*Package)
 	dfs = func(pkg *Package) {
@@ -326,18 +330,18 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		return nil, err
 	}
 
-	// Merge new facts into the package.
-	for _, fact := range ac.newFacts {
-		if fact.obj == nil {
-			id := r.analyzerIDs.get(ac.analyzer)
-			ac.pkg.pkgFacts[id] = append(ac.pkg.pkgFacts[id], fact.fact)
-		} else {
-			panic("unexpected new object fact")
-		}
-	}
-
-	// Persist facts to cache
 	if len(ac.analyzer.FactTypes) > 0 {
+		// Merge new facts into the package.
+		for _, fact := range ac.newFacts {
+			if fact.obj == nil {
+				id := r.analyzerIDs.get(ac.analyzer)
+				ac.pkg.pkgFacts[id] = append(ac.pkg.pkgFacts[id], fact.fact)
+			} else {
+				panic("unexpected new object fact")
+			}
+		}
+
+		// Persist facts to cache
 		facts := make([]Fact, 0, len(ac.newFacts))
 		for _, fact := range ac.newFacts {
 			if fact.obj == nil {
