@@ -20,6 +20,7 @@ import (
 
 	. "honnef.co/go/tools/arg"
 	"honnef.co/go/tools/deprecated"
+	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/internal/sharedcheck"
@@ -733,112 +734,6 @@ func fieldPath(start types.Type, indices []int) string {
 		p += "." + field.Name()
 	}
 	return p
-}
-
-type IsDeprecated struct{ Msg string }
-
-func (*IsDeprecated) AFact()           {}
-func (d *IsDeprecated) String() string { return "Deprecated: " + d.Msg }
-
-func checkDeprecatedMark(pass *analysis.Pass) {
-	var names []*ast.Ident
-
-	extractDeprecatedMessage := func(docs []*ast.CommentGroup) string {
-		for _, doc := range docs {
-			if doc == nil {
-				continue
-			}
-			parts := strings.Split(doc.Text(), "\n\n")
-			last := parts[len(parts)-1]
-			if !strings.HasPrefix(last, "Deprecated: ") {
-				continue
-			}
-			alt := last[len("Deprecated: "):]
-			alt = strings.Replace(alt, "\n", " ", -1)
-			return alt
-		}
-		return ""
-	}
-	doDocs := func(names []*ast.Ident, docs []*ast.CommentGroup) {
-		alt := extractDeprecatedMessage(docs)
-		if alt == "" {
-			return
-		}
-
-		for _, name := range names {
-			obj := pass.TypesInfo.ObjectOf(name)
-			pass.ExportObjectFact(obj, &IsDeprecated{alt})
-		}
-	}
-
-	var docs []*ast.CommentGroup
-	for _, f := range pass.Files {
-		docs = append(docs, f.Doc)
-	}
-	if alt := extractDeprecatedMessage(docs); alt != "" {
-		// Don't mark package syscall as deprecated, even though
-		// it is. A lot of people still use it for simple
-		// constants like SIGKILL, and I am not comfortable
-		// telling them to use x/sys for that.
-		if pass.Pkg.Path() != "syscall" {
-			pass.ExportPackageFact(&IsDeprecated{alt})
-		}
-	}
-
-	docs = docs[:0]
-	for _, f := range pass.Files {
-		fn := func(node ast.Node) bool {
-			if node == nil {
-				return true
-			}
-			var ret bool
-			switch node := node.(type) {
-			case *ast.GenDecl:
-				switch node.Tok {
-				case token.TYPE, token.CONST, token.VAR:
-					docs = append(docs, node.Doc)
-					return true
-				default:
-					return false
-				}
-			case *ast.FuncDecl:
-				docs = append(docs, node.Doc)
-				names = []*ast.Ident{node.Name}
-				ret = false
-			case *ast.TypeSpec:
-				docs = append(docs, node.Doc)
-				names = []*ast.Ident{node.Name}
-				ret = true
-			case *ast.ValueSpec:
-				docs = append(docs, node.Doc)
-				names = node.Names
-				ret = false
-			case *ast.File:
-				return true
-			case *ast.StructType:
-				for _, field := range node.Fields.List {
-					doDocs(field.Names, []*ast.CommentGroup{field.Doc})
-				}
-				return false
-			case *ast.InterfaceType:
-				for _, field := range node.Methods.List {
-					doDocs(field.Names, []*ast.CommentGroup{field.Doc})
-				}
-				return false
-			default:
-				return false
-			}
-			if len(names) == 0 || len(docs) == 0 {
-				return ret
-			}
-			doDocs(names, docs)
-
-			docs = docs[:0]
-			names = nil
-			return ret
-		}
-		ast.Inspect(f, fn)
-	}
 }
 
 func isInLoop(b *ssa.BasicBlock) bool {
@@ -2655,154 +2550,9 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-type IsPure struct{}
-
-func (*IsPure) AFact()         {}
-func (*IsPure) String() string { return "IsPure" }
-
-var pureStdlib = map[string]struct{}{
-	"errors.New":                      {},
-	"fmt.Errorf":                      {},
-	"fmt.Sprintf":                     {},
-	"fmt.Sprint":                      {},
-	"sort.Reverse":                    {},
-	"strings.Map":                     {},
-	"strings.Repeat":                  {},
-	"strings.Replace":                 {},
-	"strings.Title":                   {},
-	"strings.ToLower":                 {},
-	"strings.ToLowerSpecial":          {},
-	"strings.ToTitle":                 {},
-	"strings.ToTitleSpecial":          {},
-	"strings.ToUpper":                 {},
-	"strings.ToUpperSpecial":          {},
-	"strings.Trim":                    {},
-	"strings.TrimFunc":                {},
-	"strings.TrimLeft":                {},
-	"strings.TrimLeftFunc":            {},
-	"strings.TrimPrefix":              {},
-	"strings.TrimRight":               {},
-	"strings.TrimRightFunc":           {},
-	"strings.TrimSpace":               {},
-	"strings.TrimSuffix":              {},
-	"(*net/http.Request).WithContext": {},
-}
-
-func checkPureFunctionsMark(pass *analysis.Pass) {
-	seen := map[*ssa.Function]struct{}{}
-	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
-	var check func(ssafn *ssa.Function) (ret bool)
-	check = func(ssafn *ssa.Function) (ret bool) {
-		if ssafn.Object() == nil {
-			// TODO(dh): support closures
-			return false
-		}
-		if pass.ImportObjectFact(ssafn.Object(), new(IsPure)) {
-			return true
-		}
-		if ssafn.Pkg != ssapkg {
-			// Function is in another package but wasn't marked as
-			// pure, ergo it isn't pure
-			return false
-		}
-		// Break recursion
-		if _, ok := seen[ssafn]; ok {
-			return false
-		}
-
-		seen[ssafn] = struct{}{}
-		defer func() {
-			if ret {
-				pass.ExportObjectFact(ssafn.Object(), &IsPure{})
-			}
-		}()
-
-		if functions.IsStub(ssafn) {
-			return false
-		}
-
-		if _, ok := pureStdlib[ssafn.Object().(*types.Func).FullName()]; ok {
-			return true
-		}
-
-		if ssafn.Signature.Results().Len() == 0 {
-			// A function with no return values is empty or is doing some
-			// work we cannot see (for example because of build tags);
-			// don't consider it pure.
-			return false
-		}
-
-		for _, param := range ssafn.Params {
-			if _, ok := param.Type().Underlying().(*types.Basic); !ok {
-				return false
-			}
-		}
-
-		if ssafn.Blocks == nil {
-			return false
-		}
-		checkCall := func(common *ssa.CallCommon) bool {
-			if common.IsInvoke() {
-				return false
-			}
-			builtin, ok := common.Value.(*ssa.Builtin)
-			if !ok {
-				if common.StaticCallee() != ssafn {
-					if common.StaticCallee() == nil {
-						return false
-					}
-					if !check(common.StaticCallee()) {
-						return false
-					}
-				}
-			} else {
-				switch builtin.Name() {
-				case "len", "cap", "make", "new":
-				default:
-					return false
-				}
-			}
-			return true
-		}
-		for _, b := range ssafn.Blocks {
-			for _, ins := range b.Instrs {
-				switch ins := ins.(type) {
-				case *ssa.Call:
-					if !checkCall(ins.Common()) {
-						return false
-					}
-				case *ssa.Defer:
-					if !checkCall(&ins.Call) {
-						return false
-					}
-				case *ssa.Select:
-					return false
-				case *ssa.Send:
-					return false
-				case *ssa.Go:
-					return false
-				case *ssa.Panic:
-					return false
-				case *ssa.Store:
-					return false
-				case *ssa.FieldAddr:
-					return false
-				case *ssa.UnOp:
-					if ins.Op == token.MUL || ins.Op == token.AND {
-						return false
-					}
-				}
-			}
-		}
-		return true
-	}
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		check(ssafn)
-	}
-}
-
 func CheckPureFunctions(pass *analysis.Pass) (interface{}, error) {
-	checkPureFunctionsMark(pass)
+	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
+
 fnLoop:
 	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
 		if IsInTest(pass, ssafn) {
@@ -2840,7 +2590,7 @@ fnLoop:
 					// TODO(dh): support anonymous functions
 					continue
 				}
-				if pass.ImportObjectFact(callee.Object(), new(IsPure)) {
+				if _, ok := pure[callee.Object().(*types.Func)]; ok {
 					pass.Reportf(ins.Pos(), "%s is a pure function but its return value is ignored", callee.Name())
 					continue
 				}
@@ -2850,20 +2600,8 @@ fnLoop:
 	return nil, nil
 }
 
-func isDeprecated(pass *analysis.Pass, ident *ast.Ident) (bool, string) {
-	obj := pass.TypesInfo.ObjectOf(ident)
-	if obj.Pkg() == nil {
-		return false, ""
-	}
-	var depr IsDeprecated
-	if pass.ImportObjectFact(obj, &depr) {
-		return true, depr.Msg
-	}
-	return false, ""
-}
-
 func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
-	checkDeprecatedMark(pass)
+	deprs := pass.ResultOf[facts.Deprecated].(facts.DeprecatedResult)
 
 	// Selectors can appear outside of function literals, e.g. when
 	// declaring package level variables.
@@ -2895,7 +2633,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			// Don't flag stuff in our own package
 			return true
 		}
-		if ok, alt := isDeprecated(pass, sel.Sel); ok {
+		if depr, ok := deprs.Objects[obj]; ok {
 			// Look for the first available alternative, not the first
 			// version something was deprecated in. If a function was
 			// deprecated in Go 1.6, an alternative has been available
@@ -2908,14 +2646,13 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if tfn != nil {
-				var depr IsDeprecated
-				if pass.ImportObjectFact(tfn, &depr) {
+				if _, ok := deprs.Objects[tfn]; ok {
 					// functions that are deprecated may use deprecated
 					// symbols
 					return true
 				}
 			}
-			pass.Reportf(sel.Pos(), "%s is deprecated: %s", Render(pass, sel), alt)
+			pass.Reportf(sel.Pos(), "%s is deprecated: %s", Render(pass, sel), depr.Msg)
 			return true
 		}
 		return true
@@ -2931,8 +2668,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 				p := node.Path.Value
 				path := p[1 : len(p)-1]
 				imp := imps[path]
-				var depr IsDeprecated
-				if pass.ImportPackageFact(imp, &depr) {
+				if depr, ok := deprs.Packages[imp]; ok {
 					pass.Reportf(node.Pos(), "Package %s is deprecated: %s", path, depr.Msg)
 				}
 			}

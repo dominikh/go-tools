@@ -3,6 +3,7 @@ package staticcheck
 import (
 	"flag"
 
+	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
@@ -145,12 +146,11 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Flags:    newFlagSet(),
 	},
 	"SA1019": {
-		Name:      "SA1019",
-		Run:       CheckDeprecated,
-		Doc:       docSA1019,
-		Requires:  []*analysis.Analyzer{inspect.Analyzer},
-		FactTypes: []analysis.Fact{(*IsDeprecated)(nil)},
-		Flags:     newFlagSet(),
+		Name:     "SA1019",
+		Run:      CheckDeprecated,
+		Doc:      docSA1019,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Deprecated},
+		Flags:    newFlagSet(),
 	},
 	"SA1020": {
 		Name:     "SA1020",
@@ -352,12 +352,11 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Flags:    newFlagSet(),
 	},
 	"SA4017": {
-		Name:      "SA4017",
-		Run:       CheckPureFunctions,
-		Doc:       docSA4017,
-		Requires:  []*analysis.Analyzer{buildssa.Analyzer},
-		FactTypes: []analysis.Fact{(*IsPure)(nil)},
-		Flags:     newFlagSet(),
+		Name:     "SA4017",
+		Run:      CheckPureFunctions,
+		Doc:      docSA4017,
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Purity},
+		Flags:    newFlagSet(),
 	},
 	"SA4018": {
 		Name:     "SA4018",
