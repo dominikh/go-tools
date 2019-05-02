@@ -93,18 +93,18 @@ type newFact struct {
 }
 
 type analysisAction struct {
-	analyzer *analysis.Analyzer
-	pkg      *Package
-	newFacts []newFact
-	problems []Problem
+	analyzer   *analysis.Analyzer
+	analyzerID int
+	pkg        *Package
+	newFacts   []newFact
+	problems   []Problem
 
-	facts    map[types.Object][]analysis.Fact
 	pkgFacts map[*types.Package][]analysis.Fact
 }
 
 func (ac *analysisAction) allObjectFacts() []analysis.ObjectFact {
-	out := make([]analysis.ObjectFact, 0, len(ac.facts))
-	for obj, facts := range ac.facts {
+	out := make([]analysis.ObjectFact, 0, len(ac.pkg.facts[ac.analyzerID]))
+	for obj, facts := range ac.pkg.facts[ac.analyzerID] {
 		for _, fact := range facts {
 			out = append(out, analysis.ObjectFact{
 				Object: obj,
@@ -129,7 +129,7 @@ func (ac *analysisAction) allPackageFacts() []analysis.PackageFact {
 }
 
 func (ac *analysisAction) importObjectFact(obj types.Object, fact analysis.Fact) bool {
-	for _, f := range ac.facts[obj] {
+	for _, f := range ac.pkg.facts[ac.analyzerID][obj] {
 		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
 			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
 			return true
@@ -149,8 +149,7 @@ func (ac *analysisAction) importPackageFact(pkg *types.Package, fact analysis.Fa
 }
 
 func (ac *analysisAction) exportObjectFact(obj types.Object, fact analysis.Fact) {
-	ac.facts[obj] = append(ac.facts[obj], fact)
-	ac.newFacts = append(ac.newFacts, newFact{obj, fact})
+	ac.pkg.facts[ac.analyzerID][obj] = append(ac.pkg.facts[ac.analyzerID][obj], fact)
 }
 
 func (ac *analysisAction) exportPackageFact(fact analysis.Fact) {
@@ -267,20 +266,15 @@ func (err dependencyError) Error() string {
 }
 
 func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysisAction {
+	aid := r.analyzerIDs.get(a)
 	ac := &analysisAction{
-		analyzer: a,
-		pkg:      pkg,
-		facts:    map[types.Object][]analysis.Fact{},
-		pkgFacts: map[*types.Package][]analysis.Fact{},
+		analyzer:   a,
+		analyzerID: aid,
+		pkg:        pkg,
+		pkgFacts:   map[*types.Package][]analysis.Fact{},
 	}
 
-	// Populate facts in analysisAction with COW versions of the facts
-	// stored in the package. A package's initial set of facts for an
-	// analysis is the union of all the facts for that analysis
-	// produced on the package's dependencies.
-	for obj, facts := range pkg.facts[r.analyzerIDs.get(a)] {
-		ac.facts[obj] = facts[0:len(facts):len(facts)]
-	}
+	// Merge all package facts of dependencies
 	seen := map[*Package]struct{}{}
 	var dfs func(*Package)
 	dfs = func(pkg *Package) {
@@ -288,7 +282,7 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 			return
 		}
 		seen[pkg] = struct{}{}
-		s := pkg.pkgFacts[r.analyzerIDs.get(a)]
+		s := pkg.pkgFacts[aid]
 		ac.pkgFacts[pkg.Types] = s[0:len(s):len(s)]
 		for _, imp := range pkg.Imports {
 			dfs(imp)
@@ -338,8 +332,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 			id := r.analyzerIDs.get(ac.analyzer)
 			ac.pkg.pkgFacts[id] = append(ac.pkg.pkgFacts[id], fact.fact)
 		} else {
-			m := ac.pkg.facts[r.analyzerIDs.get(ac.analyzer)]
-			m[fact.obj] = append(m[fact.obj], fact.fact)
+			panic("unexpected new object fact")
 		}
 	}
 
