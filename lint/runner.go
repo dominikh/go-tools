@@ -357,18 +357,26 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		}
 
 		// Persist facts to cache
-		facts := make([]Fact, 0, len(ac.newFacts))
+		var facts []Fact
+		// TODO(dh): also store package facts of dependencies
 		for _, fact := range ac.newFacts {
 			if fact.obj == nil {
 				facts = append(facts, Fact{fact.obj.Pkg().Path(), "", fact.fact})
 			} else {
-				path, err := objectpath.For(fact.obj)
-				if err != nil {
-					continue
-				}
-				facts = append(facts, Fact{fact.obj.Pkg().Path(), string(path), fact.fact})
+				panic("unexpected object fact")
 			}
 		}
+		for obj, afacts := range ac.pkg.facts[ac.analyzerID] {
+			pkgpath := obj.Pkg().Path()
+			path, err := objectpath.For(obj)
+			if err != nil {
+				continue
+			}
+			for _, fact := range afacts {
+				facts = append(facts, Fact{pkgpath, string(path), fact})
+			}
+		}
+
 		buf := &bytes.Buffer{}
 		if err := gob.NewEncoder(buf).Encode(facts); err != nil {
 			return nil, err
