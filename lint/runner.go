@@ -24,6 +24,9 @@ import (
 	"honnef.co/go/tools/loader"
 )
 
+// If enabled, abuse of the go/analysis API will lead to panics
+const sanityCheck = true
+
 // OPT(dh): for a dependency tree A->B->C->D, if we have cached data
 // for B, there should be no need to load C and D individually. Go's
 // export data for B contains all the data we need on types, and our
@@ -129,6 +132,9 @@ func (ac *analysisAction) allPackageFacts() []analysis.PackageFact {
 }
 
 func (ac *analysisAction) importObjectFact(obj types.Object, fact analysis.Fact) bool {
+	if sanityCheck && len(ac.analyzer.FactTypes) == 0 {
+		panic("analysis doesn't export any facts")
+	}
 	for _, f := range ac.pkg.facts[ac.analyzerID][obj] {
 		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
 			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
@@ -139,6 +145,9 @@ func (ac *analysisAction) importObjectFact(obj types.Object, fact analysis.Fact)
 }
 
 func (ac *analysisAction) importPackageFact(pkg *types.Package, fact analysis.Fact) bool {
+	if sanityCheck && len(ac.analyzer.FactTypes) == 0 {
+		panic("analysis doesn't export any facts")
+	}
 	for _, f := range ac.pkgFacts[pkg] {
 		if reflect.TypeOf(f) == reflect.TypeOf(fact) {
 			reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
@@ -149,10 +158,16 @@ func (ac *analysisAction) importPackageFact(pkg *types.Package, fact analysis.Fa
 }
 
 func (ac *analysisAction) exportObjectFact(obj types.Object, fact analysis.Fact) {
+	if sanityCheck && len(ac.analyzer.FactTypes) == 0 {
+		panic("analysis doesn't export any facts")
+	}
 	ac.pkg.facts[ac.analyzerID][obj] = append(ac.pkg.facts[ac.analyzerID][obj], fact)
 }
 
 func (ac *analysisAction) exportPackageFact(fact analysis.Fact) {
+	if sanityCheck && len(ac.analyzer.FactTypes) == 0 {
+		panic("analysis doesn't export any facts")
+	}
 	ac.pkgFacts[ac.pkg.Types] = append(ac.pkgFacts[ac.pkg.Types], fact)
 	ac.newFacts = append(ac.newFacts, newFact{nil, fact})
 }
