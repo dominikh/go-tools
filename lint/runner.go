@@ -85,9 +85,8 @@ func (ids analyzerIDs) get(a *analysis.Analyzer) int {
 }
 
 type Fact struct {
-	PkgPath string
-	ObjPath string
-	Fact    analysis.Fact
+	Path string
+	Fact analysis.Fact
 }
 
 type newFact struct {
@@ -358,22 +357,23 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 
 		// Persist facts to cache
 		var facts []Fact
-		// TODO(dh): also store package facts of dependencies
 		for _, fact := range ac.newFacts {
 			if fact.obj == nil {
-				facts = append(facts, Fact{fact.obj.Pkg().Path(), "", fact.fact})
+				facts = append(facts, Fact{"", fact.fact})
 			} else {
 				panic("unexpected object fact")
 			}
 		}
 		for obj, afacts := range ac.pkg.facts[ac.analyzerID] {
-			pkgpath := obj.Pkg().Path()
+			if obj.Pkg() != ac.pkg.Package.Types {
+				continue
+			}
 			path, err := objectpath.For(obj)
 			if err != nil {
 				continue
 			}
 			for _, fact := range afacts {
-				facts = append(facts, Fact{pkgpath, string(path), fact})
+				facts = append(facts, Fact{string(path), fact})
 			}
 		}
 
@@ -576,19 +576,12 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 			}
 
 			for _, f := range facts {
-				if pkg.PkgPath != f.PkgPath {
-					// TODO(dh): for now we load all packages in the
-					// dependency graph and don't utilize the fact
-					// that a package contains all the facts of its
-					// dependencies.
-					continue
-				}
-				if f.ObjPath == "" {
+				if f.Path == "" {
 					// This is a package fact
 					pkg.pkgFacts[r.analyzerIDs.get(a)] = append(pkg.pkgFacts[r.analyzerIDs.get(a)], f.Fact)
 					continue
 				}
-				obj, err := objectpath.Object(pkg.Types, objectpath.Path(f.ObjPath))
+				obj, err := objectpath.Object(pkg.Types, objectpath.Path(f.Path))
 				if err != nil {
 					// Be lenient about these errors. For example, when
 					// analysing io/ioutil from source, we may get a fact
