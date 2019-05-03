@@ -28,7 +28,7 @@ func fn1(err error) {
 }
 
 // Deprecated: Don't use this.
-func fn2() { // want fn2:`Deprecated: Don't use this\.`
+func fn2() {
 	_ = syscall.StringByteSlice("")
 
 	anon := func(x int) {

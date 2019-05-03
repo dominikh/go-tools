@@ -17,7 +17,7 @@ func fn2() {
 	r.WithContext(context.Background()) // want `is a pure function but its return value is ignored`
 }
 
-func foo(a, b int) int { return a + b } // want foo:"IsPure"
+func foo(a, b int) int { return a + b }
 func bar(a, b int) int {
 	println(a + b)
 	return a + b
