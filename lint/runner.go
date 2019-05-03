@@ -81,7 +81,11 @@ type analyzerIDs struct {
 }
 
 func (ids analyzerIDs) get(a *analysis.Analyzer) int {
-	return ids.m[a]
+	id, ok := ids.m[a]
+	if !ok {
+		panic(fmt.Sprintf("no analyzer ID for %s", a.Name))
+	}
+	return id
 }
 
 type Fact struct {
@@ -311,6 +315,8 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 	return ac
 }
 
+var injectedAnalyses = []*analysis.Analyzer{IsGeneratedAnalyzer, config.Analyzer}
+
 func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (interface{}, error) {
 	if !ac.pkg.fromSource {
 		panic(fmt.Sprintf("internal error: %s was not loaded from source", ac.pkg))
@@ -325,7 +331,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 		// required by interna of the runner. Analyses that themselves
 		// make use of either have an explicit dependency so that other
 		// runners work correctly, too.
-		req = append(req, IsGeneratedAnalyzer, config.Analyzer)
+		req = append(req, injectedAnalyses...)
 	}
 	for _, req := range req {
 		acReq := r.makeAnalysisAction(req, ac.pkg)
@@ -426,6 +432,9 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 		}
 	}
 	for _, a := range analyzers {
+		dfs(a)
+	}
+	for _, a := range injectedAnalyses {
 		dfs(a)
 	}
 
