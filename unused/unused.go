@@ -403,6 +403,11 @@ type pkg struct {
 	SrcFuncs   []*ssa.Function
 }
 
+type seenKey struct {
+	s   string
+	pos token.Position
+}
+
 type Checker struct {
 	mu sync.Mutex
 
@@ -413,7 +418,7 @@ type Checker struct {
 	allPackages     map[*types.Package]struct{}
 
 	seenMu sync.Mutex
-	seen   map[token.Position]struct{}
+	seen   map[seenKey]struct{}
 
 	graph *Graph
 	out   []types.Object
@@ -422,7 +427,7 @@ type Checker struct {
 
 func NewChecker() *Checker {
 	c := &Checker{
-		seen:            map[token.Position]struct{}{},
+		seen:            map[seenKey]struct{}{},
 		initialPackages: map[*types.Package]struct{}{},
 		allPackages:     map[*types.Package]struct{}{},
 	}
@@ -531,7 +536,8 @@ func (c *Checker) Result() []types.Object {
 		position := c.fset.PositionFor(v.Pos(), false)
 		position.Column = 1
 		position.Offset = 0
-		if _, ok := c.seen[position]; !ok {
+		k := seenKey{v.String(), position}
+		if _, ok := c.seen[k]; !ok {
 			out2 = append(out2, v)
 		}
 	}
@@ -673,28 +679,29 @@ func (c *Checker) results() []types.Object {
 			var pos token.Pos
 			if obj, ok := node.obj.(types.Object); ok {
 				pos = obj.Pos()
-			}
 
-			if pos != token.NoPos {
-				position := c.fset.PositionFor(pos, false)
-				// All packages passed on the command line are being
-				// loaded from source. However, thanks to tests and
-				// test variants of packages, we encounter the same
-				// object many different times. Worse, some of these
-				// forms may have been loaded from export data
-				// (despite being a variant of a package we've loaded
-				// from source…). Objects from export data do not have
-				// column information, so we force it to one, so that
-				// objects loaded from source and from export have the
-				// same position.
-				//
-				// SImilarly, the "offset" differs, too.
+				if pos != token.NoPos {
+					position := c.fset.PositionFor(pos, false)
+					// All packages passed on the command line are being
+					// loaded from source. However, thanks to tests and
+					// test variants of packages, we encounter the same
+					// object many different times. Worse, some of these
+					// forms may have been loaded from export data
+					// (despite being a variant of a package we've loaded
+					// from source…). Objects from export data do not have
+					// column information, so we force it to one, so that
+					// objects loaded from source and from export have the
+					// same position.
+					//
+					// Similarly, the "offset" differs, too.
 
-				position.Column = 1
-				position.Offset = 0
-				c.seenMu.Lock()
-				c.seen[position] = struct{}{}
-				c.seenMu.Unlock()
+					position.Column = 1
+					position.Offset = 0
+					k := seenKey{obj.String(), position}
+					c.seenMu.Lock()
+					c.seen[k] = struct{}{}
+					c.seenMu.Unlock()
+				}
 			}
 			return
 		}
