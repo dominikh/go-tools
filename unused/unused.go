@@ -482,6 +482,7 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		// (e1) all packages share a single graph
 		if c.graph == nil {
 			c.graph = NewGraph()
+			c.graph.initialPackages = c.initialPackages
 			c.graph.wholeProgram = true
 		}
 		c.processPkg(pkg)
@@ -489,6 +490,7 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		c.graph.pkg = nil
 	} else {
 		c.graph = NewGraph()
+		c.graph.initialPackages = c.initialPackages
 		c.graph.wholeProgram = false
 
 		c.processPkg(pkg)
@@ -743,8 +745,9 @@ func (c *Checker) processPkg(pkg *pkg) {
 }
 
 type Graph struct {
-	pkg     *ssa.Package
-	msCache typeutil.MethodSetCache
+	initialPackages map[*types.Package]struct{}
+	pkg             *ssa.Package
+	msCache         typeutil.MethodSetCache
 
 	wholeProgram bool
 
@@ -915,7 +918,14 @@ func (g *Graph) see(obj interface{}) {
 
 	assert(obj != nil)
 	if obj, ok := obj.(types.Object); ok && obj.Pkg() != nil {
-		if !g.isInterestingPackage(obj.Pkg()) {
+		found := false
+		for pkg := range g.initialPackages {
+			if obj.Pkg() == pkg {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return
 		}
 	}
@@ -931,7 +941,14 @@ func (g *Graph) use(used, by interface{}, reason string) {
 
 	assert(used != nil)
 	if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
-		if !g.isInterestingPackage(obj.Pkg()) {
+		found := false
+		for pkg := range g.initialPackages {
+			if obj.Pkg() == pkg {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return
 		}
 	}
@@ -956,6 +973,9 @@ func (g *Graph) seeAndUse(used, by interface{}, reason string) {
 	g.use(used, by, reason)
 }
 
+// trackExportedIdentifier reports whether obj should be considered
+// used due to being exported, checking various conditions that affect
+// the decision.
 func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 	if !obj.Exported() {
 		// object isn't exported, the question is moot
@@ -979,14 +999,15 @@ func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 		return false
 	}
 
-	// TODO(dh): the following comment is no longer true
-	//
-	// at one point we only considered exported identifiers in
-	// *_test.go files if they were Benchmark, Example or Test
-	// functions. However, this doesn't work when we look at one
-	// package at a time, because objects exported in a test variant
-	// of a package may be used by the xtest package. The only
-	// solution would be to look at multiple packages at once
+	if strings.HasSuffix(path, "_test.go") {
+		if strings.HasPrefix(obj.Name(), "Test") ||
+			strings.HasPrefix(obj.Name(), "Benchmark") ||
+			strings.HasPrefix(obj.Name(), "Example") {
+			return true
+		}
+		return false
+	}
+
 	return true
 }
 
