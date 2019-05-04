@@ -20,6 +20,7 @@ import (
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/types/objectpath"
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/loader"
 )
@@ -315,7 +316,7 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 	return ac
 }
 
-var injectedAnalyses = []*analysis.Analyzer{IsGeneratedAnalyzer, config.Analyzer}
+var injectedAnalyses = []*analysis.Analyzer{facts.Generated, config.Analyzer}
 
 func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (interface{}, error) {
 	if !ac.pkg.fromSource {
@@ -326,7 +327,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 	// First analyze it with dependencies
 	var req []*analysis.Analyzer
 	req = append(req, ac.analyzer.Requires...)
-	if pass.Analyzer != IsGeneratedAnalyzer && pass.Analyzer != config.Analyzer {
+	if pass.Analyzer != facts.Generated && pass.Analyzer != config.Analyzer {
 		// Ensure all packages have the generated map and config. This is
 		// required by interna of the runner. Analyses that themselves
 		// make use of either have an explicit dependency so that other
@@ -762,7 +763,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	if pkg.results[r.analyzerIDs.get(config.Analyzer)].v != nil {
 		pkg.cfg = pkg.results[r.analyzerIDs.get(config.Analyzer)].v.(*config.Config)
 	}
-	pkg.gen = pkg.results[r.analyzerIDs.get(IsGeneratedAnalyzer)].v.(map[string]bool)
+	pkg.gen = pkg.results[r.analyzerIDs.get(facts.Generated)].v.(map[string]bool)
 
 	// In a previous version of the code, we would throw away all type
 	// information and reload it from export data. That was

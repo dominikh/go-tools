@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ssa"
 )
@@ -355,7 +356,7 @@ func flattenFields(T *types.Struct, path []int, seen map[types.Type]bool) []Fiel
 
 func File(pass *analysis.Pass, node lint.Positioner) *ast.File {
 	pass.Fset.PositionFor(node.Pos(), true)
-	m := pass.ResultOf[lint.TokenFileAnalyzer].(map[*token.File]*ast.File)
+	m := pass.ResultOf[facts.TokenFile].(map[*token.File]*ast.File)
 	return m[pass.Fset.File(node.Pos())]
 }
 
@@ -363,13 +364,13 @@ func File(pass *analysis.Pass, node lint.Positioner) *ast.File {
 // //line directives.
 func IsGenerated(pass *analysis.Pass, pos token.Pos) bool {
 	file := pass.Fset.PositionFor(pos, false).Filename
-	m := pass.ResultOf[lint.IsGeneratedAnalyzer].(map[string]bool)
+	m := pass.ResultOf[facts.Generated].(map[string]bool)
 	return m[file]
 }
 
 func ReportfFG(pass *analysis.Pass, pos token.Pos, f string, args ...interface{}) {
 	file := lint.DisplayPosition(pass.Fset, pos).Filename
-	m := pass.ResultOf[lint.IsGeneratedAnalyzer].(map[string]bool)
+	m := pass.ResultOf[facts.Generated].(map[string]bool)
 	if m[file] {
 		return
 	}

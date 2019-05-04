@@ -5,7 +5,6 @@ import (
 
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/internal/passes/buildssa"
-	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 
 	"golang.org/x/tools/go/analysis"
@@ -250,7 +249,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA4000",
 		Run:      CheckLhsRhsIdentical,
 		Doc:      docSA4000,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, lint.TokenFileAnalyzer, lint.IsGeneratedAnalyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.TokenFile, facts.Generated},
 		Flags:    newFlagSet(),
 	},
 	"SA4001": {
@@ -348,7 +347,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA4016",
 		Run:      CheckSillyBitwiseOps,
 		Doc:      docSA4016,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, lint.TokenFileAnalyzer},
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile},
 		Flags:    newFlagSet(),
 	},
 	"SA4017": {
@@ -362,14 +361,14 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA4018",
 		Run:      CheckSelfAssignment,
 		Doc:      docSA4018,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, lint.IsGeneratedAnalyzer, lint.TokenFileAnalyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile},
 		Flags:    newFlagSet(),
 	},
 	"SA4019": {
 		Name:     "SA4019",
 		Run:      CheckDuplicateBuildConstraints,
 		Doc:      docSA4019,
-		Requires: []*analysis.Analyzer{lint.IsGeneratedAnalyzer},
+		Requires: []*analysis.Analyzer{facts.Generated},
 		Flags:    newFlagSet(),
 	},
 	"SA4020": {
@@ -383,7 +382,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA4021",
 		Run:      CheckSingleArgAppend,
 		Doc:      docSA4021,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, lint.IsGeneratedAnalyzer, lint.TokenFileAnalyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile},
 		Flags:    newFlagSet(),
 	},
 
@@ -505,7 +504,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA9003",
 		Run:      CheckEmptyBranch,
 		Doc:      docSA9003,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, lint.TokenFileAnalyzer, lint.IsGeneratedAnalyzer},
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile, facts.Generated},
 		Flags:    newFlagSet(),
 	},
 	"SA9004": {
@@ -520,7 +519,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA9005",
 		Run:      callChecker(checkNoopMarshal),
 		Doc:      docSA9005,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, lint.IsGeneratedAnalyzer, lint.TokenFileAnalyzer},
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.Generated, facts.TokenFile},
 		Flags:    newFlagSet(),
 	},
 }

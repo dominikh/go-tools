@@ -1,9 +1,18 @@
 package functions
 
 import (
-	"honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 )
+
+func filterDebug(instr []ssa.Instruction) []ssa.Instruction {
+	var out []ssa.Instruction
+	for _, ins := range instr {
+		if _, ok := ins.(*ssa.DebugRef); !ok {
+			out = append(out, ins)
+		}
+	}
+	return out
+}
 
 // IsStub reports whether a function is a stub. A function is
 // considered a stub if it has no instructions or exactly one
@@ -16,7 +25,7 @@ func IsStub(fn *ssa.Function) bool {
 	if len(fn.Blocks) > 1 {
 		return false
 	}
-	instrs := lintdsl.FilterDebug(fn.Blocks[0].Instrs)
+	instrs := filterDebug(fn.Blocks[0].Instrs)
 	if len(instrs) != 1 {
 		return false
 	}

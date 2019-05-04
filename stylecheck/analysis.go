@@ -6,8 +6,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/internal/passes/buildssa"
-	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 )
 
@@ -29,14 +29,14 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "ST1001",
 		Run:      CheckDotImports,
 		Doc:      docST1001,
-		Requires: []*analysis.Analyzer{lint.IsGeneratedAnalyzer, config.Analyzer},
+		Requires: []*analysis.Analyzer{facts.Generated, config.Analyzer},
 		Flags:    newFlagSet(),
 	},
 	"ST1003": {
 		Name:     "ST1003",
 		Run:      CheckNames,
 		Doc:      docST1003,
-		Requires: []*analysis.Analyzer{lint.IsGeneratedAnalyzer, config.Analyzer},
+		Requires: []*analysis.Analyzer{facts.Generated, config.Analyzer},
 		Flags:    newFlagSet(),
 	},
 	"ST1005": {
@@ -77,14 +77,14 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "ST1013",
 		Run:      CheckHTTPStatusCodes,
 		Doc:      docST1013,
-		Requires: []*analysis.Analyzer{lint.IsGeneratedAnalyzer, lint.TokenFileAnalyzer, config.Analyzer},
+		Requires: []*analysis.Analyzer{facts.Generated, facts.TokenFile, config.Analyzer},
 		Flags:    newFlagSet(),
 	},
 	"ST1015": {
 		Name:     "ST1015",
 		Run:      CheckDefaultCaseOrder,
 		Doc:      docST1015,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, lint.IsGeneratedAnalyzer, lint.TokenFileAnalyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile},
 		Flags:    newFlagSet(),
 	},
 	"ST1016": {
@@ -98,7 +98,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "ST1017",
 		Run:      CheckYodaConditions,
 		Doc:      docST1017,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, lint.IsGeneratedAnalyzer, lint.TokenFileAnalyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile},
 		Flags:    newFlagSet(),
 	},
 	"ST1018": {
