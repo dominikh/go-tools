@@ -187,6 +187,8 @@ func keyify(
 		if fRecursive {
 			if val2, ok := val.(*ast.CompositeLit); ok {
 				if _, ok := pkg.TypeOf(val2.Type).Underlying().(*types.Struct); ok {
+					// FIXME(dh): this code is obviously wrong. But
+					// what were we intending to do here?
 					var lines int
 					numLines += lines
 					val, lines = keyify(pkg, val2)

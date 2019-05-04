@@ -1219,6 +1219,7 @@ func (g *Graph) entry(pkg *pkg) {
 			if mObj != nil {
 				g.see(mObj)
 			}
+			//lint:ignore SA9003 handled implicitly
 			if m.Name() == "init" {
 				// (1.5) packages use init functions
 				//
