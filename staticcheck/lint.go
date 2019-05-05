@@ -739,7 +739,7 @@ func fieldPath(start types.Type, indices []int) string {
 func isInLoop(b *ssa.BasicBlock) bool {
 	sets := functions.FindLoops(b.Parent())
 	for _, set := range sets {
-		if set[b] {
+		if set.Has(b) {
 			return true
 		}
 	}

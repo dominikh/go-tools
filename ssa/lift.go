@@ -341,10 +341,10 @@ func phiHasDirectReferrer(phi *Phi) bool {
 	return false
 }
 
-type blockSet struct{ big.Int } // (inherit methods from Int)
+type BlockSet struct{ big.Int } // (inherit methods from Int)
 
 // add adds b to the set and returns true if the set changed.
-func (s *blockSet) add(b *BasicBlock) bool {
+func (s *BlockSet) Add(b *BasicBlock) bool {
 	i := b.Index
 	if s.Bit(i) != 0 {
 		return false
@@ -353,9 +353,13 @@ func (s *blockSet) add(b *BasicBlock) bool {
 	return true
 }
 
+func (s *BlockSet) Has(b *BasicBlock) bool {
+	return s.Bit(b.Index) == 1
+}
+
 // take removes an arbitrary element from a set s and
 // returns its index, or returns -1 if empty.
-func (s *blockSet) take() int {
+func (s *BlockSet) Take() int {
 	l := s.BitLen()
 	for i := 0; i < l; i++ {
 		if s.Bit(i) == 1 {
@@ -403,7 +407,7 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 
 	// Compute defblocks, the set of blocks containing a
 	// definition of the alloc cell.
-	var defblocks blockSet
+	var defblocks BlockSet
 	for _, instr := range *alloc.Referrers() {
 		// Bail out if we discover the alloc is not liftable;
 		// the only operations permitted to use the alloc are
@@ -416,7 +420,7 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 			if instr.Addr != alloc {
 				panic("Alloc.Referrers is inconsistent")
 			}
-			defblocks.add(instr.Block())
+			defblocks.Add(instr.Block())
 		case *UnOp:
 			if instr.Op != token.MUL {
 				return false // not a load
@@ -431,7 +435,7 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 		}
 	}
 	// The Alloc itself counts as a (zero) definition of the cell.
-	defblocks.add(alloc.Block())
+	defblocks.Add(alloc.Block())
 
 	if debugLifting {
 		fmt.Fprintln(os.Stderr, "\tlifting ", alloc, alloc.Name())
@@ -448,18 +452,18 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 	//
 	// TODO(adonovan): opt: recycle slice storage for W,
 	// hasAlready, defBlocks across liftAlloc calls.
-	var hasAlready blockSet
+	var hasAlready BlockSet
 
 	// Initialize W and work to defblocks.
-	var work blockSet = defblocks // blocks seen
-	var W blockSet                // blocks to do
+	var work BlockSet = defblocks // blocks seen
+	var W BlockSet                // blocks to do
 	W.Set(&defblocks.Int)
 
 	// Traverse iterated dominance frontier, inserting φ-nodes.
-	for i := W.take(); i != -1; i = W.take() {
+	for i := W.Take(); i != -1; i = W.Take() {
 		u := fn.Blocks[i]
 		for _, v := range df[u.Index] {
-			if hasAlready.add(v) {
+			if hasAlready.Add(v) {
 				// Create φ-node.
 				// It will be prepended to v.Instrs later, if needed.
 				phi := &Phi{
@@ -478,8 +482,8 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 				}
 				newPhis[v] = append(newPhis[v], newPhi{phi, alloc})
 
-				if work.add(v) {
-					W.add(v)
+				if work.Add(v) {
+					W.Add(v)
 				}
 			}
 		}
