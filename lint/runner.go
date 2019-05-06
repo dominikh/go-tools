@@ -1,5 +1,26 @@
 package lint
 
+/*
+Parallelism
+
+Runner implements parallel processing of packages by spawning one
+goroutine per package in the dependency graph, without any semaphores.
+Each goroutine initially waits on the completion of all of its
+dependencies, thus establishing correct order of processing. Once all
+dependencies finish processing, the goroutine will load the package
+from export data or source – this loading is guarded by a semaphore,
+sized according to the number of CPU cores. This way, we only have as
+many packages occupying memory and CPU resources as there are actual
+cores to process them.
+
+This combination of unbounded goroutines but bounded package loading
+means that if we have many parallel, independent subgraphs, they will
+all execute in parallel, while not wasting resources for long linear
+chains or trying to process more subgraphs in parallel than the system
+can handle.
+
+*/
+
 import (
 	"bytes"
 	"encoding/gob"
@@ -75,6 +96,8 @@ type Runner struct {
 	built   map[*Package]*buildResult
 
 	analyzerIDs analyzerIDs
+
+	loadSem chan struct{}
 }
 
 type analyzerIDs struct {
@@ -450,6 +473,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 
 	defer r.cache.Trim()
 
+	var allPkgs []*Package
 	m := map[*packages.Package]*Package{}
 	packages.Visit(loaded, nil, func(l *packages.Package) {
 		m[l] = &Package{
@@ -459,6 +483,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			facts:    make([]map[types.Object][]analysis.Fact, len(r.analyzerIDs.m)),
 			pkgFacts: make([][]analysis.Fact, len(r.analyzerIDs.m)),
 		}
+		allPkgs = append(allPkgs, m[l])
 		for i := range m[l].facts {
 			m[l].facts[i] = map[types.Object][]analysis.Fact{}
 		}
@@ -481,21 +506,12 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(len(pkgs))
-	// OPT(dh): The ideal number of parallel jobs depends on the shape
-	// of the graph. We may risk having one goroutine doing work and
-	// all other goroutines being blocked on its completion. At the
-	// same time, Go dependency graphs aren't always very amiable
-	// towards parallelism. For example, on the standard library, we
-	// only achieve about 400% CPU usage (out of a possible 800% on
-	// this machine), and only 2x scaling.
-	sem := make(chan struct{}, runtime.GOMAXPROCS(-1))
-	for _, pkg := range pkgs {
+	wg.Add(len(allPkgs))
+	r.loadSem = make(chan struct{}, runtime.GOMAXPROCS(-1))
+	for _, pkg := range allPkgs {
 		pkg := pkg
-		sem <- struct{}{}
 		go func() {
 			r.processPkg(pkg, analyzers)
-			<-sem
 			wg.Done()
 		}()
 	}
@@ -687,6 +703,8 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		return
 	}
 
+	r.loadSem <- struct{}{}
+	defer func() { <-r.loadSem }()
 	if err := r.loadPkg(pkg, analyzers); err != nil {
 		pkg.errs = append(pkg.errs, err)
 		return
