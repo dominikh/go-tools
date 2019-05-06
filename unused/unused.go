@@ -409,20 +409,20 @@ type seenKey struct {
 }
 
 type Checker struct {
-	mu sync.Mutex
-
 	WholeProgram bool
 	Debug        io.Writer
 
+	mu              sync.Mutex
 	initialPackages map[*types.Package]struct{}
 	allPackages     map[*types.Package]struct{}
+	fset            *token.FileSet
+	out             []types.Object
 
 	seenMu sync.Mutex
 	seen   map[seenKey]struct{}
 
+	// only used in whole-program mode
 	graph *Graph
-	out   []types.Object
-	fset  *token.FileSet
 }
 
 func NewChecker() *Checker {
@@ -450,8 +450,6 @@ func (c *Checker) Analyzer() *analysis.Analyzer {
 
 func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	var visit func(pkg *types.Package)
 	visit = func(pkg *types.Package) {
 		if _, ok := c.allPackages[pkg]; ok {
@@ -463,8 +461,8 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	visit(pass.Pkg)
+	c.mu.Unlock()
 
-	c.fset = pass.Fset
 	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	pkg := &pkg{
 		Fset:       pass.Fset,
@@ -476,25 +474,36 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		SrcFuncs:   ssapkg.SrcFuncs,
 	}
 
+	c.mu.Lock()
+	if c.fset == nil {
+		c.fset = pass.Fset
+	} else {
+		assert(c.fset == pass.Fset)
+	}
 	c.initialPackages[pkg.Pkg] = struct{}{}
+	c.mu.Unlock()
 
 	if c.WholeProgram {
 		// (e1) all packages share a single graph
+		c.mu.Lock()
 		if c.graph == nil {
 			c.graph = NewGraph()
-			c.graph.initialPackages = c.initialPackages
 			c.graph.wholeProgram = true
 		}
-		c.processPkg(pkg)
+		// TODO fine-grained locking in whole-program mode
+		c.processPkg(c.graph, pkg)
 		c.graph.seenFns = map[string]struct{}{}
 		c.graph.pkg = nil
+		c.mu.Unlock()
 	} else {
-		c.graph = NewGraph()
-		c.graph.initialPackages = c.initialPackages
-		c.graph.wholeProgram = false
+		graph := NewGraph()
+		graph.wholeProgram = false
 
-		c.processPkg(pkg)
-		c.out = append(c.out, c.results()...)
+		c.processPkg(graph, pkg)
+		// guard both c.out as well as c.results
+		c.mu.Lock()
+		c.out = append(c.out, c.results(graph)...)
+		c.mu.Unlock()
 	}
 
 	return nil, nil
@@ -527,7 +536,7 @@ func (c *Checker) ProblemObject(fset *token.FileSet, obj types.Object) lint.Prob
 
 func (c *Checker) Result() []types.Object {
 	if c.WholeProgram {
-		c.out = c.results()
+		c.out = c.results(c.graph)
 	}
 
 	out2 := make([]types.Object, 0, len(c.out))
@@ -597,11 +606,11 @@ func (graph *Graph) quieten(node *Node) {
 	}
 }
 
-func (c *Checker) results() []types.Object {
+func (c *Checker) results(graph *Graph) []types.Object {
 	var out []types.Object
 
 	if c.WholeProgram {
-		if c.graph == nil {
+		if graph == nil {
 			// We never analyzed any packages
 			return nil
 		}
@@ -609,7 +618,7 @@ func (c *Checker) results() []types.Object {
 		var notIfaces []types.Type
 
 		// implement as many interfaces as possible
-		c.graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+		graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 			switch t := t.(type) {
 			case *types.Interface:
 				ifaces = append(ifaces, t)
@@ -627,11 +636,11 @@ func (c *Checker) results() []types.Object {
 		// (8.0) handle interfaces
 		// (e2) types aim to implement all exported interfaces from all packages
 		for _, t := range notIfaces {
-			ms := c.graph.msCache.MethodSet(t)
+			ms := graph.msCache.MethodSet(t)
 			for _, iface := range ifaces {
-				if sels, ok := c.graph.implements(t, iface, ms); ok {
+				if sels, ok := graph.implements(t, iface, ms); ok {
 					for _, sel := range sels {
-						c.graph.useMethod(t, sel, t, "implements")
+						graph.useMethod(t, sel, t, "implements")
 					}
 				}
 			}
@@ -653,27 +662,27 @@ func (c *Checker) results() []types.Object {
 		}
 
 		c.debugf("digraph{\n")
-		debugNode(c.graph.Root)
-		for _, node := range c.graph.Nodes {
+		debugNode(graph.Root)
+		for _, node := range graph.Nodes {
 			debugNode(node)
 		}
-		c.graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
+		graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
 			debugNode(value.(*Node))
 		})
 		c.debugf("}\n")
 	}
 
-	c.graph.color(c.graph.Root)
+	graph.color(graph.Root)
 	// if a node is unused, don't report any of the node's
 	// children as unused. for example, if a function is unused,
 	// don't flag its receiver. if a named type is unused, don't
 	// flag its methods.
 
-	for _, node := range c.graph.Nodes {
-		c.graph.quieten(node)
+	for _, node := range graph.Nodes {
+		graph.quieten(node)
 	}
-	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
-		c.graph.quieten(value.(*Node))
+	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+		graph.quieten(value.(*Node))
 	})
 
 	report := func(node *Node) {
@@ -727,27 +736,26 @@ func (c *Checker) results() []types.Object {
 			c.debugf("n%d [color=gray];\n", node.id)
 		}
 	}
-	for _, node := range c.graph.Nodes {
+	for _, node := range graph.Nodes {
 		report(node)
 	}
-	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
 		report(value.(*Node))
 	})
 
 	return out
 }
 
-func (c *Checker) processPkg(pkg *pkg) {
+func (c *Checker) processPkg(graph *Graph, pkg *pkg) {
 	if pkg.Pkg.Path() == "unsafe" {
 		return
 	}
-	c.graph.entry(pkg)
+	graph.entry(pkg)
 }
 
 type Graph struct {
-	initialPackages map[*types.Package]struct{}
-	pkg             *ssa.Package
-	msCache         typeutil.MethodSetCache
+	pkg     *ssa.Package
+	msCache typeutil.MethodSetCache
 
 	wholeProgram bool
 
@@ -917,19 +925,6 @@ func (g *Graph) see(obj interface{}) {
 	}
 
 	assert(obj != nil)
-	if obj, ok := obj.(types.Object); ok && obj.Pkg() != nil {
-		found := false
-		for pkg := range g.initialPackages {
-			if obj.Pkg() == pkg {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return
-		}
-	}
-
 	// add new node to graph
 	g.node(obj)
 }
@@ -940,18 +935,6 @@ func (g *Graph) use(used, by interface{}, reason string) {
 	}
 
 	assert(used != nil)
-	if obj, ok := used.(types.Object); ok && obj.Pkg() != nil {
-		found := false
-		for pkg := range g.initialPackages {
-			if obj.Pkg() == pkg {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return
-		}
-	}
 	if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
 		if !g.isInterestingPackage(obj.Pkg()) {
 			return
