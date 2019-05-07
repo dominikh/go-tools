@@ -17,11 +17,13 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/internal/cache"
@@ -309,6 +311,39 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 	if opt.LintTests {
 		cfg.Tests = true
 	}
+
+	printStats := func() {
+		// Individual stats are read atomically, but overall there
+		// is no synchronisation. For printing rough progress
+		// information, this doesn't matter.
+		switch atomic.LoadUint64(&l.Stats.State) {
+		case lint.StateInitializing:
+			fmt.Fprintln(os.Stderr, "Status: initializing")
+		case lint.StateGraph:
+			fmt.Fprintln(os.Stderr, "Status: loading package graph")
+		case lint.StateProcessing:
+			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d; Problems: %d\n",
+				atomic.LoadUint64(&l.Stats.ProcessedInitialPackages),
+				atomic.LoadUint64(&l.Stats.InitialPackages),
+				atomic.LoadUint64(&l.Stats.ProcessedPackages),
+				atomic.LoadUint64(&l.Stats.TotalPackages),
+				atomic.LoadUint64(&l.Stats.ActiveWorkers),
+				atomic.LoadUint64(&l.Stats.TotalWorkers),
+				atomic.LoadUint64(&l.Stats.Problems),
+			)
+		}
+	}
+	if len(infoSignals) > 0 {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, infoSignals...)
+		defer signal.Stop(ch)
+		go func() {
+			for range ch {
+				printStats()
+			}
+		}()
+	}
+
 	return l.Lint(cfg, paths)
 }
 

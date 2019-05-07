@@ -36,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
@@ -97,7 +98,10 @@ type Runner struct {
 
 	analyzerIDs analyzerIDs
 
+	// limits parallelism of loading packages
 	loadSem chan struct{}
+
+	stats *Stats
 }
 
 type analyzerIDs struct {
@@ -424,7 +428,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 	return ret, nil
 }
 
-func NewRunner() (*Runner, error) {
+func NewRunner(stats *Stats) (*Runner, error) {
 	cache, err := cache.Default()
 	if err != nil {
 		return nil, err
@@ -433,6 +437,7 @@ func NewRunner() (*Runner, error) {
 	return &Runner{
 		cache: cache,
 		built: map[*Package]*buildResult{},
+		stats: stats,
 	}, nil
 }
 
@@ -466,7 +471,9 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	if cfg != nil {
 		dcfg = *cfg
 	}
-	loaded, err := r.ld.Graph(dcfg, patterns...)
+
+	atomic.StoreUint64(&r.stats.State, StateGraph)
+	initialPkgs, err := r.ld.Graph(dcfg, patterns...)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +482,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 
 	var allPkgs []*Package
 	m := map[*packages.Package]*Package{}
-	packages.Visit(loaded, nil, func(l *packages.Package) {
+	packages.Visit(initialPkgs, nil, func(l *packages.Package) {
 		m[l] = &Package{
 			Package:  l,
 			Imports:  map[string]*Package{},
@@ -499,19 +506,29 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			m[l].errs = append(m[l].errs, err)
 		}
 	})
-	pkgs := make([]*Package, len(loaded))
-	for i, l := range loaded {
+	pkgs := make([]*Package, len(initialPkgs))
+	for i, l := range initialPkgs {
 		pkgs[i] = m[l]
 		pkgs[i].initial = true
 	}
 
+	atomic.StoreUint64(&r.stats.InitialPackages, uint64(len(initialPkgs)))
+	atomic.StoreUint64(&r.stats.TotalPackages, uint64(len(allPkgs)))
+	atomic.StoreUint64(&r.stats.State, StateProcessing)
+
 	var wg sync.WaitGroup
 	wg.Add(len(allPkgs))
 	r.loadSem = make(chan struct{}, runtime.GOMAXPROCS(-1))
+	atomic.StoreUint64(&r.stats.TotalWorkers, uint64(cap(r.loadSem)))
 	for _, pkg := range allPkgs {
 		pkg := pkg
 		go func() {
 			r.processPkg(pkg, analyzers)
+
+			if pkg.initial {
+				atomic.AddUint64(&r.stats.ProcessedInitialPackages, 1)
+			}
+			atomic.AddUint64(&r.stats.Problems, uint64(len(pkg.problems)))
 			wg.Done()
 		}()
 	}
@@ -676,6 +693,8 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		pkg.TypesInfo = nil
 		pkg.Syntax = nil
 		pkg.results = nil
+
+		atomic.AddUint64(&r.stats.ProcessedPackages, 1)
 		close(res.done)
 	}()
 
@@ -704,7 +723,11 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	}
 
 	r.loadSem <- struct{}{}
-	defer func() { <-r.loadSem }()
+	atomic.AddUint64(&r.stats.ActiveWorkers, 1)
+	defer func() {
+		<-r.loadSem
+		atomic.AddUint64(&r.stats.ActiveWorkers, ^uint64(0))
+	}()
 	if err := r.loadPkg(pkg, analyzers); err != nil {
 		pkg.errs = append(pkg.errs, err)
 		return

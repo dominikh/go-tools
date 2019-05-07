@@ -95,6 +95,7 @@ type Linter struct {
 	CumulativeCheckers []CumulativeChecker
 	GoVersion          int
 	Config             config.Config
+	Stats              Stats
 }
 
 type CumulativeChecker interface {
@@ -110,7 +111,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		analyzers = append(analyzers, cum.Analyzer())
 	}
 
-	r, err := NewRunner()
+	r, err := NewRunner(&l.Stats)
 	if err != nil {
 		return nil, err
 	}
