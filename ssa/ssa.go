@@ -10,7 +10,7 @@ package ssa
 import (
 	"fmt"
 	"go/ast"
-	exact "go/constant"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"sync"
@@ -405,7 +405,7 @@ type Parameter struct {
 // of the same type and value.
 //
 // Value holds the exact value of the constant, independent of its
-// Type(), using the same representation as package go/exact uses for
+// Type(), using the same representation as package go/constant uses for
 // constants, or nil for a typed nil value.
 //
 // Pos() returns token.NoPos.
@@ -417,7 +417,7 @@ type Parameter struct {
 //
 type Const struct {
 	typ   types.Type
-	Value exact.Value
+	Value constant.Value
 }
 
 // A Global is a named Value holding the address of a package-level
@@ -572,8 +572,8 @@ type BinOp struct {
 	register
 	// One of:
 	// ADD SUB MUL QUO REM          + - * / %
-	// AND OR XOR SHL SHR AND_NOT   & | ^ << >> &~
-	// EQL LSS GTR NEQ LEQ GEQ      == != < <= < >=
+	// AND OR XOR SHL SHR AND_NOT   & | ^ << >> &^
+	// EQL NEQ LSS LEQ GTR GEQ      == != < <= < >=
 	Op   token.Token
 	X, Y Value
 }
@@ -680,10 +680,10 @@ type ChangeInterface struct {
 // value of a concrete type.
 //
 // Use Program.MethodSets.MethodSet(X.Type()) to find the method-set
-// of X, and Program.Method(m) to find the implementation of a method.
+// of X, and Program.MethodValue(m) to find the implementation of a method.
 //
 // To construct the zero value of an interface type T, use:
-// 	NewConst(exact.MakeNil(), T, pos)
+// 	NewConst(constant.MakeNil(), T, pos)
 //
 // Pos() returns the ast.CallExpr.Lparen, if the instruction arose
 // from an explicit conversion in the source.
@@ -813,7 +813,7 @@ type Slice struct {
 type FieldAddr struct {
 	register
 	X     Value // *struct
-	Field int   // index into X.Type().Deref().(*types.Struct).Fields
+	Field int   // field is X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(Field)
 }
 
 // The Field instruction yields the Field of struct X.
