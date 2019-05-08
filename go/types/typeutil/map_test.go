@@ -43,11 +43,11 @@ func TestMap(t *testing.T) {
 	var tmap *typeutil.Map
 
 	// All methods but Set are safe on on (*T)(nil).
-	tmap.Len()
-	tmap.At(tPStr1)
-	tmap.Delete(tPStr1)
-	tmap.KeysString()
-	tmap.String()
+	_ = tmap.Len()
+	_ = tmap.At(tPStr1)
+	_ = tmap.Delete(tPStr1)
+	_ = tmap.KeysString()
+	_ = tmap.String()
 
 	tmap = new(typeutil.Map)
 

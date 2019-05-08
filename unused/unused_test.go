@@ -59,8 +59,6 @@ func parseExpectations(text string) ([]string, error) {
 			return nil, fmt.Errorf("unexpected %s", scanner.TokenString(tok))
 		}
 	}
-
-	return expects, nil
 }
 
 func check(t *testing.T, fset *token.FileSet, diagnostics []types.Object) {

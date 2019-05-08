@@ -48,7 +48,7 @@ func main() {
 // with similar functionality. It is located at
 // golang.org/x/tools/cmd/ssadump.
 //
-func ExampleBuildPackage() {
+func Example_buildPackage() {
 	// Parse the source files.
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "hello.go", hello, parser.ParseComments)
@@ -118,7 +118,7 @@ func ExampleBuildPackage() {
 // for the entire program.  This is what you'd typically use for a
 // whole-program analysis.
 //
-func ExampleLoadProgram() {
+func Example_loadProgram() {
 	// Load cmd/cover and its dependencies.
 	var conf loader.Config
 	conf.Import("cmd/cover")
