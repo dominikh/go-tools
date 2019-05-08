@@ -1,4 +1,4 @@
-// +build !darwin,!dragonfly,!freebsd,!netbsd,!openbsd,!linux
+// +build !aix,!android,!darwin,!dragonfly,!freebsd,!linux,!netbsd,!openbsd,!solaris
 
 package lintutil
 

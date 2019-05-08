@@ -1,3 +1,5 @@
+// +build aix android linux solaris
+
 package lintutil
 
 import (
