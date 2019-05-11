@@ -118,7 +118,6 @@ import (
 
 
 - Differences in whole program mode:
-  - (e1) all packages share a single graph
   - (e2) types aim to implement all exported interfaces from all packages
   - (e3) exported identifiers aren't automatically used. for fields and
     methods this poses extra issues due to reflection. We assume
@@ -416,18 +415,11 @@ type Checker struct {
 	initialPackages map[*types.Package]struct{}
 	allPackages     map[*types.Package]struct{}
 	fset            *token.FileSet
-	out             []types.Object
-
-	seenMu sync.Mutex
-	seen   map[seenKey]struct{}
-
-	// only used in whole-program mode
-	graph *Graph
+	graph           *Graph
 }
 
 func NewChecker() *Checker {
 	c := &Checker{
-		seen:            map[seenKey]struct{}{},
 		initialPackages: map[*types.Package]struct{}{},
 		allPackages:     map[*types.Package]struct{}{},
 	}
@@ -483,28 +475,20 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 	c.initialPackages[pkg.Pkg] = struct{}{}
 	c.mu.Unlock()
 
-	if c.WholeProgram {
-		// (e1) all packages share a single graph
-		c.mu.Lock()
-		if c.graph == nil {
-			c.graph = NewGraph()
-			c.graph.wholeProgram = true
-		}
-		// TODO fine-grained locking in whole-program mode
-		c.processPkg(c.graph, pkg)
-		c.graph.seenFns = map[string]struct{}{}
-		c.graph.pkg = nil
-		c.mu.Unlock()
-	} else {
-		graph := NewGraph()
-		graph.wholeProgram = false
-
-		c.processPkg(graph, pkg)
-		// guard both c.out as well as c.results
-		c.mu.Lock()
-		c.out = append(c.out, c.results(graph)...)
-		c.mu.Unlock()
+	// TODO fine-grained locking
+	c.mu.Lock()
+	if c.graph == nil {
+		c.graph = NewGraph()
+		c.graph.wholeProgram = c.WholeProgram
+		c.graph.fset = pass.Fset
 	}
+	c.processPkg(c.graph, pkg)
+	c.graph.seenFns = map[string]struct{}{}
+	if !c.WholeProgram {
+		c.graph.seenTypes = typeutil.Map{}
+	}
+	c.graph.pkg = nil
+	c.mu.Unlock()
 
 	return nil, nil
 }
@@ -535,22 +519,14 @@ func (c *Checker) ProblemObject(fset *token.FileSet, obj types.Object) lint.Prob
 }
 
 func (c *Checker) Result() []types.Object {
-	if c.WholeProgram {
-		c.out = c.results(c.graph)
-	}
+	out := c.results(c.graph)
 
-	out2 := make([]types.Object, 0, len(c.out))
-	for _, v := range c.out {
+	out2 := make([]types.Object, 0, len(out))
+	for _, v := range out {
 		if _, ok := c.initialPackages[v.Pkg()]; !ok {
 			continue
 		}
-		position := c.fset.PositionFor(v.Pos(), false)
-		position.Column = 1
-		position.Offset = 0
-		k := seenKey{v.String(), position}
-		if _, ok := c.seen[k]; !ok {
-			out2 = append(out2, v)
-		}
+		out2 = append(out2, v)
 	}
 	return out2
 }
@@ -565,42 +541,44 @@ func (graph *Graph) quieten(node *Node) {
 	if node.seen {
 		return
 	}
-	switch obj := node.obj.(type) {
-	case *types.Func:
-		sig := obj.Type().(*types.Signature)
-		if sig.Recv() != nil {
-			if node, ok := graph.nodeMaybe(sig.Recv()); ok {
-				node.quiet = true
+	for obj := range node.objs {
+		switch obj := obj.(type) {
+		case *types.Func:
+			sig := obj.Type().(*types.Signature)
+			if sig.Recv() != nil {
+				if node, ok := graph.nodeMaybe(sig.Recv()); ok {
+					node.quiet = true
+				}
 			}
-		}
-		for i := 0; i < sig.Params().Len(); i++ {
-			if node, ok := graph.nodeMaybe(sig.Params().At(i)); ok {
-				node.quiet = true
+			for i := 0; i < sig.Params().Len(); i++ {
+				if node, ok := graph.nodeMaybe(sig.Params().At(i)); ok {
+					node.quiet = true
+				}
 			}
-		}
-		for i := 0; i < sig.Results().Len(); i++ {
-			if node, ok := graph.nodeMaybe(sig.Results().At(i)); ok {
-				node.quiet = true
+			for i := 0; i < sig.Results().Len(); i++ {
+				if node, ok := graph.nodeMaybe(sig.Results().At(i)); ok {
+					node.quiet = true
+				}
 			}
-		}
-	case *types.Named:
-		for i := 0; i < obj.NumMethods(); i++ {
-			m := obj.Method(i)
-			if node, ok := graph.nodeMaybe(m); ok {
-				node.quiet = true
+		case *types.Named:
+			for i := 0; i < obj.NumMethods(); i++ {
+				m := obj.Method(i)
+				if node, ok := graph.nodeMaybe(m); ok {
+					node.quiet = true
+				}
 			}
-		}
-	case *types.Struct:
-		for i := 0; i < obj.NumFields(); i++ {
-			if node, ok := graph.nodeMaybe(obj.Field(i)); ok {
-				node.quiet = true
+		case *types.Struct:
+			for i := 0; i < obj.NumFields(); i++ {
+				if node, ok := graph.nodeMaybe(obj.Field(i)); ok {
+					node.quiet = true
+				}
 			}
-		}
-	case *types.Interface:
-		for i := 0; i < obj.NumExplicitMethods(); i++ {
-			m := obj.ExplicitMethod(i)
-			if node, ok := graph.nodeMaybe(m); ok {
-				node.quiet = true
+		case *types.Interface:
+			for i := 0; i < obj.NumExplicitMethods(); i++ {
+				m := obj.ExplicitMethod(i)
+				if node, ok := graph.nodeMaybe(m); ok {
+					node.quiet = true
+				}
 			}
 		}
 	}
@@ -649,10 +627,10 @@ func (c *Checker) results(graph *Graph) []types.Object {
 
 	if c.Debug != nil {
 		debugNode := func(node *Node) {
-			if node.obj == nil {
+			if len(node.objs) == 0 {
 				c.debugf("n%d [label=\"Root\"];\n", node.id)
 			} else {
-				c.debugf("n%d [label=%q];\n", node.id, node.obj)
+				c.debugf("n%d [label=%q];\n", node.id, fmt.Sprintf("(%T) %s", node.anyObj(), node.anyObj()))
 			}
 			for used, reasons := range node.used {
 				for _, reason := range reasons {
@@ -687,33 +665,6 @@ func (c *Checker) results(graph *Graph) []types.Object {
 
 	report := func(node *Node) {
 		if node.seen {
-			var pos token.Pos
-			if obj, ok := node.obj.(types.Object); ok {
-				pos = obj.Pos()
-
-				if pos != token.NoPos {
-					position := c.fset.PositionFor(pos, false)
-					// All packages passed on the command line are being
-					// loaded from source. However, thanks to tests and
-					// test variants of packages, we encounter the same
-					// object many different times. Worse, some of these
-					// forms may have been loaded from export data
-					// (despite being a variant of a package we've loaded
-					// from source…). Objects from export data do not have
-					// column information, so we force it to one, so that
-					// objects loaded from source and from export have the
-					// same position.
-					//
-					// Similarly, the "offset" differs, too.
-
-					position.Column = 1
-					position.Offset = 0
-					k := seenKey{obj.String(), position}
-					c.seenMu.Lock()
-					c.seen[k] = struct{}{}
-					c.seenMu.Unlock()
-				}
-			}
 			return
 		}
 		if node.quiet {
@@ -722,7 +673,7 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		}
 
 		c.debugf("n%d [color=red];\n", node.id)
-		switch obj := node.obj.(type) {
+		switch obj := node.anyObj().(type) {
 		case *types.Var:
 			// don't report unnamed variables (receivers, interface embedding)
 			if obj.Name() != "" || obj.IsField() {
@@ -753,7 +704,30 @@ func (c *Checker) processPkg(graph *Graph, pkg *pkg) {
 	graph.entry(pkg)
 }
 
+func objNodeKeyFor(fset *token.FileSet, obj types.Object) objNodeKey {
+	position := fset.PositionFor(obj.Pos(), false)
+	position.Column = 0
+	position.Offset = 0
+	return objNodeKey{
+		position: position,
+		str:      fmt.Sprint(obj),
+	}
+}
+
+// An objNodeKey describes a types.Object node in the graph.
+//
+// Due to test variants we may end up with multiple instances of the
+// same object, which is why we have to deduplicate based on their
+// source position. And because export data lacks column information,
+// we also have to incorporate the object's string representation in
+// the key.
+type objNodeKey struct {
+	position token.Position
+	str      string
+}
+
 type Graph struct {
+	fset    *token.FileSet
 	pkg     *ssa.Package
 	msCache typeutil.MethodSetCache
 
@@ -764,6 +738,7 @@ type Graph struct {
 	Root      *Node
 	TypeNodes typeutil.Map
 	Nodes     map[interface{}]*Node
+	objNodes  map[objNodeKey]*Node
 
 	seenTypes typeutil.Map
 	seenFns   map[string]struct{}
@@ -771,8 +746,9 @@ type Graph struct {
 
 func NewGraph() *Graph {
 	g := &Graph{
-		Nodes:   map[interface{}]*Node{},
-		seenFns: map[string]struct{}{},
+		Nodes:    map[interface{}]*Node{},
+		objNodes: map[objNodeKey]*Node{},
+		seenFns:  map[string]struct{}{},
 	}
 	g.Root = g.newNode(nil)
 	return g
@@ -796,7 +772,7 @@ type ConstGroup struct {
 func (ConstGroup) String() string { return "const group" }
 
 type Node struct {
-	obj  interface{}
+	objs map[interface{}]struct{}
 	id   int
 	used map[*Node][]string
 
@@ -804,14 +780,20 @@ type Node struct {
 	quiet bool
 }
 
-func (g *Graph) nodeMaybe(obj types.Object) (*Node, bool) {
-	if t, ok := obj.(types.Type); ok {
-		if v := g.TypeNodes.At(t); v != nil {
-			return v.(*Node), true
-		}
-		return nil, false
+func (n *Node) anyObj() interface{} {
+	for k := range n.objs {
+		return k
 	}
+	return nil
+}
+
+func (g *Graph) nodeMaybe(obj types.Object) (*Node, bool) {
 	if node, ok := g.Nodes[obj]; ok {
+		return node, true
+	}
+	key := objNodeKeyFor(g.fset, obj)
+	if node, ok := g.objNodes[key]; ok {
+		node.objs[obj] = struct{}{}
 		return node, true
 	}
 	return nil, false
@@ -822,22 +804,44 @@ func (g *Graph) node(obj interface{}) (node *Node, new bool) {
 		if v := g.TypeNodes.At(t); v != nil {
 			return v.(*Node), false
 		}
-		node := g.newNode(obj)
+		node := g.newNode(t)
 		g.TypeNodes.Set(t, node)
 		return node, true
 	}
+
 	if node, ok := g.Nodes[obj]; ok {
 		return node, false
 	}
+	if obj, ok := obj.(types.Object); ok {
+		key := objNodeKeyFor(g.fset, obj)
+		if node, ok := g.objNodes[key]; ok {
+			node.objs[obj] = struct{}{}
+			// We've deduplicated an object, but it's technically
+			// still "new", because by processing it, we may discover
+			// more objects. However, the "new" information is only
+			// used in assertions to guarantee we're not adding new
+			// objects to the graph by accident, so we're returning
+			// false.
+			return node, false
+		}
+	}
 	node = g.newNode(obj)
 	g.Nodes[obj] = node
+	if obj, ok := obj.(types.Object); ok {
+		key := objNodeKeyFor(g.fset, obj)
+		g.objNodes[key] = node
+	}
 	return node, true
 }
 
 func (g *Graph) newNode(obj interface{}) *Node {
 	g.nodeCounter++
+	var objs map[interface{}]struct{}
+	if obj != nil {
+		objs = map[interface{}]struct{}{obj: struct{}{}}
+	}
 	return &Node{
-		obj:  obj,
+		objs: objs,
 		id:   g.nodeCounter,
 		used: map[*Node][]string{},
 	}
@@ -964,7 +968,7 @@ func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 		// object isn't exported, the question is moot
 		return false
 	}
-	path := g.pkg.Prog.Fset.Position(obj.Pos()).Filename
+	path := g.fset.Position(obj.Pos()).Filename
 	if g.wholeProgram {
 		// Example functions without "Output:" comments aren't being
 		// run and thus don't show up in the graph.
@@ -1070,7 +1074,6 @@ func (g *Graph) entry(pkg *pkg) {
 	}
 
 	// Find constants being used inside functions, find sinks in tests
-	handledConsts := map[*ast.Ident]struct{}{}
 	for _, fn := range pkg.SrcFuncs {
 		if fn.Object() != nil {
 			g.see(fn.Object())
@@ -1100,7 +1103,7 @@ func (g *Graph) entry(pkg *pkg) {
 					if obj == nil {
 						continue
 					}
-					path := g.pkg.Prog.Fset.File(obj.Pos()).Name()
+					path := g.fset.File(obj.Pos()).Name()
 					if strings.HasSuffix(path, "_test.go") {
 						if obj.Parent() != nil && obj.Parent().Parent() != nil && obj.Parent().Parent().Parent() == nil {
 							// object's scope is the package, whose
@@ -1118,12 +1121,9 @@ func (g *Graph) entry(pkg *pkg) {
 		})
 	}
 	// Find constants being used in non-function contexts
-	for ident, obj := range pkg.TypesInfo.Uses {
+	for _, obj := range pkg.TypesInfo.Uses {
 		_, ok := obj.(*types.Const)
 		if !ok {
-			continue
-		}
-		if _, ok := handledConsts[ident]; ok {
 			continue
 		}
 		g.seeAndUse(obj, nil, "used constant")
@@ -1271,8 +1271,8 @@ func (g *Graph) entry(pkg *pkg) {
 	}
 
 	if !g.wholeProgram {
-		// When not in whole program mode we process one package per
-		// graph, which means g.seenTypes only contains types of
+		// When not in whole program mode we reset seenTypes after each package,
+		// which means g.seenTypes only contains types of
 		// interest to us. In whole program mode, we're better off
 		// processing all interfaces at once, globally, both for
 		// performance reasons and because in whole program mode we
