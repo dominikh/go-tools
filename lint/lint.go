@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode"
 
 	"golang.org/x/tools/go/analysis"
@@ -165,6 +166,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		}
 	}
 
+	atomic.StoreUint64(&r.stats.State, StateCumulative)
 	var problems []Problem
 	for _, cum := range l.CumulativeCheckers {
 		for _, res := range cum.Result() {

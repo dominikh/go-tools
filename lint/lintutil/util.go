@@ -331,6 +331,8 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 				atomic.LoadUint64(&l.Stats.TotalWorkers),
 				atomic.LoadUint64(&l.Stats.Problems),
 			)
+		case lint.StateCumulative:
+			fmt.Fprintln(os.Stderr, "Status: processing cumulative checkers")
 		}
 	}
 	if len(infoSignals) > 0 {

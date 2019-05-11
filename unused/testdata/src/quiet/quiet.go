@@ -27,3 +27,8 @@ func fn1() { // want `fn1`
 	}
 	meh(T{})
 }
+
+type localityList []int // want `localityList`
+
+func (l *localityList) Fn1() {}
+func (l *localityList) Fn2() {}

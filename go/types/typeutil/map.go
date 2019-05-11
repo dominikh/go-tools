@@ -23,7 +23,9 @@ import (
 //
 // Not thread-safe.
 //
-// This fork handles Signatures correctly, respecting method receivers.
+// This fork handles Signatures correctly, respecting method
+// receivers. Furthermore, it differentiates between implicit and
+// explicit methods in interfaces.
 //
 type Map struct {
 	hasher Hasher             // shared by many Maps

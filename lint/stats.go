@@ -4,6 +4,7 @@ const (
 	StateInitializing = 0
 	StateGraph        = 1
 	StateProcessing   = 2
+	StateCumulative   = 3
 )
 
 type Stats struct {
