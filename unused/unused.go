@@ -585,13 +585,14 @@ func (graph *Graph) quieten(node *Node) {
 }
 
 func (c *Checker) results(graph *Graph) []types.Object {
+	if graph == nil {
+		// We never analyzed any packages
+		return nil
+	}
+
 	var out []types.Object
 
 	if c.WholeProgram {
-		if graph == nil {
-			// We never analyzed any packages
-			return nil
-		}
 		var ifaces []*types.Interface
 		var notIfaces []types.Type
 
