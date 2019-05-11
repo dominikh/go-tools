@@ -19,3 +19,11 @@ type t3 struct { // want `t3`
 	a int
 	b int
 }
+
+type T struct{}
+
+func fn1() { // want `fn1`
+	meh := func(arg T) {
+	}
+	meh(T{})
+}

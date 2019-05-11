@@ -543,8 +543,8 @@ func (graph *Graph) quieten(node *Node) {
 	}
 	for obj := range node.objs {
 		switch obj := obj.(type) {
-		case *types.Func:
-			sig := obj.Type().(*types.Signature)
+		case *types.Signature:
+			sig := obj
 			if sig.Recv() != nil {
 				if node, ok := graph.nodeMaybe(sig.Recv()); ok {
 					node.quiet = true
