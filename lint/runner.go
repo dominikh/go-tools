@@ -64,6 +64,7 @@ type Package struct {
 	initial    bool
 	fromSource bool
 	hash       string
+	done       chan struct{}
 
 	resultsMu sync.Mutex
 	results   []*result
@@ -85,16 +86,9 @@ type result struct {
 	ready chan struct{}
 }
 
-type buildResult struct {
-	done chan struct{}
-}
-
 type Runner struct {
 	ld    loader.Loader
 	cache *cache.Cache
-
-	builtMu sync.Mutex
-	built   map[*Package]*buildResult
 
 	analyzerIDs analyzerIDs
 
@@ -436,7 +430,6 @@ func NewRunner(stats *Stats) (*Runner, error) {
 
 	return &Runner{
 		cache: cache,
-		built: map[*Package]*buildResult{},
 		stats: stats,
 	}, nil
 }
@@ -489,6 +482,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			results:  make([]*result, len(r.analyzerIDs.m)),
 			facts:    make([]map[types.Object][]analysis.Fact, len(r.analyzerIDs.m)),
 			pkgFacts: make([][]analysis.Fact, len(r.analyzerIDs.m)),
+			done:     make(chan struct{}),
 		}
 		allPkgs = append(allPkgs, m[l])
 		for i := range m[l].facts {
@@ -674,18 +668,6 @@ func (err analysisError) Error() string {
 // either from export data or from source. For packages loaded from
 // source, the provides analyzers will be run on the package.
 func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
-	r.builtMu.Lock()
-	res := r.built[pkg]
-	if res != nil {
-		r.builtMu.Unlock()
-		<-res.done
-		return
-	}
-
-	res = &buildResult{done: make(chan struct{})}
-	r.built[pkg] = res
-	r.builtMu.Unlock()
-
 	defer func() {
 		// Clear information we no longer need. Make sure to do this
 		// when returning from processPkg so that we clear
@@ -695,7 +677,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		pkg.results = nil
 
 		atomic.AddUint64(&r.stats.ProcessedPackages, 1)
-		close(res.done)
+		close(pkg.done)
 	}()
 
 	if len(pkg.errs) != 0 {
@@ -703,7 +685,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	}
 
 	for _, imp := range pkg.Imports {
-		r.processPkg(imp, analyzers)
+		<-imp.done
 		if len(imp.errs) > 0 {
 			if imp.initial {
 				pkg.errs = append(pkg.errs, fmt.Errorf("could not analyze dependency %s of %s", imp, pkg))
