@@ -541,44 +541,42 @@ func (graph *Graph) quieten(node *Node) {
 	if node.seen {
 		return
 	}
-	for obj := range node.objs {
-		switch obj := obj.(type) {
-		case *types.Signature:
-			sig := obj
-			if sig.Recv() != nil {
-				if node, ok := graph.nodeMaybe(sig.Recv()); ok {
-					node.quiet = true
-				}
+	switch obj := node.obj.(type) {
+	case *types.Signature:
+		sig := obj
+		if sig.Recv() != nil {
+			if node, ok := graph.nodeMaybe(sig.Recv()); ok {
+				node.quiet = true
 			}
-			for i := 0; i < sig.Params().Len(); i++ {
-				if node, ok := graph.nodeMaybe(sig.Params().At(i)); ok {
-					node.quiet = true
-				}
+		}
+		for i := 0; i < sig.Params().Len(); i++ {
+			if node, ok := graph.nodeMaybe(sig.Params().At(i)); ok {
+				node.quiet = true
 			}
-			for i := 0; i < sig.Results().Len(); i++ {
-				if node, ok := graph.nodeMaybe(sig.Results().At(i)); ok {
-					node.quiet = true
-				}
+		}
+		for i := 0; i < sig.Results().Len(); i++ {
+			if node, ok := graph.nodeMaybe(sig.Results().At(i)); ok {
+				node.quiet = true
 			}
-		case *types.Named:
-			for i := 0; i < obj.NumMethods(); i++ {
-				m := obj.Method(i)
-				if node, ok := graph.nodeMaybe(m); ok {
-					node.quiet = true
-				}
+		}
+	case *types.Named:
+		for i := 0; i < obj.NumMethods(); i++ {
+			m := obj.Method(i)
+			if node, ok := graph.nodeMaybe(m); ok {
+				node.quiet = true
 			}
-		case *types.Struct:
-			for i := 0; i < obj.NumFields(); i++ {
-				if node, ok := graph.nodeMaybe(obj.Field(i)); ok {
-					node.quiet = true
-				}
+		}
+	case *types.Struct:
+		for i := 0; i < obj.NumFields(); i++ {
+			if node, ok := graph.nodeMaybe(obj.Field(i)); ok {
+				node.quiet = true
 			}
-		case *types.Interface:
-			for i := 0; i < obj.NumExplicitMethods(); i++ {
-				m := obj.ExplicitMethod(i)
-				if node, ok := graph.nodeMaybe(m); ok {
-					node.quiet = true
-				}
+		}
+	case *types.Interface:
+		for i := 0; i < obj.NumExplicitMethods(); i++ {
+			m := obj.ExplicitMethod(i)
+			if node, ok := graph.nodeMaybe(m); ok {
+				node.quiet = true
 			}
 		}
 	}
@@ -628,10 +626,10 @@ func (c *Checker) results(graph *Graph) []types.Object {
 
 	if c.Debug != nil {
 		debugNode := func(node *Node) {
-			if len(node.objs) == 0 {
+			if node.obj == nil {
 				c.debugf("n%d [label=\"Root\"];\n", node.id)
 			} else {
-				c.debugf("n%d [label=%q];\n", node.id, fmt.Sprintf("(%T) %s", node.anyObj(), node.anyObj()))
+				c.debugf("n%d [label=%q];\n", node.id, fmt.Sprintf("(%T) %s", node.obj, node.obj))
 			}
 			for used, reasons := range node.used {
 				for _, reason := range reasons {
@@ -674,7 +672,7 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		}
 
 		c.debugf("n%d [color=red];\n", node.id)
-		switch obj := node.anyObj().(type) {
+		switch obj := node.obj.(type) {
 		case *types.Var:
 			// don't report unnamed variables (receivers, interface embedding)
 			if obj.Name() != "" || obj.IsField() {
@@ -773,7 +771,7 @@ type ConstGroup struct {
 func (ConstGroup) String() string { return "const group" }
 
 type Node struct {
-	objs map[interface{}]struct{}
+	obj  interface{}
 	id   int
 	used map[*Node][]string
 
@@ -781,20 +779,8 @@ type Node struct {
 	quiet bool
 }
 
-func (n *Node) anyObj() interface{} {
-	for k := range n.objs {
-		return k
-	}
-	return nil
-}
-
 func (g *Graph) nodeMaybe(obj types.Object) (*Node, bool) {
 	if node, ok := g.Nodes[obj]; ok {
-		return node, true
-	}
-	key := objNodeKeyFor(g.fset, obj)
-	if node, ok := g.objNodes[key]; ok {
-		node.objs[obj] = struct{}{}
 		return node, true
 	}
 	return nil, false
@@ -813,36 +799,24 @@ func (g *Graph) node(obj interface{}) (node *Node, new bool) {
 	if node, ok := g.Nodes[obj]; ok {
 		return node, false
 	}
-	if obj, ok := obj.(types.Object); ok {
-		key := objNodeKeyFor(g.fset, obj)
-		if node, ok := g.objNodes[key]; ok {
-			node.objs[obj] = struct{}{}
-			// We've deduplicated an object, but it's technically
-			// still "new", because by processing it, we may discover
-			// more objects. However, the "new" information is only
-			// used in assertions to guarantee we're not adding new
-			// objects to the graph by accident, so we're returning
-			// false.
-			return node, false
-		}
-	}
 	node = g.newNode(obj)
 	g.Nodes[obj] = node
 	if obj, ok := obj.(types.Object); ok {
 		key := objNodeKeyFor(g.fset, obj)
-		g.objNodes[key] = node
+		if onode, ok := g.objNodes[key]; ok {
+			node.used[onode] = append(node.used[onode], "same object")
+			onode.used[node] = append(onode.used[node], "same object")
+		} else {
+			g.objNodes[key] = node
+		}
 	}
 	return node, true
 }
 
 func (g *Graph) newNode(obj interface{}) *Node {
 	g.nodeCounter++
-	var objs map[interface{}]struct{}
-	if obj != nil {
-		objs = map[interface{}]struct{}{obj: struct{}{}}
-	}
 	return &Node{
-		objs: objs,
+		obj:  obj,
 		id:   g.nodeCounter,
 		used: map[*Node][]string{},
 	}
