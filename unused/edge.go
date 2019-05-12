@@ -47,6 +47,7 @@ const (
 	edgeType
 	edgeTypeName
 	edgeUnderlyingType
+	edgePointerType
 	edgeUnsafeConversion
 	edgeUsedConstant
 	edgeVarDecl

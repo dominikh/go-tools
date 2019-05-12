@@ -42,6 +42,10 @@ import (
   - (2.3) all their aliases. we can't easily track uses of aliases
     because go/types turns them into uses of the aliased types. assume
     that if a type is used, so are all of its aliases.
+  - (2.4) the pointer type. this aids with eagerly implementing
+    interfaces. if a method that implements an interface is defined on
+    a pointer receiver, and the pointer type is never used, but the
+    named type is, then we still want to mark the method as used.
 
 - variables and constants use:
   - their types
@@ -1419,6 +1423,9 @@ func (g *Graph) typ(t types.Type) {
 		g.seeAndUse(t.Underlying(), t, edgeUnderlyingType)
 		g.seeAndUse(t.Obj(), t, edgeTypeName)
 		g.seeAndUse(t, t.Obj(), edgeNamedType)
+
+		// (2.4) named types use the pointer type
+		g.seeAndUse(types.NewPointer(t), t, edgePointerType)
 
 		for i := 0; i < t.NumMethods(); i++ {
 			g.see(t.Method(i))

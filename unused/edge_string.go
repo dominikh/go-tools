@@ -47,12 +47,13 @@ func _() {
 	_ = x[edgeType-68719476736]
 	_ = x[edgeTypeName-137438953472]
 	_ = x[edgeUnderlyingType-274877906944]
-	_ = x[edgeUnsafeConversion-549755813888]
-	_ = x[edgeUsedConstant-1099511627776]
-	_ = x[edgeVarDecl-2199023255552]
+	_ = x[edgePointerType-549755813888]
+	_ = x[edgeUnsafeConversion-1099511627776]
+	_ = x[edgeUsedConstant-2199023255552]
+	_ = x[edgeVarDecl-4398046511104]
 }
 
-const _edge_name = "edgeAliasedgeBlankFieldedgeCgoExportededgeConstGroupedgeElementTypeedgeEmbeddedInterfaceedgeExportedConstantedgeExportedFieldedgeExportedFunctionedgeExportedMethodedgeExportedTypeedgeExportedVariableedgeExtendsExportedFieldsedgeExtendsExportedMethodSetedgeFieldAccessedgeFunctionArgumentedgeFunctionResultedgeFunctionSignatureedgeImplementsedgeInstructionOperandedgeInterfaceCalledgeInterfaceMethodedgeKeyTypeedgeLinknameedgeMainFunctionedgeNamedTypeedgeNetRPCRegisteredgeNoCopySentineledgeProvidesMethodedgeReceiveredgeRuntimeFunctionedgeSameObjectedgeSignatureedgeStructConversionedgeTestSinkedgeTupleElementedgeTypeedgeTypeNameedgeUnderlyingTypeedgeUnsafeConversionedgeUsedConstantedgeVarDecl"
+const _edge_name = "edgeAliasedgeBlankFieldedgeCgoExportededgeConstGroupedgeElementTypeedgeEmbeddedInterfaceedgeExportedConstantedgeExportedFieldedgeExportedFunctionedgeExportedMethodedgeExportedTypeedgeExportedVariableedgeExtendsExportedFieldsedgeExtendsExportedMethodSetedgeFieldAccessedgeFunctionArgumentedgeFunctionResultedgeFunctionSignatureedgeImplementsedgeInstructionOperandedgeInterfaceCalledgeInterfaceMethodedgeKeyTypeedgeLinknameedgeMainFunctionedgeNamedTypeedgeNetRPCRegisteredgeNoCopySentineledgeProvidesMethodedgeReceiveredgeRuntimeFunctionedgeSameObjectedgeSignatureedgeStructConversionedgeTestSinkedgeTupleElementedgeTypeedgeTypeNameedgeUnderlyingTypeedgePointerTypeedgeUnsafeConversionedgeUsedConstantedgeVarDecl"
 
 var _edge_map = map[edge]string{
 	1:             _edge_name[0:9],
@@ -94,9 +95,10 @@ var _edge_map = map[edge]string{
 	68719476736:   _edge_name[610:618],
 	137438953472:  _edge_name[618:630],
 	274877906944:  _edge_name[630:648],
-	549755813888:  _edge_name[648:668],
-	1099511627776: _edge_name[668:684],
-	2199023255552: _edge_name[684:695],
+	549755813888:  _edge_name[648:663],
+	1099511627776: _edge_name[663:683],
+	2199023255552: _edge_name[683:699],
+	4398046511104: _edge_name[699:710],
 }
 
 func (i edge) String() string {
