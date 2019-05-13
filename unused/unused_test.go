@@ -174,7 +174,7 @@ func check(t *testing.T, fset *token.FileSet, diagnostics []types.Object) {
 }
 
 func TestAll(t *testing.T) {
-	c := NewChecker()
+	c := NewChecker(false)
 	var stats lint.Stats
 	r, err := lint.NewRunner(&stats)
 	if err != nil {

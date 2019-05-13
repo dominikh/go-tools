@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/go/types/typeutil"
@@ -418,17 +419,15 @@ type Checker struct {
 	mu              sync.Mutex
 	initialPackages map[*types.Package]struct{}
 	allPackages     map[*types.Package]struct{}
-	fset            *token.FileSet
 	graph           *Graph
 }
 
-func NewChecker() *Checker {
-	c := &Checker{
+func NewChecker(wholeProgram bool) *Checker {
+	return &Checker{
 		initialPackages: map[*types.Package]struct{}{},
 		allPackages:     map[*types.Package]struct{}{},
+		WholeProgram:    wholeProgram,
 	}
-
-	return c
 }
 
 func (c *Checker) Analyzer() *analysis.Analyzer {
@@ -446,6 +445,12 @@ func (c *Checker) Analyzer() *analysis.Analyzer {
 
 func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 	c.mu.Lock()
+	if c.graph == nil {
+		c.graph = NewGraph()
+		c.graph.wholeProgram = c.WholeProgram
+		c.graph.fset = pass.Fset
+	}
+
 	var visit func(pkg *types.Package)
 	visit = func(pkg *types.Package) {
 		if _, ok := c.allPackages[pkg]; ok {
@@ -457,6 +462,8 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	visit(pass.Pkg)
+
+	c.initialPackages[pass.Pkg] = struct{}{}
 	c.mu.Unlock()
 
 	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
@@ -470,29 +477,7 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		SrcFuncs:   ssapkg.SrcFuncs,
 	}
 
-	c.mu.Lock()
-	if c.fset == nil {
-		c.fset = pass.Fset
-	} else {
-		assert(c.fset == pass.Fset)
-	}
-	c.initialPackages[pkg.Pkg] = struct{}{}
-	c.mu.Unlock()
-
-	// TODO fine-grained locking
-	c.mu.Lock()
-	if c.graph == nil {
-		c.graph = NewGraph()
-		c.graph.wholeProgram = c.WholeProgram
-		c.graph.fset = pass.Fset
-	}
 	c.processPkg(c.graph, pkg)
-	c.graph.seenFns = map[string]struct{}{}
-	if !c.WholeProgram {
-		c.graph.seenTypes = typeutil.Map{}
-	}
-	c.graph.pkg = nil
-	c.mu.Unlock()
 
 	return nil, nil
 }
@@ -532,6 +517,7 @@ func (c *Checker) Result() []types.Object {
 		}
 		out2 = append(out2, v)
 	}
+
 	return out2
 }
 
@@ -597,14 +583,19 @@ func (c *Checker) results(graph *Graph) []types.Object {
 			ifaces = append(ifaces, interfacesFromExportData(pkg)...)
 		}
 
+		ctx := &context{
+			g:         graph,
+			seenTypes: &graph.seenTypes,
+			nodes:     map[interface{}]*Node{},
+		}
 		// (8.0) handle interfaces
 		// (e2) types aim to implement all exported interfaces from all packages
 		for _, t := range notIfaces {
-			ms := graph.msCache.MethodSet(t)
+			ms := types.NewMethodSet(t)
 			for _, iface := range ifaces {
 				if sels, ok := graph.implements(t, iface, ms); ok {
 					for _, sel := range sels {
-						graph.useMethod(t, sel, t, edgeImplements)
+						graph.useMethod(ctx, t, sel, t, edgeImplements)
 					}
 				}
 			}
@@ -721,30 +712,43 @@ type objNodeKey struct {
 }
 
 type Graph struct {
-	fset    *token.FileSet
-	pkg     *ssa.Package
-	msCache typeutil.MethodSetCache
+	// Safe for concurrent use
+	fset      *token.FileSet
+	Root      *Node
+	seenTypes typeutil.Map
 
+	// read-only
 	wholeProgram bool
 
-	nodeCounter int
-
-	Root      *Node
-	TypeNodes typeutil.Map
+	// need synchronisation
+	mu        sync.Mutex
 	Nodes     map[interface{}]*Node
+	TypeNodes typeutil.Map
 	objNodes  map[objNodeKey]*Node
 
-	seenTypes typeutil.Map
-	seenFns   map[string]struct{}
+	// accessed atomically
+	nodeOffset uint64
+}
+
+type context struct {
+	g           *Graph
+	pkg         *pkg
+	seenFns     map[string]struct{}
+	seenTypes   *typeutil.Map
+	nodeCounter uint64
+	msCache     typeutil.MethodSetCache
+
+	// these act as local, lock-free caches for the maps in Graph.
+	typeNodes typeutil.Map
+	nodes     map[interface{}]*Node
 }
 
 func NewGraph() *Graph {
 	g := &Graph{
 		Nodes:    map[interface{}]*Node{},
 		objNodes: map[objNodeKey]*Node{},
-		seenFns:  map[string]struct{}{},
 	}
-	g.Root = g.newNode(nil)
+	g.Root = g.newNode(&context{}, nil)
 	return g
 }
 
@@ -766,46 +770,70 @@ type ConstGroup struct {
 func (ConstGroup) String() string { return "const group" }
 
 type Node struct {
-	obj  interface{}
-	id   int
-	used map[*Node]edge
+	obj interface{}
+	id  uint64
 
+	mu   sync.Mutex
+	used map[*Node]edge
+	// even if unused, this specific node should never be reported.
+	// e.g. function receivers.
+	ignored bool
+
+	// set during final graph walk if node is reachable
 	seen bool
 	// a parent node (e.g. the struct type containing a field) is
 	// already unused, don't report children
 	quiet bool
-	// even if unused, this specific node should never be reported.
-	// e.g. function receivers.
-	ignored bool
 }
 
 func (g *Graph) nodeMaybe(obj types.Object) (*Node, bool) {
+	// never called concurrently
+
 	if node, ok := g.Nodes[obj]; ok {
 		return node, true
 	}
 	return nil, false
 }
 
-func (g *Graph) node(obj interface{}) (node *Node, new bool) {
+func (g *Graph) node(ctx *context, obj interface{}) (node *Node, new bool) {
 	if t, ok := obj.(types.Type); ok {
+		if v := ctx.typeNodes.At(t); v != nil {
+			return v.(*Node), false
+		}
+		g.mu.Lock()
+		defer g.mu.Unlock()
+
 		if v := g.TypeNodes.At(t); v != nil {
 			return v.(*Node), false
 		}
-		node := g.newNode(t)
+		node := g.newNode(ctx, t)
 		g.TypeNodes.Set(t, node)
+		ctx.typeNodes.Set(t, node)
 		return node, true
 	}
+
+	if node, ok := ctx.nodes[obj]; ok {
+		return node, false
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	if node, ok := g.Nodes[obj]; ok {
 		return node, false
 	}
-	node = g.newNode(obj)
+	node = g.newNode(ctx, obj)
 	g.Nodes[obj] = node
+	ctx.nodes[obj] = node
 	if obj, ok := obj.(types.Object); ok {
 		key := objNodeKeyFor(g.fset, obj)
 		if onode, ok := g.objNodes[key]; ok {
+			node.mu.Lock()
+			onode.mu.Lock()
 			node.used[onode] |= edgeSameObject
 			onode.used[node] |= edgeSameObject
+			node.mu.Unlock()
+			onode.mu.Unlock()
 		} else {
 			g.objNodes[key] = node
 		}
@@ -813,16 +841,18 @@ func (g *Graph) node(obj interface{}) (node *Node, new bool) {
 	return node, true
 }
 
-func (g *Graph) newNode(obj interface{}) *Node {
-	g.nodeCounter++
+func (g *Graph) newNode(ctx *context, obj interface{}) *Node {
+	ctx.nodeCounter++
 	return &Node{
 		obj:  obj,
-		id:   g.nodeCounter,
+		id:   ctx.nodeCounter,
 		used: map[*Node]edge{},
 	}
 }
 
 func (n *Node) use(node *Node, kind edge) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	assert(node != nil)
 	n.used[node] |= kind
 }
@@ -891,56 +921,49 @@ func isIrrelevant(obj interface{}) bool {
 	return false
 }
 
-func (g *Graph) isInterestingPackage(pkg *types.Package) bool {
-	if g.wholeProgram {
-		return true
-	}
-	return pkg == g.pkg.Pkg
-}
-
-func (g *Graph) see(obj interface{}) *Node {
+func (ctx *context) see(obj interface{}) *Node {
 	if isIrrelevant(obj) {
 		return nil
 	}
 
 	assert(obj != nil)
 	// add new node to graph
-	node, _ := g.node(obj)
+	node, _ := ctx.g.node(ctx, obj)
 	return node
 }
 
-func (g *Graph) use(used, by interface{}, kind edge) {
+func (ctx *context) use(used, by interface{}, kind edge) {
 	if isIrrelevant(used) {
 		return
 	}
 
 	assert(used != nil)
 	if obj, ok := by.(types.Object); ok && obj.Pkg() != nil {
-		if !g.isInterestingPackage(obj.Pkg()) {
+		if !ctx.g.wholeProgram && obj.Pkg() != ctx.pkg.Pkg {
 			return
 		}
 	}
-	usedNode, new := g.node(used)
+	usedNode, new := ctx.g.node(ctx, used)
 	assert(!new)
 	if by == nil {
-		g.Root.use(usedNode, kind)
+		ctx.g.Root.use(usedNode, kind)
 	} else {
-		byNode, new := g.node(by)
+		byNode, new := ctx.g.node(ctx, by)
 		assert(!new)
 		byNode.use(usedNode, kind)
 	}
 }
 
-func (g *Graph) seeAndUse(used, by interface{}, kind edge) *Node {
-	node := g.see(used)
-	g.use(used, by, kind)
+func (ctx *context) seeAndUse(used, by interface{}, kind edge) *Node {
+	node := ctx.see(used)
+	ctx.use(used, by, kind)
 	return node
 }
 
 // trackExportedIdentifier reports whether obj should be considered
 // used due to being exported, checking various conditions that affect
 // the decision.
-func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
+func (g *Graph) trackExportedIdentifier(ctx *context, obj types.Object) bool {
 	if !obj.Exported() {
 		// object isn't exported, the question is moot
 		return false
@@ -956,7 +979,7 @@ func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 		return false
 	}
 
-	if g.pkg.Pkg.Name() == "main" && !strings.HasSuffix(path, "_test.go") {
+	if ctx.pkg.Pkg.Name() == "main" && !strings.HasSuffix(path, "_test.go") {
 		// exported identifiers in package main can't be imported.
 		// However, test functions can be called, and xtest packages
 		// even have access to exported identifiers.
@@ -976,8 +999,19 @@ func (g *Graph) trackExportedIdentifier(obj types.Object) bool {
 }
 
 func (g *Graph) entry(pkg *pkg) {
-	// TODO rename Entry
-	g.pkg = pkg.SSA
+	no := atomic.AddUint64(&g.nodeOffset, 1)
+	ctx := &context{
+		g:           g,
+		pkg:         pkg,
+		nodeCounter: no * 1e9,
+		seenFns:     map[string]struct{}{},
+		nodes:       map[interface{}]*Node{},
+	}
+	if g.wholeProgram {
+		ctx.seenTypes = &g.seenTypes
+	} else {
+		ctx.seenTypes = &typeutil.Map{}
+	}
 
 	scopes := map[*types.Scope]*ssa.Function{}
 	for _, fn := range pkg.SrcFuncs {
@@ -1010,7 +1044,7 @@ func (g *Graph) entry(pkg *pkg) {
 								panic(fmt.Sprintf("unhandled type: %T", m))
 							}
 							assert(obj != nil)
-							g.seeAndUse(obj, nil, edgeLinkname)
+							ctx.seeAndUse(obj, nil, edgeLinkname)
 						}
 					}
 				}
@@ -1039,21 +1073,21 @@ func (g *Graph) entry(pkg *pkg) {
 		case *types.TypeName:
 			// types are being handled by walking the AST
 		case *types.Const:
-			g.see(obj)
+			ctx.see(obj)
 			fn := surroundingFunc(obj)
-			if fn == nil && g.trackExportedIdentifier(obj) {
+			if fn == nil && g.trackExportedIdentifier(ctx, obj) {
 				// (1.4) packages use exported constants (unless in package main)
-				g.use(obj, nil, edgeExportedConstant)
+				ctx.use(obj, nil, edgeExportedConstant)
 			}
-			g.typ(obj.Type())
-			g.seeAndUse(obj.Type(), obj, edgeType)
+			g.typ(ctx, obj.Type())
+			ctx.seeAndUse(obj.Type(), obj, edgeType)
 		}
 	}
 
 	// Find constants being used inside functions, find sinks in tests
 	for _, fn := range pkg.SrcFuncs {
 		if fn.Object() != nil {
-			g.see(fn.Object())
+			ctx.see(fn.Object())
 		}
 		node := fn.Syntax()
 		if node == nil {
@@ -1068,7 +1102,7 @@ func (g *Graph) entry(pkg *pkg) {
 				}
 				switch obj := obj.(type) {
 				case *types.Const:
-					g.seeAndUse(obj, owningObject(fn), edgeUsedConstant)
+					ctx.seeAndUse(obj, owningObject(fn), edgeUsedConstant)
 				}
 			case *ast.AssignStmt:
 				for _, expr := range node.Lhs {
@@ -1088,7 +1122,7 @@ func (g *Graph) entry(pkg *pkg) {
 
 							// (4.9) functions use package-level variables they assign to iff in tests (sinks for benchmarks)
 							// (9.7) variable _reads_ use variables, writes do not, except in tests
-							g.seeAndUse(obj, owningObject(fn), edgeTestSink)
+							ctx.seeAndUse(obj, owningObject(fn), edgeTestSink)
 						}
 					}
 				}
@@ -1103,7 +1137,7 @@ func (g *Graph) entry(pkg *pkg) {
 		if !ok {
 			continue
 		}
-		g.seeAndUse(obj, nil, edgeUsedConstant)
+		ctx.seeAndUse(obj, nil, edgeUsedConstant)
 	}
 
 	var fn *types.Func
@@ -1112,7 +1146,7 @@ func (g *Graph) entry(pkg *pkg) {
 			switch n := n.(type) {
 			case *ast.FuncDecl:
 				fn = pkg.TypesInfo.ObjectOf(n.Name).(*types.Func)
-				g.see(fn)
+				ctx.see(fn)
 			case *ast.GenDecl:
 				switch n.Tok {
 				case token.CONST:
@@ -1120,13 +1154,13 @@ func (g *Graph) entry(pkg *pkg) {
 					for _, specs := range groups {
 						if len(specs) > 1 {
 							cg := &ConstGroup{}
-							g.see(cg)
+							ctx.see(cg)
 							for _, spec := range specs {
 								for _, name := range spec.(*ast.ValueSpec).Names {
 									obj := pkg.TypesInfo.ObjectOf(name)
 									// (10.1) const groups
-									g.seeAndUse(obj, cg, edgeConstGroup)
-									g.use(cg, obj, edgeConstGroup)
+									ctx.seeAndUse(obj, cg, edgeConstGroup)
+									ctx.use(cg, obj, edgeConstGroup)
 								}
 							}
 						}
@@ -1137,11 +1171,11 @@ func (g *Graph) entry(pkg *pkg) {
 						for _, name := range v.Names {
 							T := pkg.TypesInfo.TypeOf(name)
 							if fn != nil {
-								g.seeAndUse(T, fn, edgeVarDecl)
+								ctx.seeAndUse(T, fn, edgeVarDecl)
 							} else {
-								g.seeAndUse(T, nil, edgeVarDecl)
+								ctx.seeAndUse(T, nil, edgeVarDecl)
 							}
-							g.typ(T)
+							g.typ(ctx, T)
 						}
 					}
 				case token.TYPE:
@@ -1155,11 +1189,11 @@ func (g *Graph) entry(pkg *pkg) {
 						v := spec.(*ast.TypeSpec)
 						T := pkg.TypesInfo.TypeOf(v.Type)
 						obj := pkg.TypesInfo.ObjectOf(v.Name)
-						g.see(obj)
-						g.see(T)
-						g.use(T, obj, edgeType)
-						g.typ(obj.Type())
-						g.typ(T)
+						ctx.see(obj)
+						ctx.see(T)
+						ctx.use(T, obj, edgeType)
+						g.typ(ctx, obj.Type())
+						g.typ(ctx, T)
 
 						if v.Assign != 0 {
 							aliasFor := obj.(*types.TypeName).Type()
@@ -1170,10 +1204,10 @@ func (g *Graph) entry(pkg *pkg) {
 								// just mark the alias used.
 								//
 								// FIXME(dh): what about aliases declared inside functions?
-								g.use(obj, nil, edgeAlias)
+								ctx.use(obj, nil, edgeAlias)
 							} else {
-								g.see(aliasFor)
-								g.seeAndUse(obj, aliasFor, edgeAlias)
+								ctx.see(aliasFor)
+								ctx.seeAndUse(obj, aliasFor, edgeAlias)
 							}
 						}
 					}
@@ -1183,22 +1217,22 @@ func (g *Graph) entry(pkg *pkg) {
 		})
 	}
 
-	for _, m := range g.pkg.Members {
+	for _, m := range pkg.SSA.Members {
 		switch m := m.(type) {
 		case *ssa.NamedConst:
 			// nothing to do, we collect all constants from Defs
 		case *ssa.Global:
 			if m.Object() != nil {
-				g.see(m.Object())
-				if g.trackExportedIdentifier(m.Object()) {
+				ctx.see(m.Object())
+				if g.trackExportedIdentifier(ctx, m.Object()) {
 					// (1.3) packages use exported variables (unless in package main)
-					g.use(m.Object(), nil, edgeExportedVariable)
+					ctx.use(m.Object(), nil, edgeExportedVariable)
 				}
 			}
 		case *ssa.Function:
 			mObj := owningObject(m)
 			if mObj != nil {
-				g.see(mObj)
+				ctx.see(mObj)
 			}
 			//lint:ignore SA9003 handled implicitly
 			if m.Name() == "init" {
@@ -1209,17 +1243,17 @@ func (g *Graph) entry(pkg *pkg) {
 				// be owned by the package.
 			}
 			// This branch catches top-level functions, not methods.
-			if m.Object() != nil && g.trackExportedIdentifier(m.Object()) {
+			if m.Object() != nil && g.trackExportedIdentifier(ctx, m.Object()) {
 				// (1.2) packages use exported functions (unless in package main)
-				g.use(mObj, nil, edgeExportedFunction)
+				ctx.use(mObj, nil, edgeExportedFunction)
 			}
-			if m.Name() == "main" && g.pkg.Pkg.Name() == "main" {
+			if m.Name() == "main" && pkg.Pkg.Name() == "main" {
 				// (1.7) packages use the main function iff in the main package
-				g.use(mObj, nil, edgeMainFunction)
+				ctx.use(mObj, nil, edgeMainFunction)
 			}
-			if g.pkg.Pkg.Path() == "runtime" && runtimeFuncs[m.Name()] {
+			if pkg.Pkg.Path() == "runtime" && runtimeFuncs[m.Name()] {
 				// (9.8) runtime functions that may be called from user code via the compiler
-				g.use(mObj, nil, edgeRuntimeFunction)
+				ctx.use(mObj, nil, edgeRuntimeFunction)
 			}
 			if m.Syntax() != nil {
 				doc := m.Syntax().(*ast.FuncDecl).Doc
@@ -1227,21 +1261,21 @@ func (g *Graph) entry(pkg *pkg) {
 					for _, cmt := range doc.List {
 						if strings.HasPrefix(cmt.Text, "//go:cgo_export_") {
 							// (1.6) packages use functions exported to cgo
-							g.use(mObj, nil, edgeCgoExported)
+							ctx.use(mObj, nil, edgeCgoExported)
 						}
 					}
 				}
 			}
-			g.function(m)
+			g.function(ctx, m)
 		case *ssa.Type:
 			if m.Object() != nil {
-				g.see(m.Object())
-				if g.trackExportedIdentifier(m.Object()) {
+				ctx.see(m.Object())
+				if g.trackExportedIdentifier(ctx, m.Object()) {
 					// (1.1) packages use exported named types (unless in package main)
-					g.use(m.Object(), nil, edgeExportedType)
+					ctx.use(m.Object(), nil, edgeExportedType)
 				}
 			}
-			g.typ(m.Type())
+			g.typ(ctx, m.Type())
 		default:
 			panic(fmt.Sprintf("unreachable: %T", m))
 		}
@@ -1259,7 +1293,7 @@ func (g *Graph) entry(pkg *pkg) {
 		var ifaces []*types.Interface
 		var notIfaces []types.Type
 
-		g.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+		ctx.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 			switch t := t.(type) {
 			case *types.Interface:
 				// OPT(dh): (8.1) we only need interfaces that have unexported methods
@@ -1273,11 +1307,11 @@ func (g *Graph) entry(pkg *pkg) {
 
 		// (8.0) handle interfaces
 		for _, t := range notIfaces {
-			ms := g.msCache.MethodSet(t)
+			ms := ctx.msCache.MethodSet(t)
 			for _, iface := range ifaces {
 				if sels, ok := g.implements(t, iface, ms); ok {
 					for _, sel := range sels {
-						g.useMethod(t, sel, t, edgeImplements)
+						g.useMethod(ctx, t, sel, t, edgeImplements)
 					}
 				}
 			}
@@ -1285,7 +1319,7 @@ func (g *Graph) entry(pkg *pkg) {
 	}
 }
 
-func (g *Graph) useMethod(t types.Type, sel *types.Selection, by interface{}, kind edge) {
+func (g *Graph) useMethod(ctx *context, t types.Type, sel *types.Selection, by interface{}, kind edge) {
 	obj := sel.Obj()
 	path := sel.Index()
 	assert(obj != nil)
@@ -1294,12 +1328,12 @@ func (g *Graph) useMethod(t types.Type, sel *types.Selection, by interface{}, ki
 		for _, idx := range path[:len(path)-1] {
 			next := base.Field(idx)
 			// (6.3) structs use embedded fields that help implement interfaces
-			g.see(base)
-			g.seeAndUse(next, base, edgeProvidesMethod)
+			ctx.see(base)
+			ctx.seeAndUse(next, base, edgeProvidesMethod)
 			base, _ = lintdsl.Dereference(next.Type()).Underlying().(*types.Struct)
 		}
 	}
-	g.seeAndUse(obj, by, kind)
+	ctx.seeAndUse(obj, by, kind)
 }
 
 func owningObject(fn *ssa.Function) types.Object {
@@ -1312,58 +1346,74 @@ func owningObject(fn *ssa.Function) types.Object {
 	return nil
 }
 
-func (g *Graph) function(fn *ssa.Function) {
-	if fn.Package() != nil && fn.Package() != g.pkg {
+func (g *Graph) function(ctx *context, fn *ssa.Function) {
+	if fn.Package() != nil && fn.Package() != ctx.pkg.SSA {
 		return
 	}
 
 	name := fn.RelString(nil)
-	if _, ok := g.seenFns[name]; ok {
+	if _, ok := ctx.seenFns[name]; ok {
 		return
 	}
-	g.seenFns[name] = struct{}{}
+	ctx.seenFns[name] = struct{}{}
 
 	// (4.1) functions use all their arguments, return parameters and receivers
-	g.seeAndUse(fn.Signature, owningObject(fn), edgeFunctionSignature)
-	g.signature(fn.Signature)
-	g.instructions(fn)
+	ctx.seeAndUse(fn.Signature, owningObject(fn), edgeFunctionSignature)
+	g.signature(ctx, fn.Signature)
+	g.instructions(ctx, fn)
 	for _, anon := range fn.AnonFuncs {
 		// (4.2) functions use anonymous functions defined beneath them
 		//
 		// This fact is expressed implicitly. Anonymous functions have
 		// no types.Object, so their owner is the surrounding
 		// function.
-		g.function(anon)
+		g.function(ctx, anon)
 	}
 }
 
-func (g *Graph) typ(t types.Type) {
-	if g.seenTypes.At(t) != nil {
+func (g *Graph) typ(ctx *context, t types.Type) {
+	if g.wholeProgram {
+		g.mu.Lock()
+	}
+	if ctx.seenTypes.At(t) != nil {
+		if g.wholeProgram {
+			g.mu.Unlock()
+		}
 		return
 	}
+	if g.wholeProgram {
+		g.mu.Unlock()
+	}
 	if t, ok := t.(*types.Named); ok && t.Obj().Pkg() != nil {
-		if t.Obj().Pkg() != g.pkg.Pkg {
+		if t.Obj().Pkg() != ctx.pkg.Pkg {
 			return
 		}
 	}
-	g.seenTypes.Set(t, struct{}{})
+
+	if g.wholeProgram {
+		g.mu.Lock()
+	}
+	ctx.seenTypes.Set(t, struct{}{})
+	if g.wholeProgram {
+		g.mu.Unlock()
+	}
 	if isIrrelevant(t) {
 		return
 	}
 
-	g.see(t)
+	ctx.see(t)
 	switch t := t.(type) {
 	case *types.Struct:
 		for i := 0; i < t.NumFields(); i++ {
-			g.see(t.Field(i))
+			ctx.see(t.Field(i))
 			if t.Field(i).Exported() {
 				// (6.2) structs use exported fields
-				g.use(t.Field(i), t, edgeExportedField)
+				ctx.use(t.Field(i), t, edgeExportedField)
 			} else if t.Field(i).Name() == "_" {
-				g.use(t.Field(i), t, edgeBlankField)
+				ctx.use(t.Field(i), t, edgeBlankField)
 			} else if isNoCopyType(t.Field(i).Type()) {
 				// (6.1) structs use fields of type NoCopy sentinel
-				g.use(t.Field(i), t, edgeNoCopySentinel)
+				ctx.use(t.Field(i), t, edgeNoCopySentinel)
 			}
 			if t.Field(i).Anonymous() {
 				// (e3) exported identifiers aren't automatically used.
@@ -1375,11 +1425,11 @@ func (g *Graph) typ(t types.Type) {
 						// the pointer type to get the full method set
 						T = types.NewPointer(T)
 					}
-					ms := g.msCache.MethodSet(T)
+					ms := ctx.msCache.MethodSet(T)
 					for j := 0; j < ms.Len(); j++ {
 						if ms.At(j).Obj().Exported() {
 							// (6.4) structs use embedded fields that have exported methods (recursively)
-							g.use(t.Field(i), t, edgeExtendsExportedMethodSet)
+							ctx.use(t.Field(i), t, edgeExtendsExportedMethodSet)
 							break
 						}
 					}
@@ -1410,114 +1460,114 @@ func (g *Graph) typ(t types.Type) {
 				// does the embedded field contribute exported fields?
 				if hasExportedField(t.Field(i).Type()) {
 					// (6.5) structs use embedded structs that have exported fields (recursively)
-					g.use(t.Field(i), t, edgeExtendsExportedFields)
+					ctx.use(t.Field(i), t, edgeExtendsExportedFields)
 				}
 
 			}
-			g.variable(t.Field(i))
+			g.variable(ctx, t.Field(i))
 		}
 	case *types.Basic:
 		// Nothing to do
 	case *types.Named:
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Underlying(), t, edgeUnderlyingType)
-		g.seeAndUse(t.Obj(), t, edgeTypeName)
-		g.seeAndUse(t, t.Obj(), edgeNamedType)
+		ctx.seeAndUse(t.Underlying(), t, edgeUnderlyingType)
+		ctx.seeAndUse(t.Obj(), t, edgeTypeName)
+		ctx.seeAndUse(t, t.Obj(), edgeNamedType)
 
 		// (2.4) named types use the pointer type
-		g.seeAndUse(types.NewPointer(t), t, edgePointerType)
+		ctx.seeAndUse(types.NewPointer(t), t, edgePointerType)
 
 		for i := 0; i < t.NumMethods(); i++ {
-			g.see(t.Method(i))
+			ctx.see(t.Method(i))
 			// don't use trackExportedIdentifier here, we care about
 			// all exported methods, even in package main or in tests.
 			if t.Method(i).Exported() && !g.wholeProgram {
 				// (2.1) named types use exported methods
-				g.use(t.Method(i), t, edgeExportedMethod)
+				ctx.use(t.Method(i), t, edgeExportedMethod)
 			}
-			g.function(g.pkg.Prog.FuncValue(t.Method(i)))
+			g.function(ctx, ctx.pkg.SSA.Prog.FuncValue(t.Method(i)))
 		}
 
-		g.typ(t.Underlying())
+		g.typ(ctx, t.Underlying())
 	case *types.Slice:
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(t.Elem())
+		ctx.seeAndUse(t.Elem(), t, edgeElementType)
+		g.typ(ctx, t.Elem())
 	case *types.Map:
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Elem(), t, edgeElementType)
+		ctx.seeAndUse(t.Elem(), t, edgeElementType)
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Key(), t, edgeKeyType)
-		g.typ(t.Elem())
-		g.typ(t.Key())
+		ctx.seeAndUse(t.Key(), t, edgeKeyType)
+		g.typ(ctx, t.Elem())
+		g.typ(ctx, t.Key())
 	case *types.Signature:
-		g.signature(t)
+		g.signature(ctx, t)
 	case *types.Interface:
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
 			// (8.3) All interface methods are marked as used
-			g.seeAndUse(m, t, edgeInterfaceMethod)
-			g.seeAndUse(m.Type().(*types.Signature), m, edgeSignature)
-			g.signature(m.Type().(*types.Signature))
+			ctx.seeAndUse(m, t, edgeInterfaceMethod)
+			ctx.seeAndUse(m.Type().(*types.Signature), m, edgeSignature)
+			g.signature(ctx, m.Type().(*types.Signature))
 		}
 		for i := 0; i < t.NumEmbeddeds(); i++ {
 			tt := t.EmbeddedType(i)
 			// (8.4) All embedded interfaces are marked as used
-			g.seeAndUse(tt, t, edgeEmbeddedInterface)
+			ctx.seeAndUse(tt, t, edgeEmbeddedInterface)
 		}
 	case *types.Array:
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(t.Elem())
+		ctx.seeAndUse(t.Elem(), t, edgeElementType)
+		g.typ(ctx, t.Elem())
 	case *types.Pointer:
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(t.Elem())
+		ctx.seeAndUse(t.Elem(), t, edgeElementType)
+		g.typ(ctx, t.Elem())
 	case *types.Chan:
 		// (9.3) types use their underlying and element types
-		g.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(t.Elem())
+		ctx.seeAndUse(t.Elem(), t, edgeElementType)
+		g.typ(ctx, t.Elem())
 	case *types.Tuple:
 		for i := 0; i < t.Len(); i++ {
 			// (9.3) types use their underlying and element types
-			g.seeAndUse(t.At(i), t, edgeTupleElement)
-			g.variable(t.At(i))
+			ctx.seeAndUse(t.At(i), t, edgeTupleElement)
+			g.variable(ctx, t.At(i))
 		}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", t))
 	}
 }
 
-func (g *Graph) variable(v *types.Var) {
+func (g *Graph) variable(ctx *context, v *types.Var) {
 	// (9.2) variables use their types
-	g.seeAndUse(v.Type(), v, edgeType)
-	g.typ(v.Type())
+	ctx.seeAndUse(v.Type(), v, edgeType)
+	g.typ(ctx, v.Type())
 }
 
-func (g *Graph) signature(sig *types.Signature) {
+func (g *Graph) signature(ctx *context, sig *types.Signature) {
 	if sig.Recv() != nil {
-		if node := g.seeAndUse(sig.Recv(), sig, edgeReceiver); node != nil {
+		if node := ctx.seeAndUse(sig.Recv(), sig, edgeReceiver); node != nil {
 			node.ignored = true
 		}
-		g.variable(sig.Recv())
+		g.variable(ctx, sig.Recv())
 	}
 	for i := 0; i < sig.Params().Len(); i++ {
 		param := sig.Params().At(i)
-		if node := g.seeAndUse(param, sig, edgeFunctionArgument); node != nil {
+		if node := ctx.seeAndUse(param, sig, edgeFunctionArgument); node != nil {
 			node.ignored = true
 		}
-		g.variable(param)
+		g.variable(ctx, param)
 	}
 	for i := 0; i < sig.Results().Len(); i++ {
 		param := sig.Results().At(i)
-		if node := g.seeAndUse(param, sig, edgeFunctionResult); node != nil {
+		if node := ctx.seeAndUse(param, sig, edgeFunctionResult); node != nil {
 			node.ignored = true
 		}
-		g.variable(param)
+		g.variable(ctx, param)
 	}
 }
 
-func (g *Graph) instructions(fn *ssa.Function) {
+func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 	fnObj := owningObject(fn)
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
@@ -1538,17 +1588,17 @@ func (g *Graph) instructions(fn *ssa.Function) {
 						// (9.5) instructions use their operands
 						// (4.4) functions use functions they return. we assume that someone else will call the returned function
 						if owningObject(v) != nil {
-							g.seeAndUse(owningObject(v), fnObj, edgeInstructionOperand)
+							ctx.seeAndUse(owningObject(v), fnObj, edgeInstructionOperand)
 						}
-						g.function(v)
+						g.function(ctx, v)
 					case *ssa.Const:
 						// (9.6) instructions use their operands' types
-						g.seeAndUse(v.Type(), fnObj, edgeType)
-						g.typ(v.Type())
+						ctx.seeAndUse(v.Type(), fnObj, edgeType)
+						g.typ(ctx, v.Type())
 					case *ssa.Global:
 						if v.Object() != nil {
 							// (9.5) instructions use their operands
-							g.seeAndUse(v.Object(), fnObj, edgeInstructionOperand)
+							ctx.seeAndUse(v.Object(), fnObj, edgeInstructionOperand)
 						}
 					}
 				})
@@ -1559,8 +1609,8 @@ func (g *Graph) instructions(fn *ssa.Function) {
 
 					// (4.8) instructions use their types
 					// (9.4) conversions use the type they convert to
-					g.seeAndUse(v.Type(), fnObj, edgeType)
-					g.typ(v.Type())
+					ctx.seeAndUse(v.Type(), fnObj, edgeType)
+					g.typ(ctx, v.Type())
 				}
 			}
 			switch instr := instr.(type) {
@@ -1568,12 +1618,12 @@ func (g *Graph) instructions(fn *ssa.Function) {
 				st := instr.X.Type().Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
-				g.seeAndUse(field, fnObj, edgeFieldAccess)
+				ctx.seeAndUse(field, fnObj, edgeFieldAccess)
 			case *ssa.FieldAddr:
 				st := lintdsl.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
-				g.seeAndUse(field, fnObj, edgeFieldAccess)
+				ctx.seeAndUse(field, fnObj, edgeFieldAccess)
 			case *ssa.Store:
 				// nothing to do, handled generically by operands
 			case *ssa.Call:
@@ -1599,10 +1649,10 @@ func (g *Graph) instructions(fn *ssa.Function) {
 							walkPhi(arg, func(v ssa.Value) {
 								if v, ok := v.(*ssa.MakeInterface); ok {
 									walkPhi(v.X, func(vv ssa.Value) {
-										ms := g.msCache.MethodSet(vv.Type())
+										ms := ctx.msCache.MethodSet(vv.Type())
 										for i := 0; i < ms.Len(); i++ {
 											if ms.At(i).Obj().Exported() {
-												g.useMethod(vv.Type(), ms.At(i), fnObj, edgeNetRPCRegister)
+												g.useMethod(ctx, vv.Type(), ms.At(i), fnObj, edgeNetRPCRegister)
 											}
 										}
 									})
@@ -1612,7 +1662,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 					}
 				} else {
 					// (4.5) functions use functions/interface methods they call
-					g.seeAndUse(c.Method, fnObj, edgeInterfaceCall)
+					ctx.seeAndUse(c.Method, fnObj, edgeInterfaceCall)
 				}
 			case *ssa.Return:
 				// nothing to do, handled generically by operands
@@ -1629,14 +1679,14 @@ func (g *Graph) instructions(fn *ssa.Function) {
 
 					assert(s1.NumFields() == s2.NumFields())
 					for i := 0; i < s1.NumFields(); i++ {
-						g.see(s1.Field(i))
-						g.see(s2.Field(i))
+						ctx.see(s1.Field(i))
+						ctx.see(s2.Field(i))
 						// (5.1) when converting between two equivalent structs, the fields in
 						// either struct use each other. the fields are relevant for the
 						// conversion, but only if the fields are also accessed outside the
 						// conversion.
-						g.seeAndUse(s1.Field(i), s2.Field(i), edgeStructConversion)
-						g.seeAndUse(s2.Field(i), s1.Field(i), edgeStructConversion)
+						ctx.seeAndUse(s1.Field(i), s2.Field(i), edgeStructConversion)
+						ctx.seeAndUse(s2.Field(i), s1.Field(i), edgeStructConversion)
 					}
 				}
 			case *ssa.MakeInterface:
@@ -1652,7 +1702,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 						if st, ok := ptr.Elem().Underlying().(*types.Struct); ok {
 							for i := 0; i < st.NumFields(); i++ {
 								// (5.2) when converting to or from unsafe.Pointer, mark all fields as used.
-								g.seeAndUse(st.Field(i), fnObj, edgeUnsafeConversion)
+								ctx.seeAndUse(st.Field(i), fnObj, edgeUnsafeConversion)
 							}
 						}
 					}
@@ -1663,7 +1713,7 @@ func (g *Graph) instructions(fn *ssa.Function) {
 						if st, ok := ptr.Elem().Underlying().(*types.Struct); ok {
 							for i := 0; i < st.NumFields(); i++ {
 								// (5.2) when converting to or from unsafe.Pointer, mark all fields as used.
-								g.seeAndUse(st.Field(i), fnObj, edgeUnsafeConversion)
+								ctx.seeAndUse(st.Field(i), fnObj, edgeUnsafeConversion)
 							}
 						}
 					}

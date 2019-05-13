@@ -29,10 +29,7 @@ func main() {
 		cs = append(cs, v)
 	}
 
-	u := unused.NewChecker()
-	if *wholeProgram {
-		u.WholeProgram = true
-	}
+	u := unused.NewChecker(*wholeProgram)
 	cums := []lint.CumulativeChecker{u}
 	lintutil.ProcessFlagSet(cs, cums, fs)
 }
