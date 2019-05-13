@@ -508,7 +508,7 @@ func (c *Checker) ProblemObject(fset *token.FileSet, obj types.Object) lint.Prob
 }
 
 func (c *Checker) Result() []types.Object {
-	out := c.results(c.graph)
+	out := c.results()
 
 	out2 := make([]types.Object, 0, len(out))
 	for _, v := range out {
@@ -555,8 +555,8 @@ func (graph *Graph) quieten(node *Node) {
 	}
 }
 
-func (c *Checker) results(graph *Graph) []types.Object {
-	if graph == nil {
+func (c *Checker) results() []types.Object {
+	if c.graph == nil {
 		// We never analyzed any packages
 		return nil
 	}
@@ -568,7 +568,7 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		var notIfaces []types.Type
 
 		// implement as many interfaces as possible
-		graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+		c.graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 			switch t := t.(type) {
 			case *types.Interface:
 				ifaces = append(ifaces, t)
@@ -584,17 +584,17 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		}
 
 		ctx := &context{
-			g:         graph,
-			seenTypes: &graph.seenTypes,
+			g:         c.graph,
+			seenTypes: &c.graph.seenTypes,
 		}
 		// (8.0) handle interfaces
 		// (e2) types aim to implement all exported interfaces from all packages
 		for _, t := range notIfaces {
 			ms := types.NewMethodSet(t)
 			for _, iface := range ifaces {
-				if sels, ok := graph.implements(t, iface, ms); ok {
+				if sels, ok := c.graph.implements(t, iface, ms); ok {
 					for _, sel := range sels {
-						graph.useMethod(ctx, t, sel, t, edgeImplements)
+						c.graph.useMethod(ctx, t, sel, t, edgeImplements)
 					}
 				}
 			}
@@ -618,30 +618,30 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		}
 
 		c.debugf("digraph{\n")
-		debugNode(graph.Root)
-		graph.Nodes.Range(func(k, v interface{}) bool {
+		debugNode(c.graph.Root)
+		c.graph.Nodes.Range(func(k, v interface{}) bool {
 			debugNode(v.(*Node))
 			return true
 		})
-		graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
+		c.graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
 			debugNode(value.(*Node))
 		})
 
 		c.debugf("}\n")
 	}
 
-	graph.color(graph.Root)
+	c.graph.color(c.graph.Root)
 	// if a node is unused, don't report any of the node's
 	// children as unused. for example, if a function is unused,
 	// don't flag its receiver. if a named type is unused, don't
 	// flag its methods.
 
-	graph.Nodes.Range(func(k, v interface{}) bool {
-		graph.quieten(v.(*Node))
+	c.graph.Nodes.Range(func(k, v interface{}) bool {
+		c.graph.quieten(v.(*Node))
 		return true
 	})
-	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
-		graph.quieten(value.(*Node))
+	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+		c.graph.quieten(value.(*Node))
 	})
 
 	report := func(node *Node) {
@@ -673,11 +673,11 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		}
 		c.debugf("n%d [color=gray];\n", node.id)
 	}
-	graph.Nodes.Range(func(k, v interface{}) bool {
+	c.graph.Nodes.Range(func(k, v interface{}) bool {
 		report(v.(*Node))
 		return true
 	})
-	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
+	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
 		report(value.(*Node))
 	})
 
