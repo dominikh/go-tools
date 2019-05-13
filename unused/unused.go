@@ -586,7 +586,6 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		ctx := &context{
 			g:         graph,
 			seenTypes: &graph.seenTypes,
-			nodes:     map[interface{}]*Node{},
 		}
 		// (8.0) handle interfaces
 		// (e2) types aim to implement all exported interfaces from all packages
@@ -620,9 +619,10 @@ func (c *Checker) results(graph *Graph) []types.Object {
 
 		c.debugf("digraph{\n")
 		debugNode(graph.Root)
-		for _, node := range graph.Nodes {
-			debugNode(node)
-		}
+		graph.Nodes.Range(func(k, v interface{}) bool {
+			debugNode(v.(*Node))
+			return true
+		})
 		graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
 			debugNode(value.(*Node))
 		})
@@ -636,9 +636,10 @@ func (c *Checker) results(graph *Graph) []types.Object {
 	// don't flag its receiver. if a named type is unused, don't
 	// flag its methods.
 
-	for _, node := range graph.Nodes {
-		graph.quieten(node)
-	}
+	graph.Nodes.Range(func(k, v interface{}) bool {
+		graph.quieten(v.(*Node))
+		return true
+	})
 	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
 		graph.quieten(value.(*Node))
 	})
@@ -672,9 +673,10 @@ func (c *Checker) results(graph *Graph) []types.Object {
 		}
 		c.debugf("n%d [color=gray];\n", node.id)
 	}
-	for _, node := range graph.Nodes {
-		report(node)
-	}
+	graph.Nodes.Range(func(k, v interface{}) bool {
+		report(v.(*Node))
+		return true
+	})
 	graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
 		report(value.(*Node))
 	})
@@ -716,15 +718,15 @@ type Graph struct {
 	fset      *token.FileSet
 	Root      *Node
 	seenTypes typeutil.Map
+	Nodes     sync.Map // map[interface{}]*Node
+	objNodes  sync.Map // map[objNodeKey]*Node
 
 	// read-only
 	wholeProgram bool
 
 	// need synchronisation
 	mu        sync.Mutex
-	Nodes     map[interface{}]*Node
 	TypeNodes typeutil.Map
-	objNodes  map[objNodeKey]*Node
 
 	// accessed atomically
 	nodeOffset uint64
@@ -738,16 +740,12 @@ type context struct {
 	nodeCounter uint64
 	msCache     typeutil.MethodSetCache
 
-	// these act as local, lock-free caches for the maps in Graph.
+	// local cache for the map in Graph
 	typeNodes typeutil.Map
-	nodes     map[interface{}]*Node
 }
 
 func NewGraph() *Graph {
-	g := &Graph{
-		Nodes:    map[interface{}]*Node{},
-		objNodes: map[objNodeKey]*Node{},
-	}
+	g := &Graph{}
 	g.Root = g.newNode(&context{}, nil)
 	return g
 }
@@ -787,10 +785,8 @@ type Node struct {
 }
 
 func (g *Graph) nodeMaybe(obj types.Object) (*Node, bool) {
-	// never called concurrently
-
-	if node, ok := g.Nodes[obj]; ok {
-		return node, true
+	if node, ok := g.Nodes.Load(obj); ok {
+		return node.(*Node), true
 	}
 	return nil, false
 }
@@ -812,22 +808,15 @@ func (g *Graph) node(ctx *context, obj interface{}) (node *Node, new bool) {
 		return node, true
 	}
 
-	if node, ok := ctx.nodes[obj]; ok {
-		return node, false
-	}
-
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if node, ok := g.Nodes[obj]; ok {
-		return node, false
+	if node, ok := g.Nodes.Load(obj); ok {
+		return node.(*Node), false
 	}
 	node = g.newNode(ctx, obj)
-	g.Nodes[obj] = node
-	ctx.nodes[obj] = node
+	g.Nodes.Store(obj, node)
 	if obj, ok := obj.(types.Object); ok {
 		key := objNodeKeyFor(g.fset, obj)
-		if onode, ok := g.objNodes[key]; ok {
+		if o, ok := g.objNodes.Load(key); ok {
+			onode := o.(*Node)
 			node.mu.Lock()
 			onode.mu.Lock()
 			node.used[onode] |= edgeSameObject
@@ -835,7 +824,7 @@ func (g *Graph) node(ctx *context, obj interface{}) (node *Node, new bool) {
 			node.mu.Unlock()
 			onode.mu.Unlock()
 		} else {
-			g.objNodes[key] = node
+			g.objNodes.Store(key, node)
 		}
 	}
 	return node, true
@@ -1005,7 +994,6 @@ func (g *Graph) entry(pkg *pkg) {
 		pkg:         pkg,
 		nodeCounter: no * 1e9,
 		seenFns:     map[string]struct{}{},
-		nodes:       map[interface{}]*Node{},
 	}
 	if g.wholeProgram {
 		ctx.seenTypes = &g.seenTypes
