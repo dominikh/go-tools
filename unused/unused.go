@@ -18,6 +18,14 @@ import (
 	"honnef.co/go/tools/ssa"
 )
 
+// The graph we construct omits nodes along a path that do not
+// contribute any new information to the solution. For example, the
+// full graph for a function with a receiver would be Func ->
+// Signature -> Var -> Type. However, since signatures cannot be
+// unused, and receivers are always considered used, we can compact
+// the graph down to Func -> Type. This makes the graph smaller, but
+// harder to debug.
+
 // TODO(dh): conversions between structs mark fields as used, but the
 // conversion itself isn't part of that subgraph. even if the function
 // containing the conversion is unused, the fields will be marked as
@@ -660,10 +668,6 @@ func (c *Checker) results() []types.Object {
 			c.debugf("n%d [color=purple];\n", node.id)
 			return
 		}
-		if node.ignored {
-			c.debugf("n%d [color=gray];\n", node.id)
-			return
-		}
 
 		c.debugf("n%d [color=red];\n", node.id)
 		switch obj := node.obj.(type) {
@@ -781,9 +785,6 @@ type Node struct {
 
 	mu   sync.Mutex
 	used map[*Node]edge
-	// even if unused, this specific node should never be reported.
-	// e.g. function receivers.
-	ignored bool
 
 	// set during final graph walk if node is reachable
 	seen bool
@@ -1354,8 +1355,7 @@ func (g *Graph) function(ctx *context, fn *ssa.Function) {
 	ctx.seenFns[name] = struct{}{}
 
 	// (4.1) functions use all their arguments, return parameters and receivers
-	ctx.seeAndUse(fn.Signature, owningObject(fn), edgeFunctionSignature)
-	g.signature(ctx, fn.Signature)
+	g.signature(ctx, fn.Signature, owningObject(fn))
 	g.instructions(ctx, fn)
 	for _, anon := range fn.AnonFuncs {
 		// (4.2) functions use anonymous functions defined beneath them
@@ -1500,14 +1500,14 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 		g.typ(ctx, t.Elem(), nil)
 		g.typ(ctx, t.Key(), nil)
 	case *types.Signature:
-		g.signature(ctx, t)
+		g.signature(ctx, t, nil)
 	case *types.Interface:
 		for i := 0; i < t.NumMethods(); i++ {
 			m := t.Method(i)
 			// (8.3) All interface methods are marked as used
 			ctx.seeAndUse(m, t, edgeInterfaceMethod)
 			ctx.seeAndUse(m.Type().(*types.Signature), m, edgeSignature)
-			g.signature(ctx, m.Type().(*types.Signature))
+			g.signature(ctx, m.Type().(*types.Signature), nil)
 		}
 		for i := 0; i < t.NumEmbeddeds(); i++ {
 			tt := t.EmbeddedType(i)
@@ -1529,8 +1529,8 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 	case *types.Tuple:
 		for i := 0; i < t.Len(); i++ {
 			// (9.3) types use their underlying and element types
-			ctx.seeAndUse(t.At(i), t, edgeTupleElement)
-			g.variable(ctx, t.At(i))
+			ctx.seeAndUse(t.At(i).Type(), t, edgeTupleElement|edgeType)
+			g.typ(ctx, t.At(i).Type(), nil)
 		}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", t))
@@ -1543,26 +1543,25 @@ func (g *Graph) variable(ctx *context, v *types.Var) {
 	g.typ(ctx, v.Type(), nil)
 }
 
-func (g *Graph) signature(ctx *context, sig *types.Signature) {
+func (g *Graph) signature(ctx *context, sig *types.Signature, fn types.Object) {
+	var user interface{} = fn
+	if fn == nil {
+		user = sig
+		ctx.see(sig)
+	}
 	if sig.Recv() != nil {
-		if node := ctx.seeAndUse(sig.Recv(), sig, edgeReceiver); node != nil {
-			node.ignored = true
-		}
-		g.variable(ctx, sig.Recv())
+		ctx.seeAndUse(sig.Recv().Type(), user, edgeReceiver|edgeType)
+		g.typ(ctx, sig.Recv().Type(), nil)
 	}
 	for i := 0; i < sig.Params().Len(); i++ {
 		param := sig.Params().At(i)
-		if node := ctx.seeAndUse(param, sig, edgeFunctionArgument); node != nil {
-			node.ignored = true
-		}
-		g.variable(ctx, param)
+		ctx.seeAndUse(param.Type(), user, edgeFunctionArgument|edgeType)
+		g.typ(ctx, param.Type(), nil)
 	}
 	for i := 0; i < sig.Results().Len(); i++ {
 		param := sig.Results().At(i)
-		if node := ctx.seeAndUse(param, sig, edgeFunctionResult); node != nil {
-			node.ignored = true
-		}
-		g.variable(ctx, param)
+		ctx.seeAndUse(param.Type(), user, edgeFunctionResult|edgeType)
+		g.typ(ctx, param.Type(), nil)
 	}
 }
 
