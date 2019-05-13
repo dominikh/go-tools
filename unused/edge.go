@@ -10,6 +10,7 @@ func (e edge) is(o edge) bool {
 const (
 	edgeAlias edge = 1 << iota
 	edgeBlankField
+	edgeAnonymousStruct
 	edgeCgoExported
 	edgeConstGroup
 	edgeElementType

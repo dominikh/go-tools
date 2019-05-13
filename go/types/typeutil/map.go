@@ -24,8 +24,10 @@ import (
 // Not thread-safe.
 //
 // This fork handles Signatures correctly, respecting method
-// receivers. Furthermore, it differentiates between implicit and
-// explicit methods in interfaces.
+// receivers. Furthermore, it doesn't deduplicate interfaces or
+// structs. Interfaces aren't deduplicated as not to conflate implicit
+// and explicit methods. Structs aren't deduplicated because we track
+// fields of each type separately.
 //
 type Map struct {
 	hasher Hasher             // shared by many Maps

@@ -121,6 +121,14 @@ import (
   https://github.com/dominikh/go-tools/issues/365
 
 
+- (11.1) anonymous struct types use all their fields. we cannot
+  deduplicate struct types, as that leads to order-dependent
+  reportings. we can't not deduplicate struct types while still
+  tracking fields, because then each instance of the unnamed type in
+  the data flow chain will get its own fields, causing false
+  positives. Thus, we only accurately track fields of named struct
+  types, and assume that unnamed struct types use all their fields.
+
 
 - Differences in whole program mode:
   - (e2) types aim to implement all exported interfaces from all packages
@@ -1067,7 +1075,7 @@ func (g *Graph) entry(pkg *pkg) {
 				// (1.4) packages use exported constants (unless in package main)
 				ctx.use(obj, nil, edgeExportedConstant)
 			}
-			g.typ(ctx, obj.Type())
+			g.typ(ctx, obj.Type(), nil)
 			ctx.seeAndUse(obj.Type(), obj, edgeType)
 		}
 	}
@@ -1163,7 +1171,7 @@ func (g *Graph) entry(pkg *pkg) {
 							} else {
 								ctx.seeAndUse(T, nil, edgeVarDecl)
 							}
-							g.typ(ctx, T)
+							g.typ(ctx, T, nil)
 						}
 					}
 				case token.TYPE:
@@ -1180,8 +1188,8 @@ func (g *Graph) entry(pkg *pkg) {
 						ctx.see(obj)
 						ctx.see(T)
 						ctx.use(T, obj, edgeType)
-						g.typ(ctx, obj.Type())
-						g.typ(ctx, T)
+						g.typ(ctx, obj.Type(), nil)
+						g.typ(ctx, T, nil)
 
 						if v.Assign != 0 {
 							aliasFor := obj.(*types.TypeName).Type()
@@ -1263,7 +1271,7 @@ func (g *Graph) entry(pkg *pkg) {
 					ctx.use(m.Object(), nil, edgeExportedType)
 				}
 			}
-			g.typ(ctx, m.Type())
+			g.typ(ctx, m.Type(), nil)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", m))
 		}
@@ -1359,7 +1367,7 @@ func (g *Graph) function(ctx *context, fn *ssa.Function) {
 	}
 }
 
-func (g *Graph) typ(ctx *context, t types.Type) {
+func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 	if g.wholeProgram {
 		g.mu.Lock()
 	}
@@ -1402,6 +1410,9 @@ func (g *Graph) typ(ctx *context, t types.Type) {
 			} else if isNoCopyType(t.Field(i).Type()) {
 				// (6.1) structs use fields of type NoCopy sentinel
 				ctx.use(t.Field(i), t, edgeNoCopySentinel)
+			} else if parent == nil {
+				// (11.1) anonymous struct types use all their fields.
+				ctx.use(t.Field(i), t, edgeAnonymousStruct)
 			}
 			if t.Field(i).Anonymous() {
 				// (e3) exported identifiers aren't automatically used.
@@ -1476,18 +1487,18 @@ func (g *Graph) typ(ctx *context, t types.Type) {
 			g.function(ctx, ctx.pkg.SSA.Prog.FuncValue(t.Method(i)))
 		}
 
-		g.typ(ctx, t.Underlying())
+		g.typ(ctx, t.Underlying(), t)
 	case *types.Slice:
 		// (9.3) types use their underlying and element types
 		ctx.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(ctx, t.Elem())
+		g.typ(ctx, t.Elem(), nil)
 	case *types.Map:
 		// (9.3) types use their underlying and element types
 		ctx.seeAndUse(t.Elem(), t, edgeElementType)
 		// (9.3) types use their underlying and element types
 		ctx.seeAndUse(t.Key(), t, edgeKeyType)
-		g.typ(ctx, t.Elem())
-		g.typ(ctx, t.Key())
+		g.typ(ctx, t.Elem(), nil)
+		g.typ(ctx, t.Key(), nil)
 	case *types.Signature:
 		g.signature(ctx, t)
 	case *types.Interface:
@@ -1506,15 +1517,15 @@ func (g *Graph) typ(ctx *context, t types.Type) {
 	case *types.Array:
 		// (9.3) types use their underlying and element types
 		ctx.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(ctx, t.Elem())
+		g.typ(ctx, t.Elem(), nil)
 	case *types.Pointer:
 		// (9.3) types use their underlying and element types
 		ctx.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(ctx, t.Elem())
+		g.typ(ctx, t.Elem(), nil)
 	case *types.Chan:
 		// (9.3) types use their underlying and element types
 		ctx.seeAndUse(t.Elem(), t, edgeElementType)
-		g.typ(ctx, t.Elem())
+		g.typ(ctx, t.Elem(), nil)
 	case *types.Tuple:
 		for i := 0; i < t.Len(); i++ {
 			// (9.3) types use their underlying and element types
@@ -1529,7 +1540,7 @@ func (g *Graph) typ(ctx *context, t types.Type) {
 func (g *Graph) variable(ctx *context, v *types.Var) {
 	// (9.2) variables use their types
 	ctx.seeAndUse(v.Type(), v, edgeType)
-	g.typ(ctx, v.Type())
+	g.typ(ctx, v.Type(), nil)
 }
 
 func (g *Graph) signature(ctx *context, sig *types.Signature) {
@@ -1582,7 +1593,7 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 					case *ssa.Const:
 						// (9.6) instructions use their operands' types
 						ctx.seeAndUse(v.Type(), fnObj, edgeType)
-						g.typ(ctx, v.Type())
+						g.typ(ctx, v.Type(), nil)
 					case *ssa.Global:
 						if v.Object() != nil {
 							// (9.5) instructions use their operands
@@ -1598,7 +1609,7 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 					// (4.8) instructions use their types
 					// (9.4) conversions use the type they convert to
 					ctx.seeAndUse(v.Type(), fnObj, edgeType)
-					g.typ(ctx, v.Type())
+					g.typ(ctx, v.Type(), nil)
 				}
 			}
 			switch instr := instr.(type) {

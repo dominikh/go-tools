@@ -10,95 +10,97 @@ func _() {
 	var x [1]struct{}
 	_ = x[edgeAlias-1]
 	_ = x[edgeBlankField-2]
-	_ = x[edgeCgoExported-4]
-	_ = x[edgeConstGroup-8]
-	_ = x[edgeElementType-16]
-	_ = x[edgeEmbeddedInterface-32]
-	_ = x[edgeExportedConstant-64]
-	_ = x[edgeExportedField-128]
-	_ = x[edgeExportedFunction-256]
-	_ = x[edgeExportedMethod-512]
-	_ = x[edgeExportedType-1024]
-	_ = x[edgeExportedVariable-2048]
-	_ = x[edgeExtendsExportedFields-4096]
-	_ = x[edgeExtendsExportedMethodSet-8192]
-	_ = x[edgeFieldAccess-16384]
-	_ = x[edgeFunctionArgument-32768]
-	_ = x[edgeFunctionResult-65536]
-	_ = x[edgeFunctionSignature-131072]
-	_ = x[edgeImplements-262144]
-	_ = x[edgeInstructionOperand-524288]
-	_ = x[edgeInterfaceCall-1048576]
-	_ = x[edgeInterfaceMethod-2097152]
-	_ = x[edgeKeyType-4194304]
-	_ = x[edgeLinkname-8388608]
-	_ = x[edgeMainFunction-16777216]
-	_ = x[edgeNamedType-33554432]
-	_ = x[edgeNetRPCRegister-67108864]
-	_ = x[edgeNoCopySentinel-134217728]
-	_ = x[edgeProvidesMethod-268435456]
-	_ = x[edgeReceiver-536870912]
-	_ = x[edgeRuntimeFunction-1073741824]
-	_ = x[edgeSameObject-2147483648]
-	_ = x[edgeSignature-4294967296]
-	_ = x[edgeStructConversion-8589934592]
-	_ = x[edgeTestSink-17179869184]
-	_ = x[edgeTupleElement-34359738368]
-	_ = x[edgeType-68719476736]
-	_ = x[edgeTypeName-137438953472]
-	_ = x[edgeUnderlyingType-274877906944]
-	_ = x[edgePointerType-549755813888]
-	_ = x[edgeUnsafeConversion-1099511627776]
-	_ = x[edgeUsedConstant-2199023255552]
-	_ = x[edgeVarDecl-4398046511104]
+	_ = x[edgeAnonymousStruct-4]
+	_ = x[edgeCgoExported-8]
+	_ = x[edgeConstGroup-16]
+	_ = x[edgeElementType-32]
+	_ = x[edgeEmbeddedInterface-64]
+	_ = x[edgeExportedConstant-128]
+	_ = x[edgeExportedField-256]
+	_ = x[edgeExportedFunction-512]
+	_ = x[edgeExportedMethod-1024]
+	_ = x[edgeExportedType-2048]
+	_ = x[edgeExportedVariable-4096]
+	_ = x[edgeExtendsExportedFields-8192]
+	_ = x[edgeExtendsExportedMethodSet-16384]
+	_ = x[edgeFieldAccess-32768]
+	_ = x[edgeFunctionArgument-65536]
+	_ = x[edgeFunctionResult-131072]
+	_ = x[edgeFunctionSignature-262144]
+	_ = x[edgeImplements-524288]
+	_ = x[edgeInstructionOperand-1048576]
+	_ = x[edgeInterfaceCall-2097152]
+	_ = x[edgeInterfaceMethod-4194304]
+	_ = x[edgeKeyType-8388608]
+	_ = x[edgeLinkname-16777216]
+	_ = x[edgeMainFunction-33554432]
+	_ = x[edgeNamedType-67108864]
+	_ = x[edgeNetRPCRegister-134217728]
+	_ = x[edgeNoCopySentinel-268435456]
+	_ = x[edgeProvidesMethod-536870912]
+	_ = x[edgeReceiver-1073741824]
+	_ = x[edgeRuntimeFunction-2147483648]
+	_ = x[edgeSameObject-4294967296]
+	_ = x[edgeSignature-8589934592]
+	_ = x[edgeStructConversion-17179869184]
+	_ = x[edgeTestSink-34359738368]
+	_ = x[edgeTupleElement-68719476736]
+	_ = x[edgeType-137438953472]
+	_ = x[edgeTypeName-274877906944]
+	_ = x[edgeUnderlyingType-549755813888]
+	_ = x[edgePointerType-1099511627776]
+	_ = x[edgeUnsafeConversion-2199023255552]
+	_ = x[edgeUsedConstant-4398046511104]
+	_ = x[edgeVarDecl-8796093022208]
 }
 
-const _edge_name = "edgeAliasedgeBlankFieldedgeCgoExportededgeConstGroupedgeElementTypeedgeEmbeddedInterfaceedgeExportedConstantedgeExportedFieldedgeExportedFunctionedgeExportedMethodedgeExportedTypeedgeExportedVariableedgeExtendsExportedFieldsedgeExtendsExportedMethodSetedgeFieldAccessedgeFunctionArgumentedgeFunctionResultedgeFunctionSignatureedgeImplementsedgeInstructionOperandedgeInterfaceCalledgeInterfaceMethodedgeKeyTypeedgeLinknameedgeMainFunctionedgeNamedTypeedgeNetRPCRegisteredgeNoCopySentineledgeProvidesMethodedgeReceiveredgeRuntimeFunctionedgeSameObjectedgeSignatureedgeStructConversionedgeTestSinkedgeTupleElementedgeTypeedgeTypeNameedgeUnderlyingTypeedgePointerTypeedgeUnsafeConversionedgeUsedConstantedgeVarDecl"
+const _edge_name = "edgeAliasedgeBlankFieldedgeAnonymousStructedgeCgoExportededgeConstGroupedgeElementTypeedgeEmbeddedInterfaceedgeExportedConstantedgeExportedFieldedgeExportedFunctionedgeExportedMethodedgeExportedTypeedgeExportedVariableedgeExtendsExportedFieldsedgeExtendsExportedMethodSetedgeFieldAccessedgeFunctionArgumentedgeFunctionResultedgeFunctionSignatureedgeImplementsedgeInstructionOperandedgeInterfaceCalledgeInterfaceMethodedgeKeyTypeedgeLinknameedgeMainFunctionedgeNamedTypeedgeNetRPCRegisteredgeNoCopySentineledgeProvidesMethodedgeReceiveredgeRuntimeFunctionedgeSameObjectedgeSignatureedgeStructConversionedgeTestSinkedgeTupleElementedgeTypeedgeTypeNameedgeUnderlyingTypeedgePointerTypeedgeUnsafeConversionedgeUsedConstantedgeVarDecl"
 
 var _edge_map = map[edge]string{
 	1:             _edge_name[0:9],
 	2:             _edge_name[9:23],
-	4:             _edge_name[23:38],
-	8:             _edge_name[38:52],
-	16:            _edge_name[52:67],
-	32:            _edge_name[67:88],
-	64:            _edge_name[88:108],
-	128:           _edge_name[108:125],
-	256:           _edge_name[125:145],
-	512:           _edge_name[145:163],
-	1024:          _edge_name[163:179],
-	2048:          _edge_name[179:199],
-	4096:          _edge_name[199:224],
-	8192:          _edge_name[224:252],
-	16384:         _edge_name[252:267],
-	32768:         _edge_name[267:287],
-	65536:         _edge_name[287:305],
-	131072:        _edge_name[305:326],
-	262144:        _edge_name[326:340],
-	524288:        _edge_name[340:362],
-	1048576:       _edge_name[362:379],
-	2097152:       _edge_name[379:398],
-	4194304:       _edge_name[398:409],
-	8388608:       _edge_name[409:421],
-	16777216:      _edge_name[421:437],
-	33554432:      _edge_name[437:450],
-	67108864:      _edge_name[450:468],
-	134217728:     _edge_name[468:486],
-	268435456:     _edge_name[486:504],
-	536870912:     _edge_name[504:516],
-	1073741824:    _edge_name[516:535],
-	2147483648:    _edge_name[535:549],
-	4294967296:    _edge_name[549:562],
-	8589934592:    _edge_name[562:582],
-	17179869184:   _edge_name[582:594],
-	34359738368:   _edge_name[594:610],
-	68719476736:   _edge_name[610:618],
-	137438953472:  _edge_name[618:630],
-	274877906944:  _edge_name[630:648],
-	549755813888:  _edge_name[648:663],
-	1099511627776: _edge_name[663:683],
-	2199023255552: _edge_name[683:699],
-	4398046511104: _edge_name[699:710],
+	4:             _edge_name[23:42],
+	8:             _edge_name[42:57],
+	16:            _edge_name[57:71],
+	32:            _edge_name[71:86],
+	64:            _edge_name[86:107],
+	128:           _edge_name[107:127],
+	256:           _edge_name[127:144],
+	512:           _edge_name[144:164],
+	1024:          _edge_name[164:182],
+	2048:          _edge_name[182:198],
+	4096:          _edge_name[198:218],
+	8192:          _edge_name[218:243],
+	16384:         _edge_name[243:271],
+	32768:         _edge_name[271:286],
+	65536:         _edge_name[286:306],
+	131072:        _edge_name[306:324],
+	262144:        _edge_name[324:345],
+	524288:        _edge_name[345:359],
+	1048576:       _edge_name[359:381],
+	2097152:       _edge_name[381:398],
+	4194304:       _edge_name[398:417],
+	8388608:       _edge_name[417:428],
+	16777216:      _edge_name[428:440],
+	33554432:      _edge_name[440:456],
+	67108864:      _edge_name[456:469],
+	134217728:     _edge_name[469:487],
+	268435456:     _edge_name[487:505],
+	536870912:     _edge_name[505:523],
+	1073741824:    _edge_name[523:535],
+	2147483648:    _edge_name[535:554],
+	4294967296:    _edge_name[554:568],
+	8589934592:    _edge_name[568:581],
+	17179869184:   _edge_name[581:601],
+	34359738368:   _edge_name[601:613],
+	68719476736:   _edge_name[613:629],
+	137438953472:  _edge_name[629:637],
+	274877906944:  _edge_name[637:649],
+	549755813888:  _edge_name[649:667],
+	1099511627776: _edge_name[667:682],
+	2199023255552: _edge_name[682:702],
+	4398046511104: _edge_name[702:718],
+	8796093022208: _edge_name[718:729],
 }
 
 func (i edge) String() string {
