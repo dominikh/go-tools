@@ -40,21 +40,20 @@ func _() {
 	_ = x[edgeProvidesMethod-536870912]
 	_ = x[edgeReceiver-1073741824]
 	_ = x[edgeRuntimeFunction-2147483648]
-	_ = x[edgeSameObject-4294967296]
-	_ = x[edgeSignature-8589934592]
-	_ = x[edgeStructConversion-17179869184]
-	_ = x[edgeTestSink-34359738368]
-	_ = x[edgeTupleElement-68719476736]
-	_ = x[edgeType-137438953472]
-	_ = x[edgeTypeName-274877906944]
-	_ = x[edgeUnderlyingType-549755813888]
-	_ = x[edgePointerType-1099511627776]
-	_ = x[edgeUnsafeConversion-2199023255552]
-	_ = x[edgeUsedConstant-4398046511104]
-	_ = x[edgeVarDecl-8796093022208]
+	_ = x[edgeSignature-4294967296]
+	_ = x[edgeStructConversion-8589934592]
+	_ = x[edgeTestSink-17179869184]
+	_ = x[edgeTupleElement-34359738368]
+	_ = x[edgeType-68719476736]
+	_ = x[edgeTypeName-137438953472]
+	_ = x[edgeUnderlyingType-274877906944]
+	_ = x[edgePointerType-549755813888]
+	_ = x[edgeUnsafeConversion-1099511627776]
+	_ = x[edgeUsedConstant-2199023255552]
+	_ = x[edgeVarDecl-4398046511104]
 }
 
-const _edgeKind_name = "edgeAliasedgeBlankFieldedgeAnonymousStructedgeCgoExportededgeConstGroupedgeElementTypeedgeEmbeddedInterfaceedgeExportedConstantedgeExportedFieldedgeExportedFunctionedgeExportedMethodedgeExportedTypeedgeExportedVariableedgeExtendsExportedFieldsedgeExtendsExportedMethodSetedgeFieldAccessedgeFunctionArgumentedgeFunctionResultedgeFunctionSignatureedgeImplementsedgeInstructionOperandedgeInterfaceCalledgeInterfaceMethodedgeKeyTypeedgeLinknameedgeMainFunctionedgeNamedTypeedgeNetRPCRegisteredgeNoCopySentineledgeProvidesMethodedgeReceiveredgeRuntimeFunctionedgeSameObjectedgeSignatureedgeStructConversionedgeTestSinkedgeTupleElementedgeTypeedgeTypeNameedgeUnderlyingTypeedgePointerTypeedgeUnsafeConversionedgeUsedConstantedgeVarDecl"
+const _edgeKind_name = "edgeAliasedgeBlankFieldedgeAnonymousStructedgeCgoExportededgeConstGroupedgeElementTypeedgeEmbeddedInterfaceedgeExportedConstantedgeExportedFieldedgeExportedFunctionedgeExportedMethodedgeExportedTypeedgeExportedVariableedgeExtendsExportedFieldsedgeExtendsExportedMethodSetedgeFieldAccessedgeFunctionArgumentedgeFunctionResultedgeFunctionSignatureedgeImplementsedgeInstructionOperandedgeInterfaceCalledgeInterfaceMethodedgeKeyTypeedgeLinknameedgeMainFunctionedgeNamedTypeedgeNetRPCRegisteredgeNoCopySentineledgeProvidesMethodedgeReceiveredgeRuntimeFunctionedgeSignatureedgeStructConversionedgeTestSinkedgeTupleElementedgeTypeedgeTypeNameedgeUnderlyingTypeedgePointerTypeedgeUnsafeConversionedgeUsedConstantedgeVarDecl"
 
 var _edgeKind_map = map[edgeKind]string{
 	1:             _edgeKind_name[0:9],
@@ -89,18 +88,17 @@ var _edgeKind_map = map[edgeKind]string{
 	536870912:     _edgeKind_name[505:523],
 	1073741824:    _edgeKind_name[523:535],
 	2147483648:    _edgeKind_name[535:554],
-	4294967296:    _edgeKind_name[554:568],
-	8589934592:    _edgeKind_name[568:581],
-	17179869184:   _edgeKind_name[581:601],
-	34359738368:   _edgeKind_name[601:613],
-	68719476736:   _edgeKind_name[613:629],
-	137438953472:  _edgeKind_name[629:637],
-	274877906944:  _edgeKind_name[637:649],
-	549755813888:  _edgeKind_name[649:667],
-	1099511627776: _edgeKind_name[667:682],
-	2199023255552: _edgeKind_name[682:702],
-	4398046511104: _edgeKind_name[702:718],
-	8796093022208: _edgeKind_name[718:729],
+	4294967296:    _edgeKind_name[554:567],
+	8589934592:    _edgeKind_name[567:587],
+	17179869184:   _edgeKind_name[587:599],
+	34359738368:   _edgeKind_name[599:615],
+	68719476736:   _edgeKind_name[615:623],
+	137438953472:  _edgeKind_name[623:635],
+	274877906944:  _edgeKind_name[635:653],
+	549755813888:  _edgeKind_name[653:668],
+	1099511627776: _edgeKind_name[668:688],
+	2199023255552: _edgeKind_name[688:704],
+	4398046511104: _edgeKind_name[704:715],
 }
 
 func (i edgeKind) String() string {

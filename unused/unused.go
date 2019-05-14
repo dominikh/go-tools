@@ -831,22 +831,22 @@ func (g *Graph) node(ctx *context, obj interface{}) (node *Node, new bool) {
 	if node, ok := g.Nodes.Load(obj); ok {
 		return node.(*Node), false
 	}
-	node = g.newNode(ctx, obj)
-	g.Nodes.Store(obj, node)
+
 	if obj, ok := obj.(types.Object); ok {
 		key := objNodeKeyFor(g.fset, obj)
 		if o, ok := g.objNodes.Load(key); ok {
 			onode := o.(*Node)
-			node.mu.Lock()
-			onode.mu.Lock()
-			node.used = append(node.used, edge{node: onode, kind: edgeSameObject})
-			onode.used = append(onode.used, edge{node: node, kind: edgeSameObject})
-			node.mu.Unlock()
-			onode.mu.Unlock()
-		} else {
-			g.objNodes.Store(key, node)
+			return onode, false
 		}
+
+		node = g.newNode(ctx, obj)
+		g.Nodes.Store(obj, node)
+		g.objNodes.Store(key, node)
+		return node, true
 	}
+
+	node = g.newNode(ctx, obj)
+	g.Nodes.Store(obj, node)
 	return node, true
 }
 

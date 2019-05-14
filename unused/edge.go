@@ -40,7 +40,6 @@ const (
 	edgeProvidesMethod
 	edgeReceiver
 	edgeRuntimeFunction
-	edgeSameObject
 	edgeSignature
 	edgeStructConversion
 	edgeTestSink
