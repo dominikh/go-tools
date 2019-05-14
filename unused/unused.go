@@ -624,10 +624,10 @@ func (c *Checker) results() []types.Object {
 			} else {
 				c.debugf("n%d [label=%q];\n", node.id, fmt.Sprintf("(%T) %s", node.obj, node.obj))
 			}
-			for used, e := range node.used {
-				for i := edge(1); i < 64; i++ {
-					if e.is(1 << i) {
-						c.debugf("n%d -> n%d [label=%q];\n", node.id, used.id, edge(1<<i))
+			for _, e := range node.used {
+				for i := edgeKind(1); i < 64; i++ {
+					if e.kind.is(1 << i) {
+						c.debugf("n%d -> n%d [label=%q];\n", node.id, e.node.id, edgeKind(1<<i))
 					}
 				}
 			}
@@ -767,8 +767,8 @@ func (g *Graph) color(root *Node) {
 		return
 	}
 	root.seen = true
-	for other := range root.used {
-		g.color(other)
+	for _, e := range root.used {
+		g.color(e.node)
 	}
 }
 
@@ -779,12 +779,17 @@ type ConstGroup struct {
 
 func (ConstGroup) String() string { return "const group" }
 
+type edge struct {
+	node *Node
+	kind edgeKind
+}
+
 type Node struct {
 	obj interface{}
 	id  uint64
 
 	mu   sync.Mutex
-	used map[*Node]edge
+	used []edge
 
 	// set during final graph walk if node is reachable
 	seen bool
@@ -828,8 +833,8 @@ func (g *Graph) node(ctx *context, obj interface{}) (node *Node, new bool) {
 			onode := o.(*Node)
 			node.mu.Lock()
 			onode.mu.Lock()
-			node.used[onode] |= edgeSameObject
-			onode.used[node] |= edgeSameObject
+			node.used = append(node.used, edge{node: onode, kind: edgeSameObject})
+			onode.used = append(onode.used, edge{node: node, kind: edgeSameObject})
 			node.mu.Unlock()
 			onode.mu.Unlock()
 		} else {
@@ -842,17 +847,16 @@ func (g *Graph) node(ctx *context, obj interface{}) (node *Node, new bool) {
 func (g *Graph) newNode(ctx *context, obj interface{}) *Node {
 	ctx.nodeCounter++
 	return &Node{
-		obj:  obj,
-		id:   ctx.nodeCounter,
-		used: map[*Node]edge{},
+		obj: obj,
+		id:  ctx.nodeCounter,
 	}
 }
 
-func (n *Node) use(node *Node, kind edge) {
+func (n *Node) use(node *Node, kind edgeKind) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	assert(node != nil)
-	n.used[node] |= kind
+	n.used = append(n.used, edge{node: node, kind: kind})
 }
 
 // isIrrelevant reports whether an object's presence in the graph is
@@ -930,7 +934,7 @@ func (ctx *context) see(obj interface{}) *Node {
 	return node
 }
 
-func (ctx *context) use(used, by interface{}, kind edge) {
+func (ctx *context) use(used, by interface{}, kind edgeKind) {
 	if isIrrelevant(used) {
 		return
 	}
@@ -952,7 +956,7 @@ func (ctx *context) use(used, by interface{}, kind edge) {
 	}
 }
 
-func (ctx *context) seeAndUse(used, by interface{}, kind edge) *Node {
+func (ctx *context) seeAndUse(used, by interface{}, kind edgeKind) *Node {
 	node := ctx.see(used)
 	ctx.use(used, by, kind)
 	return node
@@ -1316,7 +1320,7 @@ func (g *Graph) entry(pkg *pkg) {
 	}
 }
 
-func (g *Graph) useMethod(ctx *context, t types.Type, sel *types.Selection, by interface{}, kind edge) {
+func (g *Graph) useMethod(ctx *context, t types.Type, sel *types.Selection, by interface{}, kind edgeKind) {
 	obj := sel.Obj()
 	path := sel.Index()
 	assert(obj != nil)
