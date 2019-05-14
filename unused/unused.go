@@ -922,6 +922,14 @@ func isIrrelevant(obj interface{}) bool {
 			return true
 		case *types.Interface:
 			return T.NumMethods() == 0 && T.NumEmbeddeds() == 0
+		case *types.Pointer:
+			return isIrrelevant(T.Elem())
+		case *types.Map:
+			return isIrrelevant(T.Key()) && isIrrelevant(T.Elem())
+		case *types.Struct:
+			return T.NumFields() == 0
+		case *types.Chan:
+			return isIrrelevant(T.Elem())
 		default:
 			return false
 		}
