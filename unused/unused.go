@@ -921,7 +921,7 @@ func isIrrelevant(obj interface{}) bool {
 			}
 			return true
 		case *types.Interface:
-			return T.NumMethods() == 0
+			return T.NumMethods() == 0 && T.NumEmbeddeds() == 0
 		default:
 			return false
 		}

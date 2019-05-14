@@ -70,3 +70,8 @@ func (*t10) Foo() {}
 type t11 struct{ t10 }
 
 var _ = t11{}
+
+type i5 interface{}
+type I6 interface {
+	i5
+}
