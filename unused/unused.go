@@ -587,7 +587,9 @@ func (c *Checker) results() []types.Object {
 		c.graph.seenTypes.Iterate(func(t types.Type, _ interface{}) {
 			switch t := t.(type) {
 			case *types.Interface:
-				ifaces = append(ifaces, t)
+				if t.NumMethods() > 0 {
+					ifaces = append(ifaces, t)
+				}
 			default:
 				if _, ok := t.Underlying().(*types.Interface); !ok {
 					notIfaces = append(notIfaces, t)
@@ -596,7 +598,11 @@ func (c *Checker) results() []types.Object {
 		})
 
 		for pkg := range c.allPackages {
-			ifaces = append(ifaces, interfacesFromExportData(pkg)...)
+			for _, iface := range interfacesFromExportData(pkg) {
+				if iface.NumMethods() > 0 {
+					ifaces = append(ifaces, iface)
+				}
+			}
 		}
 
 		ctx := &context{
