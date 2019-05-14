@@ -1484,7 +1484,7 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 		ctx.seeAndUse(t, t.Obj(), edgeNamedType)
 
 		// (2.4) named types use the pointer type
-		if _, ok := t.Underlying().(*types.Interface); !ok {
+		if _, ok := t.Underlying().(*types.Interface); !ok && t.NumMethods() > 0 {
 			ctx.seeAndUse(types.NewPointer(t), t, edgePointerType)
 		}
 
