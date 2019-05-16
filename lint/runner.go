@@ -60,7 +60,7 @@ const sanityCheck = true
 
 type Package struct {
 	*packages.Package
-	Imports    map[string]*Package
+	Imports    []*Package
 	initial    bool
 	fromSource bool
 	hash       string
@@ -478,7 +478,6 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	packages.Visit(initialPkgs, nil, func(l *packages.Package) {
 		m[l] = &Package{
 			Package:  l,
-			Imports:  map[string]*Package{},
 			results:  make([]*result, len(r.analyzerIDs.m)),
 			facts:    make([]map[types.Object][]analysis.Fact, len(r.analyzerIDs.m)),
 			pkgFacts: make([][]analysis.Fact, len(r.analyzerIDs.m)),
@@ -491,8 +490,8 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 		for _, err := range l.Errors {
 			m[l].errs = append(m[l].errs, err)
 		}
-		for k, v := range l.Imports {
-			m[l].Imports[k] = m[v]
+		for _, v := range l.Imports {
+			m[l].Imports = append(m[l].Imports, m[v])
 		}
 
 		m[l].hash, err = packageHash(m[l])
