@@ -712,14 +712,50 @@ func (c *Checker) processPkg(graph *Graph, pkg *pkg) {
 }
 
 func objNodeKeyFor(fset *token.FileSet, obj types.Object) objNodeKey {
+	var kind objType
+	switch obj.(type) {
+	case *types.PkgName:
+		kind = otPkgName
+	case *types.Const:
+		kind = otConst
+	case *types.TypeName:
+		kind = otTypeName
+	case *types.Var:
+		kind = otVar
+	case *types.Func:
+		kind = otFunc
+	case *types.Label:
+		kind = otLabel
+	case *types.Builtin:
+		kind = otBuiltin
+	case *types.Nil:
+		kind = otNil
+	default:
+		panic(fmt.Sprintf("unreachable: %T", obj))
+	}
+
 	position := fset.PositionFor(obj.Pos(), false)
 	position.Column = 0
 	position.Offset = 0
 	return objNodeKey{
 		position: position,
-		str:      fmt.Sprint(obj),
+		kind:     kind,
+		name:     obj.Name(),
 	}
 }
+
+type objType uint8
+
+const (
+	otPkgName objType = iota
+	otConst
+	otTypeName
+	otVar
+	otFunc
+	otLabel
+	otBuiltin
+	otNil
+)
 
 // An objNodeKey describes a types.Object node in the graph.
 //
@@ -728,9 +764,16 @@ func objNodeKeyFor(fset *token.FileSet, obj types.Object) objNodeKey {
 // source position. And because export data lacks column information,
 // we also have to incorporate the object's string representation in
 // the key.
+//
+// Previously we used the object's full string representation
+// (types.ObjectString), but that causes a significant amount of
+// allocations. Currently we're using the object's type and name, in
+// the hope that it is impossible for two objects to have the same
+// type, name and file position.
 type objNodeKey struct {
 	position token.Position
-	str      string
+	kind     objType
+	name     string
 }
 
 type Graph struct {
