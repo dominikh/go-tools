@@ -35,6 +35,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 func validRegexp(call *Call) {
@@ -314,6 +315,11 @@ var verbs = [...]verbFlag{
 }
 
 func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
+	var msCache *typeutil.MethodSetCache
+	if f.Parent() != nil {
+		msCache = &f.Parent().Prog.MethodSets
+	}
+
 	elem := func(T types.Type, verb rune) ([]types.Type, bool) {
 		if verbs[verb]&noRecurse != 0 {
 			return []types.Type{T}, false
@@ -438,7 +444,7 @@ func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
 			return true
 		}
 
-		ms := types.NewMethodSet(T)
+		ms := msCache.MethodSet(T)
 		if isFormatter(T, ms) {
 			// the value is responsible for formatting itself
 			return true
@@ -671,7 +677,7 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 			}
 		}
 		// OPT(dh): we could use a method set cache here
-		ms := types.NewMethodSet(T)
+		ms := call.Instr.Parent().Prog.MethodSets.MethodSet(T)
 		// TODO(dh): we're not checking the signature, which can cause false negatives.
 		// This isn't a huge problem, however, since vet complains about incorrect signatures.
 		for _, meth := range meths {
@@ -686,14 +692,15 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallCheck {
 	// TODO(dh): flag slices and maps of unsupported types
 	return func(call *Call) {
+		msCache := call.Instr.Parent().Prog.MethodSets
+
 		arg := call.Args[argN]
 		T := arg.Value.Value.Type()
 		Ts, ok := Dereference(T).Underlying().(*types.Struct)
 		if !ok {
 			return
 		}
-		// OPT(dh): we could use a method set cache here
-		ms := types.NewMethodSet(T)
+		ms := msCache.MethodSet(T)
 		// TODO(dh): we're not checking the signature, which can cause false negatives.
 		// This isn't a huge problem, however, since vet complains about incorrect signatures.
 		for _, meth := range meths {
@@ -709,8 +716,7 @@ func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallChec
 			if reflect.StructTag(field.Tag).Get(tag) == "-" {
 				continue
 			}
-			// OPT(dh): we could use a method set cache here
-			ms := types.NewMethodSet(field.Var.Type())
+			ms := msCache.MethodSet(field.Var.Type())
 			// TODO(dh): we're not checking the signature, which can cause false negatives.
 			// This isn't a huge problem, however, since vet complains about incorrect signatures.
 			for _, meth := range meths {

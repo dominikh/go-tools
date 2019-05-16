@@ -612,6 +612,8 @@ func (c *Checker) results() []types.Object {
 		// (8.0) handle interfaces
 		// (e2) types aim to implement all exported interfaces from all packages
 		for _, t := range notIfaces {
+			// OPT(dh): it is unfortunate that we do not have access
+			// to a populated method set at this point.
 			ms := types.NewMethodSet(t)
 			for _, iface := range ifaces {
 				if sels, ok := c.graph.implements(t, iface, ms); ok {
@@ -756,7 +758,6 @@ type context struct {
 	seenFns     map[string]struct{}
 	seenTypes   *typeutil.Map
 	nodeCounter uint64
-	msCache     typeutil.MethodSetCache
 
 	// local cache for the map in Graph
 	typeNodes typeutil.Map
@@ -1322,7 +1323,7 @@ func (g *Graph) entry(pkg *pkg) {
 
 		// (8.0) handle interfaces
 		for _, t := range notIfaces {
-			ms := ctx.msCache.MethodSet(t)
+			ms := pkg.SSA.Prog.MethodSets.MethodSet(t)
 			for _, iface := range ifaces {
 				if sels, ok := g.implements(t, iface, ms); ok {
 					for _, sel := range sels {
@@ -1442,7 +1443,7 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 						// the pointer type to get the full method set
 						T = types.NewPointer(T)
 					}
-					ms := ctx.msCache.MethodSet(T)
+					ms := ctx.pkg.SSA.Prog.MethodSets.MethodSet(T)
 					for j := 0; j < ms.Len(); j++ {
 						if ms.At(j).Obj().Exported() {
 							// (6.4) structs use embedded fields that have exported methods (recursively)
@@ -1667,7 +1668,7 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 							walkPhi(arg, func(v ssa.Value) {
 								if v, ok := v.(*ssa.MakeInterface); ok {
 									walkPhi(v.X, func(vv ssa.Value) {
-										ms := ctx.msCache.MethodSet(vv.Type())
+										ms := ctx.pkg.SSA.Prog.MethodSets.MethodSet(vv.Type())
 										for i := 0; i < ms.Len(); i++ {
 											if ms.At(i).Obj().Exported() {
 												g.useMethod(ctx, vv.Type(), ms.At(i), fnObj, edgeNetRPCRegister)

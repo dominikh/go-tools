@@ -14,7 +14,9 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/go/types/typeutil"
 	. "honnef.co/go/tools/arg"
+	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
@@ -1470,8 +1472,8 @@ func LintRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func isStringer(T types.Type) bool {
-	ms := types.NewMethodSet(T)
+func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
+	ms := msCache.MethodSet(T)
 	sel := ms.Lookup(nil, "String")
 	if sel == nil {
 		return false
@@ -1509,7 +1511,8 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 		arg := call.Args[Arg("fmt.Sprintf.a[0]")]
 		typ := pass.TypesInfo.TypeOf(arg)
 
-		if isStringer(typ) {
+		ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
+		if isStringer(typ, &ssapkg.Prog.MethodSets) {
 			pass.Reportf(call.Pos(), "should use String() instead of fmt.Sprintf")
 			return
 		}

@@ -168,7 +168,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "S1025",
 		Run:      LintRedundantSprintf,
 		Doc:      docS1025,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, inspect.Analyzer, facts.Generated},
 		Flags:    newFlagSet(),
 	},
 	"S1028": {
