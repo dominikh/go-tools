@@ -328,6 +328,9 @@ func (r *Runner) makeAnalysisAction(a *analysis.Analyzer, pkg *Package) *analysi
 	return ac
 }
 
+// analyzes that we always want to run, even if they're not being run
+// explicitly or as dependencies. these are necessary for the inner
+// workings of the runner.
 var injectedAnalyses = []*analysis.Analyzer{facts.Generated, config.Analyzer}
 
 func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (interface{}, error) {
@@ -413,6 +416,13 @@ func NewRunner(stats *Stats) (*Runner, error) {
 	}, nil
 }
 
+// Run loads packages corresponding to patterns and analyses them with
+// analyzers. It returns the loaded packages, which contain reported
+// diagnostics as well as extracted ignore directives.
+//
+// Note that diagnostics have not been filtered at this point yet, to
+// accomodate cumulative analyzes that require additional steps to
+// produce diagnostics.
 func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analysis.Analyzer) ([]*Package, error) {
 	r.analyzerIDs = analyzerIDs{m: map[*analysis.Analyzer]int{}}
 	id := 0
@@ -666,6 +676,9 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		<-imp.done
 		if len(imp.errs) > 0 {
 			if imp.initial {
+				// Don't print the error of the dependency since it's
+				// an initial package and we're already printing the
+				// error.
 				pkg.errs = append(pkg.errs, fmt.Errorf("could not analyze dependency %s of %s", imp, pkg))
 			} else {
 				var s string
@@ -774,6 +787,9 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	// from processPkg.
 }
 
+// hasFacts reports whether an analysis exports any facts. An analysis
+// that has a transitive dependency that exports facts is considered
+// to be exporting facts.
 func (r *Runner) hasFacts(a *analysis.Analyzer) bool {
 	ret := false
 	seen := make([]bool, len(r.analyzerIDs.m))
@@ -806,6 +822,8 @@ func parseDirective(s string) (cmd string, args []string) {
 	return fields[0], fields[1:]
 }
 
+// parseDirectives extracts all linter directives from the source
+// files of the package. Malformed directives are returned as problems.
 func parseDirectives(pkg *packages.Package) ([]Ignore, []Problem) {
 	var ignores []Ignore
 	var problems []Problem
@@ -835,7 +853,6 @@ func parseDirectives(pkg *packages.Package) ([]Ignore, []Problem) {
 					switch cmd {
 					case "ignore", "file-ignore":
 						if len(args) < 2 {
-							// FIXME(dh): this causes duplicated warnings when using megacheck
 							p := Problem{
 								Pos:      DisplayPosition(pkg.Fset, c.Pos()),
 								Message:  "malformed linter directive; missing the required reason field?",
@@ -875,6 +892,9 @@ func parseDirectives(pkg *packages.Package) ([]Ignore, []Problem) {
 	return ignores, problems
 }
 
+// packageHash computes a package's hash. The hash is based on all Go
+// files that make up the package, as well as the hashes of imported
+// packages.
 func packageHash(pkg *Package) (string, error) {
 	key := cache.NewHash("package hash")
 	fmt.Fprintf(key, "pkgpath %s\n", pkg.PkgPath)
@@ -903,6 +923,7 @@ func packageHash(pkg *Package) (string, error) {
 	return hex.EncodeToString(h[:]), nil
 }
 
+// passActionID computes an ActionID for an analysis pass.
 func passActionID(pkg *Package, analyzer *analysis.Analyzer) (cache.ActionID, error) {
 	key := cache.NewHash("action ID")
 	fmt.Fprintf(key, "pkgpath %s\n", pkg.PkgPath)
