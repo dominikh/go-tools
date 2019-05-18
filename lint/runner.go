@@ -911,10 +911,9 @@ func packageHash(pkg *Package) (string, error) {
 		}
 		fmt.Fprintf(key, "file %s %x\n", f, h)
 	}
-	imps := make([]*Package, 0, len(pkg.Imports))
-	for _, v := range pkg.Imports {
-		imps = append(imps, v)
-	}
+
+	imps := make([]*Package, len(pkg.Imports))
+	copy(imps, pkg.Imports)
 	sort.Slice(imps, func(i, j int) bool {
 		return imps[i].PkgPath < imps[j].PkgPath
 	})
