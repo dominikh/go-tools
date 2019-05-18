@@ -126,6 +126,10 @@ type analysisAction struct {
 	pkgFacts map[*types.Package][]analysis.Fact
 }
 
+func (ac *analysisAction) String() string {
+	return fmt.Sprintf("%s @ %s", ac.analyzer, ac.pkg)
+}
+
 func (ac *analysisAction) allObjectFacts() []analysis.ObjectFact {
 	out := make([]analysis.ObjectFact, 0, len(ac.pkg.facts[ac.analyzerID]))
 	for obj, facts := range ac.pkg.facts[ac.analyzerID] {
@@ -340,16 +344,7 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 
 	// User-provided package, analyse it
 	// First analyze it with dependencies
-	var req []*analysis.Analyzer
-	req = append(req, ac.analyzer.Requires...)
-	if pass.Analyzer != facts.Generated && pass.Analyzer != config.Analyzer {
-		// Ensure all packages have the generated map and config. This is
-		// required by interna of the runner. Analyses that themselves
-		// make use of either have an explicit dependency so that other
-		// runners work correctly, too.
-		req = append(req, injectedAnalyses...)
-	}
-	for _, req := range req {
+	for _, req := range ac.analyzer.Requires {
 		acReq := r.makeAnalysisAction(req, ac.pkg)
 		ret, err := r.runAnalysis(acReq)
 		if err != nil {
@@ -668,6 +663,12 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		close(pkg.done)
 	}()
 
+	// Ensure all packages have the generated map and config. This is
+	// required by interna of the runner. Analyses that themselves
+	// make use of either have an explicit dependency so that other
+	// runners work correctly, too.
+	analyzers = append(analyzers[0:len(analyzers):len(analyzers)], injectedAnalyses...)
+
 	if len(pkg.errs) != 0 {
 		return
 	}
@@ -774,10 +775,15 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	for _, ac := range acs {
 		pkg.problems = append(pkg.problems, ac.problems...)
 	}
-	if pkg.results[r.analyzerIDs.get(config.Analyzer)].v != nil {
-		pkg.cfg = pkg.results[r.analyzerIDs.get(config.Analyzer)].v.(*config.Config)
+
+	if pkg.initial {
+		// Only initial packages have these analyzers run, and only
+		// initial packages need these.
+		if pkg.results[r.analyzerIDs.get(config.Analyzer)].v != nil {
+			pkg.cfg = pkg.results[r.analyzerIDs.get(config.Analyzer)].v.(*config.Config)
+		}
+		pkg.gen = pkg.results[r.analyzerIDs.get(facts.Generated)].v.(map[string]bool)
 	}
-	pkg.gen = pkg.results[r.analyzerIDs.get(facts.Generated)].v.(map[string]bool)
 
 	// In a previous version of the code, we would throw away all type
 	// information and reload it from export data. That was
