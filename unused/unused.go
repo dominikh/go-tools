@@ -423,11 +423,6 @@ type pkg struct {
 	SrcFuncs   []*ssa.Function
 }
 
-type seenKey struct {
-	s   string
-	pos token.Position
-}
-
 type Checker struct {
 	WholeProgram bool
 	Debug        io.Writer
