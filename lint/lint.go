@@ -386,18 +386,3 @@ func writePackage(buf *bytes.Buffer, pkg *types.Package) {
 		buf.WriteByte('.')
 	}
 }
-
-type StringSliceVar []string
-
-func (v StringSliceVar) String() string {
-	return strings.Join(v, ",")
-}
-
-func (v *StringSliceVar) Set(s string) error {
-	*v = StringSliceVar(strings.Split(s, ","))
-	return nil
-}
-
-func (v *StringSliceVar) Get() interface{} {
-	return []string(*v)
-}
