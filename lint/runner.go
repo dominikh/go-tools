@@ -67,7 +67,8 @@ type Package struct {
 	done       chan struct{}
 
 	resultsMu sync.Mutex
-	results   []*result
+	// results maps analyzer IDs to analyzer results
+	results []*result
 
 	cfg      *config.Config
 	gen      map[string]bool
@@ -115,17 +116,12 @@ type Fact struct {
 	Fact analysis.Fact
 }
 
-type newFact struct {
-	obj  types.Object
-	fact analysis.Fact
-}
-
 type analysisAction struct {
-	analyzer   *analysis.Analyzer
-	analyzerID int
-	pkg        *Package
-	newFacts   []newFact
-	problems   []Problem
+	analyzer        *analysis.Analyzer
+	analyzerID      int
+	pkg             *Package
+	newPackageFacts []analysis.Fact
+	problems        []Problem
 
 	pkgFacts map[*types.Package][]analysis.Fact
 }
@@ -194,7 +190,7 @@ func (ac *analysisAction) exportPackageFact(fact analysis.Fact) {
 		panic("analysis doesn't export any facts")
 	}
 	ac.pkgFacts[ac.pkg.Types] = append(ac.pkgFacts[ac.pkg.Types], fact)
-	ac.newFacts = append(ac.newFacts, newFact{nil, fact})
+	ac.newPackageFacts = append(ac.newPackageFacts, fact)
 }
 
 func (ac *analysisAction) report(pass *analysis.Pass, d analysis.Diagnostic) {
@@ -225,11 +221,6 @@ func (r *Runner) runAnalysis(ac *analysisAction) (ret interface{}, err error) {
 			res.err = err
 			close(res.ready)
 		}()
-
-		// Package may be a dependency or a package the user requested
-		// Facts for a dependency may be cached or not
-		// Diagnostics for a user package may be cached or not (not yet)
-		// When we have to analyze a package, we have to analyze it with all dependencies.
 
 		pass := new(analysis.Pass)
 		*pass = analysis.Pass{
@@ -373,24 +364,12 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 	}
 
 	if len(ac.analyzer.FactTypes) > 0 {
-		// Merge new facts into the package.
-		for _, fact := range ac.newFacts {
-			if fact.obj == nil {
-				id := r.analyzerIDs.get(ac.analyzer)
-				ac.pkg.pkgFacts[id] = append(ac.pkg.pkgFacts[id], fact.fact)
-			} else {
-				panic("unexpected new object fact")
-			}
-		}
-
-		// Persist facts to cache
+		// Merge new facts into the package and persist them.
 		var facts []Fact
-		for _, fact := range ac.newFacts {
-			if fact.obj == nil {
-				facts = append(facts, Fact{"", fact.fact})
-			} else {
-				panic("unexpected object fact")
-			}
+		for _, fact := range ac.newPackageFacts {
+			id := r.analyzerIDs.get(ac.analyzer)
+			ac.pkg.pkgFacts[id] = append(ac.pkg.pkgFacts[id], fact)
+			facts = append(facts, Fact{"", fact})
 		}
 		for obj, afacts := range ac.pkg.facts[ac.analyzerID] {
 			if obj.Pkg() != ac.pkg.Package.Types {
