@@ -692,7 +692,7 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallCheck {
 	// TODO(dh): flag slices and maps of unsupported types
 	return func(call *Call) {
-		msCache := call.Instr.Parent().Prog.MethodSets
+		msCache := &call.Instr.Parent().Prog.MethodSets
 
 		arg := call.Args[argN]
 		T := arg.Value.Value.Type()
