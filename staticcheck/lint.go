@@ -940,6 +940,7 @@ func CheckDeferInInfiniteLoop(pass *analysis.Pass) (interface{}, error) {
 			switch stmt := node.(type) {
 			case *ast.ReturnStmt:
 				mightExit = true
+				return false
 			case *ast.BranchStmt:
 				// TODO(dominikh): if this sees a break in a switch or
 				// select, it doesn't check if it breaks the loop or
@@ -947,6 +948,7 @@ func CheckDeferInInfiniteLoop(pass *analysis.Pass) (interface{}, error) {
 				// negatives.
 				if stmt.Tok == token.BREAK {
 					mightExit = true
+					return false
 				}
 			case *ast.DeferStmt:
 				defers = append(defers, stmt)
@@ -993,19 +995,43 @@ func CheckDubiousDeferInChannelRangeLoop(pass *analysis.Pass) (interface{}, erro
 }
 
 func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
-	fn := func(node ast.Node) {
-		if !isTestMain(pass, node) {
-			return
+	var (
+		fnmain    ast.Node
+		callsExit bool
+		callsRun  bool
+		arg       types.Object
+	)
+	fn := func(node ast.Node, push bool) bool {
+		if !push {
+			if fnmain != nil && node == fnmain {
+				if !callsExit && callsRun {
+					pass.Reportf(fnmain.Pos(), "TestMain should call os.Exit to set exit code")
+				}
+				fnmain = nil
+				callsExit = false
+				callsRun = false
+				arg = nil
+			}
+			return true
 		}
 
-		arg := pass.TypesInfo.ObjectOf(node.(*ast.FuncDecl).Type.Params.List[0].Names[0])
-		callsRun := false
-		fn2 := func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
+		switch node := node.(type) {
+		case *ast.FuncDecl:
+			if fnmain != nil {
 				return true
 			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !isTestMain(pass, node) {
+				return false
+			}
+			fnmain = node
+			arg = pass.TypesInfo.ObjectOf(node.Type.Params.List[0].Names[0])
+			return true
+		case *ast.CallExpr:
+			if IsCallToAST(pass, node, "os.Exit") {
+				callsExit = true
+				return false
+			}
+			sel, ok := node.Fun.(*ast.SelectorExpr)
 			if !ok {
 				return true
 			}
@@ -1021,31 +1047,16 @@ func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
 				return false
 			}
 			return true
-		}
-		ast.Inspect(node.(*ast.FuncDecl).Body, fn2)
-
-		callsExit := false
-		fn3 := func(node ast.Node) bool {
-			if IsCallToAST(pass, node, "os.Exit") {
-				callsExit = true
-				return false
-			}
+		default:
+			// unreachable
 			return true
 		}
-		ast.Inspect(node.(*ast.FuncDecl).Body, fn3)
-		if !callsExit && callsRun {
-			pass.Reportf(node.Pos(), "TestMain should call os.Exit to set exit code")
-		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(nil, fn)
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.FuncDecl)(nil), (*ast.CallExpr)(nil)}, fn)
 	return nil, nil
 }
 
-func isTestMain(pass *analysis.Pass, node ast.Node) bool {
-	decl, ok := node.(*ast.FuncDecl)
-	if !ok {
-		return false
-	}
+func isTestMain(pass *analysis.Pass, decl *ast.FuncDecl) bool {
 	if decl.Name.Name != "TestMain" {
 		return false
 	}
@@ -2668,20 +2679,17 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 	for _, imp := range pass.Pkg.Imports() {
 		imps[imp.Path()] = imp
 	}
-	for _, f := range pass.Files {
-		ast.Inspect(f, func(node ast.Node) bool {
-			if node, ok := node.(*ast.ImportSpec); ok {
-				p := node.Path.Value
-				path := p[1 : len(p)-1]
-				imp := imps[path]
-				if depr, ok := deprs.Packages[imp]; ok {
-					pass.Reportf(node.Pos(), "Package %s is deprecated: %s", path, depr.Msg)
-				}
-			}
-			return true
-		})
+	fn2 := func(node ast.Node) {
+		spec := node.(*ast.ImportSpec)
+		p := spec.Path.Value
+		path := p[1 : len(p)-1]
+		imp := imps[path]
+		if depr, ok := deprs.Packages[imp]; ok {
+			pass.Reportf(spec.Pos(), "Package %s is deprecated: %s", path, depr.Msg)
+		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes(nil, fn)
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ImportSpec)(nil)}, fn2)
 	return nil, nil
 }
 
