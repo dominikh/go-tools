@@ -16,7 +16,4 @@ func fn() {
 	signal.Ignore(syscall.SIGKILL)            // want `cannot be trapped`
 	signal.Notify(c, syscall.SIGKILL)         // want `cannot be trapped`
 	signal.Reset(syscall.SIGKILL)             // want `cannot be trapped`
-	signal.Ignore(syscall.SIGSTOP)            // want `cannot be trapped`
-	signal.Notify(c, syscall.SIGSTOP)         // want `cannot be trapped`
-	signal.Reset(syscall.SIGSTOP)             // want `cannot be trapped`
 }
