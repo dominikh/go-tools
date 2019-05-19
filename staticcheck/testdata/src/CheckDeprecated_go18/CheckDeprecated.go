@@ -12,7 +12,7 @@ var _ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
 
 func fn1(err error) {
 	var r *http.Request
-	_ = r.Cancel                        // want `Use the Context and WithContext methods`
+	_ = r.Cancel                        // want `If a Request's Cancel field and context are both`
 	_ = syscall.StringByteSlice("")     // want `Use ByteSliceFromString instead`
 	_ = os.SEEK_SET                     // want `Use io\.SeekStart, io\.SeekCurrent, and io\.SeekEnd`
 	if err == http.ErrWriteAfterFlush { // want `ErrWriteAfterFlush is no longer`
