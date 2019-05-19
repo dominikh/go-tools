@@ -191,6 +191,7 @@ func keyify(
 					// what were we intending to do here?
 					var lines int
 					numLines += lines
+					//lint:ignore SA4006 See FIXME above.
 					val, lines = keyify(pkg, val2)
 				}
 			}
