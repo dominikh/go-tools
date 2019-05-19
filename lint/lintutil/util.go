@@ -259,6 +259,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	if errors > 0 {
 		exit(1)
 	}
+	exit(0)
 }
 
 type Options struct {
