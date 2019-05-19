@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"golang.org/x/tools/go/analysis"
@@ -18,8 +19,29 @@ var Analyzer = &analysis.Analyzer{
 			cfg := DefaultConfig
 			return &cfg, nil
 		}
-		// FIXME(dh): this may yield the wrong path for generated files in the build cache
-		path := pass.Fset.PositionFor(pass.Files[0].Pos(), true).Filename
+		cache, err := os.UserCacheDir()
+		if err != nil {
+			cache = ""
+		}
+		var path string
+		for _, f := range pass.Files {
+			p := pass.Fset.PositionFor(f.Pos(), true).Filename
+			// FIXME(dh): using strings.HasPrefix isn't technically
+			// correct, but it should be good enough for now.
+			if cache != "" && strings.HasPrefix(p, cache) {
+				// File in the build cache of the standard Go build system
+				continue
+			}
+			path = p
+			break
+		}
+
+		if path == "" {
+			// The package only consists of generated files.
+			cfg := DefaultConfig
+			return &cfg, nil
+		}
+
 		dir := filepath.Dir(path)
 		cfg, err := Load(dir)
 		if err != nil {
