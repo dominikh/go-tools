@@ -96,7 +96,8 @@ type Runner struct {
 	// limits parallelism of loading packages
 	loadSem chan struct{}
 
-	stats *Stats
+	goVersion int
+	stats     *Stats
 }
 
 type analyzerIDs struct {
@@ -438,6 +439,9 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 		}
 	}
 	for _, a := range analyzers {
+		if v := a.Flags.Lookup("go"); v != nil {
+			v.Value.Set(fmt.Sprintf("1.%d", r.goVersion))
+		}
 		dfs(a)
 	}
 	for _, a := range injectedAnalyses {

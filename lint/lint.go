@@ -116,6 +116,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	if err != nil {
 		return nil, err
 	}
+	r.goVersion = l.GoVersion
 
 	pkgs, err := r.Run(cfg, patterns, analyzers)
 	if err != nil {
