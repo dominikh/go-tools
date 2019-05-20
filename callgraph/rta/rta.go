@@ -50,9 +50,9 @@ import (
 	"fmt"
 	"go/types"
 
+	"golang.org/x/tools/go/types/typeutil"
 	"honnef.co/go/tools/callgraph"
 	"honnef.co/go/tools/ssa"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
 // A Result holds the results of Rapid Type Analysis, which includes the

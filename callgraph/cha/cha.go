@@ -26,10 +26,10 @@ package cha // import "honnef.co/go/tools/callgraph/cha"
 import (
 	"go/types"
 
+	"golang.org/x/tools/go/types/typeutil"
 	"honnef.co/go/tools/callgraph"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssa/ssautil"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
 // CallGraph computes the call graph of the specified program using the
