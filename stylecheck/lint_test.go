@@ -3,44 +3,25 @@ package stylecheck
 import (
 	"testing"
 
-	"golang.org/x/tools/go/analysis/analysistest"
+	"honnef.co/go/tools/lint/testutil"
 )
 
 func TestAll(t *testing.T) {
-	checks := map[string][]struct {
-		dir     string
-		version string
-	}{
-		"ST1000": {
-			{dir: "CheckPackageComment-1"},
-			{dir: "CheckPackageComment-2"},
-		},
-		"ST1001": {{dir: "CheckDotImports"}},
-		"ST1003": {
-			{dir: "CheckNames"},
-			{dir: "CheckNames_generated"},
-		},
-		"ST1005": {{dir: "CheckErrorStrings"}},
-		"ST1006": {{dir: "CheckReceiverNames"}},
-		"ST1008": {{dir: "CheckErrorReturn"}},
-		"ST1011": {{dir: "CheckTimeNames"}},
-		"ST1012": {{dir: "CheckErrorVarNames"}},
-		"ST1013": {{dir: "CheckHTTPStatusCodes"}},
-		"ST1015": {{dir: "CheckDefaultCaseOrder"}},
-		"ST1016": {{dir: "CheckReceiverNamesIdentical"}},
-		"ST1017": {{dir: "CheckYodaConditions"}},
-		"ST1018": {{dir: "CheckInvisibleCharacters"}},
+	checks := []testutil.Analyzer{
+		{Analyzer: Analyzers["ST1000"], Tests: []testutil.Test{{Dir: "CheckPackageComment-1"}, {Dir: "CheckPackageComment-2"}}},
+		{Analyzer: Analyzers["ST1001"], Tests: []testutil.Test{{Dir: "CheckDotImports"}}},
+		{Analyzer: Analyzers["ST1003"], Tests: []testutil.Test{{Dir: "CheckNames"}, {Dir: "CheckNames_generated"}}},
+		{Analyzer: Analyzers["ST1005"], Tests: []testutil.Test{{Dir: "CheckErrorStrings"}}},
+		{Analyzer: Analyzers["ST1006"], Tests: []testutil.Test{{Dir: "CheckReceiverNames"}}},
+		{Analyzer: Analyzers["ST1008"], Tests: []testutil.Test{{Dir: "CheckErrorReturn"}}},
+		{Analyzer: Analyzers["ST1011"], Tests: []testutil.Test{{Dir: "CheckTimeNames"}}},
+		{Analyzer: Analyzers["ST1012"], Tests: []testutil.Test{{Dir: "CheckErrorVarNames"}}},
+		{Analyzer: Analyzers["ST1013"], Tests: []testutil.Test{{Dir: "CheckHTTPStatusCodes"}}},
+		{Analyzer: Analyzers["ST1015"], Tests: []testutil.Test{{Dir: "CheckDefaultCaseOrder"}}},
+		{Analyzer: Analyzers["ST1016"], Tests: []testutil.Test{{Dir: "CheckReceiverNamesIdentical"}}},
+		{Analyzer: Analyzers["ST1017"], Tests: []testutil.Test{{Dir: "CheckYodaConditions"}}},
+		{Analyzer: Analyzers["ST1018"], Tests: []testutil.Test{{Dir: "CheckInvisibleCharacters"}}},
 	}
 
-	for check, dirs := range checks {
-		a := Analyzers[check]
-		for _, dir := range dirs {
-			if dir.version != "" {
-				if err := a.Flags.Lookup("go").Value.Set(dir.version); err != nil {
-					t.Fatal(err)
-				}
-			}
-			analysistest.Run(t, analysistest.TestData(), a, dir.dir)
-		}
-	}
+	testutil.Run(t, checks)
 }

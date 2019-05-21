@@ -3,71 +3,41 @@ package simple
 import (
 	"testing"
 
-	"golang.org/x/tools/go/analysis/analysistest"
+	"honnef.co/go/tools/lint/testutil"
 )
 
 func TestAll(t *testing.T) {
-	checks := map[string][]struct {
-		dir     string
-		version string
-	}{
-		"S1000": {{dir: "single-case-select"}},
-		"S1001": {{dir: "copy"}},
-		"S1002": {{dir: "bool-cmp"}},
-		"S1003": {{dir: "contains"}},
-		"S1004": {{dir: "compare"}},
-		"S1005": {
-			{dir: "LintBlankOK"},
-			{dir: "receive-blank"},
-			{dir: "range_go13", version: "1.3"},
-			{dir: "range_go14", version: "1.4"},
-		},
-		"S1006": {
-			{dir: "for-true"},
-			{dir: "generated"},
-		},
-		"S1007": {{dir: "regexp-raw"}},
-		"S1008": {{dir: "if-return"}},
-		"S1009": {{dir: "nil-len"}},
-		"S1010": {{dir: "slicing"}},
-		"S1011": {{dir: "loop-append"}},
-		"S1012": {{dir: "time-since"}},
-		"S1016": {
-			{dir: "convert"},
-			{dir: "convert_go17", version: "1.7"},
-			{dir: "convert_go18", version: "1.8"},
-		},
-		"S1017": {{dir: "trim"}},
-		"S1018": {{dir: "LintLoopSlide"}},
-		"S1019": {{dir: "LintMakeLenCap"}},
-		"S1020": {{dir: "LintAssertNotNil"}},
-		"S1021": {{dir: "LintDeclareAssign"}},
-		"S1023": {
-			{dir: "LintRedundantBreak"},
-			{dir: "LintRedundantReturn"},
-		},
-		"S1024": {
-			{dir: "LimeTimeUntil_go17", version: "1.7"},
-			{dir: "LimeTimeUntil_go18", version: "1.8"},
-		},
-		"S1025": {{dir: "LintRedundantSprintf"}},
-		"S1028": {{dir: "LintErrorsNewSprintf"}},
-		"S1029": {{dir: "LintRangeStringRunes"}},
-		"S1030": {{dir: "LintBytesBufferConversions"}},
-		"S1031": {{dir: "LintNilCheckAroundRange"}},
-		"S1032": {{dir: "LintSortHelpers"}},
-		"S1033": {{dir: "LintGuardedDelete"}},
-		"S1034": {{dir: "LintSimplifyTypeSwitch"}},
+	checks := []testutil.Analyzer{
+		{Analyzer: Analyzers["S1000"], Tests: []testutil.Test{{Dir: "single-case-select"}}},
+		{Analyzer: Analyzers["S1001"], Tests: []testutil.Test{{Dir: "copy"}}},
+		{Analyzer: Analyzers["S1002"], Tests: []testutil.Test{{Dir: "bool-cmp"}}},
+		{Analyzer: Analyzers["S1003"], Tests: []testutil.Test{{Dir: "contains"}}},
+		{Analyzer: Analyzers["S1004"], Tests: []testutil.Test{{Dir: "compare"}}},
+		{Analyzer: Analyzers["S1005"], Tests: []testutil.Test{{Dir: "LintBlankOK"}, {Dir: "receive-blank"}, {Dir: "range_go13", Version: "1.3"}, {Dir: "range_go14", Version: "1.4"}}},
+		{Analyzer: Analyzers["S1006"], Tests: []testutil.Test{{Dir: "for-true"}, {Dir: "generated"}}},
+		{Analyzer: Analyzers["S1007"], Tests: []testutil.Test{{Dir: "regexp-raw"}}},
+		{Analyzer: Analyzers["S1008"], Tests: []testutil.Test{{Dir: "if-return"}}},
+		{Analyzer: Analyzers["S1009"], Tests: []testutil.Test{{Dir: "nil-len"}}},
+		{Analyzer: Analyzers["S1010"], Tests: []testutil.Test{{Dir: "slicing"}}},
+		{Analyzer: Analyzers["S1011"], Tests: []testutil.Test{{Dir: "loop-append"}}},
+		{Analyzer: Analyzers["S1012"], Tests: []testutil.Test{{Dir: "time-since"}}},
+		{Analyzer: Analyzers["S1016"], Tests: []testutil.Test{{Dir: "convert"}, {Dir: "convert_go17", Version: "1.7"}, {Dir: "convert_go18", Version: "1.8"}}},
+		{Analyzer: Analyzers["S1017"], Tests: []testutil.Test{{Dir: "trim"}}},
+		{Analyzer: Analyzers["S1018"], Tests: []testutil.Test{{Dir: "LintLoopSlide"}}},
+		{Analyzer: Analyzers["S1019"], Tests: []testutil.Test{{Dir: "LintMakeLenCap"}}},
+		{Analyzer: Analyzers["S1020"], Tests: []testutil.Test{{Dir: "LintAssertNotNil"}}},
+		{Analyzer: Analyzers["S1021"], Tests: []testutil.Test{{Dir: "LintDeclareAssign"}}},
+		{Analyzer: Analyzers["S1023"], Tests: []testutil.Test{{Dir: "LintRedundantBreak"}, {Dir: "LintRedundantReturn"}}},
+		{Analyzer: Analyzers["S1024"], Tests: []testutil.Test{{Dir: "LimeTimeUntil_go17", Version: "1.7"}, {Dir: "LimeTimeUntil_go18", Version: "1.8"}}},
+		{Analyzer: Analyzers["S1025"], Tests: []testutil.Test{{Dir: "LintRedundantSprintf"}}},
+		{Analyzer: Analyzers["S1028"], Tests: []testutil.Test{{Dir: "LintErrorsNewSprintf"}}},
+		{Analyzer: Analyzers["S1029"], Tests: []testutil.Test{{Dir: "LintRangeStringRunes"}}},
+		{Analyzer: Analyzers["S1030"], Tests: []testutil.Test{{Dir: "LintBytesBufferConversions"}}},
+		{Analyzer: Analyzers["S1031"], Tests: []testutil.Test{{Dir: "LintNilCheckAroundRange"}}},
+		{Analyzer: Analyzers["S1032"], Tests: []testutil.Test{{Dir: "LintSortHelpers"}}},
+		{Analyzer: Analyzers["S1033"], Tests: []testutil.Test{{Dir: "LintGuardedDelete"}}},
+		{Analyzer: Analyzers["S1034"], Tests: []testutil.Test{{Dir: "LintSimplifyTypeSwitch"}}},
 	}
-	for check, dirs := range checks {
-		a := Analyzers[check]
-		for _, dir := range dirs {
-			if dir.version != "" {
-				if err := a.Flags.Lookup("go").Value.Set(dir.version); err != nil {
-					t.Fatal(err)
-				}
-			}
-			analysistest.Run(t, analysistest.TestData(), a, dir.dir)
-		}
-	}
+
+	testutil.Run(t, checks)
 }
