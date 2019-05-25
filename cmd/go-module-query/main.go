@@ -10,11 +10,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/renameio"
+	"github.com/rogpeppe/go-internal/modfile"
 	"golang.org/x/mod/module"
 )
 
@@ -122,6 +124,7 @@ func main() {
 					return
 				}
 				defer resp.Body.Close()
+				// XXX handle response code
 				pf, err := renameio.TempFile("", p)
 				if err != nil {
 					atomic.AddUint64(&errs, 1)
@@ -152,4 +155,35 @@ func main() {
 	if err := renameio.WriteFile(filepath.Join(cache, "go-module-query", "last"), []byte(since.Format(time.RFC3339Nano)), 0666); err != nil {
 		log.Println("Couldn't store timestamp:", err)
 	}
+}
+
+func printGraph() {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	filepath.Walk(filepath.Join(cache, "go-module-query"), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if strings.HasSuffix(path, ".mod") {
+			name := filepath.Base(path)
+			name = name[:len(name)-4]
+			b, err := ioutil.ReadFile(path)
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
+			f, err := modfile.Parse(path, b, nil)
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
+			f.Module.Mod.Version = name
+			for _, dep := range f.Require {
+				fmt.Printf("%s@%s %s@%s\n", f.Module.Mod.Path, f.Module.Mod.Version, dep.Mod.Path, dep.Mod.Version)
+			}
+		}
+		return nil
+	})
 }
