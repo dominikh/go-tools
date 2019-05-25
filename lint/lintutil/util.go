@@ -112,6 +112,7 @@ func FlagSet(name string) *flag.FlagSet {
 
 	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
 	flags.String("debug.memprofile", "", "Write memory profile to `file`")
+	flags.Bool("debug.version", false, "Print detailed version information about this program")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -150,6 +151,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 
 	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
+	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
 
 	cfg := config.Config{}
 	cfg.Checks = *fs.Lookup("checks").Value.(*list)
@@ -174,6 +176,11 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 			log.Fatal(err)
 		}
 		pprof.StartCPUProfile(f)
+	}
+
+	if debugVersion {
+		version.Verbose()
+		exit(0)
 	}
 
 	if printVersion {
