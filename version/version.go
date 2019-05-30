@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 )
 
 const Version = "devel"
@@ -40,18 +39,4 @@ func Verbose() {
 	fmt.Println()
 	fmt.Println("Compiled with Go version:", runtime.Version())
 	printBuildInfo()
-}
-
-func printModule(m *debug.Module) {
-	fmt.Printf("\t%s", m.Path)
-	if m.Version != "(devel)" {
-		fmt.Printf("@%s", m.Version)
-	}
-	if m.Sum != "" {
-		fmt.Printf(" (sum: %s)", m.Sum)
-	}
-	if m.Replace != nil {
-		fmt.Printf(" (replace: %s)", m.Replace.Path)
-	}
-	fmt.Println()
 }

@@ -30,3 +30,17 @@ func buildInfoVersion() (string, bool) {
 	}
 	return info.Main.Version, true
 }
+
+func printModule(m *debug.Module) {
+	fmt.Printf("\t%s", m.Path)
+	if m.Version != "(devel)" {
+		fmt.Printf("@%s", m.Version)
+	}
+	if m.Sum != "" {
+		fmt.Printf(" (sum: %s)", m.Sum)
+	}
+	if m.Replace != nil {
+		fmt.Printf(" (replace: %s)", m.Replace.Path)
+	}
+	fmt.Println()
+}
