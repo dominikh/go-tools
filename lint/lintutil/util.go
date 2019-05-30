@@ -113,6 +113,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
 	flags.String("debug.memprofile", "", "Write memory profile to `file`")
 	flags.Bool("debug.version", false, "Print detailed version information about this program")
+	flags.Bool("debug.no-compile-errors", false, "Don't print compile errors")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -152,6 +153,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
 	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
+	debugNoCompile := fs.Lookup("debug.no-compile-errors").Value.(flag.Getter).Get().(bool)
 
 	cfg := config.Config{}
 	cfg.Checks = *fs.Lookup("checks").Value.(*list)
@@ -249,6 +251,9 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 
 	total = len(ps)
 	for _, p := range ps {
+		if p.Check == "compile" && debugNoCompile {
+			continue
+		}
 		if p.Severity == lint.Ignored && !showIgnored {
 			continue
 		}
