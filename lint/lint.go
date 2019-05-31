@@ -127,29 +127,58 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	for _, pkg := range pkgs {
 		tpkgToPkg[pkg.Types] = pkg
 
-		for _, err := range pkg.errs {
-			switch err := err.(type) {
+		for _, e := range pkg.errs {
+			switch e := e.(type) {
 			case types.Error:
 				p := Problem{
-					Pos:      err.Fset.PositionFor(err.Pos, false),
-					Message:  err.Msg,
+					Pos:      e.Fset.PositionFor(e.Pos, false),
+					Message:  e.Msg,
 					Severity: Error,
 					Check:    "compile",
 				}
 				pkg.problems = append(pkg.problems, p)
 			case packages.Error:
+				msg := e.Msg
+				if len(msg) != 0 && msg[0] == '\n' {
+					// TODO(dh): See https://github.com/golang/go/issues/32363
+					msg = msg[1:]
+				}
+
+				var pos token.Position
+				if e.Pos == "" {
+					// Under certain conditions (malformed package
+					// declarations, multiple packages in the same
+					// directory), go list emits an error on stderr
+					// instead of JSON. Those errors do not have
+					// associated position information in
+					// go/packages.Error, even though the output on
+					// stderr may contain it.
+					if p, n, err := parsePos(msg); err == nil {
+						if abs, err := filepath.Abs(p.Filename); err == nil {
+							p.Filename = abs
+						}
+						pos = p
+						msg = msg[n+2:]
+					}
+				} else {
+					var err error
+					pos, _, err = parsePos(e.Pos)
+					if err != nil {
+						panic(fmt.Sprintf("internal error: %s", e))
+					}
+				}
 				p := Problem{
-					Pos:      parsePos(err.Pos),
-					Message:  err.Msg,
+					Pos:      pos,
+					Message:  msg,
 					Severity: Error,
 					Check:    "compile",
 				}
 				pkg.problems = append(pkg.problems, p)
 			case scanner.ErrorList:
-				for _, err := range err {
+				for _, e := range e {
 					p := Problem{
-						Pos:      err.Pos,
-						Message:  err.Msg,
+						Pos:      e.Pos,
+						Message:  e.Msg,
 						Severity: Error,
 						Check:    "compile",
 					}
@@ -158,7 +187,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			case error:
 				p := Problem{
 					Pos:      token.Position{},
-					Message:  err.Error(),
+					Message:  e.Error(),
 					Severity: Error,
 					Check:    "compile",
 				}

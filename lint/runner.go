@@ -518,15 +518,15 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	return pkgs, nil
 }
 
-var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?$`)
+var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?`)
 
-func parsePos(pos string) token.Position {
+func parsePos(pos string) (token.Position, int, error) {
 	if pos == "-" || pos == "" {
-		return token.Position{}
+		return token.Position{}, 0, nil
 	}
 	parts := posRe.FindStringSubmatch(pos)
 	if parts == nil {
-		panic(fmt.Sprintf("internal error: malformed position %q", pos))
+		return token.Position{}, 0, fmt.Errorf("malformed position %q", pos)
 	}
 	file := parts[1]
 	line, _ := strconv.Atoi(parts[2])
@@ -535,7 +535,7 @@ func parsePos(pos string) token.Position {
 		Filename: file,
 		Line:     line,
 		Column:   col,
-	}
+	}, len(parts[0]), nil
 }
 
 // loadPkg loads a Go package. If the package is in the set of initial
