@@ -159,6 +159,12 @@ Available since
 
 var docST1017 = `Don't use Yoda conditions
 
+Yoda conditions are conditions of the kind 'if 42 == x', where the
+literal is on the left side of the comparison. These are a common
+idiom in languages in which assignment is an expression, to avoid bugs
+of the kind 'if (x = 42)'. In Go, which doesn't allow for this kind of
+bug, we prefer the more idiomatic 'if x == 42'.
+
 Available since
     Unreleased
 `
