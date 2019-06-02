@@ -376,3 +376,17 @@ func ReportfFG(pass *analysis.Pass, pos token.Pos, f string, args ...interface{}
 	}
 	pass.Reportf(pos, f, args...)
 }
+
+func ReportNodef(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	pass.Report(analysis.Diagnostic{Pos: node.Pos(), End: node.End(), Message: msg})
+}
+
+func ReportNodefFG(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
+	file := lint.DisplayPosition(pass.Fset, node.Pos()).Filename
+	m := pass.ResultOf[facts.Generated].(map[string]bool)
+	if m[file] {
+		return
+	}
+	ReportNodef(pass, node, format, args...)
+}

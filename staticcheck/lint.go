@@ -765,10 +765,10 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if isName(pass, arg, "os.Kill") || isName(pass, arg, "syscall.SIGKILL") {
-				pass.Reportf(arg.Pos(), "%s cannot be trapped (did you mean syscall.SIGTERM?)", Render(pass, arg))
+				ReportNodef(pass, arg, "%s cannot be trapped (did you mean syscall.SIGTERM?)", Render(pass, arg))
 			}
 			if isName(pass, arg, "syscall.SIGSTOP") {
-				pass.Reportf(arg.Pos(), "%s signal cannot be trapped", Render(pass, arg))
+				ReportNodef(pass, arg, "%s signal cannot be trapped", Render(pass, arg))
 			}
 		}
 	}
@@ -810,7 +810,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 		if err != nil {
 			// TODO(dominikh): whitelist other parse errors, if any
 			if strings.Contains(err.Error(), "unexpected") {
-				pass.Reportf(call.Args[Arg("(*text/template.Template).Parse.text")].Pos(), "%s", err)
+				ReportNodef(pass, call.Args[Arg("(*text/template.Template).Parse.text")], "%s", err)
 			}
 		}
 	}
@@ -842,7 +842,7 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 		if n != 1 {
 			recommendation = fmt.Sprintf("time.Sleep(%d * time.Nanosecond)", n)
 		}
-		pass.Reportf(call.Args[Arg("time.Sleep.d")].Pos(),
+		ReportNodef(pass, call.Args[Arg("time.Sleep.d")],
 			"sleeping for %d nanoseconds is probably a bug. Be explicit if it isn't: %s", n, recommendation)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -864,7 +864,7 @@ func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		if IsCallToAST(pass, stmt.X, "(*sync.WaitGroup).Add") {
-			pass.Reportf(stmt.Pos(), "should call %s before starting the goroutine to avoid a race",
+			ReportNodef(pass, stmt, "should call %s before starting the goroutine to avoid a race",
 				Render(pass, stmt))
 		}
 	}
@@ -908,9 +908,9 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 					}
 				}
 			}
-			pass.Reportf(loop.Pos(), "loop condition never changes or has a race condition")
+			ReportNodef(pass, loop, "loop condition never changes or has a race condition")
 		}
-		pass.Reportf(loop.Pos(), "this loop will spin, using 100%% CPU")
+		ReportNodef(pass, loop, "this loop will spin, using 100%% CPU")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 	return nil, nil
@@ -951,7 +951,7 @@ func CheckDeferInInfiniteLoop(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		for _, stmt := range defers {
-			pass.Reportf(stmt.Pos(), "defers in this infinite loop will never run")
+			ReportNodef(pass, stmt, "defers in this infinite loop will never run")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
@@ -969,7 +969,7 @@ func CheckDubiousDeferInChannelRangeLoop(pass *analysis.Pass) (interface{}, erro
 		fn2 := func(node ast.Node) bool {
 			switch stmt := node.(type) {
 			case *ast.DeferStmt:
-				pass.Reportf(stmt.Pos(), "defers in this range loop won't run unless the channel gets closed")
+				ReportNodef(pass, stmt, "defers in this range loop won't run unless the channel gets closed")
 			case *ast.FuncLit:
 				// Don't look into function bodies
 				return false
@@ -993,7 +993,7 @@ func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
 		if !push {
 			if fnmain != nil && node == fnmain {
 				if !callsExit && callsRun {
-					pass.Reportf(fnmain.Pos(), "TestMain should call os.Exit to set exit code")
+					ReportNodef(pass, fnmain, "TestMain should call os.Exit to set exit code")
 				}
 				fnmain = nil
 				callsExit = false
@@ -1071,7 +1071,7 @@ func CheckExec(pass *analysis.Pass) (interface{}, error) {
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) || strings.Contains(val, "/") {
 			return
 		}
-		pass.Reportf(call.Args[Arg("os/exec.Command.name")].Pos(),
+		ReportNodef(pass, call.Args[Arg("os/exec.Command.name")],
 			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -1090,7 +1090,7 @@ func CheckLoopEmptyDefault(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, c := range sel.Body.List {
 			if comm, ok := c.(*ast.CommClause); ok && comm.Comm == nil && len(comm.Body) == 0 {
-				pass.Reportf(comm.Pos(), "should not have an empty default case in a for+select loop. The loop will spin.")
+				ReportNodef(pass, comm, "should not have an empty default case in a for+select loop. The loop will spin.")
 			}
 		}
 	}
@@ -1135,7 +1135,7 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 			// 0 == 0 are slim.
 			return
 		}
-		pass.Reportf(op.Pos(), "identical expressions on the left and right side of the '%s' operator", op.Op)
+		ReportNodef(pass, op, "identical expressions on the left and right side of the '%s' operator", op.Op)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -1191,7 +1191,7 @@ func CheckScopedBreak(pass *analysis.Pass) (interface{}, error) {
 					if !ok || branch.Tok != token.BREAK || branch.Label != nil {
 						continue
 					}
-					pass.Reportf(branch.Pos(), "ineffective break statement. Did you mean to break out of the outer loop?")
+					ReportNodef(pass, branch, "ineffective break statement. Did you mean to break out of the outer loop?")
 				}
 			}
 		}
@@ -1219,7 +1219,7 @@ func CheckUnsafePrintf(pass *analysis.Pass) (interface{}, error) {
 		default:
 			return
 		}
-		pass.Reportf(call.Args[arg].Pos(),
+		ReportNodef(pass, call.Args[arg],
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -1288,7 +1288,7 @@ func CheckEarlyDefer(pass *analysis.Pass) (interface{}, error) {
 			if sel.Sel.Name != "Close" {
 				continue
 			}
-			pass.Reportf(def.Pos(), "should check returned error before deferring %s", Render(pass, def.Call))
+			ReportNodef(pass, def, "should check returned error before deferring %s", Render(pass, def.Call))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
@@ -1356,7 +1356,7 @@ func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 			}
 			if (method1 == "Lock" && method2 == "Unlock") ||
 				(method1 == "RLock" && method2 == "RUnlock") {
-				pass.Reportf(block.List[i+1].Pos(), "empty critical section")
+				ReportNodef(pass, block.List[i+1], "empty critical section")
 			}
 		}
 	}
@@ -1374,14 +1374,14 @@ func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
 			if star, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
 				ident, ok := star.X.(*ast.Ident)
 				if !ok || !cgoIdent.MatchString(ident.Name) {
-					pass.Reportf(unary.Pos(), "&*x will be simplified to x. It will not copy x.")
+					ReportNodef(pass, unary, "&*x will be simplified to x. It will not copy x.")
 				}
 			}
 		}
 
 		if star, ok := node.(*ast.StarExpr); ok {
 			if unary, ok := star.X.(*ast.UnaryExpr); ok && unary.Op == token.AND {
-				pass.Reportf(star.Pos(), "*&x will be simplified to x. It will not copy x.")
+				ReportNodef(pass, star, "*&x will be simplified to x. It will not copy x.")
 			}
 		}
 	}
@@ -1456,7 +1456,7 @@ func CheckCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 		if s == http.CanonicalHeaderKey(s) {
 			return true
 		}
-		pass.Reportf(op.Pos(), "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
+		ReportNodef(pass, op, "keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		return true
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.AssignStmt)(nil), (*ast.IndexExpr)(nil)}, fn)
@@ -1479,7 +1479,7 @@ func CheckBenchmarkN(pass *analysis.Pass) (interface{}, error) {
 		if !IsOfType(pass, sel.X, "*testing.B") {
 			return
 		}
-		pass.Reportf(assign.Pos(), "should not assign to %s", Render(pass, sel))
+		ReportNodef(pass, assign, "should not assign to %s", Render(pass, sel))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 	return nil, nil
@@ -1526,7 +1526,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 						if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
 							continue
 						}
-						pass.Reportf(lhs.Pos(), "this value of %s is never used", lhs)
+						ReportNodef(pass, lhs, "this value of %s is never used", lhs)
 					}
 				}
 				return true
@@ -1547,7 +1547,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					return true
 				}
 				if len(FilterDebug(*refs)) == 0 {
-					pass.Reportf(lhs.Pos(), "this value of %s is never used", lhs)
+					ReportNodef(pass, lhs, "this value of %s is never used", lhs)
 				}
 			}
 			return true
@@ -1674,30 +1674,30 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 
 		if (expr.Op == token.GTR || expr.Op == token.GEQ) && isobj(expr.Y, max) ||
 			(expr.Op == token.LSS || expr.Op == token.LEQ) && isobj(expr.X, max) {
-			pass.Reportf(expr.Pos(), "no value of type %s is greater than %s", basic, max)
+			ReportNodef(pass, expr, "no value of type %s is greater than %s", basic, max)
 		}
 		if expr.Op == token.LEQ && isobj(expr.Y, max) ||
 			expr.Op == token.GEQ && isobj(expr.X, max) {
-			pass.Reportf(expr.Pos(), "every value of type %s is <= %s", basic, max)
+			ReportNodef(pass, expr, "every value of type %s is <= %s", basic, max)
 		}
 
 		if (basic.Info() & types.IsUnsigned) != 0 {
 			if (expr.Op == token.LSS || expr.Op == token.LEQ) && IsIntLiteral(expr.Y, "0") ||
 				(expr.Op == token.GTR || expr.Op == token.GEQ) && IsIntLiteral(expr.X, "0") {
-				pass.Reportf(expr.Pos(), "no value of type %s is less than 0", basic)
+				ReportNodef(pass, expr, "no value of type %s is less than 0", basic)
 			}
 			if expr.Op == token.GEQ && IsIntLiteral(expr.Y, "0") ||
 				expr.Op == token.LEQ && IsIntLiteral(expr.X, "0") {
-				pass.Reportf(expr.Pos(), "every value of type %s is >= 0", basic)
+				ReportNodef(pass, expr, "every value of type %s is >= 0", basic)
 			}
 		} else {
 			if (expr.Op == token.LSS || expr.Op == token.LEQ) && isobj(expr.Y, min) ||
 				(expr.Op == token.GTR || expr.Op == token.GEQ) && isobj(expr.X, min) {
-				pass.Reportf(expr.Pos(), "no value of type %s is less than %s", basic, min)
+				ReportNodef(pass, expr, "no value of type %s is less than %s", basic, min)
 			}
 			if expr.Op == token.GEQ && isobj(expr.Y, min) ||
 				expr.Op == token.LEQ && isobj(expr.X, min) {
-				pass.Reportf(expr.Pos(), "every value of type %s is >= %s", basic, min)
+				ReportNodef(pass, expr, "every value of type %s is >= %s", basic, min)
 			}
 		}
 
@@ -1804,7 +1804,7 @@ func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
 			case *ssa.UnOp:
 				return true
 			}
-			pass.Reportf(cond.Pos(), "variable in loop condition never changes")
+			ReportNodef(pass, cond, "variable in loop condition never changes")
 
 			return true
 		}
@@ -1872,7 +1872,7 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 						return true
 					})
 					if assigned {
-						pass.Reportf(arg.Pos(), "argument %s is overwritten before first use", arg)
+						ReportNodef(pass, arg, "argument %s is overwritten before first use", arg)
 					}
 				}
 			}
@@ -1983,7 +1983,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 				return true
 			})
 			if unconditionalExit != nil {
-				pass.Reportf(unconditionalExit.Pos(), "the surrounding loop is unconditionally terminated")
+				ReportNodef(pass, unconditionalExit, "the surrounding loop is unconditionally terminated")
 			}
 			return true
 		})
@@ -2011,7 +2011,7 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 		if !IsType(sig.Params().At(0).Type(), "context.Context") {
 			return
 		}
-		pass.Reportf(call.Args[0].Pos(),
+		ReportNodef(pass, call.Args[0],
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -2047,7 +2047,7 @@ func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
 		if pkg.Name != "io" {
 			return
 		}
-		pass.Reportf(call.Pos(), "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
+		ReportNodef(pass, call, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -2247,7 +2247,7 @@ func CheckSliceOutOfBounds(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				if idxr.Lower.Cmp(sr.Length.Upper) >= 0 {
-					pass.Reportf(ia.Pos(), "index out of bounds")
+					ReportNodef(pass, ia, "index out of bounds")
 				}
 			}
 		}
@@ -2412,7 +2412,7 @@ func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
 		if unary1.Op != token.NOT || unary2.Op != token.NOT {
 			return
 		}
-		pass.Reportf(unary1.Pos(), "negating a boolean twice has no effect; is this a typo?")
+		ReportNodef(pass, unary1, "negating a boolean twice has no effect; is this a typo?")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil)}, fn)
 	return nil, nil
@@ -2470,7 +2470,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 			s := Render(pass, cond)
 			counts[s]++
 			if counts[s] == 2 {
-				pass.Reportf(cond.Pos(), "this condition occurs multiple times in this if/else if chain")
+				ReportNodef(pass, cond, "this condition occurs multiple times in this if/else if chain")
 			}
 		}
 	}
@@ -2547,7 +2547,7 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 				if err != nil {
 					continue
 				}
-				pass.Reportf(call.Args[i].Pos(), "file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value)
+				ReportNodef(pass, call.Args[i], "file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value)
 			}
 		}
 	}
@@ -2657,7 +2657,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 					return true
 				}
 			}
-			pass.Reportf(sel.Pos(), "%s is deprecated: %s", Render(pass, sel), depr.Msg)
+			ReportNodef(pass, sel, "%s is deprecated: %s", Render(pass, sel), depr.Msg)
 			return true
 		}
 		return true
@@ -2673,7 +2673,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 		path := p[1 : len(p)-1]
 		imp := imps[path]
 		if depr, ok := deprs.Packages[imp]; ok {
-			pass.Reportf(spec.Pos(), "Package %s is deprecated: %s", path, depr.Msg)
+			ReportNodef(pass, spec, "Package %s is deprecated: %s", path, depr.Msg)
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes(nil, fn)
@@ -3043,7 +3043,7 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 					continue groupLoop
 				}
 			}
-			pass.Reportf(group[0].Pos(), "only the first constant in this group has an explicit type")
+			ReportNodef(pass, group[0], "only the first constant in this group has an explicit type")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.GenDecl)(nil)}, fn)
@@ -3146,7 +3146,7 @@ func CheckToLowerToUpperComparison(pass *analysis.Pass) (interface{}, error) {
 			bang = "!"
 		}
 
-		pass.Reportf(binExpr.Pos(), "should use %sstrings.EqualFold(a, b) instead of %s(a) %s %s(b)", bang, call, binExpr.Op, call)
+		ReportNodef(pass, binExpr, "should use %sstrings.EqualFold(a, b) instead of %s(a) %s %s(b)", bang, call, binExpr.Op, call)
 	}
 
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
@@ -3211,7 +3211,7 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 		for i, cc := range ccs[:len(ccs)-1] {
 			for _, next := range ccs[i+1:] {
 				if T, V, yes := subsumesAny(cc.types, next.types); yes {
-					pass.Reportf(next.cc.Pos(), "unreachable case clause: %s will always match before %s", T.String(), V.String())
+					ReportNodef(pass, next.cc, "unreachable case clause: %s will always match before %s", T.String(), V.String())
 				}
 			}
 		}
@@ -3244,12 +3244,12 @@ func CheckStructTags(pass *analysis.Pass) (interface{}, error) {
 			}
 			tags, err := parseStructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
 			if err != nil {
-				pass.Reportf(field.Tag.Pos(), "unparseable struct tag: %s", err)
+				ReportNodef(pass, field.Tag, "unparseable struct tag: %s", err)
 				continue
 			}
 			for k, v := range tags {
 				if len(v) > 1 {
-					pass.Reportf(field.Tag.Pos(), "duplicate struct tag %q", k)
+					ReportNodef(pass, field.Tag, "duplicate struct tag %q", k)
 					continue
 				}
 
@@ -3273,7 +3273,7 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 	fields := strings.Split(tag, ",")
 	for _, r := range fields[0] {
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("!#$%&()*+-./:<=>?@[]^_{|}~ ", r) {
-			pass.Reportf(field.Tag.Pos(), "invalid JSON field name %q", fields[0])
+			ReportNodef(pass, field.Tag, "invalid JSON field name %q", fields[0])
 		}
 	}
 	var co, cs, ci int
@@ -3289,22 +3289,22 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 			T := Dereference(pass.TypesInfo.TypeOf(field.Type).Underlying()).Underlying()
 			basic, ok := T.(*types.Basic)
 			if !ok || (basic.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString)) == 0 {
-				pass.Reportf(field.Tag.Pos(), "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
+				ReportNodef(pass, field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
 			}
 		case "inline":
 			ci++
 		default:
-			pass.Reportf(field.Tag.Pos(), "unknown JSON option %q", s)
+			ReportNodef(pass, field.Tag, "unknown JSON option %q", s)
 		}
 	}
 	if co > 1 {
-		pass.Reportf(field.Tag.Pos(), `duplicate JSON option "omitempty"`)
+		ReportNodef(pass, field.Tag, `duplicate JSON option "omitempty"`)
 	}
 	if cs > 1 {
-		pass.Reportf(field.Tag.Pos(), `duplicate JSON option "string"`)
+		ReportNodef(pass, field.Tag, `duplicate JSON option "string"`)
 	}
 	if ci > 1 {
-		pass.Reportf(field.Tag.Pos(), `duplicate JSON option "inline"`)
+		ReportNodef(pass, field.Tag, `duplicate JSON option "inline"`)
 	}
 }
 
@@ -3326,15 +3326,15 @@ func checkXMLTag(pass *analysis.Pass, field *ast.Field, tag string) {
 			counts[s]++
 		case "":
 		default:
-			pass.Reportf(field.Tag.Pos(), "unknown XML option %q", s)
+			ReportNodef(pass, field.Tag, "unknown XML option %q", s)
 		}
 	}
 	for k, v := range counts {
 		if v > 1 {
-			pass.Reportf(field.Tag.Pos(), "duplicate XML option %q", k)
+			ReportNodef(pass, field.Tag, "duplicate XML option %q", k)
 		}
 	}
 	if len(exclusives) > 1 {
-		pass.Reportf(field.Tag.Pos(), "XML options %s are mutually exclusive", strings.Join(exclusives, " and "))
+		ReportNodef(pass, field.Tag, "XML options %s are mutually exclusive", strings.Join(exclusives, " and "))
 	}
 }

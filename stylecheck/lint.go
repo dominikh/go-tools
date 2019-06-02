@@ -43,7 +43,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			hasDocs = true
 			prefix := "Package " + f.Name.Name + " "
 			if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
-				pass.Reportf(f.Doc.Pos(), `package comment should be of the form "%s..."`, prefix)
+				ReportNodef(pass, f.Doc, `package comment should be of the form "%s..."`, prefix)
 			}
 			f.Doc.Text()
 		}
@@ -54,7 +54,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			if IsInTest(pass, f) {
 				continue
 			}
-			pass.Reportf(f.Pos(), "at least one file in a package should have a package comment")
+			ReportNodef(pass, f, "at least one file in a package should have a package comment")
 		}
 	}
 	return nil, nil
@@ -73,7 +73,7 @@ func CheckDotImports(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if imp.Name != nil && imp.Name.Name == "." && !IsInTest(pass, f) {
-				ReportfFG(pass, imp.Pos(), "should not use dot imports")
+				ReportNodefFG(pass, imp, "should not use dot imports")
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if imp.Doc == nil && imp.Comment == nil && !skip[imp] {
-				pass.Reportf(imp.Pos(), "a blank import should be only in a main or test package, or have a comment justifying it")
+				ReportNodef(pass, imp, "a blank import should be only in a main or test package, or have a comment justifying it")
 			}
 		}
 	}
@@ -164,7 +164,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 			suffix = "--"
 		}
 
-		pass.Reportf(assign.Pos(), "should replace %s with %s%s", Render(pass, assign), Render(pass, assign.Lhs[0]), suffix)
+		ReportNodef(pass, assign, "should replace %s with %s%s", Render(pass, assign), Render(pass, assign.Lhs[0]), suffix)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 	return nil, nil
@@ -404,7 +404,7 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 		for _, name := range names {
 			for _, suffix := range suffixes {
 				if strings.HasSuffix(name.Name, suffix) {
-					pass.Reportf(name.Pos(), "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
+					ReportNodef(pass, name, "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
 					break
 				}
 			}
@@ -452,7 +452,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 						prefix = "Err"
 					}
 					if !strings.HasPrefix(name.Name, prefix) {
-						pass.Reportf(name.Pos(), "error var %s should have name of the form %sFoo", name.Name, prefix)
+						ReportNodef(pass, name, "error var %s should have name of the form %sFoo", name.Name, prefix)
 					}
 				}
 			}
@@ -566,7 +566,7 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return true
 		}
-		ReportfFG(pass, lit.Pos(), "should use constant http.%s instead of numeric literal %d", s, n)
+		ReportNodefFG(pass, lit, "should use constant http.%s instead of numeric literal %d", s, n)
 		return true
 	}
 	// OPT(dh): replace with inspector
@@ -582,7 +582,7 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 		list := stmt.Body.List
 		for i, c := range list {
 			if c.(*ast.CaseClause).List == nil && i != 0 && i != len(list)-1 {
-				ReportfFG(pass, c.Pos(), "default case should be first or last in switch statement")
+				ReportNodefFG(pass, c, "default case should be first or last in switch statement")
 				break
 			}
 		}
@@ -604,7 +604,7 @@ func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
 			// Don't flag lit == lit conditions, just in case
 			return
 		}
-		ReportfFG(pass, cond.Pos(), "don't use Yoda conditions")
+		ReportNodefFG(pass, cond, "don't use Yoda conditions")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -618,9 +618,9 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
-				pass.Reportf(lit.Pos(), "string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r)
+				ReportNodef(pass, lit, "string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r)
 			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
-				pass.Reportf(lit.Pos(), "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
+				ReportNodef(pass, lit, "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
 			}
 		}
 	}

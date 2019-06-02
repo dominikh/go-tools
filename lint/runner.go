@@ -201,6 +201,7 @@ func (ac *analysisAction) exportPackageFact(fact analysis.Fact) {
 func (ac *analysisAction) report(pass *analysis.Pass, d analysis.Diagnostic) {
 	p := Problem{
 		Pos:     DisplayPosition(pass.Fset, d.Pos),
+		End:     DisplayPosition(pass.Fset, d.End),
 		Message: d.Message,
 		Check:   pass.Analyzer.Name,
 	}

@@ -81,6 +81,7 @@ const (
 // Problem represents a problem in some source code.
 type Problem struct {
 	Pos      token.Position
+	End      token.Position
 	Message  string
 	Check    string
 	Severity Severity
@@ -357,10 +358,13 @@ type Positioner interface {
 }
 
 func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
+	if p == token.NoPos {
+		return token.Position{}
+	}
+
 	// Only use the adjusted position if it points to another Go file.
 	// This means we'll point to the original file for cgo files, but
 	// we won't point to a YACC grammar file.
-
 	pos := fset.PositionFor(p, false)
 	adjPos := fset.PositionFor(p, true)
 

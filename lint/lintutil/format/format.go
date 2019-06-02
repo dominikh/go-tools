@@ -80,6 +80,7 @@ func (o JSON) Format(p lint.Problem) {
 		Code     string   `json:"code"`
 		Severity string   `json:"severity,omitempty"`
 		Location location `json:"location"`
+		End      location `json:"end"`
 		Message  string   `json:"message"`
 	}{
 		Code:     p.Check,
@@ -88,6 +89,11 @@ func (o JSON) Format(p lint.Problem) {
 			File:   p.Pos.Filename,
 			Line:   p.Pos.Line,
 			Column: p.Pos.Column,
+		},
+		End: location{
+			File:   p.End.Filename,
+			Line:   p.End.Line,
+			Column: p.End.Column,
 		},
 		Message: p.Message,
 	}

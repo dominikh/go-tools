@@ -46,7 +46,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 			seen[v.Body.List[0]] = struct{}{}
-			ReportfFG(pass, node.Pos(), "should use for range instead of for { select {} }")
+			ReportNodefFG(pass, node, "should use for range instead of for { select {} }")
 		case *ast.SelectStmt:
 			if _, ok := seen[v]; ok {
 				return
@@ -54,7 +54,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 			if !isSingleSelect(v) {
 				return
 			}
-			ReportfFG(pass, node.Pos(), "should use a simple channel send/receive instead of select with a single case")
+			ReportNodefFG(pass, node, "should use a simple channel send/receive instead of select with a single case")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.SelectStmt)(nil)}, fn)
@@ -131,7 +131,7 @@ func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
 		} else {
 			return
 		}
-		ReportfFG(pass, loop.Pos(), "should use copy() instead of a loop")
+		ReportNodefFG(pass, loop, "should use copy() instead of a loop")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
 	return nil, nil
@@ -174,7 +174,7 @@ func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 		if IsInTest(pass, node) {
 			return
 		}
-		ReportfFG(pass, expr.Pos(), "should omit comparison to bool constant, can be simplified to %s", r)
+		ReportNodefFG(pass, expr, "should omit comparison to bool constant, can be simplified to %s", r)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -198,9 +198,9 @@ func LintBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
 		if typ == types.Universe.Lookup("string").Type() && IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
-			ReportfFG(pass, call.Pos(), "should use %v.String() instead of %v", Render(pass, sel.X), Render(pass, call))
+			ReportNodefFG(pass, call, "should use %v.String() instead of %v", Render(pass, sel.X), Render(pass, call))
 		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).String") {
-			ReportfFG(pass, call.Pos(), "should use %v.Bytes() instead of %v", Render(pass, sel.X), Render(pass, call))
+			ReportNodefFG(pass, call, "should use %v.Bytes() instead of %v", Render(pass, sel.X), Render(pass, call))
 		}
 
 	}
@@ -268,7 +268,7 @@ func LintStringsContains(pass *analysis.Pass) (interface{}, error) {
 		if !b {
 			prefix = "!"
 		}
-		ReportfFG(pass, node.Pos(), "should use %s%s.%s(%s) instead", prefix, pkgIdent.Name, newFunc, RenderArgs(pass, call.Args))
+		ReportNodefFG(pass, node, "should use %s%s.%s(%s) instead", prefix, pkgIdent.Name, newFunc, RenderArgs(pass, call.Args))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -296,7 +296,7 @@ func LintBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		if expr.Op == token.NEQ {
 			prefix = "!"
 		}
-		ReportfFG(pass, node.Pos(), "should use %sbytes.Equal(%s) instead", prefix, args)
+		ReportNodefFG(pass, node, "should use %sbytes.Equal(%s) instead", prefix, args)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -311,7 +311,7 @@ func LintForTrue(pass *analysis.Pass) (interface{}, error) {
 		if !IsBoolConst(pass, loop.Cond) || !BoolConst(pass, loop.Cond) {
 			return
 		}
-		ReportfFG(pass, loop.Pos(), "should use for {} instead of for true {}")
+		ReportNodefFG(pass, loop, "should use for {} instead of for true {}")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 	return nil, nil
@@ -369,7 +369,7 @@ func LintRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		ReportfFG(pass, call.Pos(), "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
+		ReportNodefFG(pass, call, "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -431,7 +431,7 @@ func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
 		if !IsBoolConst(pass, ret2.Results[0]) {
 			return
 		}
-		ReportfFG(pass, n1.Pos(), "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
+		ReportNodefFG(pass, n1, "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 	return nil, nil
@@ -558,7 +558,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		default:
 			return
 		}
-		ReportfFG(pass, expr.Pos(), "should omit nil check; len() for %s is defined as zero", nilType)
+		ReportNodefFG(pass, expr, "should omit nil check; len() for %s is defined as zero", nilType)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -589,7 +589,7 @@ func LintSlicing(pass *analysis.Pass) (interface{}, error) {
 		if !ok || arg.Obj != s.Obj {
 			return
 		}
-		ReportfFG(pass, n.Pos(), "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
+		ReportNodefFG(pass, n, "should omit second index in slice, s[a:len(s)] is identical to s[a:]")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.SliceExpr)(nil)}, fn)
 	return nil, nil
@@ -674,7 +674,7 @@ func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
 		if pass.TypesInfo.ObjectOf(val) != pass.TypesInfo.ObjectOf(el) {
 			return
 		}
-		ReportfFG(pass, loop.Pos(), "should replace loop with %s = append(%s, %s...)",
+		ReportNodefFG(pass, loop, "should replace loop with %s = append(%s, %s...)",
 			Render(pass, stmt.Lhs[0]), Render(pass, call.Args[Arg("append.slice")]), Render(pass, loop.X))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
@@ -694,7 +694,7 @@ func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
 		if sel.Sel.Name != "Sub" {
 			return
 		}
-		ReportfFG(pass, call.Pos(), "should use time.Since instead of time.Now().Sub")
+		ReportNodefFG(pass, call, "should use time.Since instead of time.Now().Sub")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -712,7 +712,7 @@ func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
 		if !IsCallToAST(pass, call.Args[Arg("(time.Time).Sub.u")], "time.Now") {
 			return
 		}
-		ReportfFG(pass, call.Pos(), "should use time.Until instead of t.Sub(time.Now())")
+		ReportNodefFG(pass, call, "should use time.Until instead of t.Sub(time.Now())")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -743,7 +743,7 @@ func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		}
 		cp := *assign
 		cp.Lhs = cp.Lhs[0:1]
-		ReportfFG(pass, assign.Pos(), "should write %s instead of %s", Render(pass, &cp), Render(pass, assign))
+		ReportNodefFG(pass, assign, "should write %s instead of %s", Render(pass, &cp), Render(pass, assign))
 	}
 
 	fn2 := func(node ast.Node) {
@@ -763,7 +763,7 @@ func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 			if expr.Op != token.ARROW {
 				continue
 			}
-			ReportfFG(pass, lh.Pos(), "'_ = <-ch' can be simplified to '<-ch'")
+			ReportNodefFG(pass, lh, "'_ = <-ch' can be simplified to '<-ch'")
 		}
 	}
 
@@ -772,11 +772,11 @@ func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 
 		// for x, _
 		if !IsBlank(rs.Key) && IsBlank(rs.Value) {
-			ReportfFG(pass, rs.Value.Pos(), "should omit value from range; this loop is equivalent to `for %s %s range ...`", Render(pass, rs.Key), rs.Tok)
+			ReportNodefFG(pass, rs.Value, "should omit value from range; this loop is equivalent to `for %s %s range ...`", Render(pass, rs.Key), rs.Tok)
 		}
 		// for _, _ || for _
 		if IsBlank(rs.Key) && (IsBlank(rs.Value) || rs.Value == nil) {
-			ReportfFG(pass, rs.Key.Pos(), "should omit values from range; this loop is equivalent to `for range ...`")
+			ReportNodefFG(pass, rs.Key, "should omit values from range; this loop is equivalent to `for range ...`")
 		}
 	}
 
@@ -904,7 +904,7 @@ func LintSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 		}
-		ReportfFG(pass, node.Pos(), "should convert %s (type %s) to %s instead of using struct literal",
+		ReportNodefFG(pass, node, "should convert %s (type %s) to %s instead of using struct literal",
 			ident.Name, typ2.Obj().Name(), typ1.Obj().Name())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil)}, fn)
@@ -1008,7 +1008,7 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 				IsCallToAST(pass, condCall, "bytes.HasPrefix") && IsCallToAST(pass, rhs, "bytes.TrimPrefix") ||
 				IsCallToAST(pass, condCall, "bytes.HasSuffix") && IsCallToAST(pass, rhs, "bytes.TrimSuffix") ||
 				IsCallToAST(pass, condCall, "bytes.Contains") && IsCallToAST(pass, rhs, "bytes.Replace") {
-				ReportfFG(pass, ifstmt.Pos(), "should replace this if statement with an unconditional %s", CallNameAST(pass, rhs))
+				ReportNodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s", CallNameAST(pass, rhs))
 			}
 			return
 		case *ast.SliceExpr:
@@ -1106,7 +1106,7 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 			case "HasSuffix":
 				replacement = "TrimSuffix"
 			}
-			ReportfFG(pass, ifstmt.Pos(), "should replace this if statement with an unconditional %s.%s", pkg, replacement)
+			ReportNodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
@@ -1210,7 +1210,7 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		ReportfFG(pass, loop.Pos(), "should use copy(%s[:%s], %s[%s:]) instead", Render(pass, bs1), Render(pass, biny), Render(pass, bs1), Render(pass, add1))
+		ReportNodefFG(pass, loop, "should use copy(%s[:%s], %s[%s:]) instead", Render(pass, bs1), Render(pass, biny), Render(pass, bs1), Render(pass, add1))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 	return nil, nil
@@ -1230,12 +1230,12 @@ func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 				break
 			}
 			if IsZero(call.Args[Arg("make.size[0]")]) {
-				ReportfFG(pass, call.Args[Arg("make.size[0]")].Pos(), "should use make(%s) instead", Render(pass, call.Args[Arg("make.t")]))
+				ReportNodefFG(pass, call.Args[Arg("make.size[0]")], "should use make(%s) instead", Render(pass, call.Args[Arg("make.t")]))
 			}
 		case 3:
 			// make(T, len, cap)
 			if Render(pass, call.Args[Arg("make.size[0]")]) == Render(pass, call.Args[Arg("make.size[1]")]) {
-				ReportfFG(pass, call.Args[Arg("make.size[0]")].Pos(),
+				ReportNodefFG(pass, call.Args[Arg("make.size[0]")],
 					"should use make(%s, %s) instead",
 					Render(pass, call.Args[Arg("make.t")]), Render(pass, call.Args[Arg("make.size[0]")]))
 			}
@@ -1293,7 +1293,7 @@ func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 			!(isNilCheck(assertIdent, binop.Y) && isOKCheck(assignIdent, binop.X)) {
 			return
 		}
-		ReportfFG(pass, ifstmt.Pos(), "when %s is true, %s can't be nil", Render(pass, assignIdent), Render(pass, assertIdent))
+		ReportNodefFG(pass, ifstmt, "when %s is true, %s can't be nil", Render(pass, assignIdent), Render(pass, assertIdent))
 	}
 	fn2 := func(node ast.Node) {
 		// Check that outer ifstmt is an 'if x != nil {}'
@@ -1349,7 +1349,7 @@ func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 		if !isOKCheck(assignIdent, ifstmt.Cond) {
 			return
 		}
-		ReportfFG(pass, ifstmt.Pos(), "when %s is true, %s can't be nil", Render(pass, assignIdent), Render(pass, assertIdent))
+		ReportNodefFG(pass, ifstmt, "when %s is true, %s can't be nil", Render(pass, assignIdent), Render(pass, assertIdent))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn1)
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn2)
@@ -1421,7 +1421,7 @@ func LintDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 
-			ReportfFG(pass, decl.Pos(), "should merge variable declaration with assignment on next line")
+			ReportNodefFG(pass, decl, "should merge variable declaration with assignment on next line")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
@@ -1438,7 +1438,7 @@ func LintRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 		if !ok || branch.Tok != token.BREAK || branch.Label != nil {
 			return
 		}
-		ReportfFG(pass, branch.Pos(), "redundant break statement")
+		ReportNodefFG(pass, branch, "redundant break statement")
 	}
 	fn2 := func(node ast.Node) {
 		var ret *ast.FieldList
@@ -1465,7 +1465,7 @@ func LintRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 		}
 		// we don't need to check rst.Results as we already
 		// checked x.Type.Results to be nil.
-		ReportfFG(pass, rst.Pos(), "redundant return statement")
+		ReportNodefFG(pass, rst, "redundant return statement")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CaseClause)(nil)}, fn1)
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn2)
@@ -1513,15 +1513,15 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 
 		ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
 		if isStringer(typ, &ssapkg.Prog.MethodSets) {
-			pass.Reportf(call.Pos(), "should use String() instead of fmt.Sprintf")
+			ReportNodef(pass, call, "should use String() instead of fmt.Sprintf")
 			return
 		}
 
 		if typ.Underlying() == types.Universe.Lookup("string").Type() {
 			if typ == types.Universe.Lookup("string").Type() {
-				ReportfFG(pass, call.Pos(), "the argument is already a string, there's no need to use fmt.Sprintf")
+				ReportNodefFG(pass, call, "the argument is already a string, there's no need to use fmt.Sprintf")
 			} else {
-				ReportfFG(pass, call.Pos(), "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf")
+				ReportNodefFG(pass, call, "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf")
 			}
 		}
 	}
@@ -1538,7 +1538,7 @@ func LintErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
 		if !IsCallToAST(pass, call.Args[Arg("errors.New.text")], "fmt.Sprintf") {
 			return
 		}
-		ReportfFG(pass, node.Pos(), "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))")
+		ReportNodefFG(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -1577,7 +1577,7 @@ func LintNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 		}
 		switch pass.TypesInfo.TypeOf(rangeXIdent).(type) {
 		case *types.Slice, *types.Map:
-			ReportfFG(pass, node.Pos(), "unnecessary nil check around range")
+			ReportNodefFG(pass, node, "unnecessary nil check around range")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
@@ -1607,7 +1607,7 @@ func isPermissibleSort(pass *analysis.Pass, node ast.Node) bool {
 
 func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 	type Error struct {
-		node lint.Positioner
+		node ast.Node
 		msg  string
 	}
 	var allErrors []Error
@@ -1670,7 +1670,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 		prev = err.node.Pos()
-		ReportfFG(pass, err.node.Pos(), "%s", err.msg)
+		ReportNodefFG(pass, err.node, "%s", err.msg)
 	}
 	return nil, nil
 }
@@ -1732,7 +1732,7 @@ func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 		if Render(pass, call.Args[0]) != Render(pass, m) || Render(pass, call.Args[1]) != Render(pass, key) {
 			return
 		}
-		ReportfFG(pass, stmt.Pos(), "unnecessary guard around call to delete")
+		ReportNodefFG(pass, stmt, "unnecessary guard around call to delete")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
 	return nil, nil
@@ -1801,7 +1801,7 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 				pos := lint.DisplayPosition(pass.Fset, offender.Pos())
 				at += "\n\t" + pos.String()
 			}
-			ReportfFG(pass, expr.Pos(), "assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate the following type assertions:%s", Render(pass, ident), Render(pass, ident), at)
+			ReportNodefFG(pass, expr, "assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate the following type assertions:%s", Render(pass, ident), Render(pass, ident), at)
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
