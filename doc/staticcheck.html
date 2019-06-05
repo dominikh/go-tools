@@ -123,6 +123,12 @@ staticcheck github.com/example/...</code></pre>
     </td>
   </tr>
   <tr>
+    <td>-explain</td>
+    <td>
+      Print the description of a check.
+    </td>
+  </tr>
+  <tr>
     <td>-f</td>
     <td>
       Select between the different <a href="/docs/formatters">output formats</a>.
@@ -131,7 +137,7 @@ staticcheck github.com/example/...</code></pre>
   <tr>
     <td>-fail</td>
     <td>
-      Specifiy the list of checks which,
+      Specify the list of checks which,
       if they find any issues in your code,
       should cause staticcheck to exit with a non-zero status.
       This can be used, for example, to not fail your CI
@@ -165,6 +171,12 @@ staticcheck github.com/example/...</code></pre>
     <td>-tests</td>
     <td>
       Include tests in the analysis.
+    </td>
+  </tr>
+  <tr>
+    <td>-unused.whole-program</td>
+    <td>
+      Run unused in whole program mode.
     </td>
   </tr>
   <tr>
