@@ -187,7 +187,7 @@ func TestAll(t *testing.T) {
 		Tests: true,
 		Env:   append(os.Environ(), "GOPATH="+dir, "GO111MODULE=off", "GOPROXY=off"),
 	}
-	pkgs, err := r.Run(cfg, []string{"./..."}, []*analysis.Analyzer{c.Analyzer()})
+	pkgs, err := r.Run(cfg, []string{"./..."}, []*analysis.Analyzer{c.Analyzer()}, true)
 	if err != nil {
 		t.Fatal(err)
 	}

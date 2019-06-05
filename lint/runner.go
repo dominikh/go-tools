@@ -79,6 +79,25 @@ type Package struct {
 	// these slices are indexed by analysis
 	facts    []map[types.Object][]analysis.Fact
 	pkgFacts [][]analysis.Fact
+
+	canClearTypes bool
+	dependents    uint64
+}
+
+func (pkg *Package) decUse() {
+	atomic.AddUint64(&pkg.dependents, ^uint64(0))
+	if atomic.LoadUint64(&pkg.dependents) == 0 {
+		// nobody depends on this package anymore
+		if pkg.canClearTypes {
+			pkg.Types = nil
+		}
+		pkg.facts = nil
+		pkg.pkgFacts = nil
+
+		for _, imp := range pkg.Imports {
+			imp.decUse()
+		}
+	}
 }
 
 type result struct {
@@ -420,7 +439,7 @@ func NewRunner(stats *Stats) (*Runner, error) {
 // Note that diagnostics have not been filtered at this point yet, to
 // accomodate cumulative analyzes that require additional steps to
 // produce diagnostics.
-func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analysis.Analyzer) ([]*Package, error) {
+func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analysis.Analyzer, hasCumulative bool) ([]*Package, error) {
 	r.analyzerIDs = analyzerIDs{m: map[*analysis.Analyzer]int{}}
 	id := 0
 	seen := map[*analysis.Analyzer]struct{}{}
@@ -471,6 +490,9 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			facts:    make([]map[types.Object][]analysis.Fact, len(r.analyzerIDs.m)),
 			pkgFacts: make([][]analysis.Fact, len(r.analyzerIDs.m)),
 			done:     make(chan struct{}),
+			// every package needs itself
+			dependents:    1,
+			canClearTypes: !hasCumulative,
 		}
 		allPkgs = append(allPkgs, m[l])
 		for i := range m[l].facts {
@@ -480,6 +502,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			m[l].errs = append(m[l].errs, err)
 		}
 		for _, v := range l.Imports {
+			m[v].dependents++
 			m[l].Imports = append(m[l].Imports, m[v])
 		}
 
@@ -488,6 +511,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			m[l].errs = append(m[l].errs, err)
 		}
 	})
+
 	pkgs := make([]*Package, len(initialPkgs))
 	for i, l := range initialPkgs {
 		pkgs[i] = m[l]
@@ -665,6 +689,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		pkg.results = nil
 
 		atomic.AddUint64(&r.stats.ProcessedPackages, 1)
+		pkg.decUse()
 		close(pkg.done)
 	}()
 

@@ -120,8 +120,10 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			analyzers = append(analyzers, c)
 		}
 	}
+	hasCumulative := false
 	for _, cum := range l.CumulativeCheckers {
 		if allowed[cum.Analyzer().Name] {
+			hasCumulative = true
 			analyzers = append(analyzers, cum.Analyzer())
 		}
 	}
@@ -132,7 +134,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	}
 	r.goVersion = l.GoVersion
 
-	pkgs, err := r.Run(cfg, patterns, analyzers)
+	pkgs, err := r.Run(cfg, patterns, analyzers, hasCumulative)
 	if err != nil {
 		return nil, err
 	}
