@@ -309,96 +309,43 @@ regexp.Compile(".+")</code></pre>
 
 <p>
   Static analysis is a rather resource intensive process,
-  having to apply expensive algorithms on a lot of data.
+  having to apply expensive algorithms to a lot of data.
   Depending on the complexity of the checked code,
   this can result in many gigabytes of memory usage and minutes (if not hours) of CPU time.
 </p>
 
 <p>
-  When using staticcheck, there are two different ways of running it:
-  one package per invocation, or many packages per invocation.
-  These two modes have opposite CPU and memory usage characteristics.
+  To combat the time complexity of static analysis, staticcheck makes use of caching.
+  It reuses Go's build cache as well as its own facts cache to avoid analysing dependencies whenever possible.
+  In development environments, there is usually nothing to do to benefit from these caches.
+  In CI, however, you have to ensure that the caches persist across successive runs of CI.
+  The build cache and fact cache are stored beneath the <code>os.UserCacheDir()</code> directory, in <code>go-build</code> and <code>staticcheck</code> respectively.
+  On Linux, by default, these directories can be found in <code>~/.cache/go-build</code> and <code>~/.cache/staticcheck</code>.
 </p>
 
 <p>
-  Checking one package per invocation will keep the memory usage low,
-  but may end up recompiling the same packages over and over again, wasting CPU time.
+  The overall memory consumption of staticcheck is controlled by the degree of parallelism.
+  The more CPU cores a system has available, the more packages will be checked in parallel, increasing the total amount of memory needed.
+  Staticcheck respects the <code>GOMAXPROCS</code> environment variable to control the degree of parallelism.
 </p>
 
 <p>
-  Checking many packages, on the other hand,
-  needs to keep more data in memory at once,
-  but can reuse compiled packages, saving CPU time.
+  Note that reducing <code>GOMAXPROCS</code> only benefits systems with a lot of cores and code bases with a lot of packages.
+  As <code>GOMAXPROCS</code> approaches 1, peak memory usage will be dominated by the most complex package in the code base.
+  Additionally, smaller code bases may have such interconnected dependencies that peak parallelism is never reached, or there may simply be fewer packages than cores.
+  For example, when checking 10 packages it makes no difference if GOMAXPROCS is set to 32 or 16, at most 10 packages can be processed in parallel.
 </p>
 
 <p>
-  The following tables will show the characteristics of the different modes.
-</p>
-
-<table class="table">
-  <caption>Resource consumption in different operation modes</caption>
-  <thead>
-    <tr>
-      <th>Mode</th>
-      <th>CPU usage</th>
-      <th>Memory usage</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>One package per invocation</td>
-      <td>High</td>
-      <td>Low</td>
-    </tr>
-    <tr>
-      <td>Many packages per invocation</td>
-      <td>Low</td>
-      <td>High</td>
-    </tr>
-  </tbody>
-</table>
-
-<table class="table">
-  <caption>Using staticcheck to check the Go standard library</caption>
-  <thead>
-    <tr>
-      <th>Mode</th>
-      <th>CPU time spent</th>
-      <th>Wall time spent</th>
-      <th>Max memory used</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>One package per invocation</td>
-      <td>1692%</td>
-      <td>2241%</td>
-      <td>28%</td>
-    </tr>
-    <tr>
-      <td>All packages in one invocation (reference value)</td>
-      <td>100%</td>
-      <td>100%</td>
-      <td>100%</td>
-    </tr>
-  </tbody>
-</table>
-
-<p>
-  The maximum memory usage of a single invocation depends
-  on the combined complexity of the checked packages and their dependencies.
-  The entire standard library combined requires roughly 2.31 GB of memory,
-  while the most complex package, <code>net/http</code>, only needs 640 MB.
-  Other packages, such as the tiny <code>image/color/palette</code>, may only need as little as 17 MB.
+  Furthermore, a certain amount of type information per package needs to be retained until the end of the process,
+  which means that overall memory usage grows with the number of checked packages.
+  You can reduce this effect by disabling the U1000 and U1001 checks via the <code>-checks</code> command line flag (e.g. via <code>staticcheck -checks="inherit,-U1000,-U1001"</code>).
 </p>
 
 <p>
-  Checking packages individually reduces both the maximum and the average (over time) memory usage,
-  but requires a much greater amount of CPU time,
-  as shared dependencies have to be compiled over and over again.
-  You should use the method that best suits your available resources.
+  Finally, you can trade execution time for memory usage by setting the <code>GOGC</code> environment variable to a value less than 100.
+  This will run more frequent garbage collection, potentially lowering peak memory usage, at the cost of spending more CPU.
 </p>
-
 
 
 <h3>Checks</h3>
