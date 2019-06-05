@@ -12,6 +12,35 @@
   and offers enough customizability to fit into your workflows.
 </p>
 
+<h3 id="installation">Installation</h3>
+
+<p>
+  There are various ways in which you can install staticcheck,
+  but they all boil down to obtaining the command located at <code>honnef.co/go/tools/cmd/staticcheck</code>
+</p>
+
+<p>
+  If you use Go modules, you can simply run <code>go get honnef.co/go/tools/cmd/staticcheck</code> to obtain the latest released version.
+  If you're still using a GOPATH-based workflow, then the above command will instead fetch the master branch.
+  It is suggested that you explicitly check out the latest release branch instead, which is currently <code>2019.2</code>.
+  One way of doing so would be as follows:
+</p>
+
+<pre><code>cd $GOPATH/src/honnef.co/go/tools/cmd/staticcheck
+git checkout 2019.2
+go get
+go install
+</code></pre>
+
+<p>
+  Alternatively, you can <a href="https://github.com/dominikh/go-tools/releases">download pre-compiled binaries from GitHub.</a>
+</p>
+
+<p>
+  If you'd like to be notified of new releases, you can use GitHub's
+  <a href="https://help.github.com/en/articles/watching-and-unwatching-releases-for-a-repository"><em>Releases only</em> watches</a>.
+</p>
+
 <h3 id="running-the-tools">Running staticcheck</h3>
 
 <p>
