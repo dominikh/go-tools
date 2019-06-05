@@ -53,11 +53,8 @@ go/src/fmt/scan.go
 
 <p>
   The <code>severity</code> field may be one of
-  <code>"error"</code>,
-  <code>"warning"</code> or
-  <code>"ignored"</code>.
-  Whether a problem is an error or a warning is determined
-  by the <code>-fail</code> flag.
+  <code>"error"</code>, <code>"warning"</code> or <code>"ignored"</code>.
+  Whether a problem is an error or a warning is determined by the <code>-fail</code> flag.
   The value <code>"ignored"</code> is used for problems that were ignored,
   if the <code>-show-ignored</code> flag was provided.
 </p>
@@ -72,9 +69,14 @@ go/src/fmt/scan.go
   "code": "SA4006",
   "severity": "error",
   "location": {
-    "file": "/home/dominikh/go/src/fmt/print.go",
-    "line": 1069,
+    "file": "/usr/lib/go/src/fmt/print.go",
+    "line": 1082,
     "column": 15
+  },
+  "end": {
+    "file": "/usr/lib/go/src/fmt/print.go",
+    "line": 1082,
+    "column": 25
   },
   "message": "this value of afterIndex is never used"
 }</code></pre>
