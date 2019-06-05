@@ -103,7 +103,6 @@ func FlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
 	flags.String("tags", "", "List of `build tags`")
-	flags.String("ignore", "", "Deprecated: use linter directives instead")
 	flags.Bool("tests", true, "Include tests")
 	flags.Bool("version", false, "Print version and exit")
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
@@ -142,7 +141,6 @@ func findCheck(cs []*analysis.Analyzer, check string) (*analysis.Analyzer, bool)
 
 func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
-	ignore := fs.Lookup("ignore").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
 	formatter := fs.Lookup("f").Value.(flag.Getter).Get().(string)
@@ -212,7 +210,6 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	ps, err := Lint(cs, cums, fs.Args(), &Options{
 		Tags:      strings.Fields(tags),
 		LintTests: tests,
-		Ignores:   ignore,
 		GoVersion: goVersion,
 		Config:    cfg,
 	})
@@ -279,7 +276,6 @@ type Options struct {
 
 	Tags      []string
 	LintTests bool
-	Ignores   string
 	GoVersion int
 }
 
