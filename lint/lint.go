@@ -107,10 +107,23 @@ type CumulativeChecker interface {
 }
 
 func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error) {
-	var analyzers []*analysis.Analyzer
-	analyzers = append(analyzers, l.Checkers...)
+	var allAnalyzers []*analysis.Analyzer
+	allAnalyzers = append(allAnalyzers, l.Checkers...)
 	for _, cum := range l.CumulativeCheckers {
-		analyzers = append(analyzers, cum.Analyzer())
+		allAnalyzers = append(allAnalyzers, cum.Analyzer())
+	}
+
+	allowed := FilterChecks(allAnalyzers, config.DefaultConfig.Merge(l.Config).Checks)
+	var analyzers []*analysis.Analyzer
+	for _, c := range l.Checkers {
+		if allowed[c.Name] {
+			analyzers = append(analyzers, c)
+		}
+	}
+	for _, cum := range l.CumulativeCheckers {
+		if allowed[cum.Analyzer().Name] {
+			analyzers = append(analyzers, cum.Analyzer())
+		}
 	}
 
 	r, err := NewRunner(&l.Stats)
