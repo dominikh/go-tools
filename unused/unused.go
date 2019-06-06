@@ -1194,12 +1194,29 @@ func (g *Graph) entry(pkg *pkg) {
 		ctx.seeAndUse(obj, nil, edgeUsedConstant)
 	}
 
+	var fns []*types.Func
 	var fn *types.Func
+	var stack []ast.Node
 	for _, f := range pkg.Files {
 		ast.Inspect(f, func(n ast.Node) bool {
+			if n == nil {
+				pop := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				if _, ok := pop.(*ast.FuncDecl); ok {
+					fns = fns[:len(fns)-1]
+					if len(fns) == 0 {
+						fn = nil
+					} else {
+						fn = fns[len(fns)-1]
+					}
+				}
+				return true
+			}
+			stack = append(stack, n)
 			switch n := n.(type) {
 			case *ast.FuncDecl:
 				fn = pkg.TypesInfo.ObjectOf(n.Name).(*types.Func)
+				fns = append(fns, fn)
 				ctx.see(fn)
 			case *ast.GenDecl:
 				switch n.Tok {
@@ -1227,6 +1244,11 @@ func (g *Graph) entry(pkg *pkg) {
 							if fn != nil {
 								ctx.seeAndUse(T, fn, edgeVarDecl)
 							} else {
+								// TODO(dh): we likely want to make
+								// the type used by the variable, not
+								// the package containing the
+								// variable. But then we have to take
+								// special care of blank identifiers.
 								ctx.seeAndUse(T, nil, edgeVarDecl)
 							}
 							g.typ(ctx, T, nil)
