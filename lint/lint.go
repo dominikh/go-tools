@@ -19,6 +19,40 @@ import (
 	"honnef.co/go/tools/config"
 )
 
+type Documentation struct {
+	Title      string
+	Text       string
+	Since      string
+	NonDefault bool
+	Options    []string
+}
+
+func (doc *Documentation) String() string {
+	b := &strings.Builder{}
+	fmt.Fprintf(b, "%s\n\n", doc.Title)
+	if doc.Text != "" {
+		fmt.Fprintf(b, "%s\n\n", doc.Text)
+	}
+	fmt.Fprint(b, "Available since\n    ")
+	if doc.Since == "" {
+		fmt.Fprint(b, "unreleased")
+	} else {
+		fmt.Fprintf(b, "%s", doc.Since)
+	}
+	if doc.NonDefault {
+		fmt.Fprint(b, ", non-default")
+	}
+	fmt.Fprint(b, "\n")
+	if len(doc.Options) > 0 {
+		fmt.Fprintf(b, "\nOptions\n")
+		for _, opt := range doc.Options {
+			fmt.Fprintf(b, "    %s", opt)
+		}
+		fmt.Fprint(b, "\n")
+	}
+	return b.String()
+}
+
 type Ignore interface {
 	Match(p Problem) bool
 }
