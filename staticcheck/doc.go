@@ -433,7 +433,7 @@ Another example:
 Even though T has a Close method and thus implements io.ReadCloser,
 io.Reader will always match first. The method set of io.Reader is a
 subset of io.ReadCloser. Thus it is impossible to match the second
-case without mtching the first case.
+case without matching the first case.
 
 
 Structurally equivalent interfaces
