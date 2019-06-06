@@ -3,7 +3,7 @@
 )-->
 
 
-<h3 id="overview">Overview</h3>
+<h2 id="overview">Overview</h2>
 
 <p>
   Staticcheck is a static analysis toolset for the <a href="https://golang.org">Go programming language.</a>
@@ -12,7 +12,7 @@
   and offers enough customizability to fit into your workflows.
 </p>
 
-<h3 id="installation">Installation</h3>
+<h2 id="installation">Installation</h2>
 
 <p>
   There are various ways in which you can install staticcheck,
@@ -41,7 +41,7 @@ go install
   <a href="https://help.github.com/en/articles/watching-and-unwatching-releases-for-a-repository"><em>Releases only</em> watches</a>.
 </p>
 
-<h3 id="running-the-tools">Running staticcheck</h3>
+<h2 id="running-the-tools">Running staticcheck</h2>
 
 <p>
   Staticcheck can be run on code in several ways,
@@ -66,7 +66,7 @@ staticcheck github.com/example/...</code></pre>
   similar to how <code>go build</code> works.
 </p>
 
-<h3 id="configuration">Configuration</h3>
+<h2 id="configuration">Configuration</h2>
 
 <p>
   Various aspects of staticcheck can be customized with configuration files.
@@ -82,7 +82,7 @@ staticcheck github.com/example/...</code></pre>
   Staticcheck's default configuration is represented as the virtual root of the configuration tree and can be inherited from.
 </p>
 
-<h4>Configuration format</h4>
+<h3>Configuration format</h3>
 
 <p>
   Staticcheck configuration files are named <code>staticcheck.conf</code> and contain <a href="https://github.com/toml-lang/toml">TOML</a>.
@@ -108,13 +108,13 @@ staticcheck github.com/example/...</code></pre>
   or in combination with <code>"inherit"</code> to remove values from the inherited option.
 </p>
 
-<h4>Options</h4>
+<h3>Options</h3>
 
 <p>
   A list of all options and their explanations can be found on the <a href="/docs/options">Options</a> page.
 </p>
 
-<h4>Example configuration</h4>
+<h3>Example configuration</h3>
 
 <p>
   The following example configuration is the textual representation of staticcheck's default configuration.
@@ -131,7 +131,7 @@ staticcheck github.com/example/...</code></pre>
 {{ option "dot_import_whitelist" }} = []
 {{ option "http_status_code_whitelist" }} = ["200", "400", "404", "500"]</code></pre>
 
-<h3 id="cli">Command-line flags</h3>
+<h2 id="cli">Command-line flags</h2>
 
 <p>
   In addition to configuration files, some aspects of staticcheck can be controlled via command-line flags.
@@ -216,7 +216,7 @@ staticcheck github.com/example/...</code></pre>
   </tr>
 </table>
 
-<h3 id="targeting-go-versions">Targeting Go versions</h3>
+<h2 id="targeting-go-versions">Targeting Go versions</h2>
 
 <p>
   By default, staticcheck will make suggestions that are correct for the current version of Go.
@@ -231,7 +231,7 @@ staticcheck github.com/example/...</code></pre>
   For example, with <code>-go 1.6</code>, only suggestions that are valid for Go 1.6 will be made.
 </p>
 
-<h3 id="ignoring-problems">Ignoring problems</h3>
+<h2 id="ignoring-problems">Ignoring problems</h2>
 
 <p>
   In general, you shouldn't have to ignore problems reported by staticcheck.
@@ -246,7 +246,7 @@ staticcheck github.com/example/...</code></pre>
   For those rare cases, there are several ways of ignoring unwanted problems.
 </p>
 
-<h4 id="line-based-linter-directives">Line-based linter directives</h4>
+<h3 id="line-based-linter-directives">Line-based linter directives</h3>
 
 <p>
   The most fine-grained way of ignoring reported problems is to annotate the offending lines of code with linter directives.
@@ -289,7 +289,7 @@ staticcheck github.com/example/...</code></pre>
 }</code></pre>
 </p>
 
-<h5>Maintenance of linter directives</h5>
+<h4>Maintenance of linter directives</h4>
 
 <p>
   It is crucial to update or remove outdated linter directives when code has been changed.
@@ -309,7 +309,7 @@ regexp.Compile(".+")</code></pre>
   will not cause directives to be considered unnecessary.
 </p>
 
-<h4 id="file-based-linter-directives">File-based linter directives</h4>
+<h3 id="file-based-linter-directives">File-based linter directives</h3>
 
 <p>
   In some cases, you may want to disable checks for an entire file.
@@ -334,7 +334,7 @@ regexp.Compile(".+")</code></pre>
   Unlike line-based directives, file-based ones will not be flagged for being unnecessary.
 </p>
 
-<h3 id="resource-usage">Resource usage</h3>
+<h2 id="resource-usage">Resource usage</h2>
 
 <p>
   Static analysis is a rather resource intensive process,
@@ -377,6 +377,6 @@ regexp.Compile(".+")</code></pre>
 </p>
 
 
-<h3>Checks</h3>
+<h2>Checks</h2>
 
 A list of all checks can be found on the <a href="/docs/checks">Checks</a> page.
