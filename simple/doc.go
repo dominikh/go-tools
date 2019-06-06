@@ -4,7 +4,7 @@ import "honnef.co/go/tools/lint"
 
 var Docs = map[string]*lint.Documentation{
 	"S1000": &lint.Documentation{
-		Title: `Use plain channel send or receive`,
+		Title: `Use plain channel send or receive instead of single-case select`,
 		Text: `Select statements with a single case can be replaced with a simple
 send or receive.
 
@@ -23,7 +23,7 @@ After:
 	},
 
 	"S1001": &lint.Documentation{
-		Title: `Replace with copy()`,
+		Title: `Replace for loop with call to copy`,
 		Text: `Use copy() for copying elements from one slice to another.
 
 Before:
@@ -51,7 +51,7 @@ After:
 	},
 
 	"S1003": &lint.Documentation{
-		Title: `Replace with strings.Contains`,
+		Title: `Replace call to strings.Index with strings.Contains`,
 		Text: `Before:
 
     if strings.Index(x, y) != -1 {}
@@ -63,7 +63,7 @@ After:
 	},
 
 	"S1004": &lint.Documentation{
-		Title: `Replace with bytes.Equal`,
+		Title: `Replace call to bytes.Compare with bytes.Equal`,
 		Text: `Before:
 
     if bytes.Compare(x, y) == 0 {}
@@ -93,7 +93,7 @@ After:
 	},
 
 	"S1006": &lint.Documentation{
-		Title: `Replace with for { ... }`,
+		Title: `Use for { ... } for infinite loops`,
 		Text:  `For infinite loops, using for { ... } is the most idiomatic choice.`,
 		Since: "2017.1",
 	},
@@ -170,7 +170,7 @@ After:
 	},
 
 	"S1012": &lint.Documentation{
-		Title: `Replace with time.Since(x)`,
+		Title: `Replace time.Now().Sub(x) with time.Since(x)`,
 		Text: `The time.Since helper has the same effect as using time.Now().Sub(x)
 but is easier to read.
 
@@ -185,7 +185,7 @@ After:
 	},
 
 	"S1016": &lint.Documentation{
-		Title: `Use a type conversion`,
+		Title: `Use a type conversion instead of manually copying struct fields`,
 		Text: `Two struct types with identical fields can be converted between each
 other. In older versions of Go, the fields had to have identical
 struct tags. Since Go 1.8, however, struct tags are ignored during
@@ -208,7 +208,7 @@ After:
 	},
 
 	"S1017": &lint.Documentation{
-		Title: `Replace with strings.TrimPrefix`,
+		Title: `Replace manual trimming with strings.TrimPrefix`,
 		Text: `Instead of using strings.HasPrefix and manual slicing, use the
 strings.TrimPrefix function. If the string doesn't start with the
 prefix, the original string will be returned. Using strings.TrimPrefix
@@ -228,7 +228,7 @@ After:
 	},
 
 	"S1018": &lint.Documentation{
-		Title: `Replace with copy()`,
+		Title: `Use copy for sliding elements`,
 		Text: `copy() permits using the same source and destination slice, even with
 overlapping ranges. This makes it ideal for sliding elements in a
 slice.
@@ -246,7 +246,7 @@ After:
 	},
 
 	"S1019": &lint.Documentation{
-		Title: `Simplify make call`,
+		Title: `Simplify make call by omitting redundant arguments`,
 		Text: `The make function has default values for the length and capacity
 arguments. For channels and maps, the length defaults to zero.
 Additionally, for slices the capacity defaults to the length.`,
@@ -290,7 +290,7 @@ statement in a case block.`,
 	},
 
 	"S1024": &lint.Documentation{
-		Title: `Replace with time.Until(x)`,
+		Title: `Replace x.Sub(time.Now()) with time.Until(x)`,
 		Text: `The time.Until helper has the same effect as using x.Sub(time.Now())
 but is easier to read.
 
@@ -337,7 +337,7 @@ to
 	},
 
 	"S1028": &lint.Documentation{
-		Title: `replace with fmt.Errorf`,
+		Title: `Simplify error construction with fmt.Errorf`,
 		Text: `Before:
 
     errors.New(fmt.Sprintf(...))
@@ -349,7 +349,7 @@ After:
 	},
 
 	"S1029": &lint.Documentation{
-		Title: `Range over the string`,
+		Title: `Range over the string directly`,
 		Text: `Ranging over a string will yield byte offsets and runes. If the offset
 isn't used, this is functionally equivalent to converting the string
 to a slice of runes and ranging over that. Ranging directly over the
@@ -397,7 +397,7 @@ After:
 	},
 
 	"S1032": &lint.Documentation{
-		Title: `Replace with sort.Ints(x), sort.Float64s(x), sort.Strings(x)`,
+		Title: `Use sort.Ints(x), sort.Float64s(x), and sort.Strings(x)`,
 		Text: `The sort.Ints, sort.Float64s and sort.Strings functions are easier to
 read than sort.Sort(sort.IntSlice(x)), sort.Sort(sort.Float64Slice(x))
 and sort.Sort(sort.StringSlice(x)).
