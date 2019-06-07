@@ -6,8 +6,19 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
+)
+
+type Generator int
+
+// A list of known generators we can detect
+const (
+	Unknown Generator = iota
+	Goyacc
+	Cgo
+	Stringer
 )
 
 var (
@@ -19,44 +30,57 @@ var (
 	crnl   = []byte("\r\n")
 )
 
-func isGenerated(path string) bool {
+func isGenerated(path string) (Generator, bool) {
 	f, err := os.Open(path)
 	if err != nil {
-		return false
+		return 0, false
 	}
 	defer f.Close()
 	br := bufio.NewReader(f)
 	for {
 		s, err := br.ReadBytes('\n')
 		if err != nil && err != io.EOF {
-			return false
+			return 0, false
 		}
 		s = bytes.TrimSuffix(s, crnl)
 		s = bytes.TrimSuffix(s, nl)
 		if bytes.HasPrefix(s, prefix) && bytes.HasSuffix(s, suffix) {
-			return true
+			text := string(s[len(prefix) : len(s)-len(suffix)])
+			switch text {
+			case "by goyacc.":
+				return Goyacc, true
+			case "by cmd/cgo;":
+				return Cgo, true
+			}
+			if strings.HasPrefix(text, `by "stringer `) {
+				return Stringer, true
+			}
+			return Unknown, true
 		}
 		if bytes.Equal(s, oldCgo) {
-			return true
+			return Cgo, true
 		}
 		if err == io.EOF {
 			break
 		}
 	}
-	return false
+	return 0, false
 }
 
 var Generated = &analysis.Analyzer{
 	Name: "isgenerated",
 	Doc:  "annotate file names that have been code generated",
 	Run: func(pass *analysis.Pass) (interface{}, error) {
-		m := map[string]bool{}
+		m := map[string]Generator{}
 		for _, f := range pass.Files {
 			path := pass.Fset.PositionFor(f.Pos(), false).Filename
-			m[path] = isGenerated(path)
+			g, ok := isGenerated(path)
+			if ok {
+				m[path] = g
+			}
 		}
 		return m, nil
 	},
 	RunDespiteErrors: true,
-	ResultType:       reflect.TypeOf(map[string]bool{}),
+	ResultType:       reflect.TypeOf(map[string]Generator{}),
 }

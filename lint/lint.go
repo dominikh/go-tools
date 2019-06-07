@@ -254,7 +254,10 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			allowedChecks := FilterChecks(analyzers, pkg.cfg.Merge(l.Config).Checks)
 			if allowedChecks[cum.Analyzer().Name] {
 				pos := DisplayPosition(pkg.Fset, res.Pos())
-				if pkg.gen[pos.Filename] {
+				// FIXME(dh): why are we ignoring generated files
+				// here? Surely this is specific to 'unused', not all
+				// cumulative checkers
+				if _, ok := pkg.gen[pos.Filename]; ok {
 					continue
 				}
 				p := cum.ProblemObject(pkg.Fset, res)

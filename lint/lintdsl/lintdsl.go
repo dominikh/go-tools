@@ -363,15 +363,23 @@ func File(pass *analysis.Pass, node lint.Positioner) *ast.File {
 // IsGenerated reports whether pos is in a generated file, It ignores
 // //line directives.
 func IsGenerated(pass *analysis.Pass, pos token.Pos) bool {
+	_, ok := Generator(pass, pos)
+	return ok
+}
+
+// Generator returns the generator that generated the file containing
+// pos. It ignores //line directives.
+func Generator(pass *analysis.Pass, pos token.Pos) (facts.Generator, bool) {
 	file := pass.Fset.PositionFor(pos, false).Filename
-	m := pass.ResultOf[facts.Generated].(map[string]bool)
-	return m[file]
+	m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
+	g, ok := m[file]
+	return g, ok
 }
 
 func ReportfFG(pass *analysis.Pass, pos token.Pos, f string, args ...interface{}) {
 	file := lint.DisplayPosition(pass.Fset, pos).Filename
-	m := pass.ResultOf[facts.Generated].(map[string]bool)
-	if m[file] {
+	m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
+	if _, ok := m[file]; ok {
 		return
 	}
 	pass.Reportf(pos, f, args...)
@@ -384,8 +392,8 @@ func ReportNodef(pass *analysis.Pass, node ast.Node, format string, args ...inte
 
 func ReportNodefFG(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
 	file := lint.DisplayPosition(pass.Fset, node.Pos()).Filename
-	m := pass.ResultOf[facts.Generated].(map[string]bool)
-	if m[file] {
+	m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
+	if _, ok := m[file]; ok {
 		return
 	}
 	ReportNodef(pass, node, format, args...)

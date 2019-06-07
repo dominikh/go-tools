@@ -71,7 +71,7 @@ type Package struct {
 	results []*result
 
 	cfg      *config.Config
-	gen      map[string]bool
+	gen      map[string]facts.Generator
 	problems []Problem
 	ignores  []Ignore
 	errs     []error
@@ -812,7 +812,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		if pkg.results[r.analyzerIDs.get(config.Analyzer)].v != nil {
 			pkg.cfg = pkg.results[r.analyzerIDs.get(config.Analyzer)].v.(*config.Config)
 		}
-		pkg.gen = pkg.results[r.analyzerIDs.get(facts.Generated)].v.(map[string]bool)
+		pkg.gen = pkg.results[r.analyzerIDs.get(facts.Generated)].v.(map[string]facts.Generator)
 	}
 
 	// In a previous version of the code, we would throw away all type
