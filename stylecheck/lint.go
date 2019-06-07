@@ -233,10 +233,10 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				if recv.Name() == "self" || recv.Name() == "this" {
-					pass.Reportf(recv.Pos(), `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
+					ReportfFG(pass, recv.Pos(), `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
 				}
 				if recv.Name() == "_" {
-					pass.Reportf(recv.Pos(), "receiver name should not be an underscore, omit the name if it is unused")
+					ReportfFG(pass, recv.Pos(), "receiver name should not be an underscore, omit the name if it is unused")
 				}
 			}
 		}
