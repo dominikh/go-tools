@@ -284,7 +284,7 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Name:     "SA4006",
 		Run:      CheckUnreadVariableValues,
 		Doc:      Docs["SA4006"].String(),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Generated},
 		Flags:    newFlagSet(),
 	},
 	"SA4008": {
