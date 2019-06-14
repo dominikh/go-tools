@@ -893,7 +893,7 @@ func parseDirectives(pkg *packages.Package) ([]Ignore, []Problem) {
 								Pos:      DisplayPosition(pkg.Fset, c.Pos()),
 								Message:  "malformed linter directive; missing the required reason field?",
 								Severity: Error,
-								Check:    "",
+								Check:    "compile",
 							}
 							problems = append(problems, p)
 							continue
