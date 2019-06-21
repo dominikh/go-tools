@@ -422,4 +422,11 @@ After:
 		Title: `Use result of type assertion to simplify cases`,
 		Since: "2019.2",
 	},
+
+	"S1035": &lint.Documentation{
+		Title: `Redundant call to net/http.CanonicalHeaderKey in method call on net/http.Header`,
+		Text: `The methods on net/http.Header, namely Add, Del, Get and Set, already
+canonicalize the given header name.`,
+		Since: "Unreleased",
+	},
 }

@@ -37,6 +37,7 @@ func TestAll(t *testing.T) {
 		{Analyzer: Analyzers["S1032"], Tests: []testutil.Test{{Dir: "LintSortHelpers"}}},
 		{Analyzer: Analyzers["S1033"], Tests: []testutil.Test{{Dir: "LintGuardedDelete"}}},
 		{Analyzer: Analyzers["S1034"], Tests: []testutil.Test{{Dir: "LintSimplifyTypeSwitch"}}},
+		{Analyzer: Analyzers["S1035"], Tests: []testutil.Test{{Dir: "LintRedundantCanonicalHeaderKey"}}},
 	}
 
 	testutil.Run(t, checks)

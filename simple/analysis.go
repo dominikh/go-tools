@@ -220,4 +220,11 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 		Flags:    newFlagSet(),
 	},
+	"S1035": {
+		Name:     "S1035",
+		Run:      LintRedundantCanonicalHeaderKey,
+		Doc:      Docs["S1035"].String(),
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+		Flags:    newFlagSet(),
+	},
 }
