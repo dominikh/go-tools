@@ -1807,3 +1807,21 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
 	return nil, nil
 }
+
+func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
+		for _, function := range []string{"Add", "Del", "Get", "Set"} {
+			fqdn := fmt.Sprintf("(net/http.Header).%s", function)
+			if !IsCallToAST(pass, call, fqdn) {
+				continue
+			}
+			if !IsCallToAST(pass, call.Args[Arg(fqdn+".key")], "net/http.CanonicalHeaderKey") {
+				continue
+			}
+			ReportNodefFG(pass, call, "calling net/http.CanonicalHeaderKey on the key of %s is redundant", fqdn)
+		}
+	}
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	return nil, nil
+}
