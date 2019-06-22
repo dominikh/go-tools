@@ -3,19 +3,23 @@
 SYSTEMS=(windows linux freebsd darwin)
 ARCHS=(amd64 386)
 
-clean=$(git status --porcelain --untracked-files=no)
-if [ -n "$clean" ]; then
-   echo "There are uncommited changes"
-   exit 1
+rev="$1"
+if [ -z "$rev" ]; then
+    echo "Usage: $0 <version>"
+    exit 1
 fi
 
-rev=$(git describe --tags --always)
-if [ -e "$rev" ]; then
-    rm -rf "$rev"
-fi
+
 mkdir "$rev"
+d=$(realpath "$rev")
 
-echo "Revision is ${rev}"
+wrk=$(mktemp -d)
+trap "{ rm -rf \"$wrk\"; }" EXIT
+cd "$wrk"
+
+go mod init foo
+GO111MODULE=on go get -d honnef.co/go/tools/cmd/staticcheck@"$rev"
+
 for os in ${SYSTEMS[@]}; do
     for arch in ${ARCHS[@]}; do
         echo "Building GOOS=$os GOARCH=$arch..."
@@ -23,15 +27,16 @@ for os in ${SYSTEMS[@]}; do
         if [ $os = "windows" ]; then
             out="${out}.exe"
         fi
-        CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -o "${rev}/${out}" honnef.co/go/tools/cmd/staticcheck
+
+        CGO_ENABLED=0 GOOS=$os GOARCH=$arch GO111MODULE=on go build -o "$d/$out" honnef.co/go/tools/cmd/staticcheck
         (
-            cd "$rev"
+            cd "$d"
             sha256sum "$out" > "$out".sha256
         )
     done
 done
 
 (
-    cd "$rev"
+    cd "$d"
     sha256sum -c --strict *.sha256
 )
