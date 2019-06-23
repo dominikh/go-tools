@@ -424,8 +424,8 @@ After:
 	},
 
 	"S1035": &lint.Documentation{
-		Title: `Redundant call to http.CanonicalHeaderKey in http.Header functions`,
-		Text: `The functions on http.Header, namely Add, Del, Get and Set, already
+		Title: `Redundant call to net/http.CanonicalHeaderKey in method call on net/http.Header`,
+		Text: `The methods on net/http.Header, namely Add, Del, Get and Set, already
 canonicalize the given header name.`,
 		Since: "Unreleased",
 	},

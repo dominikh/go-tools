@@ -1822,7 +1822,7 @@ func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		ReportNodefFG(pass, call, "calling net/http.CanonicalHeaderKey on the 'key' argument of (net/http.Header).(Add|Del|Get|Set) is redundant")
+		ReportNodefFG(pass, call, "calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", CallNameAST(pass, call))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
