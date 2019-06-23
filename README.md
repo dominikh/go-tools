@@ -8,6 +8,11 @@ prominently staticcheck.
 Please consider [becoming a sponsor](https://github.com/users/dominikh/sponsorship) if you or your company relies on the tools.**
 
 
+## Documentation
+
+You can find extensive documentation on these tools, in particular staticcheck, on [staticcheck.io](https://staticcheck.io/docs/).
+
+
 ## Installation
 
 ### Releases
@@ -56,11 +61,6 @@ backwards-incompatible changes.
 ## System requirements
 
 We support the last two versions of Go.
-
-## Documentation
-
-You can find extensive documentation on
-[staticcheck.io](https://staticcheck.io).
 
 ## Sponsors
 
