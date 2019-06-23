@@ -1811,16 +1811,18 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		for _, function := range []string{"Add", "Del", "Get", "Set"} {
-			fqdn := fmt.Sprintf("(net/http.Header).%s", function)
-			if !IsCallToAST(pass, call, fqdn) {
-				continue
-			}
-			if !IsCallToAST(pass, call.Args[Arg(fqdn+".key")], "net/http.CanonicalHeaderKey") {
-				continue
-			}
-			ReportNodefFG(pass, call, "calling net/http.CanonicalHeaderKey on the key of %s is redundant", fqdn)
+		if !IsCallToAST(pass, call, "(net/http.Header).Add") &&
+			!IsCallToAST(pass, call, "(net/http.Header).Del") &&
+			!IsCallToAST(pass, call, "(net/http.Header).Get") &&
+			!IsCallToAST(pass, call, "(net/http.Header).Set") {
+			return
 		}
+
+		if !IsCallToAST(pass, call.Args[0], "net/http.CanonicalHeaderKey") {
+			return
+		}
+
+		ReportNodefFG(pass, call, "calling net/http.CanonicalHeaderKey on the 'key' argument of (net/http.Header).(Add|Del|Get|Set) is redundant")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil

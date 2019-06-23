@@ -427,6 +427,6 @@ After:
 		Title: `Redundant call to http.CanonicalHeaderKey in http.Header functions`,
 		Text: `The functions on http.Header, namely Add, Del, Get and Set, already
 canonicalize the given header name.`,
-		Since: "2019.2",
+		Since: "Unreleased",
 	},
 }
