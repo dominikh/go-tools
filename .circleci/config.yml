@@ -33,7 +33,7 @@ test: &test
         at: "/go/"
     - run:
         name: "Run tests"
-        command: "go test -v ./... >/tmp/test.out"
+        command: "go test -parallel=2 -v ./... >/tmp/test.out"
     - run:
         name: "Process test results"
         when: always
