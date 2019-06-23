@@ -29,11 +29,6 @@ while the master branch is usually stable, it may still contain new
 checks or backwards incompatible changes that break your build. By
 using the master branch you agree to become a beta tester.
 
-To use the master branch, a simple `go get -u
-honnef.co/go/tools/cmd/...` suffices. You can also install a subset of
-the commands, for example only staticcheck with `go get -u
-honnef.co/go/tools/cmd/staticcheck`.
-
 ## Tools
 
 All of the following tools can be found in the cmd/ directory. Each
