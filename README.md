@@ -4,10 +4,9 @@
 working with Go code, including linters and static analysis, most
 prominently staticcheck.
 
-**These tools are supported by
-[patrons on Patreon](https://www.patreon.com/dominikh) and
-[sponsors](#sponsors). If you use these tools at your company,
-consider supporting open source by [becoming a sponsor!](mailto:dominik@honnef.co?subject=Staticcheck%20sponsorship)**
+**These tools are financially supported by [private and corporate sponsors](http://staticcheck.io/sponsors) to ensure its continued development.
+Please consider [becoming a sponsor](https://github.com/users/dominikh/sponsorship) if you or your company relies on the tools.**
+
 
 ## Installation
 
@@ -70,10 +69,12 @@ You can find extensive documentation on
 
 ## Sponsors
 
-This project is sponsored by:
+This project is sponsored by the following companies
 
 [<img src="images/sponsors/fastly.png" alt="Fastly" height="55"></img>](https://fastly.com)  
 [<img src="images/sponsors/uber.png" alt="Uber" height="35"></img>](https://uber.com)
+
+as well as many generous people.
 
 ## Licenses
 
