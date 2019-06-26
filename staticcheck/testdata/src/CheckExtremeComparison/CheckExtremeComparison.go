@@ -2,7 +2,7 @@ package pkg
 
 import "math"
 
-func fn() {
+func fn1() {
 	var (
 		u8  uint8
 		u16 uint16
@@ -27,13 +27,11 @@ func fn() {
 	_ = u16 <= math.MaxUint16 // want `every value of type uint16 is <= math\.MaxUint16`
 
 	_ = u > math.MaxUint32
-	_ = u > math.MaxUint64 // want `no value of type uint is greater than math\.MaxUint64`
 
 	_ = i8 > math.MaxInt8 // want `no value of type int8 is greater than math\.MaxInt8`
 	_ = i16 > math.MaxInt8
 	_ = i16 > math.MaxInt16 // want `no value of type int16 is greater than math\.MaxInt16`
 	_ = i > math.MaxInt32
-	_ = i > math.MaxInt64 // want `no value of type int is greater than math\.MaxInt64`
 	_ = i8 < 0
 	_ = i8 <= math.MinInt8 // want `no value of type int8 is less than math\.MinInt8`
 	_ = i8 < math.MinInt8  // want `no value of type int8 is less than math\.MinInt8`
