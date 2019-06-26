@@ -8,13 +8,13 @@ const (
 )
 
 type Stats struct {
-	State uint64
+	State uint32
 
-	InitialPackages          uint64
-	TotalPackages            uint64
-	ProcessedPackages        uint64
-	ProcessedInitialPackages uint64
-	Problems                 uint64
-	ActiveWorkers            uint64
-	TotalWorkers             uint64
+	InitialPackages          uint32
+	TotalPackages            uint32
+	ProcessedPackages        uint32
+	ProcessedInitialPackages uint32
+	Problems                 uint32
+	ActiveWorkers            uint32
+	TotalWorkers             uint32
 }

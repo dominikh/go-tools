@@ -246,7 +246,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		}
 	}
 
-	atomic.StoreUint64(&r.stats.State, StateCumulative)
+	atomic.StoreUint32(&r.stats.State, StateCumulative)
 	var problems []Problem
 	for _, cum := range l.CumulativeCheckers {
 		for _, res := range cum.Result() {

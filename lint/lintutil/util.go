@@ -325,20 +325,20 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 		// Individual stats are read atomically, but overall there
 		// is no synchronisation. For printing rough progress
 		// information, this doesn't matter.
-		switch atomic.LoadUint64(&l.Stats.State) {
+		switch atomic.LoadUint32(&l.Stats.State) {
 		case lint.StateInitializing:
 			fmt.Fprintln(os.Stderr, "Status: initializing")
 		case lint.StateGraph:
 			fmt.Fprintln(os.Stderr, "Status: loading package graph")
 		case lint.StateProcessing:
 			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d; Problems: %d\n",
-				atomic.LoadUint64(&l.Stats.ProcessedInitialPackages),
-				atomic.LoadUint64(&l.Stats.InitialPackages),
-				atomic.LoadUint64(&l.Stats.ProcessedPackages),
-				atomic.LoadUint64(&l.Stats.TotalPackages),
-				atomic.LoadUint64(&l.Stats.ActiveWorkers),
-				atomic.LoadUint64(&l.Stats.TotalWorkers),
-				atomic.LoadUint64(&l.Stats.Problems),
+				atomic.LoadUint32(&l.Stats.ProcessedInitialPackages),
+				atomic.LoadUint32(&l.Stats.InitialPackages),
+				atomic.LoadUint32(&l.Stats.ProcessedPackages),
+				atomic.LoadUint32(&l.Stats.TotalPackages),
+				atomic.LoadUint32(&l.Stats.ActiveWorkers),
+				atomic.LoadUint32(&l.Stats.TotalWorkers),
+				atomic.LoadUint32(&l.Stats.Problems),
 			)
 		case lint.StateCumulative:
 			fmt.Fprintln(os.Stderr, "Status: processing cumulative checkers")
