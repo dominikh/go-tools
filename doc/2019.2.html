@@ -1,4 +1,24 @@
-<h2>Performance improvements</h2>
+<ul class="changes-toc">
+  <li><a href="#performance">Performance improvements</a></li>
+  <li><a href="#go-analysis">The go/analysis framework</a></li>
+  <li><a href="#cli">Improvements to the CLI</a><ul>
+    <li><a href="#cli-siginfo">SIGINFO handler</a></li>
+    <li><a href="#cli-explain">Explaining checks</a></li>
+    <li><a href="#cli-debug-version">-debug.version</a></li>
+    <li><a href="#cli-unused">Enabling unused's whole program mode</a></li>
+    <li><a href="#cli-ranges">Range information in diagnostics</a></li>
+  </ul></li>
+
+  <li><a href="#module">Installing staticcheck as a module</a></li>
+  <li><a href="#deprecated">Removal of deprecated functionality</a></li>
+  <li><a href="#checks">Checks</a><ul>
+    <li><a href="#checks-new">New checks</a></li>
+    <li><a href="#checks-changed">Changed checks</a></li>
+  </ul></li>
+  <li><a href="#sustainable-open-source">Sustainable open source and a personal plea</a></li>
+</ul>
+
+<h2 id="performance">Performance improvements</h2>
 
 <p>
   Staticcheck 2019.2 brings major performance improvements and a
@@ -147,7 +167,7 @@
   Tools such as golangci-lint will have to replicate our efforts to benefit from these improvements.
 </p>
 
-<h2>The go/analysis framework</h2>
+<h2 id="go-analysis">The go/analysis framework</h2>
 
 <p>
   Part of the redesign of staticcheck involved porting our code to the <a href="https://godoc.org/golang.org/x/tools/go/analysis">go/analysis</a> framework.
@@ -164,7 +184,7 @@
 </p>
 
 <p>
-  With our move to this framework we enable other drivers to reuse our checks without having to patch them.
+  With our move to this framework, we enable other drivers to reuse our checks without having to patch them.
   This should be of particular interest to golangci-lint, which previously took to patching staticcheck, sometimes in subtly incorrect ways.
   Another high-profile go/analysis driver is gopls, the Go language server. It will now be much easier for gopls to use staticcheck to analyze code, should it so desire.
 </p>
@@ -175,13 +195,13 @@
   Nonetheless it would be trivial for users to maintain internal forks of cmd/staticcheck that use third-party analyses.
 </p>
 
-<h2>Improvements to the CLI</h2>
+<h2 id="cli">Improvements to the CLI</h2>
 
 <p>
   We've made several minor improvements to the command-line interface of staticcheck that improve usability and debuggability.
 </p>
 
-<h3>SIGINFO handler</h3>
+<h3 id="cli-siginfo">SIGINFO handler</h3>
 
 <p>
   Upon receiving the SIGINFO signal – or SIGUSR1 on platforms that lack
@@ -193,7 +213,7 @@
 Packages: 37/619 initial, 38/1011 total; Workers: 8/8; Problems: 73
 </code></pre>
 
-<h3>Explaining checks</h3>
+<h3 id="cli-explain">Explaining checks</h3>
 
 <p>
   Using the new <code>-explain</code> flag, a check's documentation can be displayed right in the terminal,
@@ -223,7 +243,7 @@ Available since
     2017.1
 </code></pre>
 
-<h3>-debug.version</h3>
+<h3 id="cli-debug-version">-debug.version</h3>
 
 <p>
   The <code>-debug.version</code> flag causes staticcheck to print
@@ -245,14 +265,14 @@ Dependencies:
 	golang.org/x/tools@v0.0.0-20190530171427-2b03ca6e44eb (sum: h1:mnQlcVx8Qq8L70HV0DxUGuiuAtiEHTwF1gYJE/EL9nU=)
 </code></pre>
 
-<h3>Enabling unused's whole program mode</h3>
+<h3 id="cli-unused">Enabling unused's whole program mode</h3>
 
 <p>
   When we merged <em>unused</em> into <em>staticcheck</em>, we lost the ability to specify the <code>-exported</code> flag to report unused exported identifiers.
   Staticcheck 2019.2 restores this ability with the new <code>-unused.whole-program</code> flag.
 </p>
 
-<h3>Range information in diagnostics</h3>
+<h3 id="cli-ranges">Range information in diagnostics</h3>
 
 <p>
   Many of our checks now emit <code>[start, end]</code> ranges for findings instead of just positions.
@@ -263,30 +283,40 @@ Dependencies:
   Note that not all checks are able to emit range information.
 </p>
 
-<h2>Installing staticcheck as a module</h2>
+<h2 id="module">Installing staticcheck as a module</h2>
 
 <p>
-  As part of the 2019.2 release we've turned staticcheck into a Go module.
-  From now on, you can install specific versions of staticcheck with <code>go get honnef.co/go/tools/cmd/staticcheck@&lt;version&gt;</code>,
+  As part of the 2019.2 release, we've turned staticcheck into a Go module.
+  From now on, if using Go modules, you can install specific versions of staticcheck with <code>go get honnef.co/go/tools/cmd/staticcheck@&lt;version&gt;</code>,
   though do note that older releases do not have a <code>go.mod</code> file.
   You can still download them as modules, but Go will record indirect dependencies in the main module's <code>go.mod</code> file, and no minimum versions are specified.
 </p>
 
 <p>
-  Staticcheck will not use Semantic Versioning.
+  Staticcheck will not use Semantic Versioning for its releases.
   It is our belief that Semver is a poor fit for applications and is more suited towards libraries.
-  In particular, almost every release of staticcheck has backwards incompatible changes to some APIs that aren't meant for public consumption,
+  For example, almost every release of staticcheck has backwards incompatible changes to some APIs that aren't meant for public consumption,
   but which we expose nevertheless so that tinkerers can use them.
 </p>
 
 <p>
-  However, <code>honnef.co/go</code> runs a custom module proxy so that
-  <code>go get honnef.co/go/tools/cmd/staticcheck</code> will download the latest released version of staticcheck, and not the master branch.
-  That way, even though we don't use Semver, you will still get fixed, known working versions of staticcheck.
-  To download the master branch, use <code>go get honnef.co/go/tools/cmd/staticcheck@master</code>
+  However, we use so-called <em>pre-release versions</em> of the form <code>v0.0.0-2019.2</code>.
+  These allow us to embed our versioning scheme in that of Semver, with correct sorting and updating of versions.
+  Furthermore, these versions ensure that <code>go get ...</code>,
+  if not specifying an explicit version (that is, if using the query <code>latest</code>),
+  will install the latest released version of staticcheck and not the master branch.
 </p>
 
-<h2>Removal of deprecated functionality</h2>
+<p>
+  While you can use these pre-release version numbers directly, you can also use the canonical versions of the form <code>2019.2</code> instead.
+  The Go tool will automatically translate these versions to the appropriate pre-releases.
+</p>
+
+<p>
+  To install the master branch, use <code>go get honnef.co/go/tools/cmd/staticcheck@master</code>
+</p>
+
+<h2 id="deprecated">Removal of deprecated functionality</h2>
 
 <p>
   Staticcheck 2019.1 deprecated the <em>unused</em>, <em>gosimple</em>, and <em>megacheck</em>
@@ -299,16 +329,16 @@ Dependencies:
   it provide the deprecated flag.
 </p>
 
-<h2>Checks</h2>
+<h2 id="checks">Checks</h2>
 
-<h3>New checks</h3>
+<h3 id="checks-new">New checks</h3>
 
 <p>
   Numerous new checks have been added in this release:
 </p>
 
 <ul>
-  <li>{{ check "S1033"  }} flags unnecessary guards around calls to delete.</li>
+  <li>{{ check "S1033"  }} flags unnecessary guards around calls to <code>delete</code>.</li>
   <li>{{ check "S1034"  }} simplifies type switches involving redundant type assertions.</li>
   <li>{{ check "SA1026" }} flags attempts at marshaling invalid types.</li>
   <li>{{ check "SA1027" }} flags incorrectly aligned atomic accesses.</li>
@@ -330,7 +360,7 @@ Dependencies:
 </ul>
 
 
-<h3>Changed checks</h3>
+<h3 id="checks-changed">Changed checks</h3>
 
 <p>
   Several checks have been improved:
@@ -349,7 +379,7 @@ Dependencies:
   <li>{{ check "U1000" }} has been rewritten, eliminating a variety of false positives.
 </ul>
 
-<h2>Sustainable open source and a personal plea</h2>
+<h2 id="sustainable-open-source">Sustainable open source and a personal plea</h2>
 
 <p>
   Staticcheck is an open source project developed primarily by me, Dominik Honnef, in my free time.
@@ -376,10 +406,10 @@ Dependencies:
 <p>
   GitHub Sponsors allows you to easily support developers by sponsoring them on a monthly basis, <a href="https://github.com/users/dominikh/sponsorship">via a few simple clicks.</a>
   It is fully integrated with the platform and can use your existing billing information, making it an effortless process.
-  To encourage more company sponsorships I offer to display your company's logo prominently on
-  <a href="https://staticcheck.io/">staticcheck's website</a>
+  <strong>To encourage more company sponsorships I offer to display your company's logo prominently on
+    <a href="https://staticcheck.io/">staticcheck's website</a></strong>
   for
-  <a href="https://github.com/users/dominikh/sponsorship?utf8=%E2%9C%93&tier_id=MDIyOk1hcmtldHBsYWNlTGlzdGluZ1BsYW4yNTAy&editing=false">$250 USD a month</a>, 
+  <a href="https://github.com/users/dominikh/sponsorship?utf8=%E2%9C%93&tier_id=MDIyOk1hcmtldHBsYWNlTGlzdGluZ1BsYW4yNTAy&editing=false">$250 USD a month</a>,
   to show my appreciation for your contribution and to show to the world how much you care about code quality.
 </p>
 
