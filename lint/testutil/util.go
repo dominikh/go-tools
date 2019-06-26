@@ -12,23 +12,22 @@ type Test struct {
 	Version string
 }
 
-type Analyzer struct {
-	Analyzer *analysis.Analyzer
-	Tests    []Test
-}
-
-func Run(t *testing.T, analyzers []Analyzer) {
+func Run(t *testing.T, analyzers map[string]*analysis.Analyzer, tests map[string][]Test) {
 	for _, a := range analyzers {
 		a := a
-		t.Run(a.Analyzer.Name, func(t *testing.T) {
+		t.Run(a.Name, func(t *testing.T) {
 			t.Parallel()
-			for _, test := range a.Tests {
+			tt, ok := tests[a.Name]
+			if !ok {
+				t.Fatalf("no tests for analyzer %s", a.Name)
+			}
+			for _, test := range tt {
 				if test.Version != "" {
-					if err := a.Analyzer.Flags.Lookup("go").Value.Set(test.Version); err != nil {
+					if err := a.Flags.Lookup("go").Value.Set(test.Version); err != nil {
 						t.Fatal(err)
 					}
 				}
-				analysistest.Run(t, analysistest.TestData(), a.Analyzer, test.Dir)
+				analysistest.Run(t, analysistest.TestData(), a, test.Dir)
 			}
 		})
 	}
