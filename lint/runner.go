@@ -59,6 +59,8 @@ const sanityCheck = true
 // interfaces from transitive dependencies.
 
 type Package struct {
+	dependents uint64
+
 	*packages.Package
 	Imports    []*Package
 	initial    bool
@@ -81,7 +83,6 @@ type Package struct {
 	pkgFacts [][]analysis.Fact
 
 	canClearTypes bool
-	dependents    uint64
 }
 
 func (pkg *Package) decUse() {
@@ -473,7 +474,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 		dcfg = *cfg
 	}
 
-	atomic.StoreUint64(&r.stats.State, StateGraph)
+	atomic.StoreUint32(&r.stats.State, StateGraph)
 	initialPkgs, err := r.ld.Graph(dcfg, patterns...)
 	if err != nil {
 		return nil, err
@@ -518,23 +519,23 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 		pkgs[i].initial = true
 	}
 
-	atomic.StoreUint64(&r.stats.InitialPackages, uint64(len(initialPkgs)))
-	atomic.StoreUint64(&r.stats.TotalPackages, uint64(len(allPkgs)))
-	atomic.StoreUint64(&r.stats.State, StateProcessing)
+	atomic.StoreUint32(&r.stats.InitialPackages, uint32(len(initialPkgs)))
+	atomic.StoreUint32(&r.stats.TotalPackages, uint32(len(allPkgs)))
+	atomic.StoreUint32(&r.stats.State, StateProcessing)
 
 	var wg sync.WaitGroup
 	wg.Add(len(allPkgs))
 	r.loadSem = make(chan struct{}, runtime.GOMAXPROCS(-1))
-	atomic.StoreUint64(&r.stats.TotalWorkers, uint64(cap(r.loadSem)))
+	atomic.StoreUint32(&r.stats.TotalWorkers, uint32(cap(r.loadSem)))
 	for _, pkg := range allPkgs {
 		pkg := pkg
 		go func() {
 			r.processPkg(pkg, analyzers)
 
 			if pkg.initial {
-				atomic.AddUint64(&r.stats.ProcessedInitialPackages, 1)
+				atomic.AddUint32(&r.stats.ProcessedInitialPackages, 1)
 			}
-			atomic.AddUint64(&r.stats.Problems, uint64(len(pkg.problems)))
+			atomic.AddUint32(&r.stats.Problems, uint32(len(pkg.problems)))
 			wg.Done()
 		}()
 	}
@@ -688,7 +689,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 		pkg.Syntax = nil
 		pkg.results = nil
 
-		atomic.AddUint64(&r.stats.ProcessedPackages, 1)
+		atomic.AddUint32(&r.stats.ProcessedPackages, 1)
 		pkg.decUse()
 		close(pkg.done)
 	}()
@@ -727,10 +728,10 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	}
 
 	r.loadSem <- struct{}{}
-	atomic.AddUint64(&r.stats.ActiveWorkers, 1)
+	atomic.AddUint32(&r.stats.ActiveWorkers, 1)
 	defer func() {
 		<-r.loadSem
-		atomic.AddUint64(&r.stats.ActiveWorkers, ^uint64(0))
+		atomic.AddUint32(&r.stats.ActiveWorkers, ^uint32(0))
 	}()
 	if err := r.loadPkg(pkg, analyzers); err != nil {
 		pkg.errs = append(pkg.errs, err)

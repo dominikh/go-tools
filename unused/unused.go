@@ -772,6 +772,9 @@ type objNodeKey struct {
 }
 
 type Graph struct {
+	// accessed atomically
+	nodeOffset uint64
+
 	// Safe for concurrent use
 	fset      *token.FileSet
 	Root      *Node
@@ -785,9 +788,6 @@ type Graph struct {
 	// need synchronisation
 	mu        sync.Mutex
 	TypeNodes typeutil.Map
-
-	// accessed atomically
-	nodeOffset uint64
 }
 
 type context struct {
