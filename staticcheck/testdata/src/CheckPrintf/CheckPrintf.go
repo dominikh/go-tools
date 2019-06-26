@@ -162,14 +162,14 @@ func fn() {
 	//fmt.Printf("%p %x", recursiveMapV, recursiveMapV)
 
 	// indexed arguments
-	fmt.Printf("%d %[3]d %d %[2]d x", 1, 2, 3, 4)             // OK
-	fmt.Printf("%d %[0]d %d %[2]d x", 1, 2, 3, 4)             // want `Printf format %\[0\]d reads invalid arg 0; indices are 1-based`
-	fmt.Printf("%d %[3]d %d %[-2]d x", 1, 2, 3, 4)            // want `couldn't parse format string`
-	fmt.Printf("%d %[3]d %d %[2234234234234]d x", 1, 2, 3, 4) // want `Printf format %\[2234234234234\]d reads arg #2234234234234, but call has only 4 args`
-	fmt.Printf("%d %[3]d %-10d %[2]d x", 1, 2, 3)             // want `Printf format %-10d reads arg #4, but call has only 3 args`
-	fmt.Printf("%[1][3]d x", 1, 2)                            // want `couldn't parse format string`
-	fmt.Printf("%[1]d x", 1, 2)                               // OK
-	fmt.Printf("%d %[3]d %d %[2]d x", 1, 2, 3, 4, 5)          // OK
+	fmt.Printf("%d %[3]d %d %[2]d x", 1, 2, 3, 4)    // OK
+	fmt.Printf("%d %[0]d %d %[2]d x", 1, 2, 3, 4)    // want `Printf format %\[0\]d reads invalid arg 0; indices are 1-based`
+	fmt.Printf("%d %[3]d %d %[-2]d x", 1, 2, 3, 4)   // want `couldn't parse format string`
+	fmt.Printf("%d %[3]d %d %[5]d x", 1, 2, 3, 4)    // want `Printf format %\[5\]d reads arg #5, but call has only 4 args`
+	fmt.Printf("%d %[3]d %-10d %[2]d x", 1, 2, 3)    // want `Printf format %-10d reads arg #4, but call has only 3 args`
+	fmt.Printf("%[1][3]d x", 1, 2)                   // want `couldn't parse format string`
+	fmt.Printf("%[1]d x", 1, 2)                      // OK
+	fmt.Printf("%d %[3]d %d %[2]d x", 1, 2, 3, 4, 5) // OK
 
 	fmt.Printf(someString(), "hello") // OK
 
