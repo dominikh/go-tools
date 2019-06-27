@@ -34,6 +34,7 @@ func TestAll(t *testing.T) {
 		"SA1025": {{Dir: "CheckTimerResetReturnValue"}},
 		"SA1026": {{Dir: "CheckUnsupportedMarshal"}},
 		"SA1027": {{Dir: "CheckAtomicAlignment"}},
+		"SA1028": {{Dir: "CheckSortSlice"}},
 		"SA2000": {{Dir: "CheckWaitgroupAdd"}},
 		"SA2001": {{Dir: "CheckEmptyCriticalSection"}},
 		"SA2002": {{Dir: "CheckConcurrentTesting"}},

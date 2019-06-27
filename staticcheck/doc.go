@@ -245,6 +245,12 @@ in a struct.`,
 		Since: "2019.2",
 	},
 
+	"SA1028": &lint.Documentation{
+		Title: `sort.Slice can only be used on slices`,
+		Text:  `The first argument of sort.Slice must be a slice.`,
+		Since: "Unreleased",
+	},
+
 	"SA2000": &lint.Documentation{
 		Title: `sync.WaitGroup.Add called inside the goroutine, leading to a race condition`,
 		Since: "2017.1",

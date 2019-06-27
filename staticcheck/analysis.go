@@ -200,6 +200,13 @@ var Analyzers = map[string]*analysis.Analyzer{
 		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
 		Flags:    newFlagSet(),
 	},
+	"SA1028": {
+		Name:     "SA1028",
+		Run:      callChecker(checkSortSliceRules),
+		Doc:      Docs["SA1028"].String(),
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
+		Flags:    newFlagSet(),
+	},
 
 	"SA2000": {
 		Name:     "SA2000",

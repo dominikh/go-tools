@@ -38,6 +38,27 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
+func checkSortSlice(call *Call) {
+	c := call.Instr.Value().Common().StaticCallee()
+	arg := call.Args[0]
+
+	T := arg.Value.Value.Type().Underlying()
+	switch T.(type) {
+	case *types.Interface:
+		// we don't know.
+		// TODO(dh): if the value is a phi node we can look at its edges
+		if k, ok := arg.Value.Value.(*ssa.Const); ok && k.Value == nil {
+			// literal nil, e.g. sort.Sort(nil, ...)
+			arg.Invalid(fmt.Sprintf("cannot call %s on nil literal", c))
+		}
+	case *types.Slice:
+		// this is fine
+	default:
+		// this is not fine
+		arg.Invalid(fmt.Sprintf("%s must only be called on slices, was called on %s", c, T))
+	}
+}
+
 func validRegexp(call *Call) {
 	arg := call.Args[0]
 	err := ValidateRegexp(arg.Value)
@@ -255,6 +276,12 @@ var (
 		"fmt.Printf":  func(call *Call) { checkPrintfCall(call, 0, 1) },
 		"fmt.Sprintf": func(call *Call) { checkPrintfCall(call, 0, 1) },
 		"fmt.Fprintf": func(call *Call) { checkPrintfCall(call, 1, 2) },
+	}
+
+	checkSortSliceRules = map[string]CallCheck{
+		"sort.Slice":         checkSortSlice,
+		"sort.SliceIsSorted": checkSortSlice,
+		"sort.SliceStable":   checkSortSlice,
 	}
 )
 
