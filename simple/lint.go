@@ -438,17 +438,50 @@ func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		cond := Render(pass, ifs.Cond)
+		cond := ifs.Cond
 		if ret1.Results[0].(*ast.Ident).Name == "false" {
-			// TODO(dh): we can make better suggestions for trivial conditions
-			cond = "!(" + cond + ")"
+			cond = negate(cond)
 		}
 		ReportNodefFG(pass, n1, "should use 'return %s' instead of 'if %s { return %s }; return %s'",
-			cond,
+			Render(pass, cond),
 			Render(pass, ifs.Cond), Render(pass, ret1.Results[0]), Render(pass, ret2.Results[0]))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 	return nil, nil
+}
+
+func negate(expr ast.Expr) ast.Expr {
+	switch expr := expr.(type) {
+	case *ast.BinaryExpr:
+		out := *expr
+		switch expr.Op {
+		case token.EQL:
+			out.Op = token.NEQ
+		case token.LSS:
+			out.Op = token.GEQ
+		case token.GTR:
+			out.Op = token.LEQ
+		case token.NEQ:
+			out.Op = token.EQL
+		case token.LEQ:
+			out.Op = token.GTR
+		case token.GEQ:
+			out.Op = token.LEQ
+		}
+		return &out
+	case *ast.Ident, *ast.CallExpr, *ast.IndexExpr:
+		return &ast.UnaryExpr{
+			Op: token.NOT,
+			X:  expr,
+		}
+	default:
+		return &ast.UnaryExpr{
+			Op: token.NOT,
+			X: &ast.ParenExpr{
+				X: expr,
+			},
+		}
+	}
 }
 
 // LintRedundantNilCheckWithLen checks for the following reduntant nil-checks:
