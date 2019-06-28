@@ -1,6 +1,7 @@
 package loader
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -120,6 +121,12 @@ func (ld *Loader) LoadFromSource(pkg *packages.Package) error {
 	importer := func(path string) (*types.Package, error) {
 		if path == "unsafe" {
 			return types.Unsafe, nil
+		}
+		if path == "C" {
+			// go/packages doesn't tell us that cgo preprocessing
+			// failed. When we subsequently try to parse the package,
+			// we'll encounter the raw C import.
+			return nil, errors.New("cgo preprocessing failed")
 		}
 		imp := pkg.Imports[path]
 		if imp == nil {
