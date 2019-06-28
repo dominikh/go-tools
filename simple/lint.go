@@ -431,6 +431,13 @@ func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
 		if !IsBoolConst(pass, ret2.Results[0]) {
 			return
 		}
+
+		if ret1.Results[0].(*ast.Ident).Name == ret2.Results[0].(*ast.Ident).Name {
+			// we want the function to return true and false, not the
+			// same value both times.
+			return
+		}
+
 		ReportNodefFG(pass, n1, "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
