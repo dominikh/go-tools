@@ -377,3 +377,24 @@ func parsePos(pos string) token.Position {
 		Column:   col,
 	}
 }
+
+func InitializeAnalyzers(docs map[string]*lint.Documentation, analyzers map[string]*analysis.Analyzer) map[string]*analysis.Analyzer {
+	out := make(map[string]*analysis.Analyzer, len(analyzers))
+	for k, v := range analyzers {
+		vc := *v
+		out[k] = &vc
+
+		vc.Name = k
+		doc, ok := docs[k]
+		if !ok {
+			panic(fmt.Sprintf("missing documentation for check %s", k))
+		}
+		vc.Doc = doc.String()
+		if vc.Flags.Usage == nil {
+			fs := flag.NewFlagSet("", flag.PanicOnError)
+			fs.Var(NewVersionFlag(), "go", "Target Go version")
+			vc.Flags = *fs
+		}
+	}
+	return out
+}
