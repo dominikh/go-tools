@@ -3,7 +3,7 @@ package pkg
 func fn() bool { return true }
 func fn1() bool {
 	x := true
-	if x { // want `should use 'return <expr>'`
+	if x { // want `should use 'return x'`
 		return true
 	}
 	return false
@@ -31,21 +31,21 @@ func fn3() int {
 func fn4() bool { return true }
 
 func fn5() bool {
-	if fn() { // want `should use 'return <expr>'`
+	if fn() { // want `should use 'return !\(fn\(\)\)'`
 		return false
 	}
 	return true
 }
 
 func fn6() bool {
-	if fn3() != fn3() { // want `should use 'return <expr>'`
+	if fn3() != fn3() { // want `should use 'return fn3\(\) != fn3\(\)'`
 		return true
 	}
 	return false
 }
 
 func fn7() bool {
-	if 1 > 2 { // want `should use 'return <expr>'`
+	if 1 > 2 { // want `should use 'return 1 > 2'`
 		return true
 	}
 	return false

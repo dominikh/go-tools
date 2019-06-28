@@ -438,7 +438,14 @@ func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		ReportNodefFG(pass, n1, "should use 'return <expr>' instead of 'if <expr> { return <bool> }; return <bool>'")
+		cond := Render(pass, ifs.Cond)
+		if ret1.Results[0].(*ast.Ident).Name == "false" {
+			// TODO(dh): we can make better suggestions for trivial conditions
+			cond = "!(" + cond + ")"
+		}
+		ReportNodefFG(pass, n1, "should use 'return %s' instead of 'if %s { return %s }; return %s'",
+			cond,
+			Render(pass, ifs.Cond), Render(pass, ret1.Results[0]), Render(pass, ret2.Results[0]))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 	return nil, nil
