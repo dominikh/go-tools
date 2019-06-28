@@ -2512,42 +2512,123 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
-			for _, ins := range block.Instrs {
-				ins, ok := ins.(*ssa.BinOp)
-				if !ok {
-					continue
-				}
+	if false {
+		for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+			for _, block := range ssafn.Blocks {
+				for _, ins := range block.Instrs {
+					ins, ok := ins.(*ssa.BinOp)
+					if !ok {
+						continue
+					}
 
-				if c, ok := ins.Y.(*ssa.Const); !ok || c.Value == nil || c.Value.Kind() != constant.Int || c.Uint64() != 0 {
-					continue
-				}
-				switch ins.Op {
-				case token.AND, token.OR, token.XOR:
-				default:
-					// we do not flag shifts because too often, x<<0 is part
-					// of a pattern, x<<0, x<<8, x<<16, ...
-					continue
-				}
-				path, _ := astutil.PathEnclosingInterval(File(pass, ins), ins.Pos(), ins.Pos())
-				if len(path) == 0 {
-					continue
-				}
-				if node, ok := path[0].(*ast.BinaryExpr); !ok || !IsZero(node.Y) {
-					continue
-				}
+					if c, ok := ins.Y.(*ssa.Const); !ok || c.Value == nil || c.Value.Kind() != constant.Int || c.Uint64() != 0 {
+						continue
+					}
+					switch ins.Op {
+					case token.AND, token.OR, token.XOR:
+					default:
+						// we do not flag shifts because too often, x<<0 is part
+						// of a pattern, x<<0, x<<8, x<<16, ...
+						continue
+					}
+					path, _ := astutil.PathEnclosingInterval(File(pass, ins), ins.Pos(), ins.Pos())
+					if len(path) == 0 {
+						continue
+					}
 
-				switch ins.Op {
-				case token.AND:
-					pass.Reportf(ins.Pos(), "x & 0 always equals 0")
-				case token.OR, token.XOR:
-					pass.Reportf(ins.Pos(), "x %s 0 always equals x", ins.Op)
+					if node, ok := path[0].(*ast.BinaryExpr); !ok || !IsZero(node.Y) {
+						continue
+					}
+
+					switch ins.Op {
+					case token.AND:
+						pass.Reportf(ins.Pos(), "x & 0 always equals 0")
+					case token.OR, token.XOR:
+						pass.Reportf(ins.Pos(), "x %s 0 always equals x", ins.Op)
+					}
 				}
 			}
 		}
 	}
+	fn := func(node ast.Node) {
+		binop := node.(*ast.BinaryExpr)
+		b, ok := pass.TypesInfo.TypeOf(binop).Underlying().(*types.Basic)
+		if !ok {
+			return
+		}
+		if (b.Info() & types.IsInteger) == 0 {
+			return
+		}
+		switch binop.Op {
+		case token.AND, token.OR, token.XOR:
+		default:
+			// we do not flag shifts because too often, x<<0 is part
+			// of a pattern, x<<0, x<<8, x<<16, ...
+			return
+		}
+		switch y := binop.Y.(type) {
+		case *ast.Ident:
+			obj, ok := pass.TypesInfo.ObjectOf(y).(*types.Const)
+			if !ok {
+				return
+			}
+			if v, _ := constant.Int64Val(obj.Val()); v != 0 {
+				return
+			}
+			path, _ := astutil.PathEnclosingInterval(File(pass, obj), obj.Pos(), obj.Pos())
+			if len(path) < 2 {
+				return
+			}
+			spec, ok := path[1].(*ast.ValueSpec)
+			if !ok {
+				return
+			}
+			if len(spec.Names) != 1 || len(spec.Values) != 1 {
+				// TODO(dh): we could support this
+				return
+			}
+			ident, ok := spec.Values[0].(*ast.Ident)
+			if !ok {
+				return
+			}
+			if !isIota(pass.TypesInfo.ObjectOf(ident)) {
+				return
+			}
+			switch binop.Op {
+			case token.AND:
+				ReportNodef(pass, node,
+					"%s always equals 0; %s is defined as iota and has value 0, maybe %s is meant to be 1 << iota?", Render(pass, binop), Render(pass, binop.Y), Render(pass, binop.Y))
+			case token.OR, token.XOR:
+				ReportNodef(pass, node,
+					"%s always equals %s; %s is defined as iota and has value 0, maybe %s is meant to be 1 << iota?", Render(pass, binop), Render(pass, binop.X), Render(pass, binop.Y), Render(pass, binop.Y))
+			}
+		case *ast.BasicLit:
+			if !IsZero(binop.Y) {
+				return
+			}
+			switch binop.Op {
+			case token.AND:
+				ReportNodef(pass, node, "%s always equals 0", Render(pass, binop))
+			case token.OR, token.XOR:
+				ReportNodef(pass, node, "%s always equals %s", Render(pass, binop), Render(pass, binop.X))
+			}
+		default:
+			return
+		}
+	}
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
+}
+
+func isIota(obj types.Object) bool {
+	if obj.Name() != "iota" {
+		return false
+	}
+	c, ok := obj.(*types.Const)
+	if !ok {
+		return false
+	}
+	return c.Pkg() == nil
 }
 
 func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {

@@ -203,7 +203,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA4016": {
 		Run:      CheckSillyBitwiseOps,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.TokenFile},
 	},
 	"SA4017": {
 		Run:      CheckPureFunctions,
