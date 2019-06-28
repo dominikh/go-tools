@@ -57,3 +57,10 @@ func fn8() bool {
 	}
 	return false
 }
+
+func fn9(x int) bool {
+	if x > 0 {
+		return true
+	}
+	return true
+}
