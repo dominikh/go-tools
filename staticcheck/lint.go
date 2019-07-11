@@ -1715,8 +1715,8 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if (basic.Info() & types.IsUnsigned) != 0 {
-			if (expr.Op == token.LSS || expr.Op == token.LEQ) && IsIntLiteral(expr.Y, "0") ||
-				(expr.Op == token.GTR || expr.Op == token.GEQ) && IsIntLiteral(expr.X, "0") {
+			if (expr.Op == token.LSS && IsIntLiteral(expr.Y, "0")) ||
+				(expr.Op == token.GTR && IsIntLiteral(expr.X, "0")) {
 				ReportNodef(pass, expr, "no value of type %s is less than 0", basic)
 			}
 			if expr.Op == token.GEQ && IsIntLiteral(expr.Y, "0") ||

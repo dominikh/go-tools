@@ -20,6 +20,10 @@ func fn1() {
 	_ = u8 > 0
 	_ = u8 >= 1
 	_ = u8 < math.MaxUint8
+	_ = u8 < 0 // want `no value of type uint8 is less than 0`
+	_ = u8 <= 0
+	_ = 0 > u8 // want `no value of type uint8 is less than 0`
+	_ = 0 >= u8
 
 	_ = u16 > math.MaxUint8
 	_ = u16 > math.MaxUint16 // want `no value of type uint16 is greater than math\.MaxUint16`
