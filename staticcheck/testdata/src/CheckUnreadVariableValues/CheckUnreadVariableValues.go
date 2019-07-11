@@ -44,6 +44,7 @@ func fn4() {
 	x, y := gen2() // want `this value of x is never used`
 	println(y)
 	x, y = gen2() // want `this value of x is never used` `this value of y is never used`
+	x, _ = gen2() // want `this value of x is never used`
 	x, y = gen2()
 	println(x, y)
 }
@@ -75,4 +76,29 @@ var y = func() {
 	v := fn() // want `never used`
 	v = fn()
 	println(v)
+}
+
+func fn8() {
+	x := gen()
+	switch x {
+	}
+
+	y := gen() // want `this value of y is never used`
+	y = gen()
+	switch y {
+	}
+
+	z, _ := gen2()
+	switch z {
+	}
+
+	_, a := gen2()
+	switch a {
+	}
+
+	b, c := gen2() // want `this value of b is never used`
+	println(c)
+	b, c = gen2() // want `this value of c is never used`
+	switch b {
+	}
 }

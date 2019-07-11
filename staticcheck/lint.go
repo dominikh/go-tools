@@ -1501,6 +1501,29 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
+		switchTags := map[ssa.Value]struct{}{}
+		ast.Inspect(node, func(node ast.Node) bool {
+			s, ok := node.(*ast.SwitchStmt)
+			if !ok {
+				return true
+			}
+			v, _ := ssafn.ValueForExpr(s.Tag)
+			switchTags[v] = struct{}{}
+			return true
+		})
+
+		hasUse := func(v ssa.Value) bool {
+			if _, ok := switchTags[v]; ok {
+				return true
+			}
+			refs := v.Referrers()
+			if refs == nil {
+				// TODO investigate why refs can be nil
+				return true
+			}
+			return len(FilterDebug(*refs)) > 0
+		}
+
 		ast.Inspect(node, func(node ast.Node) bool {
 			assign, ok := node.(*ast.AssignStmt)
 			if !ok {
@@ -1523,11 +1546,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					if !ok {
 						continue
 					}
-					exrefs := ex.Referrers()
-					if exrefs == nil {
-						continue
-					}
-					if len(FilterDebug(*exrefs)) == 0 {
+					if !hasUse(ex) {
 						lhs := assign.Lhs[ex.Index]
 						if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
 							continue
@@ -1547,12 +1566,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				refs := val.Referrers()
-				if refs == nil {
-					// TODO investigate why refs can be nil
-					return true
-				}
-				if len(FilterDebug(*refs)) == 0 {
+				if !hasUse(val) {
 					ReportNodef(pass, lhs, "this value of %s is never used", lhs)
 				}
 			}
