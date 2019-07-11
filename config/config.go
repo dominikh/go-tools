@@ -132,7 +132,7 @@ var DefaultConfig = Config{
 		"SMTP", "SQL", "SSH", "TCP", "TLS", "TTL",
 		"UDP", "UI", "GID", "UID", "UUID", "URI",
 		"URL", "UTF8", "VM", "XML", "XMPP", "XSRF",
-		"XSS", "SIP", "RTP",
+		"XSS", "SIP", "RTP", "AMQP", "DB", "TS",
 	},
 	DotImportWhitelist:      []string{},
 	HTTPStatusCodeWhitelist: []string{"200", "400", "404", "500"},
