@@ -80,6 +80,26 @@ func CheckDotImports(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
+	for _, f := range pass.Files {
+		// Collect all imports by their import path
+		imports := make(map[string][]*ast.ImportSpec, len(f.Imports))
+		for _, imp := range f.Imports {
+			imports[imp.Path.Value] = append(imports[imp.Path.Value], imp)
+		}
+
+		for _, value := range imports {
+			// If there's more than one import per path, we flag that
+			if len(value) > 1 {
+				for _, imp := range value {
+					ReportNodefFG(pass, imp, "should not import the same package multiple times")
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
 func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 	fset := pass.Fset
 	for _, f := range pass.Files {

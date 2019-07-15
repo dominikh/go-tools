@@ -151,4 +151,9 @@ bug, we prefer the more idiomatic 'if x == 42'.`,
 		Title: `Avoid zero-width and control characters in string literals`,
 		Since: "2019.2",
 	},
+
+	"ST1019": &lint.Documentation{
+		Title: `Importing the same package multiple times`,
+		Since: "Unreleased",
+	},
 }

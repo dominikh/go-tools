@@ -60,4 +60,8 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckInvisibleCharacters,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"ST1019": {
+		Run:      CheckDuplicatedImports,
+		Requires: []*analysis.Analyzer{facts.Generated, config.Analyzer},
+	},
 })
