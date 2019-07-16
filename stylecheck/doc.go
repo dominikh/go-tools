@@ -153,7 +153,7 @@ bug, we prefer the more idiomatic 'if x == 42'.`,
 	},
 
 	"ST1019": &lint.Documentation{
-		Title: `Don't import the same package under different names`,
+		Title: `Importing the same package multiple times`,
 		Since: "Unreleased",
 	},
 }
