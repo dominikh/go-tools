@@ -2,14 +2,14 @@
 package pkg
 
 import (
-	"fmt"      // want `should not import the same package under different names`
-	fmt1 "fmt" // want `should not import the same package under different names`
-	fmt2 "fmt" // want `should not import the same package under different names`
+	"fmt"      // want `should not import the same package multiple times`
+	fmt1 "fmt" // want `should not import the same package multiple times`
+	fmt2 "fmt" // want `should not import the same package multiple times`
 
 	fine "net/http"
 
-	"os"     // want `should not import the same package under different names`
-	os1 "os" // want `should not import the same package under different names`
+	"os"     // want `should not import the same package multiple times`
+	os1 "os" // want `should not import the same package multiple times`
 )
 
 var _ = fmt.Println
