@@ -346,6 +346,9 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		if pi.Column != pj.Column {
 			return pi.Column < pj.Column
 		}
+		if problems[i].Check != problems[j].Check {
+			return problems[i].Check < problems[j].Check
+		}
 
 		return problems[i].Message < problems[j].Message
 	})

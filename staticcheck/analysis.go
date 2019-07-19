@@ -6,6 +6,7 @@ import (
 	"honnef.co/go/tools/lint/lintutil"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
@@ -304,5 +305,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	"SA9005": {
 		Run:      callChecker(checkNoopMarshal),
 		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.Generated, facts.TokenFile},
+	},
+
+	"SA9999": {
+		Run:      CheckXXX,
+		Requires: []*analysis.Analyzer{ctrlflow.Analyzer},
 	},
 })

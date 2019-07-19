@@ -102,3 +102,15 @@ func fn8() {
 	switch b {
 	}
 }
+
+func fn9() (int, error)  { return 0, nil }
+func fn10() (int, error) { return 0, nil }
+
+func fn11() {
+	_, err := fn9()
+	_, err = fn10()
+
+	if err != nil {
+		_ = err.Error()
+	}
+}

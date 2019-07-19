@@ -3,6 +3,11 @@ package staticcheck
 import "honnef.co/go/tools/lint"
 
 var Docs = map[string]*lint.Documentation{
+	"SA9999": &lint.Documentation{
+		Title: `XXX`,
+		Since: "2017.1",
+	},
+
 	"SA1000": &lint.Documentation{
 		Title: `Invalid regular expression`,
 		Since: "2017.1",

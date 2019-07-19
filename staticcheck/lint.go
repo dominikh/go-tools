@@ -3466,3 +3466,22 @@ func checkXMLTag(pass *analysis.Pass, field *ast.Field, tag string) {
 		ReportNodef(pass, field.Tag, "XML options %s are mutually exclusive", strings.Join(exclusives, " and "))
 	}
 }
+
+func CheckXXX(pass *analysis.Pass) (interface{}, error) {
+	for _, f := range pass.Files {
+		ast.Inspect(f, func(node ast.Node) bool {
+			// XXX also check funclits
+			switch node := node.(type) {
+			case *ast.FuncDecl:
+				ineff := &ineffassign{}
+				ineff.process(pass, node)
+			case *ast.FuncLit:
+				ineff := &ineffassign{}
+				ineff.process(pass, node)
+			}
+
+			return true
+		})
+	}
+	return nil, nil
+}
