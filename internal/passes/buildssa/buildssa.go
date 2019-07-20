@@ -31,9 +31,29 @@ var Analyzer = &analysis.Analyzer{
 type SSA struct {
 	Pkg      *ssa.Package
 	SrcFuncs []*ssa.Function
+
+	NaivePkg      *ssa.Package
+	NaiveSrcFuncs []*ssa.Function
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	normal, err := _run(pass, 0)
+	if err != nil {
+		return nil, err
+	}
+	naive, err := _run(pass, ssa.NaiveForm)
+	if err != nil {
+		return nil, err
+	}
+	return &SSA{
+		Pkg:           normal.Pkg,
+		SrcFuncs:      normal.SrcFuncs,
+		NaivePkg:      naive.Pkg,
+		NaiveSrcFuncs: naive.SrcFuncs,
+	}, nil
+}
+
+func _run(pass *analysis.Pass, mode ssa.BuilderMode) (*SSA, error) {
 	// Plundered from ssautil.BuildPackage.
 
 	// We must create a new Program for each Package because the
@@ -46,7 +66,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Analysis.Run on a package will see only SSA objects belonging
 	// to a single Program.
 
-	mode := ssa.GlobalDebug
+	mode |= ssa.GlobalDebug
 
 	prog := ssa.NewProgram(pass.Fset, mode)
 
