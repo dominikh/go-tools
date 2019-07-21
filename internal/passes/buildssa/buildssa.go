@@ -37,11 +37,11 @@ type SSA struct {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	normal, err := _run(pass, 0)
+	normal, err := Run(pass, 0)
 	if err != nil {
 		return nil, err
 	}
-	naive, err := _run(pass, ssa.NaiveForm)
+	naive, err := Run(pass, ssa.NaiveForm)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}, nil
 }
 
-func _run(pass *analysis.Pass, mode ssa.BuilderMode) (*SSA, error) {
+func Run(pass *analysis.Pass, mode ssa.BuilderMode) (*SSA, error) {
 	// Plundered from ssautil.BuildPackage.
 
 	// We must create a new Program for each Package because the

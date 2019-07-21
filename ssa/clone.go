@@ -3,6 +3,7 @@ package ssa
 import (
 	"fmt"
 	"go/types"
+	"unsafe"
 )
 
 type cloner struct {
@@ -12,13 +13,25 @@ type cloner struct {
 	pkgMap map[*Package]*Package
 
 	// XXX rename
-	theMap map[interface{}]interface{}
+	theMap map[unsafe.Pointer]interface{}
 
 	bbMap map[*BasicBlock]*BasicBlock
+
+	instrTypes []func(Instruction) Instruction
+	instrBase  int
+}
+
+type iface struct {
+	Type unsafe.Pointer
+	Data unsafe.Pointer
+}
+
+func ifaceData(v interface{}) unsafe.Pointer {
+	return (*iface)(unsafe.Pointer(&v)).Data
 }
 
 func (c *cloner) remember(old, new interface{}) {
-	c.theMap[old] = new
+	c.theMap[ifaceData(old)] = new
 }
 
 func (c *cloner) clonePkg(pkg *Package) *Package {
@@ -55,8 +68,8 @@ func (c *cloner) cloneFunction(fn *Function) *Function {
 	if fn == nil {
 		return nil
 	}
-	if nfn, ok := c.theMap[fn]; ok {
-		return nfn.(*Function)
+	if nfn, ok := c.theMap[unsafe.Pointer(fn)]; ok {
+		return (*Function)(ifaceData(nfn))
 	}
 
 	nfn := &Function{
@@ -68,10 +81,10 @@ func (c *cloner) cloneFunction(fn *Function) *Function {
 
 		Synthetic: fn.Synthetic,
 		syntax:    fn.syntax,
-		Pkg:       c.clonePkg(fn.Pkg),
 		Prog:      c.nprog,
 	}
 	c.remember(fn, nfn)
+	nfn.Pkg = c.clonePkg(fn.Pkg)
 	nfn.parent = c.cloneFunction(fn.parent)
 	if fn.AnonFuncs != nil {
 		nfn.AnonFuncs = make([]*Function, len(fn.AnonFuncs))
@@ -137,8 +150,8 @@ func (c *cloner) cloneNamedConst(m *NamedConst) *NamedConst {
 	if m == nil {
 		return nil
 	}
-	if nm, ok := c.theMap[m]; ok {
-		return nm.(*NamedConst)
+	if nm, ok := c.theMap[unsafe.Pointer(m)]; ok {
+		return (*NamedConst)(ifaceData(nm))
 	}
 
 	nm := &NamedConst{
@@ -155,8 +168,8 @@ func (c *cloner) cloneType(m *Type) *Type {
 	if m == nil {
 		return nil
 	}
-	if nm, ok := c.theMap[m]; ok {
-		return nm.(*Type)
+	if nm, ok := c.theMap[unsafe.Pointer(m)]; ok {
+		return (*Type)(ifaceData(nm))
 	}
 
 	nm := &Type{
@@ -171,7 +184,7 @@ func (c *cloner) cloneValue(val Value) Value {
 	if val == nil {
 		return nil
 	}
-	if nval, ok := c.theMap[val]; ok {
+	if nval, ok := c.theMap[ifaceData(val)]; ok {
 		return nval.(Value)
 	}
 
@@ -250,8 +263,8 @@ func (c *cloner) cloneFreeVar(val *FreeVar) *FreeVar {
 	if val == nil {
 		return nil
 	}
-	if nval, ok := c.theMap[val]; ok {
-		return nval.(*FreeVar)
+	if nval, ok := c.theMap[unsafe.Pointer(val)]; ok {
+		return (*FreeVar)(ifaceData(nval))
 	}
 
 	nval := &FreeVar{
@@ -261,7 +274,7 @@ func (c *cloner) cloneFreeVar(val *FreeVar) *FreeVar {
 	}
 	c.remember(val, nval)
 	nval.parent = c.cloneFunction(val.parent)
-	val.referrers = c.cloneInstructions(val.referrers)
+	nval.referrers = c.cloneInstructions(val.referrers)
 	return nval
 }
 
@@ -270,8 +283,8 @@ func (c *cloner) cloneParameter(val *Parameter) *Parameter {
 	if val == nil {
 		return nil
 	}
-	if nval, ok := c.theMap[val]; ok {
-		return nval.(*Parameter)
+	if nval, ok := c.theMap[unsafe.Pointer(val)]; ok {
+		return (*Parameter)(ifaceData(nval))
 	}
 
 	nval := &Parameter{
@@ -292,8 +305,8 @@ func (c *cloner) cloneGlobal(val *Global) *Global {
 	if val == nil {
 		return nil
 	}
-	if nval, ok := c.theMap[val]; ok {
-		return nval.(*Global)
+	if nval, ok := c.theMap[unsafe.Pointer(val)]; ok {
+		return (*Global)(ifaceData(nval))
 	}
 
 	nval := &Global{
@@ -314,8 +327,8 @@ func (c *cloner) cloneAlloc(val *Alloc) *Alloc {
 	if val == nil {
 		return nil
 	}
-	if nval, ok := c.theMap[val]; ok {
-		return nval.(*Alloc)
+	if nval, ok := c.theMap[unsafe.Pointer(val)]; ok {
+		return (*Alloc)(ifaceData(nval))
 	}
 
 	nval := &Alloc{
@@ -576,94 +589,80 @@ func (c *cloner) cloneExtract(val *Extract) *Extract {
 	return nval
 }
 
+func (c *cloner) init() {
+	T := map[Instruction]func(Instruction) Instruction{
+		(*Alloc)(nil):      func(instr Instruction) Instruction { return c.cloneAlloc((*Alloc)(ifaceData(instr))) },
+		(*Sigma)(nil):      func(instr Instruction) Instruction { return c.cloneSigma((*Sigma)(ifaceData(instr))) },
+		(*Phi)(nil):        func(instr Instruction) Instruction { return c.clonePhi((*Phi)(ifaceData(instr))) },
+		(*Call)(nil):       func(instr Instruction) Instruction { return c.cloneCall((*Call)(ifaceData(instr))) },
+		(*BinOp)(nil):      func(instr Instruction) Instruction { return c.cloneBinOp((*BinOp)(ifaceData(instr))) },
+		(*UnOp)(nil):       func(instr Instruction) Instruction { return c.cloneUnOp((*UnOp)(ifaceData(instr))) },
+		(*ChangeType)(nil): func(instr Instruction) Instruction { return c.cloneChangeType((*ChangeType)(ifaceData(instr))) },
+		(*ChangeInterface)(nil): func(instr Instruction) Instruction {
+			return c.cloneChangeInterface((*ChangeInterface)(ifaceData(instr)))
+		},
+		(*MakeInterface)(nil): func(instr Instruction) Instruction { return c.cloneMakeInterface((*MakeInterface)(ifaceData(instr))) },
+		(*MakeClosure)(nil):   func(instr Instruction) Instruction { return c.cloneMakeClosure((*MakeClosure)(ifaceData(instr))) },
+		(*MakeMap)(nil):       func(instr Instruction) Instruction { return c.cloneMakeMap((*MakeMap)(ifaceData(instr))) },
+		(*MakeChan)(nil):      func(instr Instruction) Instruction { return c.cloneMakeChan((*MakeChan)(ifaceData(instr))) },
+		(*MakeSlice)(nil):     func(instr Instruction) Instruction { return c.cloneMakeSlice((*MakeSlice)(ifaceData(instr))) },
+		(*Slice)(nil):         func(instr Instruction) Instruction { return c.cloneSlice((*Slice)(ifaceData(instr))) },
+		(*FieldAddr)(nil):     func(instr Instruction) Instruction { return c.cloneFieldAddr((*FieldAddr)(ifaceData(instr))) },
+		(*Field)(nil):         func(instr Instruction) Instruction { return c.cloneField((*Field)(ifaceData(instr))) },
+		(*IndexAddr)(nil):     func(instr Instruction) Instruction { return c.cloneIndexAddr((*IndexAddr)(ifaceData(instr))) },
+		(*Index)(nil):         func(instr Instruction) Instruction { return c.cloneIndex((*Index)(ifaceData(instr))) },
+		(*Lookup)(nil):        func(instr Instruction) Instruction { return c.cloneLookup((*Lookup)(ifaceData(instr))) },
+		(*Select)(nil):        func(instr Instruction) Instruction { return c.cloneSelect((*Select)(ifaceData(instr))) },
+		(*Range)(nil):         func(instr Instruction) Instruction { return c.cloneRange((*Range)(ifaceData(instr))) },
+		(*Next)(nil):          func(instr Instruction) Instruction { return c.cloneNext((*Next)(ifaceData(instr))) },
+		(*TypeAssert)(nil):    func(instr Instruction) Instruction { return c.cloneTypeAssert((*TypeAssert)(ifaceData(instr))) },
+		(*Extract)(nil):       func(instr Instruction) Instruction { return c.cloneExtract((*Extract)(ifaceData(instr))) },
+		(*Jump)(nil):          func(instr Instruction) Instruction { return c.cloneJump((*Jump)(ifaceData(instr))) },
+		(*If)(nil):            func(instr Instruction) Instruction { return c.cloneIf((*If)(ifaceData(instr))) },
+		(*Return)(nil):        func(instr Instruction) Instruction { return c.cloneReturn((*Return)(ifaceData(instr))) },
+		(*RunDefers)(nil):     func(instr Instruction) Instruction { return c.cloneRunDefers((*RunDefers)(ifaceData(instr))) },
+		(*Panic)(nil):         func(instr Instruction) Instruction { return c.clonePanic((*Panic)(ifaceData(instr))) },
+		(*Go)(nil):            func(instr Instruction) Instruction { return c.cloneGo((*Go)(ifaceData(instr))) },
+		(*Defer)(nil):         func(instr Instruction) Instruction { return c.cloneDefer((*Defer)(ifaceData(instr))) },
+		(*Send)(nil):          func(instr Instruction) Instruction { return c.cloneSend((*Send)(ifaceData(instr))) },
+		(*Store)(nil):         func(instr Instruction) Instruction { return c.cloneStore((*Store)(ifaceData(instr))) },
+		(*BlankStore)(nil):    func(instr Instruction) Instruction { return c.cloneBlankStore((*BlankStore)(ifaceData(instr))) },
+		(*MapUpdate)(nil):     func(instr Instruction) Instruction { return c.cloneMapUpdate((*MapUpdate)(ifaceData(instr))) },
+		(*DebugRef)(nil):      func(instr Instruction) Instruction { return c.cloneDebugRef((*DebugRef)(ifaceData(instr))) },
+		(*Convert)(nil):       func(instr Instruction) Instruction { return c.cloneConvert((*Convert)(ifaceData(instr))) },
+	}
+
+	min := 0x0FFFFFFFFFFFFFFF
+	max := 0
+	for t := range T {
+		itab := (*iface)(unsafe.Pointer(&t)).Type
+		if int(uintptr(itab)) < min {
+			min = int(uintptr(itab))
+		}
+		if int(uintptr(itab)) > max {
+			max = int(uintptr(itab))
+		}
+	}
+
+	c.instrTypes = make([]func(Instruction) Instruction, max-min+1)
+	c.instrBase = min
+	for t, f := range T {
+		itab := int(uintptr((*iface)(unsafe.Pointer(&t)).Type))
+		c.instrTypes[itab-min] = f
+	}
+}
+
 func (c *cloner) cloneInstruction(instr Instruction) Instruction {
 	if instr == nil {
 		return nil
 	}
-	if ninstr, ok := c.theMap[instr]; ok {
+	if ninstr, ok := c.theMap[ifaceData(instr)]; ok {
 		return ninstr.(Instruction)
 	}
 
-	switch instr := instr.(type) {
-	case *Alloc:
-		return c.cloneAlloc(instr)
-	case *Sigma:
-		return c.cloneSigma(instr)
-	case *Phi:
-		return c.clonePhi(instr)
-	case *Call:
-		return c.cloneCall(instr)
-	case *BinOp:
-		return c.cloneBinOp(instr)
-	case *UnOp:
-		return c.cloneUnOp(instr)
-	case *ChangeType:
-		return c.cloneChangeType(instr)
-	case *ChangeInterface:
-		return c.cloneChangeInterface(instr)
-	case *MakeInterface:
-		return c.cloneMakeInterface(instr)
-	case *MakeClosure:
-		return c.cloneMakeClosure(instr)
-	case *MakeMap:
-		return c.cloneMakeMap(instr)
-	case *MakeChan:
-		return c.cloneMakeChan(instr)
-	case *MakeSlice:
-		return c.cloneMakeSlice(instr)
-	case *Slice:
-		return c.cloneSlice(instr)
-	case *FieldAddr:
-		return c.cloneFieldAddr(instr)
-	case *Field:
-		return c.cloneField(instr)
-	case *IndexAddr:
-		return c.cloneIndexAddr(instr)
-	case *Index:
-		return c.cloneIndex(instr)
-	case *Lookup:
-		return c.cloneLookup(instr)
-	case *Select:
-		return c.cloneSelect(instr)
-	case *Range:
-		return c.cloneRange(instr)
-	case *Next:
-		return c.cloneNext(instr)
-	case *TypeAssert:
-		return c.cloneTypeAssert(instr)
-	case *Extract:
-		return c.cloneExtract(instr)
-	case *Jump:
-		return c.cloneJump(instr)
-	case *If:
-		return c.cloneIf(instr)
-	case *Return:
-		return c.cloneReturn(instr)
-	case *RunDefers:
-		return c.cloneRunDefers(instr)
-	case *Panic:
-		return c.clonePanic(instr)
-	case *Go:
-		return c.cloneGo(instr)
-	case *Defer:
-		return c.cloneDefer(instr)
-	case *Send:
-		return c.cloneSend(instr)
-	case *Store:
-		return c.cloneStore(instr)
-	case *BlankStore:
-		return c.cloneBlankStore(instr)
-	case *MapUpdate:
-		return c.cloneMapUpdate(instr)
-	case *DebugRef:
-		return c.cloneDebugRef(instr)
-	case *Convert:
-		return c.cloneConvert(instr)
-	case nil:
-		return nil
-	default:
-		panic(fmt.Sprintf("internal error: unexpected type %T", instr))
-	}
+	T := (*iface)(unsafe.Pointer(&instr)).Type
+	off := int(uintptr(T)) - c.instrBase
+	return c.instrTypes[off](instr)
 }
 
 func (c *cloner) cloneConvert(instr *Convert) *Convert {
@@ -685,7 +684,7 @@ func (c *cloner) cloneIf(instr *If) *If {
 	ninstr := &If{}
 	c.remember(instr, ninstr)
 	ninstr.anInstruction = c.cloneAnInstruction(instr.anInstruction)
-	ninstr.Cond = c.cloneValue(ninstr.Cond)
+	ninstr.Cond = c.cloneValue(instr.Cond)
 	return ninstr
 }
 
@@ -756,6 +755,7 @@ func (c *cloner) cloneStore(instr *Store) *Store {
 		pos: instr.pos,
 	}
 	c.remember(instr, ninstr)
+	ninstr.anInstruction = c.cloneAnInstruction(instr.anInstruction)
 	ninstr.Addr = c.cloneValue(instr.Addr)
 	ninstr.Val = c.cloneValue(instr.Val)
 	return ninstr
@@ -797,6 +797,7 @@ func (c *cloner) cloneBasicBlock(bb *BasicBlock) *BasicBlock {
 	if bb == nil {
 		return nil
 	}
+
 	if nbb, ok := c.bbMap[bb]; ok {
 		return nbb
 	}
@@ -806,10 +807,11 @@ func (c *cloner) cloneBasicBlock(bb *BasicBlock) *BasicBlock {
 		Comment:   bb.Comment,
 		gaps:      bb.gaps,
 		rundefers: bb.rundefers,
+		parent:    (*Function)(ifaceData(c.theMap[unsafe.Pointer(bb.Parent())])),
 	}
 	c.bbMap[bb] = nbb
-	nbb.parent = c.cloneFunction(bb.parent)
-	bb.Instrs = c.cloneInstructions(bb.Instrs)
+
+	nbb.Instrs = c.cloneInstructions(bb.Instrs)
 	if bb.Preds != nil {
 		nbb.Preds = make([]*BasicBlock, len(bb.Preds))
 		for i, pred := range bb.Preds {
@@ -822,9 +824,10 @@ func (c *cloner) cloneBasicBlock(bb *BasicBlock) *BasicBlock {
 			nbb.Succs[i] = c.cloneBasicBlock(succ)
 		}
 	}
-	for i, succ := range bb.succs2 {
-		nbb.succs2[i] = c.cloneBasicBlock(succ)
-	}
+	// for i, succ := range bb.succs2 {
+	// 	nbb.succs2[i] = c.cloneBasicBlock(succ)
+	// }
+
 	nbb.dom.idom = bb.dom.idom
 	if bb.dom.children != nil {
 		nbb.dom.children = make([]*BasicBlock, len(bb.dom.children))
@@ -851,7 +854,7 @@ func (c *cloner) cloneRegister(reg register) register {
 		typ:           reg.typ,
 		pos:           reg.pos,
 	}
-	reg.referrers = c.cloneInstructions(reg.referrers)
+	nreg.referrers = c.cloneInstructions(reg.referrers)
 	return nreg
 }
 
@@ -893,9 +896,10 @@ func (prog *Program) Clone() *Program {
 	c := &cloner{
 		nprog:  nprog,
 		pkgMap: map[*Package]*Package{},
-		theMap: map[interface{}]interface{}{},
+		theMap: map[unsafe.Pointer]interface{}{},
 		bbMap:  map[*BasicBlock]*BasicBlock{},
 	}
+	c.init()
 
 	for path, pkg := range prog.imported {
 		nprog.imported[path] = c.clonePkg(pkg)
