@@ -3366,12 +3366,20 @@ func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
 
 func CheckStructTags(pass *analysis.Pass) (interface{}, error) {
 	importsGoFlags := false
-	for _, imp := range pass.Pkg.Imports() {
-		if imp.Path() == "github.com/jessevdk/go-flags" {
-			importsGoFlags = true
-			break
+
+	// we use the AST instead of (*types.Package).Imports to work
+	// around vendored packages in GOPATH mode. A vendored package's
+	// path will include the vendoring subtree as a prefix.
+	for _, f := range pass.Files {
+		for _, imp := range f.Imports {
+			v := imp.Path.Value
+			if v[1:len(v)-1] == "github.com/jessevdk/go-flags" {
+				importsGoFlags = true
+				break
+			}
 		}
 	}
+
 	fn := func(node ast.Node) {
 		for _, field := range node.(*ast.StructType).Fields.List {
 			if field.Tag == nil {
