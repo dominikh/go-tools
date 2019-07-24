@@ -3365,6 +3365,13 @@ func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckStructTags(pass *analysis.Pass) (interface{}, error) {
+	importsGoFlags := false
+	for _, imp := range pass.Pkg.Imports() {
+		if imp.Path() == "github.com/jessevdk/go-flags" {
+			importsGoFlags = true
+			break
+		}
+	}
 	fn := func(node ast.Node) {
 		for _, field := range node.(*ast.StructType).Fields.List {
 			if field.Tag == nil {
@@ -3377,8 +3384,11 @@ func CheckStructTags(pass *analysis.Pass) (interface{}, error) {
 			}
 			for k, v := range tags {
 				if len(v) > 1 {
-					ReportNodef(pass, field.Tag, "duplicate struct tag %q", k)
-					continue
+					isGoFlagsTag := importsGoFlags &&
+						(k == "choice" || k == "optional-value" || k == "default")
+					if !isGoFlagsTag {
+						ReportNodef(pass, field.Tag, "duplicate struct tag %q", k)
+					}
 				}
 
 				switch k {

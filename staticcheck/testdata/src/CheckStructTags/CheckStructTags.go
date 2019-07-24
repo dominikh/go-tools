@@ -1,5 +1,7 @@
 package pkg
 
+import _ "github.com/jessevdk/go-flags"
+
 type T1 struct {
 	B int        `foo:"" foo:""` // want `duplicate struct tag`
 	C int        `foo:"" bar:""`
@@ -34,4 +36,11 @@ type T2 struct {
 type T3 struct {
 	A int `json:",omitempty" xml:",attr"`
 	B int `json:",unknown" xml:",attr"` // want `unknown JSON option`
+}
+
+type T4 struct {
+	A int   `choice:"foo" choice:"bar"`
+	B []int `optional-value:"foo" optional-value:"bar"`
+	C []int `default:"foo" default:"bar"`
+	D int   `json:"foo" json:"bar"` // want `duplicate struct tag`
 }
