@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -121,6 +122,17 @@ type Config struct {
 	Initialisms             []string `toml:"initialisms"`
 	DotImportWhitelist      []string `toml:"dot_import_whitelist"`
 	HTTPStatusCodeWhitelist []string `toml:"http_status_code_whitelist"`
+}
+
+func (c Config) String() string {
+	buf := &bytes.Buffer{}
+
+	fmt.Fprintf(buf, "Checks: %#v\n", c.Checks)
+	fmt.Fprintf(buf, "Initialisms: %#v\n", c.Initialisms)
+	fmt.Fprintf(buf, "DotImportWhitelist: %#v\n", c.DotImportWhitelist)
+	fmt.Fprintf(buf, "HTTPStatusCodeWhitelist: %#v", c.HTTPStatusCodeWhitelist)
+
+	return buf.String()
 }
 
 var DefaultConfig = Config{

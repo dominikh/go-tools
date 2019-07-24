@@ -147,18 +147,35 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		allAnalyzers = append(allAnalyzers, cum.Analyzer())
 	}
 
-	allowed := FilterChecks(allAnalyzers, config.DefaultConfig.Merge(l.Config).Checks)
-	var analyzers []*analysis.Analyzer
+	// The -checks command line flag overrules all configuration
+	// files, which means that for `-checks="foo"`, no check other
+	// than foo can ever be reported to the user. Make use of this
+	// fact to cull the list of analyses we need to run.
+
+	// replace "inherit" with "all", as we don't want to base the
+	// list of all checks on the default configuration, which
+	// disables certain checks.
+	checks := make([]string, len(l.Config.Checks))
+	copy(checks, l.Config.Checks)
+	for i, c := range checks {
+		if c == "inherit" {
+			checks[i] = "all"
+		}
+	}
+
+	allowed := FilterChecks(allAnalyzers, checks)
+	var allowedAnalyzers []*analysis.Analyzer
 	for _, c := range l.Checkers {
 		if allowed[c.Name] {
-			analyzers = append(analyzers, c)
+			allowedAnalyzers = append(allowedAnalyzers, c)
 		}
 	}
 	hasCumulative := false
 	for _, cum := range l.CumulativeCheckers {
-		if allowed[cum.Analyzer().Name] {
+		a := cum.Analyzer()
+		if allowed[a.Name] {
 			hasCumulative = true
-			analyzers = append(analyzers, cum.Analyzer())
+			allowedAnalyzers = append(allowedAnalyzers, a)
 		}
 	}
 
@@ -168,7 +185,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	}
 	r.goVersion = l.GoVersion
 
-	pkgs, err := r.Run(cfg, patterns, analyzers, hasCumulative)
+	pkgs, err := r.Run(cfg, patterns, allowedAnalyzers, hasCumulative)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +268,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	for _, cum := range l.CumulativeCheckers {
 		for _, res := range cum.Result() {
 			pkg := tpkgToPkg[res.Pkg()]
-			allowedChecks := FilterChecks(analyzers, pkg.cfg.Merge(l.Config).Checks)
+			allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
 			if allowedChecks[cum.Analyzer().Name] {
 				pos := DisplayPosition(pkg.Fset, res.Pos())
 				// FIXME(dh): why are we ignoring generated files
@@ -288,7 +305,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			problems = append(problems, pkg.problems...)
 		} else {
 			for _, p := range pkg.problems {
-				allowedChecks := FilterChecks(analyzers, pkg.cfg.Merge(l.Config).Checks)
+				allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
 				allowedChecks["compile"] = true
 				if allowedChecks[p.Check] {
 					problems = append(problems, p)
@@ -306,7 +323,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			}
 
 			couldveMatched := false
-			allowedChecks := FilterChecks(analyzers, pkg.cfg.Merge(l.Config).Checks)
+			allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
 			for _, c := range ig.Checks {
 				if !allowedChecks[c] {
 					continue
