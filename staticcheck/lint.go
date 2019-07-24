@@ -2791,15 +2791,17 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 		return true
 	}
 
-	imps := map[string]*types.Package{}
-	for _, imp := range pass.Pkg.Imports() {
-		imps[imp.Path()] = imp
-	}
 	fn2 := func(node ast.Node) {
 		spec := node.(*ast.ImportSpec)
+		var imp *types.Package
+		if spec.Name != nil {
+			imp = pass.TypesInfo.ObjectOf(spec.Name).(*types.PkgName).Imported()
+		} else {
+			imp = pass.TypesInfo.Implicits[spec].(*types.PkgName).Imported()
+		}
+
 		p := spec.Path.Value
 		path := p[1 : len(p)-1]
-		imp := imps[path]
 		if depr, ok := deprs.Packages[imp]; ok {
 			ReportNodef(pass, spec, "Package %s is deprecated: %s", path, depr.Msg)
 		}
