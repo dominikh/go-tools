@@ -2,14 +2,14 @@
 package pkg
 
 import (
-	"fmt"      // want `should not import the same package multiple times`
-	fmt1 "fmt" // want `should not import the same package multiple times`
-	fmt2 "fmt" // want `should not import the same package multiple times`
+	"fmt" // want `duplicate import "fmt"`
+	fmt1 "fmt"
+	fmt2 "fmt"
 
 	fine "net/http"
 
-	"os"     // want `should not import the same package multiple times`
-	os1 "os" // want `should not import the same package multiple times`
+	"os" // want `duplicate import "os"`
+	os1 "os"
 
 	"C"
 	_ "unsafe"

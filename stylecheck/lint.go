@@ -13,6 +13,7 @@ import (
 
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 
@@ -98,9 +99,12 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 			}
 			// If there's more than one import per path, we flag that
 			if len(value) > 1 {
-				for _, imp := range value {
-					ReportNodefFG(pass, imp, "should not import the same package multiple times")
+				s := fmt.Sprintf("duplicate import %s", path)
+				for _, imp := range value[1:] {
+					pos := lint.DisplayPosition(pass.Fset, imp.Pos())
+					s += "\n\t" + "also imported at " + pos.String()
 				}
+				ReportNodefFG(pass, value[0], s)
 			}
 		}
 	}
