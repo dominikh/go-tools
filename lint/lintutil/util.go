@@ -32,6 +32,7 @@ import (
 	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -188,6 +189,15 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 		exit(0)
 	}
 
+	// Validate that the tags argument is well-formed. go/packages
+	// doesn't detect malformed build flags and returns unhelpful
+	// errors.
+	tf := buildutil.TagsFlag{}
+	if err := tf.Set(tags); err != nil {
+		fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", tags, err))
+		exit(1)
+	}
+
 	if explain != "" {
 		var haystack []*analysis.Analyzer
 		haystack = append(haystack, cs...)
@@ -208,7 +218,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	}
 
 	ps, err := Lint(cs, cums, fs.Args(), &Options{
-		Tags:      strings.Fields(tags),
+		Tags:      tags,
 		LintTests: tests,
 		GoVersion: goVersion,
 		Config:    cfg,
@@ -274,7 +284,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 type Options struct {
 	Config config.Config
 
-	Tags      []string
+	Tags      string
 	LintTests bool
 	GoVersion int
 }
@@ -319,6 +329,9 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 	cfg := &packages.Config{}
 	if opt.LintTests {
 		cfg.Tests = true
+	}
+	if opt.Tags != "" {
+		cfg.BuildFlags = append(cfg.BuildFlags, "-tags", opt.Tags)
 	}
 
 	printStats := func() {
