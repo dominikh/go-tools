@@ -88,7 +88,14 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 			imports[imp.Path.Value] = append(imports[imp.Path.Value], imp)
 		}
 
-		for _, value := range imports {
+		for path, value := range imports {
+			if path[1:len(path)-1] == "unsafe" {
+				// Don't flag unsafe. Cgo generated code imports
+				// unsafe using the blank identifier, and most
+				// user-written cgo code also imports unsafe
+				// explicitly.
+				continue
+			}
 			// If there's more than one import per path, we flag that
 			if len(value) > 1 {
 				for _, imp := range value {

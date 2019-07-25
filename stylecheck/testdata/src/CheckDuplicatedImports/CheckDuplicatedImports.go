@@ -10,6 +10,9 @@ import (
 
 	"os"     // want `should not import the same package multiple times`
 	os1 "os" // want `should not import the same package multiple times`
+
+	"C"
+	_ "unsafe"
 )
 
 var _ = fmt.Println
