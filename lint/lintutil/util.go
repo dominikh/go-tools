@@ -32,6 +32,7 @@ import (
 	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -319,6 +320,14 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 	cfg := &packages.Config{}
 	if opt.LintTests {
 		cfg.Tests = true
+	}
+	if len(opt.Tags) > 0 {
+		tagsFlag := buildutil.TagsFlag{}
+		err = tagsFlag.Set(strings.Join(opt.Tags, " "))
+		if err != nil || len(tagsFlag) == 0 {
+			return nil, fmt.Errorf("could parse tags: %s", err)
+		}
+		cfg.BuildFlags = append(cfg.BuildFlags, "-tags", strings.Join(tagsFlag, " "))
 	}
 
 	printStats := func() {
