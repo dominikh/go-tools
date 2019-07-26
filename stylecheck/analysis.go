@@ -50,7 +50,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"ST1016": {
 		Run:      CheckReceiverNamesIdentical,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Generated},
 	},
 	"ST1017": {
 		Run:      CheckYodaConditions,

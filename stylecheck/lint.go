@@ -287,6 +287,10 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()
+				if IsGenerated(pass, recv.Pos()) {
+					// Don't concern ourselves with methods in generated code
+					continue
+				}
 				if Dereference(recv.Type()) != T.Type() {
 					// skip embedded methods
 					continue
