@@ -6,6 +6,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -304,6 +305,7 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 			for name, count := range names {
 				seen = append(seen, fmt.Sprintf("%dx %q", count, name))
 			}
+			sort.Strings(seen)
 
 			pass.Reportf(firstFn.Pos(), "methods on the same type should have the same receiver name (seen %s)", strings.Join(seen, ", "))
 		}
