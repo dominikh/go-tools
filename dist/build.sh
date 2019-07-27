@@ -2,6 +2,7 @@
 
 SYSTEMS=(windows linux freebsd darwin)
 ARCHS=(amd64 386)
+ROOT="$GOPATH/src/honnef.co/go/tools"
 
 rev="$1"
 if [ -z "$rev" ]; then
@@ -23,15 +24,20 @@ GO111MODULE=on go get -d honnef.co/go/tools/cmd/staticcheck@"$rev"
 for os in ${SYSTEMS[@]}; do
     for arch in ${ARCHS[@]}; do
         echo "Building GOOS=$os GOARCH=$arch..."
-        out="staticcheck_${os}_${arch}"
+        exe="staticcheck"
         if [ $os = "windows" ]; then
-            out="${out}.exe"
+            exe="${exe}.exe"
         fi
+        target="staticcheck_${os}_${arch}"
 
-        CGO_ENABLED=0 GOOS=$os GOARCH=$arch GO111MODULE=on go build -o "$d/$out" honnef.co/go/tools/cmd/staticcheck
+        rm -rf "$d/staticcheck"
+        mkdir "$d/staticcheck"
+        cp "$ROOT/LICENSE" "$ROOT/LICENSE-THIRD-PARTY" "$d/staticcheck"
+        CGO_ENABLED=0 GOOS=$os GOARCH=$arch GO111MODULE=on go build -o "$d/staticcheck/$exe" honnef.co/go/tools/cmd/staticcheck
         (
             cd "$d"
-            sha256sum "$out" > "$out".sha256
+            tar -czf "$target.tar.gz" staticcheck
+            sha256sum "$target.tar.gz" > "$target.tar.gz.sha256"
         )
     done
 done
