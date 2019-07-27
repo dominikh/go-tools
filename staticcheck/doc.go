@@ -551,6 +551,28 @@ should be used instead.`,
 		Since: "2019.2",
 	},
 
+	"SA5010": &lint.Documentation{
+		Title: `Impossible type assertion`,
+
+		Text: `Some type assertions can be statically proven to be
+impossible. This is the case when the method sets of both
+arguments of the type assertion conflict with each other, for
+example by containing the same method with different
+signatures.
+
+The Go compiler already applies this check when asserting from an
+interface value to a concrete type. If the concrete type misses
+methods from the interface, or if function signatures don't match,
+then the type assertion can never succeed.
+
+This check applies the same logic when asserting from one interface to
+another. If both interface types contain the same method but with
+different signatures, then the type assertion can never succeed,
+either. `,
+
+		Since: "Unreleased",
+	},
+
 	"SA6000": &lint.Documentation{
 		Title: `Using regexp.Match or related in a loop, should use regexp.Compile`,
 		Since: "2017.1",

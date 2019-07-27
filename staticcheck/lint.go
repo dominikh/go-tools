@@ -3486,3 +3486,60 @@ func checkXMLTag(pass *analysis.Pass, field *ast.Field, tag string) {
 		ReportNodef(pass, field.Tag, "XML options %s are mutually exclusive", strings.Join(exclusives, " and "))
 	}
 }
+
+func CheckImpossibleTypeAssertion(pass *analysis.Pass) (interface{}, error) {
+	type entry struct {
+		l, r *types.Func
+	}
+
+	msc := &pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg.Prog.MethodSets
+	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				assert, ok := instr.(*ssa.TypeAssert)
+				if !ok {
+					continue
+				}
+				var wrong []entry
+				left := assert.X.Type()
+				right := assert.AssertedType
+				righti, ok := right.Underlying().(*types.Interface)
+
+				if !ok {
+					// We only care about interface->interface
+					// assertions. The Go compiler already catches
+					// impossible interface->concrete assertions.
+					continue
+				}
+
+				ms := msc.MethodSet(left)
+				for i := 0; i < righti.NumMethods(); i++ {
+					mr := righti.Method(i)
+					sel := ms.Lookup(mr.Pkg(), mr.Name())
+					if sel == nil {
+						continue
+					}
+					ml := sel.Obj().(*types.Func)
+					if types.AssignableTo(ml.Type(), mr.Type()) {
+						continue
+					}
+
+					wrong = append(wrong, entry{ml, mr})
+				}
+
+				if len(wrong) != 0 {
+					s := fmt.Sprintf("impossible type assertion; %s and %s contradict each other:",
+						types.TypeString(left, types.RelativeTo(pass.Pkg)),
+						types.TypeString(right, types.RelativeTo(pass.Pkg)))
+					for _, e := range wrong {
+						s += fmt.Sprintf("\n\twrong type for %s method", e.l.Name())
+						s += fmt.Sprintf("\n\t\thave %s", e.l.Type())
+						s += fmt.Sprintf("\n\t\twant %s", e.r.Type())
+					}
+					pass.Reportf(assert.Pos(), "%s", s)
+				}
+			}
+		}
+	}
+	return nil, nil
+}

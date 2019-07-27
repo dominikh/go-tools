@@ -262,6 +262,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      callChecker(checkPrintfRules),
 		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
 	},
+	"SA5010": {
+		Run:      CheckImpossibleTypeAssertion,
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile},
+	},
 
 	"SA6000": {
 		Run:      callChecker(checkRegexpMatchLoopRules),
