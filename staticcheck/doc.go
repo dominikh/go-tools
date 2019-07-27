@@ -251,6 +251,20 @@ in a struct.`,
 		Since: "Unreleased",
 	},
 
+	"SA1029": &lint.Documentation{
+		Title: `Inappropriate key in call to context.WithValue`,
+		Text: `The provided key must be comparable and should not be
+of type string or any other built-in type to avoid collisions between
+packages using context. Users of WithValue should define their own
+types for keys.
+
+To avoid allocating when assigning to an interface{},
+context keys often have concrete type struct{}. Alternatively,
+exported context key variables' static type should be a pointer or
+interface.`,
+		Since: "Unreleased",
+	},
+
 	"SA2000": &lint.Documentation{
 		Title: `sync.WaitGroup.Add called inside the goroutine, leading to a race condition`,
 		Since: "2017.1",

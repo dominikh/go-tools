@@ -283,6 +283,10 @@ var (
 		"sort.SliceIsSorted": checkSortSlice,
 		"sort.SliceStable":   checkSortSlice,
 	}
+
+	checkWithValueKeyRules = map[string]CallCheck{
+		"context.WithValue": checkWithValueKey,
+	}
 )
 
 func checkPrintfCall(call *Call, fIdx, vIdx int) {
@@ -3542,4 +3546,16 @@ func CheckImpossibleTypeAssertion(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	return nil, nil
+}
+
+func checkWithValueKey(call *Call) {
+	arg := call.Args[1]
+	T := arg.Value.Value.Type()
+	if T, ok := T.(*types.Basic); ok {
+		arg.Invalid(
+			fmt.Sprintf("should not use built-in type %s as key for value; define your own type to avoid collisions", T))
+	}
+	if !types.Comparable(T) {
+		arg.Invalid(fmt.Sprintf("keys used with context.WithValue must be comparable, but type %s is not comparable", T))
+	}
 }

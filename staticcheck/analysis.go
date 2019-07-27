@@ -118,6 +118,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      callChecker(checkSortSliceRules),
 		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
 	},
+	"SA1029": {
+		Run:      callChecker(checkWithValueKeyRules),
+		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
+	},
 
 	"SA2000": {
 		Run:      CheckWaitgroupAdd,
