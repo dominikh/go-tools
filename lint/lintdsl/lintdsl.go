@@ -398,3 +398,9 @@ func ReportNodefFG(pass *analysis.Pass, node ast.Node, format string, args ...in
 	}
 	ReportNodef(pass, node, format, args...)
 }
+
+// ExhaustiveTypeSwitch panics when called. It can be used to ensure
+// that type switches are exhaustive.
+func ExhaustiveTypeSwitch(v interface{}) {
+	panic(fmt.Sprintf("internal error: unhandled case %T", v))
+}

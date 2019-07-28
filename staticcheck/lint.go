@@ -1067,7 +1067,7 @@ func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
 			}
 			return true
 		default:
-			// unreachable
+			ExhaustiveTypeSwitch(node)
 			return true
 		}
 	}
@@ -1181,7 +1181,7 @@ func CheckScopedBreak(pass *analysis.Pass) (interface{}, error) {
 		case *ast.RangeStmt:
 			body = node.Body
 		default:
-			panic(fmt.Sprintf("unreachable: %T", node))
+			ExhaustiveTypeSwitch(node)
 		}
 		for _, stmt := range body.List {
 			var blocks [][]ast.Stmt
@@ -1951,7 +1951,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncLit:
 			body = fn.Body
 		default:
-			panic(fmt.Sprintf("unreachable: %T", node))
+			ExhaustiveTypeSwitch(node)
 		}
 		if body == nil {
 			return

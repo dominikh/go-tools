@@ -2,7 +2,6 @@
 package simple // import "honnef.co/go/tools/simple"
 
 import (
-	"fmt"
 	"go/ast"
 	"go/constant"
 	"go/token"
@@ -55,6 +54,8 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 			ReportNodefFG(pass, node, "should use a simple channel send/receive instead of select with a single case")
+		default:
+			ExhaustiveTypeSwitch(v)
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.SelectStmt)(nil)}, fn)
@@ -1498,7 +1499,7 @@ func LintRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 			ret = x.Type.Results
 			body = x.Body
 		default:
-			panic(fmt.Sprintf("unreachable: %T", node))
+			ExhaustiveTypeSwitch(node)
 		}
 		// if the func has results, a return can't be redundant.
 		// similarly, if there are no statements, there can be
@@ -1666,7 +1667,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncDecl:
 			body = node.Body
 		default:
-			panic(fmt.Sprintf("unreachable: %T", node))
+			ExhaustiveTypeSwitch(node)
 		}
 		if body == nil {
 			return
