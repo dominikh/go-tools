@@ -22,6 +22,9 @@ func TestAll(t *testing.T) {
 		"ST1017": {{Dir: "CheckYodaConditions"}},
 		"ST1018": {{Dir: "CheckInvisibleCharacters"}},
 		"ST1019": {{Dir: "CheckDuplicatedImports"}},
+		"ST1020": {{Dir: "CheckExportedFunctionDocs"}},
+		"ST1021": {{Dir: "CheckExportedTypeDocs"}},
+		"ST1022": {{Dir: "CheckExportedVarDocs"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)

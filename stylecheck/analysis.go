@@ -64,4 +64,16 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckDuplicatedImports,
 		Requires: []*analysis.Analyzer{facts.Generated, config.Analyzer},
 	},
+	"ST1020": {
+		Run:      CheckExportedFunctionDocs,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
+	"ST1021": {
+		Run:      CheckExportedTypeDocs,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
+	"ST1022": {
+		Run:      CheckExportedVarDocs,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

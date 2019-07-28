@@ -156,4 +156,55 @@ bug, we prefer the more idiomatic 'if x == 42'.`,
 		Title: `Importing the same package multiple times`,
 		Since: "Unreleased",
 	},
+
+	"ST1020": &lint.Documentation{
+		Title: "The documentation of an exported function should start with the function's name",
+		Text: `Doc comments work best as complete sentences, which
+allow a wide variety of automated presentations. The first sentence
+should be a one-sentence summary that starts with the name being
+declared.
+
+If every doc comment begins with the name of the item it describes,
+you can use the doc subcommand of the go tool and run the output
+through grep.
+
+See https://golang.org/doc/effective_go.html#commentary for more
+information on how to write good documentation.`,
+		Since:      "Unreleased",
+		NonDefault: true,
+	},
+
+	"ST1021": &lint.Documentation{
+		Title: "The documentation of an exported type should start with type's name",
+		Text: `Doc comments work best as complete sentences, which
+allow a wide variety of automated presentations. The first sentence
+should be a one-sentence summary that starts with the name being
+declared.
+
+If every doc comment begins with the name of the item it describes,
+you can use the doc subcommand of the go tool and run the output
+through grep.
+
+See https://golang.org/doc/effective_go.html#commentary for more
+information on how to write good documentation.`,
+		Since:      "Unreleased",
+		NonDefault: true,
+	},
+
+	"ST1022": &lint.Documentation{
+		Title: "The documentation of an exported variable or constant should start with variable's name",
+		Text: `Doc comments work best as complete sentences, which
+allow a wide variety of automated presentations. The first sentence
+should be a one-sentence summary that starts with the name being
+declared.
+
+If every doc comment begins with the name of the item it describes,
+you can use the doc subcommand of the go tool and run the output
+through grep.
+
+See https://golang.org/doc/effective_go.html#commentary for more
+information on how to write good documentation.`,
+		Since:      "Unreleased",
+		NonDefault: true,
+	},
 }

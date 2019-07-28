@@ -664,3 +664,157 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BasicLit)(nil)}, fn)
 	return nil, nil
 }
+
+func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		if IsInTest(pass, node) {
+			return
+		}
+
+		decl := node.(*ast.FuncDecl)
+		if decl.Doc == nil {
+			return
+		}
+		if !ast.IsExported(decl.Name.Name) {
+			return
+		}
+		kind := "function"
+		if decl.Recv != nil {
+			kind = "method"
+			switch T := decl.Recv.List[0].Type.(type) {
+			case *ast.StarExpr:
+				if !ast.IsExported(T.X.(*ast.Ident).Name) {
+					return
+				}
+			case *ast.Ident:
+				if !ast.IsExported(T.Name) {
+					return
+				}
+			default:
+				ExhaustiveTypeSwitch(T)
+			}
+		}
+		prefix := decl.Name.Name + " "
+		if !strings.HasPrefix(decl.Doc.Text(), prefix) {
+			ReportNodef(pass, decl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix)
+		}
+	}
+
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncDecl)(nil)}, fn)
+	return nil, nil
+}
+
+func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
+	var genDecl *ast.GenDecl
+	fn := func(node ast.Node, push bool) bool {
+		if !push {
+			genDecl = nil
+			return false
+		}
+		if IsInTest(pass, node) {
+			return false
+		}
+
+		switch node := node.(type) {
+		case *ast.GenDecl:
+			if node.Tok == token.IMPORT {
+				return false
+			}
+			genDecl = node
+			return true
+		case *ast.TypeSpec:
+			if !ast.IsExported(node.Name.Name) {
+				return false
+			}
+
+			doc := node.Doc
+			if doc == nil {
+				if len(genDecl.Specs) != 1 {
+					// more than one spec in the GenDecl, don't validate the
+					// docstring
+					return false
+				}
+				if genDecl.Lparen.IsValid() {
+					// 'type ( T )' is weird, don't guess the user's intention
+					return false
+				}
+				doc = genDecl.Doc
+				if doc == nil {
+					return false
+				}
+			}
+
+			s := doc.Text()
+			articles := [...]string{"A", "An", "The"}
+			for _, a := range articles {
+				if strings.HasPrefix(s, a+" ") {
+					s = s[len(a)+1:]
+					break
+				}
+			}
+			if !strings.HasPrefix(s, node.Name.Name+" ") {
+				ReportNodef(pass, doc, `comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name)
+			}
+			return false
+		case *ast.FuncLit, *ast.FuncDecl:
+			return false
+		default:
+			ExhaustiveTypeSwitch(node)
+			return false
+		}
+	}
+
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.GenDecl)(nil), (*ast.TypeSpec)(nil), (*ast.FuncLit)(nil), (*ast.FuncDecl)(nil)}, fn)
+	return nil, nil
+}
+
+func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
+	var genDecl *ast.GenDecl
+	fn := func(node ast.Node, push bool) bool {
+		if !push {
+			genDecl = nil
+			return false
+		}
+		if IsInTest(pass, node) {
+			return false
+		}
+
+		switch node := node.(type) {
+		case *ast.GenDecl:
+			if node.Tok == token.IMPORT {
+				return false
+			}
+			genDecl = node
+			return true
+		case *ast.ValueSpec:
+			if genDecl.Lparen.IsValid() || len(node.Names) > 1 {
+				// Don't try to guess the user's intention
+				return false
+			}
+			name := node.Names[0].Name
+			if !ast.IsExported(name) {
+				return false
+			}
+			if genDecl.Doc == nil {
+				return false
+			}
+			prefix := name + " "
+			if !strings.HasPrefix(genDecl.Doc.Text(), prefix) {
+				kind := "var"
+				if genDecl.Tok == token.CONST {
+					kind = "const"
+				}
+				ReportNodef(pass, genDecl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, name, prefix)
+			}
+			return false
+		case *ast.FuncLit, *ast.FuncDecl:
+			return false
+		default:
+			ExhaustiveTypeSwitch(node)
+			return false
+		}
+	}
+
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.GenDecl)(nil), (*ast.ValueSpec)(nil), (*ast.FuncLit)(nil), (*ast.FuncDecl)(nil)}, fn)
+	return nil, nil
+}
