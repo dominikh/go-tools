@@ -434,11 +434,15 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 		"Usec", "Usecs", "Microseconds",
 		"MS", "Ms",
 	}
-	fn := func(T types.Type, names []*ast.Ident) {
-		if !IsType(T, "time.Duration") && !IsType(T, "*time.Duration") {
-			return
-		}
+	fn := func(names []*ast.Ident) {
 		for _, name := range names {
+			if _, ok := pass.TypesInfo.Defs[name]; !ok {
+				continue
+			}
+			T := pass.TypesInfo.TypeOf(name)
+			if !IsType(T, "time.Duration") && !IsType(T, "*time.Duration") {
+				continue
+			}
 			for _, suffix := range suffixes {
 				if strings.HasSuffix(name.Name, suffix) {
 					ReportNodef(pass, name, "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
@@ -451,13 +455,22 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 		ast.Inspect(f, func(node ast.Node) bool {
 			switch node := node.(type) {
 			case *ast.ValueSpec:
-				T := pass.TypesInfo.TypeOf(node.Type)
-				fn(T, node.Names)
+				fn(node.Names)
 			case *ast.FieldList:
 				for _, field := range node.List {
-					T := pass.TypesInfo.TypeOf(field.Type)
-					fn(T, field.Names)
+					fn(field.Names)
 				}
+			case *ast.AssignStmt:
+				if node.Tok != token.DEFINE {
+					break
+				}
+				var names []*ast.Ident
+				for _, lhs := range node.Lhs {
+					if lhs, ok := lhs.(*ast.Ident); ok {
+						names = append(names, lhs)
+					}
+				}
+				fn(names)
 			}
 			return true
 		})
