@@ -709,7 +709,7 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 		}
 		prefix := decl.Name.Name + " "
 		if !strings.HasPrefix(decl.Doc.Text(), prefix) {
-			ReportNodef(pass, decl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix)
+			ReportNodefFG(pass, decl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix)
 		}
 	}
 
@@ -766,7 +766,7 @@ func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
 				}
 			}
 			if !strings.HasPrefix(s, node.Name.Name+" ") {
-				ReportNodef(pass, doc, `comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name)
+				ReportNodefFG(pass, doc, `comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name)
 			}
 			return false
 		case *ast.FuncLit, *ast.FuncDecl:
@@ -817,7 +817,7 @@ func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
 				if genDecl.Tok == token.CONST {
 					kind = "const"
 				}
-				ReportNodef(pass, genDecl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, name, prefix)
+				ReportNodefFG(pass, genDecl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, name, prefix)
 			}
 			return false
 		case *ast.FuncLit, *ast.FuncDecl:
