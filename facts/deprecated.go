@@ -134,10 +134,14 @@ func deprecated(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, fact := range pass.AllObjectFacts() {
-		out.Objects[fact.Object] = fact.Fact.(*IsDeprecated)
+		if f, ok := fact.Fact.(*IsDeprecated); ok {
+			out.Objects[fact.Object] = f
+		}
 	}
 	for _, fact := range pass.AllPackageFacts() {
-		out.Packages[fact.Package] = fact.Fact.(*IsDeprecated)
+		if f, ok := fact.Fact.(*IsDeprecated); ok {
+			out.Packages[fact.Package] = f
+		}
 	}
 
 	return out, nil
