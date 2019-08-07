@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"honnef.co/go/tools/internal/robustio"
 )
 
 const patternSuffix = ".tmp"
@@ -61,7 +63,7 @@ func WriteToFile(filename string, data io.Reader, perm os.FileMode) (err error) 
 		return err
 	}
 
-	return rename(f.Name(), filename)
+	return robustio.Rename(f.Name(), filename)
 }
 
 // tempFile creates a new temporary file with given permission bits.
@@ -87,5 +89,5 @@ func tempFile(dir, prefix string, perm os.FileMode) (f *os.File, err error) {
 //     - syscall.ERROR_FILE_NOT_FOUND
 //     - internal/syscall/windows.ERROR_SHARING_VIOLATION
 func ReadFile(filename string) ([]byte, error) {
-	return readFile(filename)
+	return robustio.ReadFile(filename)
 }

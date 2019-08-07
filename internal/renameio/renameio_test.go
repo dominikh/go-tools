@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"honnef.co/go/tools/internal/robustio"
 )
 
 func TestConcurrentReadsAndWrites(t *testing.T) {
@@ -57,7 +59,7 @@ func TestConcurrentReadsAndWrites(t *testing.T) {
 			chunk := buf[offset*8 : (offset+chunkWords)*8]
 			if err := WriteFile(path, chunk, 0666); err == nil {
 				atomic.AddInt64(&writeSuccesses, 1)
-			} else if isEphemeralError(err) {
+			} else if robustio.IsEphemeralError(err) {
 				var (
 					dup bool
 				)
@@ -72,10 +74,10 @@ func TestConcurrentReadsAndWrites(t *testing.T) {
 			}
 
 			time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
-			data, err := ioutil.ReadFile(path)
+			data, err := ReadFile(path)
 			if err == nil {
 				atomic.AddInt64(&readSuccesses, 1)
-			} else if isEphemeralError(err) {
+			} else if robustio.IsEphemeralError(err) {
 				var (
 					dup bool
 				)

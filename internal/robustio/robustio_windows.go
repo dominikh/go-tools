@@ -2,11 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package renameio
+package robustio
 
 import (
-	"errors"
-	"internal/syscall/windows"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -14,9 +12,12 @@ import (
 	"time"
 )
 
+const arbitraryTimeout = 500 * time.Millisecond
+
+const ERROR_SHARING_VIOLATION = 32
+
 // retry retries ephemeral errors from f up to an arbitrary timeout
 // to work around spurious filesystem errors on Windows
-// (see golang.org/issue/31247 and golang.org/issue/32188).
 func retry(f func() (err error, mayRetry bool)) error {
 	var (
 		bestErr     error
@@ -30,8 +31,7 @@ func retry(f func() (err error, mayRetry bool)) error {
 			return err
 		}
 
-		var errno syscall.Errno
-		if errors.As(err, &errno) && (lowestErrno == 0 || errno < lowestErrno) {
+		if errno, ok := err.(syscall.Errno); ok && (lowestErrno == 0 || errno < lowestErrno) {
 			bestErr = err
 			lowestErrno = errno
 		} else if bestErr == nil {
@@ -40,7 +40,7 @@ func retry(f func() (err error, mayRetry bool)) error {
 
 		if start.IsZero() {
 			start = time.Now()
-		} else if d := time.Since(start) + nextSleep; d >= 500*time.Millisecond {
+		} else if d := time.Since(start) + nextSleep; d >= arbitraryTimeout {
 			break
 		}
 		time.Sleep(nextSleep)
@@ -61,8 +61,6 @@ func retry(f func() (err error, mayRetry bool)) error {
 //
 // Empirical error rates with MoveFileEx are lower under modest concurrency, so
 // for now we're sticking with what the os package already provides.
-//
-// TODO(bcmills): For Go 1.14, should we try changing os.Rename itself to do this?
 func rename(oldpath, newpath string) (err error) {
 	return retry(func() (err error, mayRetry bool) {
 		err = os.Rename(oldpath, newpath)
@@ -71,8 +69,6 @@ func rename(oldpath, newpath string) (err error) {
 }
 
 // readFile is like ioutil.ReadFile, but retries ephemeral errors.
-//
-// TODO(bcmills): For Go 1.14, should we try changing ioutil.ReadFile itself to do this?
 func readFile(filename string) ([]byte, error) {
 	var b []byte
 	err := retry(func() (err error, mayRetry bool) {
@@ -81,19 +77,26 @@ func readFile(filename string) ([]byte, error) {
 		// Unlike in rename, we do not retry ERROR_FILE_NOT_FOUND here: it can occur
 		// as a spurious error, but the file may also genuinely not exist, so the
 		// increase in robustness is probably not worth the extra latency.
-		return err, isEphemeralError(err) && !errors.Is(err, syscall.ERROR_FILE_NOT_FOUND)
+
+		return err, isEphemeralError(err) && err != syscall.ERROR_FILE_NOT_FOUND
 	})
 	return b, err
 }
 
+func removeAll(path string) error {
+	return retry(func() (err error, mayRetry bool) {
+		err = os.RemoveAll(path)
+		return err, isEphemeralError(err)
+	})
+}
+
 // isEphemeralError returns true if err may be resolved by waiting.
 func isEphemeralError(err error) bool {
-	var errno syscall.Errno
-	if errors.As(err, &errno) {
+	if errno, ok := err.(syscall.Errno); ok {
 		switch errno {
 		case syscall.ERROR_ACCESS_DENIED,
 			syscall.ERROR_FILE_NOT_FOUND,
-			windows.ERROR_SHARING_VIOLATION:
+			ERROR_SHARING_VIOLATION:
 			return true
 		}
 	}
