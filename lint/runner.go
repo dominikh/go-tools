@@ -86,8 +86,8 @@ type Package struct {
 }
 
 func (pkg *Package) decUse() {
-	atomic.AddUint64(&pkg.dependents, ^uint64(0))
-	if atomic.LoadUint64(&pkg.dependents) == 0 {
+	ret := atomic.AddUint64(&pkg.dependents, ^uint64(0))
+	if ret == 0 {
 		// nobody depends on this package anymore
 		if pkg.canClearTypes {
 			pkg.Types = nil
