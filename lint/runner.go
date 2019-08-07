@@ -58,21 +58,42 @@ const sanityCheck = true
 // This may change unused's behavior, however, as it may observe fewer
 // interfaces from transitive dependencies.
 
+// OPT(dh): every single package will have the same value for
+// canClearTypes. We could move the Package.decUse method to runner to
+// eliminate this field. This is probably not worth it, though. There
+// are only thousands of packages, so the field only takes up
+// kilobytes of memory.
+
+// OPT(dh): do we really need the Package.gen field? it's based
+// trivially on pkg.results and merely caches the result of a type
+// assertion. How often do we actually use the field?
+
 type Package struct {
+	// dependents is initially set to 1 plus the number of packages
+	// that directly import this package. It is atomically decreased
+	// by 1 every time a dependent has been processed or when the
+	// package itself has been processed. Once the value reaches zero,
+	// the package is no longer needed.
 	dependents uint64
 
 	*packages.Package
-	Imports    []*Package
-	initial    bool
+	Imports []*Package
+	initial bool
+	// fromSource is set to true for packages that have been loaded
+	// from source. This is the case for initial packages, packages
+	// with missing export data, and packages with no cached facts.
 	fromSource bool
-	hash       string
-	done       chan struct{}
+	// hash stores the package hash, as computed by packageHash
+	hash string
+	done chan struct{}
 
 	resultsMu sync.Mutex
-	// results maps analyzer IDs to analyzer results
+	// results maps analyzer IDs to analyzer results. it is
+	// implemented as a deduplicating concurrent cache.
 	results []*result
 
-	cfg      *config.Config
+	cfg *config.Config
+	// gen maps file names to the code generator that created them
 	gen      map[string]facts.Generator
 	problems []Problem
 	ignores  []Ignore
@@ -82,6 +103,10 @@ type Package struct {
 	facts    []map[types.Object][]analysis.Fact
 	pkgFacts [][]analysis.Fact
 
+	// canClearTypes is set to true if we can discard type
+	// information after the package and its dependents have been
+	// processed. This is the case when no cumulative checkers are
+	// being run.
 	canClearTypes bool
 }
 
