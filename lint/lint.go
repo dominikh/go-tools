@@ -3,6 +3,7 @@ package lint // import "honnef.co/go/tools/lint"
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"go/scanner"
 	"go/token"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/internal/cache"
 )
 
 type Documentation struct {
@@ -264,7 +266,6 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	}
 
 	atomic.StoreUint32(&r.stats.State, StateCumulative)
-	var problems []Problem
 	for _, cum := range l.CumulativeCheckers {
 		for _, res := range cum.Result() {
 			pkg := tpkgToPkg[res.Pkg()]
@@ -278,21 +279,45 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 					continue
 				}
 				p := cum.ProblemObject(pkg.Fset, res)
-				problems = append(problems, p)
+				pkg.problems = append(pkg.problems, p)
 			}
 		}
 	}
 
+	var checkerNames []string
+	for _, c := range allowedAnalyzers {
+		checkerNames = append(checkerNames, c.Name)
+	}
+	for _, a := range injectedAnalyses {
+		checkerNames = append(checkerNames, a.Name)
+	}
+	sort.Strings(checkerNames)
+	cacheKey := strings.Join(checkerNames, " ")
+	for _, pkg := range pkgs {
+		if !pkg.fromSource {
+			// Don't cache packages that we loaded from the cache
+			continue
+		}
+		cpkg := cachedPackage{
+			Problems: pkg.problems,
+			Ignores:  pkg.ignores,
+			Config:   pkg.cfg,
+		}
+		buf := &bytes.Buffer{}
+		if err := gob.NewEncoder(buf).Encode(cpkg); err != nil {
+			return nil, err
+		}
+		id := cache.Subkey(pkg.actionID, "data "+cacheKey)
+		if err := r.cache.PutBytes(id, buf.Bytes()); err != nil {
+			return nil, err
+		}
+	}
+
+	var problems []Problem
 	for _, pkg := range pkgs {
 		for _, ig := range pkg.ignores {
 			for i := range pkg.problems {
 				p := &pkg.problems[i]
-				if ig.Match(*p) {
-					p.Severity = Ignored
-				}
-			}
-			for i := range problems {
-				p := &problems[i]
 				if ig.Match(*p) {
 					p.Severity = Ignored
 				}
