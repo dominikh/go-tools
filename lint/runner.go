@@ -619,7 +619,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			m[l].Imports = append(m[l].Imports, m[v])
 		}
 
-		m[l].hash, err = packageHash(m[l])
+		m[l].hash, err = r.packageHash(m[l])
 		m[l].actionID = packageActionID(m[l])
 		if err != nil {
 			m[l].errs = append(m[l].errs, err)
@@ -1057,9 +1057,10 @@ func parseDirectives(pkg *packages.Package) ([]Ignore, []Problem) {
 // packageHash computes a package's hash. The hash is based on all Go
 // files that make up the package, as well as the hashes of imported
 // packages.
-func packageHash(pkg *Package) (string, error) {
+func (r *Runner) packageHash(pkg *Package) (string, error) {
 	key := cache.NewHash("package hash")
 	fmt.Fprintf(key, "pkgpath %s\n", pkg.PkgPath)
+	fmt.Fprintf(key, "go %d\n", r.goVersion)
 	for _, f := range pkg.CompiledGoFiles {
 		h, err := cache.FileHash(f)
 		if err != nil {
