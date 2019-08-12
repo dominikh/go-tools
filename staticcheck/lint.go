@@ -306,7 +306,7 @@ func checkPrintfCall(call *Call, fIdx, vIdx int) {
 		// We don't know what the actual arguments to the function are
 		return
 	}
-	checkPrintfCallImpl(call, f.Value.Value, args)
+	checkPrintfCallImpl(f, f.Value.Value, args)
 }
 
 type verbFlag int
@@ -345,7 +345,7 @@ var verbs = [...]verbFlag{
 	'x': isPseudoPointer | isInt | isString,
 }
 
-func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
+func checkPrintfCallImpl(carg *Argument, f ssa.Value, args []ssa.Value) {
 	var msCache *typeutil.MethodSetCache
 	if f.Parent() != nil {
 		msCache = &f.Parent().Prog.MethodSets
@@ -571,7 +571,7 @@ func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
 	}
 	actions, err := printf.Parse(constant.StringVal(k.Value))
 	if err != nil {
-		call.Invalid("couldn't parse format string")
+		carg.Invalid("couldn't parse format string")
 		return
 	}
 
@@ -590,18 +590,18 @@ func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
 				ptr = star.Index + 1
 			}
 			if idx == 0 {
-				call.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
+				carg.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
 				return false
 			}
 			if idx > len(args) {
-				call.Invalid(
+				carg.Invalid(
 					fmt.Sprintf("Printf format %s reads arg #%d, but call has only %d args",
 						verb.Raw, idx, len(args)))
 				return false
 			}
 			if arg, ok := args[idx-1].(*ssa.MakeInterface); ok {
 				if !isInfo(arg.X.Type(), types.IsInteger) {
-					call.Invalid(fmt.Sprintf("Printf format %s reads non-int arg #%d as argument of *", verb.Raw, idx))
+					carg.Invalid(fmt.Sprintf("Printf format %s reads non-int arg #%d as argument of *", verb.Raw, idx))
 				}
 			}
 		}
@@ -627,18 +627,18 @@ func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
 			off = verb.Value
 		}
 		if off > len(args) {
-			call.Invalid(
+			carg.Invalid(
 				fmt.Sprintf("Printf format %s reads arg #%d, but call has only %d args",
 					verb.Raw, off, len(args)))
 			return
 		} else if verb.Value == 0 && verb.Letter != '%' {
-			call.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
+			carg.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
 			return
 		} else if off != 0 {
 			arg, ok := args[off-1].(*ssa.MakeInterface)
 			if ok {
 				if !checkType(verb.Letter, arg.X.Type(), true) {
-					call.Invalid(fmt.Sprintf("Printf format %s has arg #%d of wrong type %s",
+					carg.Invalid(fmt.Sprintf("Printf format %s has arg #%d of wrong type %s",
 						verb.Raw, ptr, args[ptr-1].(*ssa.MakeInterface).X.Type()))
 					return
 				}
@@ -657,7 +657,7 @@ func checkPrintfCallImpl(call *Call, f ssa.Value, args []ssa.Value) {
 	}
 
 	if !hasExplicit && ptr <= len(args) {
-		call.Invalid(fmt.Sprintf("Printf call needs %d args but has %d args", ptr-1, len(args)))
+		carg.Invalid(fmt.Sprintf("Printf call needs %d args but has %d args", ptr-1, len(args)))
 	}
 }
 
