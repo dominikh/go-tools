@@ -11,6 +11,9 @@ const c2 = `(abc)`
 var re1 = regexp.MustCompile(`ab\yef`) // want `error parsing regexp`
 var re2 = regexp.MustCompile(c1)       // want `error parsing regexp`
 var re3 = regexp.MustCompile(c2)
+var re4 = regexp.MustCompile(
+	c1, // want `error parsing regexp`
+)
 
 func fn() {
 	_, err := regexp.Compile(`foo(`) // want `error parsing regexp`

@@ -9,23 +9,30 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
+var callCheckerAnalyzer = &analysis.Analyzer{
+	Name:     "callChecker",
+	Doc:      "internal analyzer used as dependency by call checkers",
+	Run:      func(*analysis.Pass) (interface{}, error) { return nil, nil },
+	Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.TokenFile},
+}
+
+func makeCallCheckerAnalyzer(rules map[string]CallCheck, extraReqs ...*analysis.Analyzer) *analysis.Analyzer {
+	reqs := []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.TokenFile}
+	reqs = append(reqs, extraReqs...)
+	return &analysis.Analyzer{
+		Run:      callChecker(rules),
+		Requires: reqs,
+	}
+}
+
 var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
-	"SA1000": {
-		Run:      callChecker(checkRegexpRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1000": makeCallCheckerAnalyzer(checkRegexpRules),
 	"SA1001": {
 		Run:      CheckTemplate,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA1002": {
-		Run:      callChecker(checkTimeParseRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1003": {
-		Run:      callChecker(checkEncodingBinaryRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1002": makeCallCheckerAnalyzer(checkTimeParseRules),
+	"SA1003": makeCallCheckerAnalyzer(checkEncodingBinaryRules),
 	"SA1004": {
 		Run:      CheckTimeSleepConstant,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
@@ -38,22 +45,13 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckUnsafePrintf,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA1007": {
-		Run:      callChecker(checkURLsRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1007": makeCallCheckerAnalyzer(checkURLsRules),
 	"SA1008": {
 		Run:      CheckCanonicalHeaderKey,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA1010": {
-		Run:      callChecker(checkRegexpFindAllRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1011": {
-		Run:      callChecker(checkUTF8CutsetRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1010": makeCallCheckerAnalyzer(checkRegexpFindAllRules),
+	"SA1011": makeCallCheckerAnalyzer(checkUTF8CutsetRules),
 	"SA1012": {
 		Run:      CheckNilContext,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
@@ -62,10 +60,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckSeeker,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA1014": {
-		Run:      callChecker(checkUnmarshalPointerRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1014": makeCallCheckerAnalyzer(checkUnmarshalPointerRules),
 	"SA1015": {
 		Run:      CheckLeakyTimeTick,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
@@ -74,54 +69,27 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckUntrappableSignal,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA1017": {
-		Run:      callChecker(checkUnbufferedSignalChanRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1018": {
-		Run:      callChecker(checkStringsReplaceZeroRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1017": makeCallCheckerAnalyzer(checkUnbufferedSignalChanRules),
+	"SA1018": makeCallCheckerAnalyzer(checkStringsReplaceZeroRules),
 	"SA1019": {
 		Run:      CheckDeprecated,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Deprecated},
 	},
-	"SA1020": {
-		Run:      callChecker(checkListenAddressRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1021": {
-		Run:      callChecker(checkBytesEqualIPRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1020": makeCallCheckerAnalyzer(checkListenAddressRules),
+	"SA1021": makeCallCheckerAnalyzer(checkBytesEqualIPRules),
 	"SA1023": {
 		Run:      CheckWriterBufferModified,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 	},
-	"SA1024": {
-		Run:      callChecker(checkUniqueCutsetRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1024": makeCallCheckerAnalyzer(checkUniqueCutsetRules),
 	"SA1025": {
 		Run:      CheckTimerResetReturnValue,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 	},
-	"SA1026": {
-		Run:      callChecker(checkUnsupportedMarshal),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1027": {
-		Run:      callChecker(checkAtomicAlignment),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1028": {
-		Run:      callChecker(checkSortSliceRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
-	"SA1029": {
-		Run:      callChecker(checkWithValueKeyRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA1026": makeCallCheckerAnalyzer(checkUnsupportedMarshal),
+	"SA1027": makeCallCheckerAnalyzer(checkAtomicAlignment),
+	"SA1028": makeCallCheckerAnalyzer(checkSortSliceRules),
+	"SA1029": makeCallCheckerAnalyzer(checkWithValueKeyRules),
 
 	"SA2000": {
 		Run:      CheckWaitgroupAdd,
@@ -201,10 +169,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckRepeatedIfElse,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA4015": {
-		Run:      callChecker(checkMathIntRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA4015": makeCallCheckerAnalyzer(checkMathIntRules),
 	"SA4016": {
 		Run:      CheckSillyBitwiseOps,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.TokenFile},
@@ -262,27 +227,18 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckStructTags,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA5009": {
-		Run:      callChecker(checkPrintfRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA5009": makeCallCheckerAnalyzer(checkPrintfRules),
 	"SA5010": {
 		Run:      CheckImpossibleTypeAssertion,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile},
 	},
 
-	"SA6000": {
-		Run:      callChecker(checkRegexpMatchLoopRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),
 	"SA6001": {
 		Run:      CheckMapBytesKey,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 	},
-	"SA6002": {
-		Run:      callChecker(checkSyncPoolValueRules),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	"SA6002": makeCallCheckerAnalyzer(checkSyncPoolValueRules),
 	"SA6003": {
 		Run:      CheckRangeStringRunes,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
@@ -309,8 +265,5 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	// Filtering generated code because it may include empty structs generated from data models.
-	"SA9005": {
-		Run:      callChecker(checkNoopMarshal),
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.Generated, facts.TokenFile},
-	},
+	"SA9005": makeCallCheckerAnalyzer(checkNoopMarshal, facts.Generated),
 })

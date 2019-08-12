@@ -2852,20 +2852,18 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			Parent: site.Parent(),
 		}
 		r(call)
+		path, _ := astutil.PathEnclosingInterval(File(pass, site), site.Pos(), site.Pos())
+		var astcall *ast.CallExpr
+		if len(path) > 1 {
+			astcall, _ = path[0].(*ast.CallExpr)
+		}
 		for idx, arg := range call.Args {
-			_ = idx
 			for _, e := range arg.invalids {
-				// path, _ := astutil.PathEnclosingInterval(f.File, edge.Site.Pos(), edge.Site.Pos())
-				// if len(path) < 2 {
-				// 	continue
-				// }
-				// astcall, ok := path[0].(*ast.CallExpr)
-				// if !ok {
-				// 	continue
-				// }
-				// pass.Reportf(astcall.Args[idx], "%s", e)
-
-				pass.Reportf(site.Pos(), "%s", e)
+				if astcall != nil {
+					ReportNodef(pass, astcall.Args[idx], "%s", e)
+				} else {
+					pass.Reportf(site.Pos(), "%s", e)
+				}
 			}
 		}
 		for _, e := range call.invalids {
