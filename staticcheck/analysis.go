@@ -9,13 +9,6 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
-var callCheckerAnalyzer = &analysis.Analyzer{
-	Name:     "callChecker",
-	Doc:      "internal analyzer used as dependency by call checkers",
-	Run:      func(*analysis.Pass) (interface{}, error) { return nil, nil },
-	Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.TokenFile},
-}
-
 func makeCallCheckerAnalyzer(rules map[string]CallCheck, extraReqs ...*analysis.Analyzer) *analysis.Analyzer {
 	reqs := []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.TokenFile}
 	reqs = append(reqs, extraReqs...)

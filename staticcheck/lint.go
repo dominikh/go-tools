@@ -26,6 +26,7 @@ import (
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/printf"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssautil"
@@ -881,22 +882,17 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`
+		(GoStmt
+			(CallExpr
+				(FuncLit
+					_
+					call@(CallExpr (Function "(*sync.WaitGroup).Add") _):_) _))`)
 	fn := func(node ast.Node) {
-		g := node.(*ast.GoStmt)
-		fun, ok := g.Call.Fun.(*ast.FuncLit)
-		if !ok {
-			return
-		}
-		if len(fun.Body.List) == 0 {
-			return
-		}
-		stmt, ok := fun.Body.List[0].(*ast.ExprStmt)
-		if !ok {
-			return
-		}
-		if IsCallToAST(pass, stmt.X, "(*sync.WaitGroup).Add") {
-			ReportNodef(pass, stmt, "should call %s before starting the goroutine to avoid a race",
-				Render(pass, stmt))
+		if m, ok := Match(pass, q, node); ok {
+			call := m.State["call"].(ast.Node)
+			ReportNodef(pass, call, "should call %s before starting the goroutine to avoid a race",
+				Render(pass, call))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.GoStmt)(nil)}, fn)
@@ -1400,20 +1396,15 @@ func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 var cgoIdent = regexp.MustCompile(`^_C(func|var)_.+$`)
 
 func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
+	q1 := lintutil.MustParse(`(UnaryExpr "&" (StarExpr obj))`)
+	q2 := lintutil.MustParse(`(StarExpr (UnaryExpr "&" _))`)
 	fn := func(node ast.Node) {
-		if unary, ok := node.(*ast.UnaryExpr); ok {
-			if star, ok := unary.X.(*ast.StarExpr); ok && unary.Op == token.AND {
-				ident, ok := star.X.(*ast.Ident)
-				if !ok || !cgoIdent.MatchString(ident.Name) {
-					ReportNodef(pass, unary, "&*x will be simplified to x. It will not copy x.")
-				}
+		if m, ok := Match(pass, q1, node); ok {
+			if ident, ok := m.State["obj"].(*ast.Ident); !ok || !cgoIdent.MatchString(ident.Name) {
+				ReportNodef(pass, node, "&*x will be simplified to x. It will not copy x.")
 			}
-		}
-
-		if star, ok := node.(*ast.StarExpr); ok {
-			if unary, ok := star.X.(*ast.UnaryExpr); ok && unary.Op == token.AND {
-				ReportNodef(pass, star, "*&x will be simplified to x. It will not copy x.")
-			}
+		} else if _, ok := Match(pass, q2, node); ok {
+			ReportNodef(pass, node, "*&x will be simplified to x. It will not copy x.")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.StarExpr)(nil)}, fn)
@@ -2044,19 +2035,24 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`(CallExpr fun@(Function _) (Builtin "nil"):_)`)
 	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		if len(call.Args) == 0 {
-			return
-		}
-		if typ, ok := pass.TypesInfo.TypeOf(call.Args[0]).(*types.Basic); !ok || typ.Kind() != types.UntypedNil {
-			return
-		}
-		sig, ok := pass.TypesInfo.TypeOf(call.Fun).(*types.Signature)
+		m, ok := Match(pass, q, node)
 		if !ok {
 			return
 		}
+
+		call := node.(*ast.CallExpr)
+		fun, ok := m.State["fun"].(*types.Func)
+		if !ok {
+			// it might also be a builtin
+			return
+		}
+		sig := fun.Type().(*types.Signature)
 		if sig.Params().Len() == 0 {
+			// Our CallExpr might've matched a method expression, like
+			// (*T).Foo(nil) – here, nil isn't the first argument of
+			// the Foo method, but the method receiver.
 			return
 		}
 		if !IsType(sig.Params().At(0).Type(), "context.Context") {
@@ -2070,35 +2066,11 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`(CallExpr (SelectorExpr _ (Ident "Seek")) [(SelectorExpr (Ident "io") (Ident (Or "SeekStart" "SeekCurrent" "SeekEnd"))) _])`)
 	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return
+		if _, ok := Match(pass, q, node); ok {
+			ReportNodef(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
 		}
-		if sel.Sel.Name != "Seek" {
-			return
-		}
-		if len(call.Args) != 2 {
-			return
-		}
-		arg0, ok := call.Args[Arg("(io.Seeker).Seek.offset")].(*ast.SelectorExpr)
-		if !ok {
-			return
-		}
-		switch arg0.Sel.Name {
-		case "SeekStart", "SeekCurrent", "SeekEnd":
-		default:
-			return
-		}
-		pkg, ok := arg0.X.(*ast.Ident)
-		if !ok {
-			return
-		}
-		if pkg.Name != "io" {
-			return
-		}
-		ReportNodef(pass, call, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -2454,16 +2426,11 @@ func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`(UnaryExpr "!" (UnaryExpr "!" _))`)
 	fn := func(node ast.Node) {
-		unary1 := node.(*ast.UnaryExpr)
-		unary2, ok := unary1.X.(*ast.UnaryExpr)
-		if !ok {
-			return
+		if _, ok := Match(pass, q, node); ok {
+			ReportNodef(pass, node, "negating a boolean twice has no effect; is this a typo?")
 		}
-		if unary1.Op != token.NOT || unary2.Op != token.NOT {
-			return
-		}
-		ReportNodef(pass, unary1, "negating a boolean twice has no effect; is this a typo?")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil)}, fn)
 	return nil, nil
@@ -2530,6 +2497,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
+	// FIXME(dh): what happened here?
 	if false {
 		for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
 			for _, block := range ssafn.Blocks {
@@ -3354,15 +3322,13 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`(CallExpr (Builtin "append") [_])`)
 	fn := func(node ast.Node) {
-		if !IsCallToAST(pass, node, "append") {
+		_, ok := Match(pass, q, node)
+		if !ok {
 			return
 		}
-		call := node.(*ast.CallExpr)
-		if len(call.Args) != 1 {
-			return
-		}
-		ReportfFG(pass, call.Pos(), "x = append(y) is equivalent to x = y")
+		ReportfFG(pass, node.Pos(), "x = append(y) is equivalent to x = y")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil

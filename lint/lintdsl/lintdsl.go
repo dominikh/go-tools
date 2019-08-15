@@ -16,6 +16,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/lint"
+	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/ssa"
 )
 
@@ -403,4 +404,13 @@ func ReportNodefFG(pass *analysis.Pass, node ast.Node, format string, args ...in
 // that type switches are exhaustive.
 func ExhaustiveTypeSwitch(v interface{}) {
 	panic(fmt.Sprintf("internal error: unhandled case %T", v))
+}
+
+func Match(pass *analysis.Pass, q pattern.Pattern, node ast.Node) (*pattern.Matcher, bool) {
+	// Note that we ignore q.Relevant – callers of Match usually use
+	// AST inspectors that already filter on nodes we're interested
+	// in.
+	m := &pattern.Matcher{TypesInfo: pass.TypesInfo}
+	ok := m.Match(q.Root, node)
+	return m, ok
 }

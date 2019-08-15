@@ -29,12 +29,22 @@ import (
 	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil/format"
+	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/go/packages"
 )
+
+func MustParse(s string) pattern.Pattern {
+	p := &pattern.Parser{AllowTypeInfo: true}
+	pat, err := p.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return pat
+}
 
 func NewVersionFlag() flag.Getter {
 	tags := build.Default.ReleaseTags

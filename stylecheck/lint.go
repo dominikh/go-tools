@@ -16,6 +16,7 @@ import (
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/ssa"
 
 	"golang.org/x/tools/go/analysis"
@@ -642,19 +643,11 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`(BinaryExpr (BasicLit _ _) (Or "==" "!=") (Not (BasicLit _ _)))`)
 	fn := func(node ast.Node) {
-		cond := node.(*ast.BinaryExpr)
-		if cond.Op != token.EQL && cond.Op != token.NEQ {
-			return
+		if _, ok := Match(pass, q, node); ok {
+			ReportNodefFG(pass, node, "don't use Yoda conditions")
 		}
-		if _, ok := cond.X.(*ast.BasicLit); !ok {
-			return
-		}
-		if _, ok := cond.Y.(*ast.BasicLit); ok {
-			// Don't flag lit == lit conditions, just in case
-			return
-		}
-		ReportNodefFG(pass, cond, "don't use Yoda conditions")
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil

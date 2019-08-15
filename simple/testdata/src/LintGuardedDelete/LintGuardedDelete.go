@@ -36,4 +36,9 @@ func fn(m map[int]int) {
 	if ok {
 		println("deleted")
 	}
+
+	delete := func(a, b interface{}) {}
+	if _, ok := m[0]; ok {
+		delete(m, 0)
+	}
 }

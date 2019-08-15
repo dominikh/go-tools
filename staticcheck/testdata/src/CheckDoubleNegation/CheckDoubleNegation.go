@@ -9,7 +9,7 @@ func fn(b1, b2 bool) {
 		println()
 	}
 
-	if !(!b1) { // doesn't match, maybe it should
+	if !(!b1) { // want `negating a boolean twice`
 		println()
 	}
 
