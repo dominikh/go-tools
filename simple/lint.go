@@ -1543,3 +1543,14 @@ func LintAppendToMapIndex(pass *analysis.Pass) (interface{}, error) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
 	return nil, nil
 }
+
+func LintElaborateSleep(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [_])) _))`)
+	fn := func(node ast.Node) {
+		if _, ok := Match(pass, q, node); ok {
+			ReportNodefFG(pass, node, "should use time.Sleep instead of elaborate way of sleeping")
+		}
+	}
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.SelectStmt)(nil)}, fn)
+	return nil, nil
+}

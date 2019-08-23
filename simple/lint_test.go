@@ -39,6 +39,7 @@ func TestAll(t *testing.T) {
 		"S1034": {{Dir: "LintSimplifyTypeSwitch"}},
 		"S1035": {{Dir: "LintRedundantCanonicalHeaderKey"}},
 		"S1036": {{Dir: "LintAppendToMapIndex"}},
+		"S1037": {{Dir: "LintElaborateSleep"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)

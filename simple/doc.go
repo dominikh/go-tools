@@ -457,4 +457,12 @@ var m = map[string][]string{}
 m["foo"] = append(m["foo"], "bar")`,
 		Since: "Unreleased",
 	},
+
+	"S1037": &lint.Documentation{
+		Title: `Elaborate way of sleeping`,
+		Text: `Using a select statement with a single case receiving
+from the result of time.After is a very elaborate way of sleeping that
+can much simpler be expressed with a simple call to time.Sleep.`,
+		Since: "Unreleased",
+	},
 }

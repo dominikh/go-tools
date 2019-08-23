@@ -133,4 +133,8 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      LintAppendToMapIndex,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"S1037": {
+		Run:      LintElaborateSleep,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+	},
 })
