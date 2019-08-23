@@ -1528,19 +1528,30 @@ func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintAppendToMapIndex(pass *analysis.Pass) (interface{}, error) {
+func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 	q := lintutil.MustParse(`
-		(IfStmt
-			(AssignStmt [(Ident "_") ok@(Ident _)] ":=" indexexpr@(IndexExpr _ _))
-			ok
-			(AssignStmt indexexpr "=" (CallExpr (Builtin "append") indexexpr:values))
-			(AssignStmt indexexpr "=" (CompositeLit _ values)))`)
+		(Or
+			(IfStmt
+				(AssignStmt [(Ident "_") ok@(Ident _)] ":=" indexexpr@(IndexExpr _ _))
+				ok
+				(AssignStmt indexexpr "=" (CallExpr (Builtin "append") indexexpr:values))
+				(AssignStmt indexexpr "=" (CompositeLit _ values)))
+			(IfStmt
+				(AssignStmt [(Ident "_") ok] ":=" indexexpr@(IndexExpr _ _))
+				ok
+				(AssignStmt indexexpr "+=" value)
+				(AssignStmt indexexpr "=" value))
+			(IfStmt
+				(AssignStmt [(Ident "_") ok] ":=" indexexpr@(IndexExpr _ _))
+				ok
+				(IncDecStmt indexexpr "++")
+				(AssignStmt indexexpr "=" (BasicLit "INT" "1"))))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {
 			if lintutil.MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
 				return
 			}
-			ReportNodef(pass, node, "unnecessary guard around call to append; calling append on nil slice is fine")
+			ReportNodef(pass, node, "unnecessary guard around map access")
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)

@@ -431,30 +431,35 @@ canonicalize the given header name.`,
 	},
 
 	"S1036": &lint.Documentation{
-		Title: `Unnecessary guard around call to append`,
+		Title: `Unnecessary guard around map access`,
 
 		Text: `When accessing a map key that doesn't exist yet, one
-receives a zero value. Calling append on a nil slice behaves
-identically to calling append on an empty slice. Therefore,
-the following piece of code
+receives a zero value. Often, the zero value is a suitable value, for example when using append or doing integer math.
 
-var m = map[string][]string{}
+The following
 
-// …
-
-if _, ok := m["foo"]; ok {
-	m["foo"] = append(m["foo"], "bar")
-} else {
-	m["foo"] = []string{"bar"}
-}
+	if _, ok := m["foo"]; ok {
+		m["foo"] = append(m["foo"], "bar")
+	} else {
+		m["foo"] = []string{"bar"}
+	}
 
 can be simplified to
 
-var m = map[string][]string{}
+	m["foo"] = append(m["foo"], "bar")
 
-// …
+and
 
-m["foo"] = append(m["foo"], "bar")`,
+	if _, ok := m2["k"]; ok {
+		m2["k"] += 4
+	} else {
+		m2["k"] = 4
+	}
+
+can be simplified to
+
+	m["k"] += 4
+`,
 		Since: "Unreleased",
 	},
 
