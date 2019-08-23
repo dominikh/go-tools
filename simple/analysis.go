@@ -129,4 +129,8 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      LintRedundantCanonicalHeaderKey,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
+	"S1036": {
+		Run:      LintAppendToMapIndex,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

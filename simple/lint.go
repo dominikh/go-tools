@@ -1527,3 +1527,19 @@ func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
 }
+
+func LintAppendToMapIndex(pass *analysis.Pass) (interface{}, error) {
+	q := lintutil.MustParse(`
+		(IfStmt
+			(AssignStmt [(Ident "_") ok@(Ident _)] ":=" indexexpr@(IndexExpr _ _))
+			ok
+			(AssignStmt indexexpr "=" (CallExpr (Builtin "append") indexexpr:values))
+			(AssignStmt indexexpr "=" (CompositeLit _ values)))`)
+	fn := func(node ast.Node) {
+		if _, ok := Match(pass, q, node); ok {
+			ReportNodef(pass, node, "unnecessary guard around call to append; calling append on nil slice is fine")
+		}
+	}
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	return nil, nil
+}

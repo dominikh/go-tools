@@ -429,4 +429,32 @@ After:
 canonicalize the given header name.`,
 		Since: "Unreleased",
 	},
+
+	"S1036": &lint.Documentation{
+		Title: `Unnecessary guard around call to append`,
+
+		Text: `When accessing a map key that doesn't exist yet, one
+receives a zero value. Calling append on a nil slice behaves
+identically to calling append on an empty slice. Therefore,
+the following piece of code
+
+var m = map[string][]string{}
+
+// …
+
+if _, ok := m["foo"]; ok {
+	m["foo"] = append(m["foo"], "bar")
+} else {
+	m["foo"] = []string{"bar"}
+}
+
+can be simplified to
+
+var m = map[string][]string{}
+
+// …
+
+m["foo"] = append(m["foo"], "bar")`,
+		Since: "Unreleased",
+	},
 }
