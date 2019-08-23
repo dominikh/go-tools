@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/build"
 	"go/token"
 	"io"
@@ -420,4 +421,53 @@ func InitializeAnalyzers(docs map[string]*lint.Documentation, analyzers map[stri
 		}
 	}
 	return out
+}
+
+func MayHaveSideEffects(expr ast.Expr) bool {
+	switch expr := expr.(type) {
+	case *ast.BasicLit:
+		return false
+	case *ast.BinaryExpr:
+		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Y)
+	case *ast.CallExpr:
+		return true
+	case *ast.CompositeLit:
+		if MayHaveSideEffects(expr.Type) {
+			return true
+		}
+		for _, elt := range expr.Elts {
+			if MayHaveSideEffects(elt) {
+				return true
+			}
+		}
+		return false
+	case *ast.Ident:
+		return false
+	case *ast.IndexExpr:
+		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Index)
+	case *ast.KeyValueExpr:
+		return MayHaveSideEffects(expr.Key) || MayHaveSideEffects(expr.Value)
+	case *ast.SelectorExpr:
+		return MayHaveSideEffects(expr.X)
+	case *ast.SliceExpr:
+		return MayHaveSideEffects(expr.X) ||
+			MayHaveSideEffects(expr.Low) ||
+			MayHaveSideEffects(expr.High) ||
+			MayHaveSideEffects(expr.Max)
+	case *ast.StarExpr:
+		return MayHaveSideEffects(expr.X)
+	case *ast.TypeAssertExpr:
+		return MayHaveSideEffects(expr.X)
+	case *ast.UnaryExpr:
+		if MayHaveSideEffects(expr.X) {
+			return true
+		}
+		return expr.Op == token.ARROW
+	case *ast.ParenExpr:
+		return MayHaveSideEffects(expr.X)
+	case nil:
+		return false
+	default:
+		panic(fmt.Sprintf("internal error: unhandled type %T", expr))
+	}
 }

@@ -924,7 +924,7 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 		// channel receives.
 
 		if loop.Cond != nil {
-			if hasSideEffects(loop.Cond) {
+			if lintutil.MayHaveSideEffects(loop.Cond) {
 				return
 			}
 			if ident, ok := loop.Cond.(*ast.Ident); ok {
@@ -2436,24 +2436,6 @@ func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func hasSideEffects(node ast.Node) bool {
-	dynamic := false
-	ast.Inspect(node, func(node ast.Node) bool {
-		switch node := node.(type) {
-		case *ast.CallExpr:
-			dynamic = true
-			return false
-		case *ast.UnaryExpr:
-			if node.Op == token.ARROW {
-				dynamic = true
-				return false
-			}
-		}
-		return true
-	})
-	return dynamic
-}
-
 func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 	seen := map[ast.Node]bool{}
 
@@ -2479,7 +2461,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		for _, cond := range conds {
-			if hasSideEffects(cond) {
+			if lintutil.MayHaveSideEffects(cond) {
 				return
 			}
 		}

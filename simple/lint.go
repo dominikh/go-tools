@@ -1536,7 +1536,10 @@ func LintAppendToMapIndex(pass *analysis.Pass) (interface{}, error) {
 			(AssignStmt indexexpr "=" (CallExpr (Builtin "append") indexexpr:values))
 			(AssignStmt indexexpr "=" (CompositeLit _ values)))`)
 	fn := func(node ast.Node) {
-		if _, ok := Match(pass, q, node); ok {
+		if m, ok := Match(pass, q, node); ok {
+			if lintutil.MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
+				return
+			}
 			ReportNodef(pass, node, "unnecessary guard around call to append; calling append on nil slice is fine")
 		}
 	}
