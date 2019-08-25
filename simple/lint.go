@@ -1273,7 +1273,7 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 		typ := pass.TypesInfo.TypeOf(arg)
 
 		ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
-		if isStringer(typ, &ssapkg.Prog.MethodSets) {
+		if types.TypeString(typ, nil) != "reflect.Value" && isStringer(typ, &ssapkg.Prog.MethodSets) {
 			ReportNodef(pass, node, "should use String() instead of fmt.Sprintf")
 			return
 		}
