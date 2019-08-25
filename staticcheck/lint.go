@@ -2406,7 +2406,7 @@ func isName(pass *analysis.Pass, expr ast.Expr, name string) bool {
 
 func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		if IsInMain(pass, ssafn) || IsInTest(pass, ssafn) {
+		if IsMainLike(pass) || IsInTest(pass, ssafn) {
 			continue
 		}
 		for _, block := range ssafn.Blocks {

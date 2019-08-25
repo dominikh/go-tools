@@ -20,10 +20,6 @@ import (
 	"honnef.co/go/tools/ssa"
 )
 
-type packager interface {
-	Package() *ssa.Package
-}
-
 func CallName(call *ssa.CallCommon) string {
 	if call.IsInvoke() {
 		return ""
@@ -108,11 +104,31 @@ func IsInTest(pass *analysis.Pass, node lint.Positioner) bool {
 	return f != nil && strings.HasSuffix(f.Name(), "_test.go")
 }
 
-func IsInMain(pass *analysis.Pass, node lint.Positioner) bool {
-	if node, ok := node.(packager); ok {
-		return node.Package().Pkg.Name() == "main"
-	}
+// IsMain reports whether the package being processed is a package
+// main.
+func IsMain(pass *analysis.Pass) bool {
 	return pass.Pkg.Name() == "main"
+}
+
+// IsMainLike reports whether the package being processed is a
+// main-like package. A main-like package is a package that is
+// package main, or that is intended to be used by a tool framework
+// such as cobra to implement a command.
+//
+// Note that this function errs on the side of false positives; it may
+// return true for packages that aren't main-like. IsMainLike is
+// intended for analyses that wish to suppress diagnostics for
+// main-like packages to avoid false positives.
+func IsMainLike(pass *analysis.Pass) bool {
+	if pass.Pkg.Name() == "main" {
+		return true
+	}
+	for _, imp := range pass.Pkg.Imports() {
+		if imp.Path() == "github.com/spf13/cobra" {
+			return true
+		}
+	}
+	return false
 }
 
 func SelectorName(pass *analysis.Pass, expr *ast.SelectorExpr) string {

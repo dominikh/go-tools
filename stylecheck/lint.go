@@ -116,7 +116,7 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 	fset := pass.Fset
 	for _, f := range pass.Files {
-		if IsInMain(pass, f) || IsInTest(pass, f) {
+		if IsMainLike(pass) || IsInTest(pass, f) {
 			continue
 		}
 
@@ -234,7 +234,7 @@ func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
-		if !ast.IsExported(fn.Name()) || IsInMain(pass, fn) || IsInTest(pass, fn) {
+		if !ast.IsExported(fn.Name()) || IsMain(pass) || IsInTest(pass, fn) {
 			continue
 		}
 		sig := fn.Type().(*types.Signature)
