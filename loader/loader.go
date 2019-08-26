@@ -10,22 +10,17 @@ import (
 	"go/types"
 	"log"
 	"os"
-	"sync"
 
 	"golang.org/x/tools/go/gcexportdata"
 	"golang.org/x/tools/go/packages"
 )
-
-type Loader struct {
-	exportMu sync.RWMutex
-}
 
 // Graph resolves patterns and returns packages with all the
 // information required to later load type information, and optionally
 // syntax trees.
 //
 // The provided config can set any setting with the exception of Mode.
-func (ld *Loader) Graph(cfg packages.Config, patterns ...string) ([]*packages.Package, error) {
+func Graph(cfg packages.Config, patterns ...string) ([]*packages.Package, error) {
 	cfg.Mode = packages.NeedName | packages.NeedImports | packages.NeedDeps | packages.NeedExportsFile | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedTypesSizes
 	pkgs, err := packages.Load(&cfg, patterns...)
 	if err != nil {
@@ -40,10 +35,7 @@ func (ld *Loader) Graph(cfg packages.Config, patterns ...string) ([]*packages.Pa
 
 // LoadFromExport loads a package from export data. All of its
 // dependencies must have been loaded already.
-func (ld *Loader) LoadFromExport(pkg *packages.Package) error {
-	ld.exportMu.Lock()
-	defer ld.exportMu.Unlock()
-
+func LoadFromExport(pkg *packages.Package) error {
 	pkg.IllTyped = true
 	for path, pkg := range pkg.Imports {
 		if pkg.Types == nil {
@@ -88,10 +80,7 @@ func (ld *Loader) LoadFromExport(pkg *packages.Package) error {
 
 // LoadFromSource loads a package from source. All of its dependencies
 // must have been loaded already.
-func (ld *Loader) LoadFromSource(pkg *packages.Package) error {
-	ld.exportMu.RLock()
-	defer ld.exportMu.RUnlock()
-
+func LoadFromSource(pkg *packages.Package) error {
 	pkg.IllTyped = true
 	pkg.Types = types.NewPackage(pkg.PkgPath, pkg.Name)
 

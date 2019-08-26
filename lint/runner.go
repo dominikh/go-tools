@@ -199,7 +199,6 @@ type result struct {
 }
 
 type Runner struct {
-	ld    loader.Loader
 	cache *cache.Cache
 
 	analyzerIDs analyzerIDs
@@ -588,7 +587,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	}
 
 	atomic.StoreUint32(&r.stats.State, StateGraph)
-	initialPkgs, err := r.ld.Graph(dcfg, patterns...)
+	initialPkgs, err := loader.Graph(dcfg, patterns...)
 	if err != nil {
 		return nil, err
 	}
@@ -693,7 +692,7 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 			pkg.cfg = cpkg.Config
 		} else {
 			pkg.fromSource = true
-			return r.ld.LoadFromSource(pkg.Package)
+			return loader.LoadFromSource(pkg.Package)
 		}
 	}
 
@@ -706,7 +705,7 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 	// packages.
 
 	// Load package from export data
-	if err := r.ld.LoadFromExport(pkg.Package); err != nil {
+	if err := loader.LoadFromExport(pkg.Package); err != nil {
 		// We asked Go to give us up to date export data, yet
 		// we can't load it. There must be something wrong.
 		//
@@ -719,7 +718,7 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 		// FIXME(dh): we no longer reload from export data, so
 		// theoretically we should be able to continue
 		pkg.fromSource = true
-		if err := r.ld.LoadFromSource(pkg.Package); err != nil {
+		if err := loader.LoadFromSource(pkg.Package); err != nil {
 			return err
 		}
 		// Make sure this package can't be imported successfully
@@ -787,7 +786,7 @@ func (r *Runner) loadPkg(pkg *Package, analyzers []*analysis.Analyzer) error {
 	// We failed to load some cached facts
 	pkg.fromSource = true
 	// XXX we added facts to the maps, we need to get rid of those
-	return r.ld.LoadFromSource(pkg.Package)
+	return loader.LoadFromSource(pkg.Package)
 }
 
 type analysisError struct {
