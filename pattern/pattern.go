@@ -60,6 +60,7 @@ var (
 	_ Node = Object{}
 	_ Node = Function{}
 	_ Node = Not{}
+	_ Node = Or{}
 )
 
 type Function struct {

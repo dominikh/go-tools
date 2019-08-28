@@ -12,6 +12,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/config"
 	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/report"
 )
 
 // knownNameExceptions is a set of names that are known to be exempt from naming checks.
@@ -46,7 +47,7 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 
 		// Handle two common styles from other languages that don't belong in Go.
 		if len(id.Name) >= 5 && allCaps(id.Name) && strings.Contains(id.Name, "_") {
-			ReportfFG(pass, id.Pos(), "should not use ALL_CAPS in Go names; use CamelCase instead")
+			report.PosfFG(pass, id.Pos(), "should not use ALL_CAPS in Go names; use CamelCase instead")
 			return
 		}
 
@@ -56,10 +57,10 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if len(id.Name) > 2 && strings.Contains(id.Name[1:len(id.Name)-1], "_") {
-			ReportfFG(pass, id.Pos(), "should not use underscores in Go names; %s %s should be %s", thing, id.Name, should)
+			report.PosfFG(pass, id.Pos(), "should not use underscores in Go names; %s %s should be %s", thing, id.Name, should)
 			return
 		}
-		ReportfFG(pass, id.Pos(), "%s %s should be %s", thing, id.Name, should)
+		report.PosfFG(pass, id.Pos(), "%s %s should be %s", thing, id.Name, should)
 	}
 	checkList := func(fl *ast.FieldList, thing string, initialisms map[string]bool) {
 		if fl == nil {
@@ -80,10 +81,10 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.Files {
 		// Package names need slightly different handling than other names.
 		if !strings.HasSuffix(f.Name.Name, "_test") && strings.Contains(f.Name.Name, "_") {
-			ReportfFG(pass, f.Pos(), "should not use underscores in package names")
+			report.PosfFG(pass, f.Pos(), "should not use underscores in package names")
 		}
 		if strings.IndexFunc(f.Name.Name, unicode.IsUpper) != -1 {
-			ReportfFG(pass, f.Pos(), "should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name))
+			report.PosfFG(pass, f.Pos(), "should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name))
 		}
 
 		ast.Inspect(f, func(node ast.Node) bool {

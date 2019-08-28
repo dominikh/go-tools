@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/format"
 	"go/printer"
 	"go/token"
 	"go/types"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/ast/astutil"
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/pattern"
@@ -228,7 +230,7 @@ func IsGoVersion(pass *analysis.Pass, minor int) bool {
 }
 
 func CallNameAST(pass *analysis.Pass, call *ast.CallExpr) string {
-	switch fun := call.Fun.(type) {
+	switch fun := astutil.Unparen(call.Fun).(type) {
 	case *ast.SelectorExpr:
 		fn, ok := pass.TypesInfo.ObjectOf(fun.Sel).(*types.Func)
 		if !ok {
@@ -393,29 +395,6 @@ func Generator(pass *analysis.Pass, pos token.Pos) (facts.Generator, bool) {
 	return g, ok
 }
 
-func ReportfFG(pass *analysis.Pass, pos token.Pos, f string, args ...interface{}) {
-	file := lint.DisplayPosition(pass.Fset, pos).Filename
-	m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
-	if _, ok := m[file]; ok {
-		return
-	}
-	pass.Reportf(pos, f, args...)
-}
-
-func ReportNodef(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
-	msg := fmt.Sprintf(format, args...)
-	pass.Report(analysis.Diagnostic{Pos: node.Pos(), End: node.End(), Message: msg})
-}
-
-func ReportNodefFG(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
-	file := lint.DisplayPosition(pass.Fset, node.Pos()).Filename
-	m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
-	if _, ok := m[file]; ok {
-		return
-	}
-	ReportNodef(pass, node, format, args...)
-}
-
 // ExhaustiveTypeSwitch panics when called. It can be used to ensure
 // that type switches are exhaustive.
 func ExhaustiveTypeSwitch(v interface{}) {
@@ -429,4 +408,20 @@ func Match(pass *analysis.Pass, q pattern.Pattern, node ast.Node) (*pattern.Matc
 	m := &pattern.Matcher{TypesInfo: pass.TypesInfo}
 	ok := m.Match(q.Root, node)
 	return m, ok
+}
+
+func MatchAndEdit(pass *analysis.Pass, before, after pattern.Pattern, node ast.Node) (*pattern.Matcher, []analysis.TextEdit, bool) {
+	m, ok := Match(pass, before, node)
+	if !ok {
+		return m, nil, false
+	}
+	r := pattern.NodeToAST(after.Root, m.State)
+	buf := &bytes.Buffer{}
+	format.Node(buf, pass.Fset, r)
+	edit := []analysis.TextEdit{{
+		Pos:     node.Pos(),
+		End:     node.End(),
+		NewText: buf.Bytes(),
+	}}
+	return m, edit, true
 }

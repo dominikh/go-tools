@@ -298,6 +298,7 @@ func (p *Parser) populateNode(typ string, objs []Node) (Node, error) {
 
 var structNodes = map[string]reflect.Type{
 	"Any":            reflect.TypeOf(Any{}),
+	"Ellipsis":       reflect.TypeOf(Ellipsis{}),
 	"List":           reflect.TypeOf(List{}),
 	"Binding":        reflect.TypeOf(Binding{}),
 	"RangeStmt":      reflect.TypeOf(RangeStmt{}),

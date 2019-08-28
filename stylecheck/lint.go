@@ -13,10 +13,12 @@ import (
 	"unicode/utf8"
 
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/lint/lintutil"
+	"honnef.co/go/tools/report"
 	"honnef.co/go/tools/ssa"
 
 	"golang.org/x/tools/go/analysis"
@@ -46,7 +48,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			hasDocs = true
 			prefix := "Package " + f.Name.Name + " "
 			if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
-				ReportNodef(pass, f.Doc, `package comment should be of the form "%s..."`, prefix)
+				report.Nodef(pass, f.Doc, `package comment should be of the form "%s..."`, prefix)
 			}
 			f.Doc.Text()
 		}
@@ -57,7 +59,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			if IsInTest(pass, f) {
 				continue
 			}
-			ReportNodef(pass, f, "at least one file in a package should have a package comment")
+			report.Nodef(pass, f, "at least one file in a package should have a package comment")
 		}
 	}
 	return nil, nil
@@ -76,7 +78,7 @@ func CheckDotImports(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if imp.Name != nil && imp.Name.Name == "." && !IsInTest(pass, f) {
-				ReportNodefFG(pass, imp, "should not use dot imports")
+				report.NodefFG(pass, imp, "should not use dot imports")
 			}
 		}
 	}
@@ -106,7 +108,7 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 					pos := lint.DisplayPosition(pass.Fset, imp.Pos())
 					s += "\n\t" + "also imported at " + pos.String()
 				}
-				ReportNodefFG(pass, value[0], s)
+				report.NodefFG(pass, value[0], s)
 			}
 		}
 	}
@@ -165,7 +167,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if imp.Doc == nil && imp.Comment == nil && !skip[imp] {
-				ReportNodef(pass, imp, "a blank import should be only in a main or test package, or have a comment justifying it")
+				report.Nodef(pass, imp, "a blank import should be only in a main or test package, or have a comment justifying it")
 			}
 		}
 	}
@@ -197,7 +199,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 			suffix = "--"
 		}
 
-		ReportNodef(pass, assign, "should replace %s with %s%s", Render(pass, assign), Render(pass, assign.Lhs[0]), suffix)
+		report.Nodef(pass, assign, "should replace %s with %s%s", Render(pass, assign), Render(pass, assign.Lhs[0]), suffix)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 	return nil, nil
@@ -266,10 +268,10 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				if recv.Name() == "self" || recv.Name() == "this" {
-					ReportfFG(pass, recv.Pos(), `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
+					report.PosfFG(pass, recv.Pos(), `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
 				}
 				if recv.Name() == "_" {
-					ReportfFG(pass, recv.Pos(), "receiver name should not be an underscore, omit the name if it is unused")
+					report.PosfFG(pass, recv.Pos(), "receiver name should not be an underscore, omit the name if it is unused")
 				}
 			}
 		}
@@ -446,7 +448,7 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 			}
 			for _, suffix := range suffixes {
 				if strings.HasSuffix(name.Name, suffix) {
-					ReportNodef(pass, name, "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
+					report.Nodef(pass, name, "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
 					break
 				}
 			}
@@ -503,7 +505,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 						prefix = "Err"
 					}
 					if !strings.HasPrefix(name.Name, prefix) {
-						ReportNodef(pass, name, "error var %s should have name of the form %sFoo", name.Name, prefix)
+						report.Nodef(pass, name, "error var %s should have name of the form %sFoo", name.Name, prefix)
 					}
 				}
 			}
@@ -617,7 +619,8 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return true
 		}
-		ReportNodefFG(pass, lit, "should use constant http.%s instead of numeric literal %d", s, n)
+		report.NodeFG(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
+			edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(pass.Fset, lit, "http."+s)))
 		return true
 	}
 	// OPT(dh): replace with inspector
@@ -633,7 +636,7 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 		list := stmt.Body.List
 		for i, c := range list {
 			if c.(*ast.CaseClause).List == nil && i != 0 && i != len(list)-1 {
-				ReportNodefFG(pass, c, "default case should be first or last in switch statement")
+				report.NodefFG(pass, c, "default case should be first or last in switch statement")
 				break
 			}
 		}
@@ -643,10 +646,12 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(BinaryExpr (BasicLit _ _) (Or "==" "!=") (Not (BasicLit _ _)))`)
+	q := lintutil.MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
+	r := lintutil.MustParse(`(BinaryExpr right tok left)`)
 	fn := func(node ast.Node) {
-		if _, ok := Match(pass, q, node); ok {
-			ReportNodefFG(pass, node, "don't use Yoda conditions")
+		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
+			report.NodeFG(pass, node, "don't use Yoda conditions",
+				edit.Fix("un-Yoda-fy", edits...))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
@@ -661,9 +666,9 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
-				ReportNodef(pass, lit, "string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r)
+				report.Nodef(pass, lit, "string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r)
 			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
-				ReportNodef(pass, lit, "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
+				report.Nodef(pass, lit, "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
 			}
 		}
 	}
@@ -702,7 +707,7 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 		}
 		prefix := decl.Name.Name + " "
 		if !strings.HasPrefix(decl.Doc.Text(), prefix) {
-			ReportNodefFG(pass, decl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix)
+			report.NodefFG(pass, decl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix)
 		}
 	}
 
@@ -759,7 +764,7 @@ func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
 				}
 			}
 			if !strings.HasPrefix(s, node.Name.Name+" ") {
-				ReportNodefFG(pass, doc, `comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name)
+				report.NodefFG(pass, doc, `comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name)
 			}
 			return false
 		case *ast.FuncLit, *ast.FuncDecl:
@@ -810,7 +815,7 @@ func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
 				if genDecl.Tok == token.CONST {
 					kind = "const"
 				}
-				ReportNodefFG(pass, genDecl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, name, prefix)
+				report.NodefFG(pass, genDecl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, name, prefix)
 			}
 			return false
 		case *ast.FuncLit, *ast.FuncDecl:

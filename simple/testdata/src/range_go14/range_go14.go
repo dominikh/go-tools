@@ -4,19 +4,19 @@ func fn() {
 	var m map[string]int
 
 	// with :=
-	for x, _ := range m { // want `should omit value from range`
+	for x, _ := range m { // want `unnecessary assignment to the blank identifier`
 		_ = x
 	}
 	// with =
 	var y string
 	_ = y
-	for y, _ = range m { // want `should omit value from range`
+	for y, _ = range m { // want `unnecessary assignment to the blank identifier`
 	}
 
-	for _ = range m { // want `should omit values.*range.*equivalent.*for range`
+	for _ = range m { // want `unnecessary assignment to the blank identifier`
 	}
 
-	for _, _ = range m { // want `should omit values.*range.*equivalent.*for range`
+	for _, _ = range m { // want `unnecessary assignment to the blank identifier`
 	}
 
 	// all OK:

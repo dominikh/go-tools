@@ -83,13 +83,15 @@ type matcher interface {
 	Match(*Matcher, interface{}) (interface{}, bool)
 }
 
+type State = map[string]interface{}
+
 type Matcher struct {
 	TypesInfo *types.Info
-	State     map[string]interface{}
+	State     State
 }
 
 func (m *Matcher) fork() *Matcher {
-	state := make(map[string]interface{}, len(m.State))
+	state := make(State, len(m.State))
 	for k, v := range m.State {
 		state[k] = v
 	}
@@ -104,7 +106,7 @@ func (m *Matcher) merge(mc *Matcher) {
 }
 
 func (m *Matcher) Match(a Node, b ast.Node) bool {
-	m.State = map[string]interface{}{}
+	m.State = State{}
 	_, ok := match(m, a, b)
 	return ok
 }
@@ -185,11 +187,14 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 	{
 		obj, ok := l.(types.Object)
 		if ok {
-			ident, ok := r.(*ast.Ident)
-			if !ok {
-				return nil, false
+			switch r := r.(type) {
+			case *ast.Ident:
+				return obj, obj == m.TypesInfo.ObjectOf(r)
+			case *ast.SelectorExpr:
+				return obj, obj == m.TypesInfo.ObjectOf(r.Sel)
+			default:
+				return obj, false
 			}
-			return obj, obj == m.TypesInfo.ObjectOf(ident)
 		}
 	}
 
@@ -479,11 +484,11 @@ func (or Or) Match(m *Matcher, node interface{}) (interface{}, bool) {
 }
 
 func (not Not) Match(m *Matcher, node interface{}) (interface{}, bool) {
-	ret, ok := match(m, not.Node, node)
+	_, ok := match(m, not.Node, node)
 	if ok {
 		return nil, false
 	}
-	return ret, true
+	return node, true
 }
 
 var (

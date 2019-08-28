@@ -471,3 +471,10 @@ func MayHaveSideEffects(expr ast.Expr) bool {
 		panic(fmt.Sprintf("internal error: unhandled type %T", expr))
 	}
 }
+
+func Selector(x, sel string) *ast.SelectorExpr {
+	return &ast.SelectorExpr{
+		X:   &ast.Ident{Name: x},
+		Sel: &ast.Ident{Name: sel},
+	}
+}

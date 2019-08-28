@@ -5,7 +5,7 @@ func fn() {
 	var bs []int
 	var offset int
 
-	for i := 0; i < n; i++ { // want `should use copy\(bs\[:n\], bs\[offset:\]\) instead`
+	for i := 0; i < n; i++ { // want `should use copy\(\) instead of loop for sliding slice elements`
 		bs[i] = bs[offset+i]
 	}
 
