@@ -79,7 +79,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 
 	indices := sel.Index()
 
-	var v Value = fn.Locals[0] // spilled receiver
+	var v Value = fn.Locals[1] // spilled receiver
 	if isPointer(sel.Recv()) {
 		v = emitLoad(fn, v)
 
@@ -99,7 +99,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 				stringConst(sel.Obj().Name()),
 			}
 			c.setType(v.Type())
-			v = fn.emit(&c)
+			v = emitCall(fn, &c)
 		}
 	}
 
@@ -131,6 +131,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 	for _, arg := range fn.Params[1:] {
 		c.Call.Args = append(c.Call.Args, arg)
 	}
+	c.Call.Mem = fn.getMem()
 	emitTailCall(fn, &c)
 	fn.finishBody()
 	return fn

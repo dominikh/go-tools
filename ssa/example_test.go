@@ -91,11 +91,12 @@ func Example_buildPackage() {
 	// # Synthetic: package initializer
 	// func init():
 	// 0:                                                                entry P:0 S:2
-	// 	t0 = *init$guard                                                   bool
-	// 	if t0 goto 2 else 1
+	// 	t0 = InitMem                                                     Memory
+	// 	t1 = Load <bool> init$guard t0                                     bool
+	// 	if t1 goto 2 else 1
 	// 1:                                                           init.start P:1 S:1
-	// 	*init$guard = true:bool
-	// 	t1 = fmt.init()                                                      ()
+	// 	t2 = Store <mem> {bool} init$guard true:bool t0                  Memory
+	// 	t3 = call fmt.init() t2                                          Memory
 	// 	jump 2
 	// 2:                                                            init.done P:2 S:0
 	// 	return
@@ -105,12 +106,14 @@ func Example_buildPackage() {
 	// # Location: hello.go:8:6
 	// func main():
 	// 0:                                                                entry P:0 S:0
-	// 	t0 = new [1]interface{} (varargs)                       *[1]interface{}
-	// 	t1 = &t0[0:int]                                            *interface{}
-	// 	t2 = make interface{} <- string ("Hello, World!":string)    interface{}
-	// 	*t1 = t2
-	// 	t3 = slice t0[:]                                          []interface{}
-	// 	t4 = fmt.Println(t3...)                              (n int, err error)
+	// 	t0 = InitMem                                                     Memory
+	// 	t1 = new [1]interface{} (varargs)                       *[1]interface{}
+	// 	t2 = &t1[0:int]                                            *interface{}
+	// 	t3 = make interface{} <- string ("Hello, World!":string)    interface{}
+	// 	t4 = Store <mem> {interface{}} t2 t3 t0                          Memory
+	// 	t5 = slice t1[:]                                          []interface{}
+	// 	t6 = call fmt.Println(t5...) t4                                  Memory
+	// 	t7 = ReturnValues t6                                 (n int, err error)
 	// 	return
 }
 

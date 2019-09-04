@@ -192,7 +192,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		var c Call
 		b.setCall(fn, e, &c.Call)
 		c.typ = typ
-		return fn.emit(&c)
+		return emitCall(fn, &c)
 
 	case *ast.IndexExpr:
 		mapt := fn.Pkg.typeOf(e.X).Underlying().(*types.Map)
@@ -595,7 +595,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		var v Call
 		b.setCall(fn, e, &v.Call)
 		v.setType(tv.Type)
-		return fn.emit(&v)
+		return emitCall(fn, &v)
 
 	case *ast.UnaryExpr:
 		switch e.Op {
@@ -2015,14 +2015,14 @@ start:
 		// panic is treated like an ordinary function call.
 		v := Go{pos: s.Go}
 		b.setCall(fn, s.Call, &v.Call)
-		fn.emit(&v)
+		emitCall(fn, &v)
 
 	case *ast.DeferStmt:
 		// The "intrinsics" new/make/len/cap are forbidden here.
 		// panic is treated like an ordinary function call.
 		v := Defer{pos: s.Defer}
 		b.setCall(fn, s.Call, &v.Call)
-		fn.emit(&v)
+		emitCall(fn, &v)
 
 		// A deferred call can cause recovery from panic,
 		// and control resumes at the Recover block.
@@ -2207,6 +2207,19 @@ func (b *builder) buildFunction(fn *Function) {
 	fn.finishBody()
 }
 
+func (fn *Function) allocMem() {
+	fn.mem = fn.addLocal(tMemory, 0)
+	fn.mem.Comment = "<mem>"
+	mem := &InitMem{}
+	mem.setType(tMemory)
+	fn.emit(mem)
+	fn.setMem(mem, 0)
+}
+
+func (fn *Function) getMem() Value {
+	return emitLoadNoMem(fn, fn.mem)
+}
+
 // buildFuncDecl builds SSA code for the function or method declared
 // by decl in package pkg.
 //
@@ -2220,7 +2233,7 @@ func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 		var v Call
 		v.Call.Value = fn
 		v.setType(types.NewTuple())
-		pkg.init.emit(&v)
+		emitCall(pkg.init, &v)
 	}
 	b.buildFunction(fn)
 }
@@ -2299,7 +2312,7 @@ func (p *Package) build() {
 			v.Call.Value = prereq.init
 			v.Call.pos = init.pos
 			v.setType(types.NewTuple())
-			init.emit(&v)
+			emitCall(init, &v)
 		}
 	}
 

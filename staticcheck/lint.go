@@ -43,7 +43,7 @@ import (
 )
 
 func checkSortSlice(call *Call) {
-	c := call.Instr.Value().Common().StaticCallee()
+	c := call.Instr.Common().StaticCallee()
 	arg := call.Args[0]
 
 	T := arg.Value.Value.Type().Underlying()
@@ -1936,7 +1936,7 @@ func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
 				if sigma.X != v {
 					return true
 				}
-			case *ssa.UnOp:
+			case *ssa.Load:
 				return true
 			}
 			report.Nodef(pass, cond, "variable in loop condition never changes")
@@ -2225,10 +2225,13 @@ func CheckIneffectiveAppend(pass *analysis.Pass) (interface{}, error) {
 						case *ssa.Sigma:
 							walkRefs(*ref.Referrers())
 						case ssa.Value:
-							if !isAppend(ref) {
-								isUsed = true
+							if isAppend(ref) {
+								for _, ret := range ssautil.CallResult(ref.(*ssa.Call)) {
+									walkRefs(*ret.Referrers())
+								}
 							} else {
-								walkRefs(*ref.Referrers())
+								isUsed = true
+								break loop
 							}
 						case ssa.Instruction:
 							isUsed = true
@@ -2236,11 +2239,11 @@ func CheckIneffectiveAppend(pass *analysis.Pass) (interface{}, error) {
 						}
 					}
 				}
-				refs := val.Referrers()
-				if refs == nil {
-					continue
+
+				for _, ret := range ssautil.CallResult(val.(*ssa.Call)) {
+					walkRefs(*ret.Referrers())
 				}
-				walkRefs(*refs)
+
 				if !isUsed {
 					pass.Reportf(ins.Pos(), "this result of append is never used, except maybe in other appends")
 				}
@@ -2330,11 +2333,11 @@ func CheckCyclicFinalizer(pass *analysis.Pass) (interface{}, error) {
 		if iface, ok := arg0.(*ssa.MakeInterface); ok {
 			arg0 = iface.X
 		}
-		unop, ok := arg0.(*ssa.UnOp)
+		load, ok := arg0.(*ssa.Load)
 		if !ok {
 			return
 		}
-		v, ok := unop.X.(*ssa.Alloc)
+		v, ok := load.X.(*ssa.Alloc)
 		if !ok {
 			return
 		}
@@ -2428,7 +2431,7 @@ func CheckDeferLock(pass *analysis.Pass) (interface{}, error) {
 
 func CheckNaNComparison(pass *analysis.Pass) (interface{}, error) {
 	isNaN := func(v ssa.Value) bool {
-		call, ok := v.(*ssa.Call)
+		call, ok := ssautil.IsCallResult(v)
 		if !ok {
 			return false
 		}
@@ -2782,10 +2785,7 @@ fnLoop:
 				if !ok {
 					continue
 				}
-				refs := ins.Referrers()
-				if refs == nil || len(code.FilterDebug(*refs)) > 0 {
-					continue
-				}
+
 				callee := ins.Common().StaticCallee()
 				if callee == nil {
 					continue
@@ -2794,10 +2794,30 @@ fnLoop:
 					// TODO(dh): support anonymous functions
 					continue
 				}
-				if _, ok := pure[callee.Object().(*types.Func)]; ok {
-					pass.Reportf(ins.Pos(), "%s is a pure function but its return value is ignored", callee.Name())
+				if _, ok := pure[callee.Object().(*types.Func)]; !ok {
 					continue
 				}
+
+				switch ins.Common().Signature().Results().Len() {
+				case 0:
+					panic("unreachable")
+				case 1:
+					res := ssautil.CallResult(ins)
+					if len(res) != 1 {
+						continue
+					}
+					refs := res[0].Referrers()
+					if refs == nil || len(code.FilterDebug(*refs)) > 0 {
+						continue
+					}
+				default:
+					retv := ins.Common().Results
+					refs := retv.Referrers()
+					if refs == nil || len(code.FilterDebug(*refs)) > 0 {
+						continue
+					}
+				}
+				pass.Reportf(ins.Pos(), "%s is a pure function but its return value is ignored", callee.Name())
 			}
 		}
 	}
@@ -3270,50 +3290,53 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 				if !code.IsCallTo(call.Common(), "(*time.Timer).Reset") {
 					continue
 				}
-				refs := call.Referrers()
-				if refs == nil {
-					continue
-				}
-				for _, ref := range code.FilterDebug(*refs) {
-					ifstmt, ok := ref.(*ssa.If)
-					if !ok {
+				results := ssautil.CallResult(call)
+				for _, res := range results {
+					refs := res.Referrers()
+					if refs == nil {
 						continue
 					}
-
-					found := false
-					for _, succ := range ifstmt.Block().Succs {
-						if len(succ.Preds) != 1 {
-							// Merge point, not a branch in the
-							// syntactical sense.
-
-							// FIXME(dh): this is broken for if
-							// statements a la "if x || y"
+					for _, ref := range code.FilterDebug(*refs) {
+						ifstmt, ok := ref.(*ssa.If)
+						if !ok {
 							continue
 						}
-						ssautil.Walk(succ, func(b *ssa.BasicBlock) bool {
-							if !succ.Dominates(b) {
-								// We've reached the end of the branch
-								return false
+
+						found := false
+						for _, succ := range ifstmt.Block().Succs {
+							if len(succ.Preds) != 1 {
+								// Merge point, not a branch in the
+								// syntactical sense.
+
+								// FIXME(dh): this is broken for if
+								// statements a la "if x || y"
+								continue
 							}
-							for _, ins := range b.Instrs {
-								// TODO(dh): we should check that
-								// we're receiving from the channel of
-								// a time.Timer to further reduce
-								// false positives. Not a key
-								// priority, considering the rarity of
-								// Reset and the tiny likeliness of a
-								// false positive
-								if ins, ok := ins.(*ssa.UnOp); ok && ins.Op == token.ARROW && code.IsType(ins.X.Type(), "<-chan time.Time") {
-									found = true
+							ssautil.Walk(succ, func(b *ssa.BasicBlock) bool {
+								if !succ.Dominates(b) {
+									// We've reached the end of the branch
 									return false
 								}
-							}
-							return true
-						})
-					}
+								for _, ins := range b.Instrs {
+									// TODO(dh): we should check that
+									// we're receiving from the channel of
+									// a time.Timer to further reduce
+									// false positives. Not a key
+									// priority, considering the rarity of
+									// Reset and the tiny likeliness of a
+									// false positive
+									if ins, ok := ins.(*ssa.UnOp); ok && ins.Op == token.ARROW && code.IsType(ins.X.Type(), "<-chan time.Time") {
+										found = true
+										return false
+									}
+								}
+								return true
+							})
+						}
 
-					if found {
-						pass.Reportf(call.Pos(), "it is not possible to use Reset's return value correctly, as there is a race condition between draining the channel and the new timer expiring")
+						if found {
+							pass.Reportf(call.Pos(), "it is not possible to use Reset's return value correctly, as there is a race condition between draining the channel and the new timer expiring")
+						}
 					}
 				}
 			}

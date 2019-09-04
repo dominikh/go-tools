@@ -40,7 +40,6 @@ package ssa
 
 import (
 	"fmt"
-	"go/token"
 	"go/types"
 	"math/big"
 	"os"
@@ -421,10 +420,7 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 				panic("Alloc.Referrers is inconsistent")
 			}
 			defblocks.Add(instr.Block())
-		case *UnOp:
-			if instr.Op != token.MUL {
-				return false // not a load
-			}
+		case *Load:
 			if instr.X != alloc {
 				panic("Alloc.Referrers is inconsistent")
 			}
@@ -569,31 +565,42 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 					fmt.Fprintf(os.Stderr, "\tkill store %s; new value: %s\n",
 						instr, instr.Val.Name())
 				}
-				// Remove the store from the referrer list of the stored value.
-				if refs := instr.Val.Referrers(); refs != nil {
-					*refs = removeInstr(*refs, instr)
+				for _, op := range instr.Operands(nil) {
+					if refs := (*op).Referrers(); refs != nil {
+						*refs = removeInstr(*refs, instr)
+					}
 				}
 				// Delete the Store.
 				u.Instrs[i] = nil
 				u.gaps++
+
+				if i+1 < len(u.Instrs) {
+					// We've killed a store, so we must also kill its effect on the memory state.
+					if memStore, ok := u.Instrs[i+1].(*Store); ok && memStore.Mem == nil && memStore.Val == instr {
+						u.Instrs[i+1] = nil
+						u.gaps++
+					}
+				}
 			}
 
-		case *UnOp:
-			if instr.Op == token.MUL {
-				if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
-					newval := renamed(renaming, alloc)
-					if debugLifting {
-						fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
-							instr.Name(), instr, newval.Name())
-					}
-					// Replace all references to
-					// the loaded value by the
-					// dominating stored value.
-					replaceAll(instr, newval)
-					// Delete the Load.
-					u.Instrs[i] = nil
-					u.gaps++
+		case *Load:
+			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
+				newval := renamed(renaming, alloc)
+				if debugLifting {
+					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
+						instr.Name(), instr, newval.Name())
 				}
+				// Replace all references to
+				// the loaded value by the
+				// dominating stored value.
+				replaceAll(instr, newval)
+				if instr.Mem != nil {
+					refs := instr.Mem.Referrers()
+					*refs = removeInstr(*refs, instr)
+				}
+				// Delete the Load.
+				u.Instrs[i] = nil
+				u.gaps++
 			}
 
 		case *DebugRef:

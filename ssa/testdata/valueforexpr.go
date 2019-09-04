@@ -8,16 +8,15 @@ package main
 // non-nil Value of the same type as e and of kind 'kind'.
 
 func f(spilled, unspilled int) {
-	_ = /*@UnOp*/ (spilled)
+	_ = /*@Load*/ (spilled)
 	_ = /*@Parameter*/ (unspilled)
 	_ = /*@nil*/ (1 + 2) // (constant)
 	i := 0
 
 	f := func() (int, int) { return 0, 0 }
 
-	/*@Call*/
 	(print( /*@BinOp*/ (i + 1)))
-	_, _ = /*@Call*/ (f())
+	_, _ = /*@ReturnValues*/ (f())
 	ch := /*@MakeChan*/ (make(chan int))
 	/*@UnOp*/ (<-ch)
 	x := /*@UnOp*/ (<-ch)
@@ -49,14 +48,14 @@ func f(spilled, unspilled int) {
 	_ = tmp
 	var iface interface{}
 	_ = /*@TypeAssert*/ (iface.(int))
-	_ = /*@UnOp*/ (sl[0])
+	_ = /*@Load*/ (sl[0])
 	_ = /*@IndexAddr*/ (&sl[0])
 	_ = /*@Index*/ ([2]int{}[0])
 	var p *int
-	_ = /*@UnOp*/ (*p)
+	_ = /*@Load*/ (*p)
 
-	_ = /*@UnOp*/ (global)
-	/*@UnOp*/ (global)[""] = ""
+	_ = /*@Load*/ (global)
+	/*@Load*/ (global)[""] = ""
 	/*@Global*/ (global) = map[string]string{}
 
 	var local t
@@ -65,10 +64,10 @@ func f(spilled, unspilled int) {
 	// Exercise corner-cases of lvalues vs rvalues.
 	type N *N
 	var n N
-	/*@UnOp*/ (n) = /*@UnOp*/ (n)
+	/*@Load*/ (n) = /*@Load*/ (n)
 	/*@ChangeType*/ (n) = /*@Alloc*/ (&n)
-	/*@UnOp*/ (n) = /*@UnOp*/ (*n)
-	/*@UnOp*/ (n) = /*@UnOp*/ (**n)
+	/*@Load*/ (n) = /*@Load*/ (*n)
+	/*@Load*/ (n) = /*@Load*/ (**n)
 }
 
 func complit() {
@@ -93,7 +92,7 @@ func complit() {
 	_ = & /*@Slice*/ ([]int{})
 
 	// 2. Arrays
-	print( /*@UnOp*/ ([1]int{}))
+	print( /*@Load*/ ([1]int{}))
 	print( /*@Alloc*/ (&[1]int{}))
 	print(& /*@Alloc*/ ([1]int{}))
 
@@ -102,7 +101,7 @@ func complit() {
 	arr3 := & /*@Alloc*/ ([1]int{})
 	_, _, _ = arr1, arr2, arr3
 
-	_ = /*@UnOp*/ ([1]int{})
+	_ = /*@Load*/ ([1]int{})
 	_ = /*@Alloc*/ (& /*@Alloc*/ ([1]int{}))
 	_ = & /*@Alloc*/ ([1]int{})
 
@@ -122,7 +121,7 @@ func complit() {
 	_ = & /*@MakeMap*/ (M{})
 
 	// 4. Structs
-	print( /*@UnOp*/ (struct{}{}))
+	print( /*@Load*/ (struct{}{}))
 	print( /*@Alloc*/ (&struct{}{}))
 	print(& /*@Alloc*/ (struct{}{}))
 
@@ -131,7 +130,7 @@ func complit() {
 	s3 := & /*@Alloc*/ (struct{}{})
 	_, _, _ = s1, s2, s3
 
-	_ = /*@UnOp*/ (struct{}{})
+	_ = /*@Load*/ (struct{}{})
 	_ = /*@Alloc*/ (& /*@Alloc*/ (struct{}{}))
 	_ = & /*@Alloc*/ (struct{}{})
 }

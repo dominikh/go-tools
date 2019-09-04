@@ -25,6 +25,9 @@ import (
 // references are package-qualified.
 //
 func relName(v Value, i Instruction) string {
+	if v == nil {
+		return "<nil>"
+	}
 	var from *types.Package
 	if i != nil {
 		from = i.Parent().pkg()
@@ -116,13 +119,13 @@ func printCall(v *CallCommon, prefix string, instr Instruction) string {
 	var b bytes.Buffer
 	b.WriteString(prefix)
 	if !v.IsInvoke() {
-		b.WriteString(relName(v.Value, instr))
+		fmt.Fprintf(&b, "call %s", relName(v.Value, instr))
 	} else {
 		fmt.Fprintf(&b, "invoke %s.%s", relName(v.Value, instr), v.Method.Name())
 	}
 	b.WriteString("(")
 	for i, arg := range v.Args {
-		if i > 0 {
+		if i != 0 {
 			b.WriteString(", ")
 		}
 		b.WriteString(relName(arg, instr))
@@ -131,6 +134,7 @@ func printCall(v *CallCommon, prefix string, instr Instruction) string {
 		b.WriteString("...")
 	}
 	b.WriteString(")")
+	fmt.Fprintf(&b, " %s", relName(v.Mem, instr))
 	return b.String()
 }
 
@@ -148,6 +152,14 @@ func (v *BinOp) String() string {
 
 func (v *UnOp) String() string {
 	return fmt.Sprintf("%s%s%s", v.Op, relName(v.X, v), commaOk(v.CommaOk))
+}
+
+func (v *Load) String() string {
+	if v.Mem == nil {
+		return fmt.Sprintf("LoadMem <%s> %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v))
+	} else {
+		return fmt.Sprintf("Load <%s> %s %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v), relName(v.Mem, v))
+	}
 }
 
 func printConv(prefix string, v, x Value) string {
@@ -347,7 +359,13 @@ func (s *Select) String() string {
 }
 
 func (s *Store) String() string {
-	return fmt.Sprintf("*%s = %s", relName(s.Addr, s), relName(s.Val, s))
+	if s.Mem == nil {
+		return fmt.Sprintf("StoreMem <mem> {%s} %s %s",
+			s.Val.Type(), relName(s.Addr, s), relName(s.Val, s))
+	} else {
+		return fmt.Sprintf("Store <mem> {%s} %s %s %s",
+			s.Val.Type(), relName(s.Addr, s), relName(s.Val, s), relName(s.Mem, s))
+	}
 }
 
 func (s *BlankStore) String() string {

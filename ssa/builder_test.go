@@ -39,13 +39,13 @@ import (
 )
 
 func main() {
-        var t testing.T
+	var t testing.T
 	t.Parallel()    // static call to external declared method
-        t.Fail()        // static call to promoted external declared method
-        testing.Short() // static call to external package-level function
+	t.Fail()        // static call to promoted external declared method
+	testing.Short() // static call to external package-level function
 
-        var w io.Writer = new(bytes.Buffer)
-        w.Write(nil)    // interface invoke of external declared method
+	var w io.Writer = new(bytes.Buffer)
+	w.Write(nil)    // interface invoke of external declared method
 }
 `
 
@@ -267,12 +267,13 @@ func TestInit(t *testing.T) {
 # Synthetic: package initializer
 func init():
 0:                                                                entry P:0 S:2
-	t0 = *init$guard                                                   bool
-	if t0 goto 2 else 1
+	t0 = InitMem                                                     Memory
+	t1 = Load <bool> init$guard t0                                     bool
+	if t1 goto 2 else 1
 1:                                                           init.start P:1 S:1
-	*init$guard = true:bool
-	t1 = errors.init()                                                   ()
-	*i = 42:int
+	t2 = Store <mem> {bool} init$guard true:bool t0                  Memory
+	t3 = call errors.init() t2                                       Memory
+	t4 = Store <mem> {int} i 42:int t3                               Memory
 	jump 2
 2:                                                            init.done P:2 S:0
 	return
@@ -284,7 +285,8 @@ func init():
 # Synthetic: package initializer
 func init():
 0:                                                                entry P:0 S:0
-	*i = 42:int
+	t0 = InitMem                                                     Memory
+	t1 = Store <mem> {int} i 42:int t0                               Memory
 	return
 
 `},
@@ -495,8 +497,8 @@ func h(error)
 			}
 		}
 	}
-	if phis != 1 {
+	if phis != 3 {
 		g.WriteTo(os.Stderr)
-		t.Errorf("expected a single Phi (for the range index), got %d", phis)
+		t.Errorf("expected three Phi nodes (for the range index and memory state), got %d", phis)
 	}
 }

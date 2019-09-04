@@ -15,8 +15,8 @@ func filterDebug(instr []ssa.Instruction) []ssa.Instruction {
 }
 
 // IsStub reports whether a function is a stub. A function is
-// considered a stub if it has no instructions or exactly one
-// instruction, which must be either returning only constant values or
+// considered a stub if it has no instructions or exactly two
+// instruction, InitMem and a return, which must be either returning only constant values or
 // a panic.
 func IsStub(fn *ssa.Function) bool {
 	if len(fn.Blocks) == 0 {
@@ -26,11 +26,11 @@ func IsStub(fn *ssa.Function) bool {
 		return false
 	}
 	instrs := filterDebug(fn.Blocks[0].Instrs)
-	if len(instrs) != 1 {
+	if len(instrs) != 2 {
 		return false
 	}
 
-	switch instrs[0].(type) {
+	switch instrs[1].(type) {
 	case *ssa.Return:
 		// Since this is the only instruction, the return value must
 		// be a constant. We consider all constants as stubs, not just

@@ -1848,6 +1848,12 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 				// nothing to do
 			case *ssa.ChangeInterface:
 				// nothing to do
+			case *ssa.InitMem:
+				// nothing to do
+			case *ssa.Load:
+				// nothing to do
+			case *ssa.ReturnValues:
+				// nothing to do
 			case *ssa.Go:
 				// nothing to do, handled generically by operands
 			case *ssa.Defer:

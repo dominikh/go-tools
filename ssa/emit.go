@@ -27,11 +27,44 @@ func emitNew(f *Function, typ types.Type, pos token.Pos) *Alloc {
 // emitLoad emits to f an instruction to load the address addr into a
 // new temporary, and returns the value so defined.
 //
-func emitLoad(f *Function, addr Value) *UnOp {
-	v := &UnOp{Op: token.MUL, X: addr}
+func emitLoad(f *Function, addr Value) *Load {
+	mem := f.getMem()
+	v := &Load{Mem: mem, X: addr}
 	v.setType(deref(addr.Type()))
 	f.emit(v)
 	return v
+}
+
+func emitLoadNoMem(f *Function, addr Value) *Load {
+	v := &Load{Mem: nil, X: addr}
+	v.setType(deref(addr.Type()))
+	f.emit(v)
+	return v
+}
+
+func emitCall(f *Function, call CallInstruction) Value {
+	call.Common().Mem = f.getMem()
+	v := f.emit(call)
+	f.setMem(v, 0)
+	if _, ok := call.(*Call); !ok {
+		return v
+	}
+	switch call.Common().Signature().Results().Len() {
+	case 0:
+		return v
+	case 1:
+		retv := &ReturnValues{Mem: v}
+		retv.setType(call.Common().Signature().Results())
+		call.Common().Results = retv
+		f.emit(retv)
+		return emitExtract(f, retv, 0)
+	default:
+		retv := &ReturnValues{Mem: v}
+		retv.setType(call.Common().Signature().Results())
+		call.Common().Results = retv
+		f.emit(retv)
+		return retv
+	}
 }
 
 // emitDebugRef emits to f a DebugRef pseudo-instruction associating
@@ -252,6 +285,23 @@ func emitStore(f *Function, addr, val Value, pos token.Pos) *Store {
 		Val:  emitConv(f, val, deref(addr.Type())),
 		pos:  pos,
 	}
+	// make sure we call getMem after the call to emitConv, which may
+	// itself update the memory state
+	s.Mem = f.getMem()
+	s.setType(tMemory)
+	f.emit(s)
+	f.setMem(s, 0)
+	return s
+}
+
+func (f *Function) setMem(val Value, pos token.Pos) *Store {
+	s := &Store{
+		Mem:  nil,
+		Addr: f.mem,
+		Val:  val,
+		pos:  pos,
+	}
+	s.setType(tMemory)
 	f.emit(s)
 	return s
 }
@@ -328,7 +378,7 @@ func emitTailCall(f *Function, call *Call) {
 	} else {
 		call.typ = tresults
 	}
-	tuple := f.emit(call)
+	tuple := emitCall(f, call)
 	var ret Return
 	switch nr {
 	case 0:

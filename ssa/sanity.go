@@ -176,6 +176,10 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *DebugRef:
 	case *BlankStore:
 	case *Sigma:
+	case *InitMem:
+	case *Load:
+	case *ReturnValues:
+		_ = instr.Mem.(*Call)
 		// TODO(adonovan): implement checks.
 	default:
 		panic(fmt.Sprintf("Unknown instruction type: %T", instr))

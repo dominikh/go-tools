@@ -15,8 +15,10 @@ package main
 // are always values not addresses, so no annotations are needed.  The
 // declaration is enough.
 
-import "fmt"
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 type J int
 
@@ -37,7 +39,7 @@ type S struct {
 }
 
 func main() {
-	print(globalVar) //@ ssa(globalVar,"UnOp")
+	print(globalVar) //@ ssa(globalVar,"Load")
 	globalVar = 1    //@ ssa(globalVar,"Const")
 
 	var v0 int = 1 //@ ssa(v0,"Const") // simple local value spec
@@ -49,10 +51,10 @@ func main() {
 	// v1 is captured and thus implicitly address-taken.
 	var v1 int = 1         //@ ssa(v1,"Const")
 	v1 = 2                 //@ ssa(v1,"Const")
-	fmt.Println(v1)        //@ ssa(v1,"UnOp") // load
+	fmt.Println(v1)        //@ ssa(v1,"Load") // load
 	f := func(param int) { //@ ssa(f,"MakeClosure"), ssa(param,"Parameter")
 		if y := 1; y > 0 { //@ ssa(y,"Const")
-			print(v1, param) //@ ssa(v1,"UnOp") /*load*/, ssa(param,"Parameter")
+			print(v1, param) //@ ssa(v1,"Load") /*load*/, ssa(param,"Parameter")
 		}
 		param = 2      //@ ssa(param,"Const")
 		println(param) //@ ssa(param,"Const")
@@ -154,7 +156,7 @@ func main() {
 	var n N    //@ ssa(n,"Const")
 	n1 := n    //@ ssa(n1,"Const"), ssa(n,"Const")
 	n2 := &n1  //@ ssa(n2,"Alloc"), ssa(n1,"&Alloc")
-	n3 := *n2  //@ ssa(n3,"UnOp"), ssa(n2,"Alloc")
-	n4 := **n3 //@ ssa(n4,"UnOp"), ssa(n3,"UnOp")
-	_ = n4     //@ ssa(n4,"UnOp")
+	n3 := *n2  //@ ssa(n3,"Load"), ssa(n2,"Alloc")
+	n4 := **n3 //@ ssa(n4,"Load"), ssa(n3,"Load")
+	_ = n4     //@ ssa(n4,"Load")
 }

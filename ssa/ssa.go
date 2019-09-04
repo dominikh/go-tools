@@ -320,6 +320,7 @@ type Function struct {
 	namedResults []*Alloc                // tuple of named results
 	targets      *targets                // linked stack of branch targets
 	lblocks      map[*ast.Object]*lblock // labelled blocks
+	mem          *Alloc
 }
 
 // BasicBlock represents an SSA basic block.
@@ -580,7 +581,6 @@ type BinOp struct {
 
 // The UnOp instruction yields the result of Op X.
 // ARROW is channel receive.
-// MUL is pointer indirection (load).
 // XOR is bitwise complement.
 // SUB is negation.
 // NOT is logical negation.
@@ -592,9 +592,6 @@ type BinOp struct {
 // Pos() returns the ast.UnaryExpr.OpPos, if explicit in the source.
 // For receive operations (ARROW) implicit in ranging over a channel,
 // Pos() returns the ast.RangeStmt.For.
-// For implicit memory loads (STAR), Pos() returns the position of the
-// most closely associated source-level construct; the details are not
-// specified.
 //
 // Example printed form:
 // 	t0 = *x
@@ -605,6 +602,17 @@ type UnOp struct {
 	Op      token.Token // One of: NOT SUB ARROW MUL XOR ! - <- * ^
 	X       Value
 	CommaOk bool
+}
+
+// The Load instruction loads a value from a memory address.
+//
+// For implicit memory loads Pos() returns the position of the
+// most closely associated source-level construct; the details are not
+// specified.
+type Load struct {
+	register
+	Mem Value
+	X   Value
 }
 
 // The ChangeType instruction applies to X a value-preserving type
@@ -1152,7 +1160,7 @@ type Panic struct {
 // 	go invoke t5.Println(...t6)
 //
 type Go struct {
-	anInstruction
+	register
 	Call CallCommon
 	pos  token.Pos
 }
@@ -1170,7 +1178,7 @@ type Go struct {
 // 	defer invoke t5.Println(...t6)
 //
 type Defer struct {
-	anInstruction
+	register
 	Call CallCommon
 	pos  token.Pos
 }
@@ -1200,7 +1208,8 @@ type Send struct {
 // 	*x = y
 //
 type Store struct {
-	anInstruction
+	register
+	Mem  Value
 	Addr Value
 	Val  Value
 	pos  token.Pos
@@ -1360,10 +1369,12 @@ type anInstruction struct {
 // the last element of Args is a slice.
 //
 type CallCommon struct {
-	Value  Value       // receiver (invoke mode) or func value (call mode)
-	Method *types.Func // abstract method (invoke mode)
-	Args   []Value     // actual parameters (in static method call, includes receiver)
-	pos    token.Pos   // position of CallExpr.Lparen, iff explicit in source
+	Value   Value       // receiver (invoke mode) or func value (call mode)
+	Method  *types.Func // abstract method (invoke mode)
+	Args    []Value     // actual parameters (in static method call, includes receiver)
+	Mem     Value
+	Results Value
+	pos     token.Pos // position of CallExpr.Lparen, iff explicit in source
 }
 
 // IsInvoke returns true if this call has "invoke" (not "call") mode.
@@ -1427,16 +1438,20 @@ func (c *CallCommon) Description() string {
 type CallInstruction interface {
 	Instruction
 	Common() *CallCommon // returns the common parts of the call
-	Value() *Call        // returns the result value of the call (*Call) or nil (*Go, *Defer)
+	Value() Value
 }
+
+func (s *Call) Type() types.Type  { return tMemory }
+func (s *Defer) Type() types.Type { return tMemory }
+func (s *Go) Type() types.Type    { return tMemory }
 
 func (s *Call) Common() *CallCommon  { return &s.Call }
 func (s *Defer) Common() *CallCommon { return &s.Call }
 func (s *Go) Common() *CallCommon    { return &s.Call }
 
-func (s *Call) Value() *Call  { return s }
-func (s *Defer) Value() *Call { return nil }
-func (s *Go) Value() *Call    { return nil }
+func (s *Call) Value() Value  { return s }
+func (s *Defer) Value() Value { return s }
+func (s *Go) Value() Value    { return s }
 
 func (v *Builtin) Type() types.Type        { return v.sig }
 func (v *Builtin) Name() string            { return v.name }
@@ -1580,6 +1595,7 @@ func (c *CallCommon) Operands(rands []*Value) []*Value {
 	for i := range c.Args {
 		rands = append(rands, &c.Args[i])
 	}
+	rands = append(rands, &c.Mem)
 	return rands
 }
 
@@ -1721,7 +1737,11 @@ func (v *Slice) Operands(rands []*Value) []*Value {
 }
 
 func (s *Store) Operands(rands []*Value) []*Value {
-	return append(rands, &s.Addr, &s.Val)
+	if s.Mem == nil {
+		return append(rands, &s.Addr, &s.Val)
+	} else {
+		return append(rands, &s.Addr, &s.Val, &s.Mem)
+	}
 }
 
 func (s *BlankStore) Operands(rands []*Value) []*Value {
@@ -1734,6 +1754,14 @@ func (v *TypeAssert) Operands(rands []*Value) []*Value {
 
 func (v *UnOp) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
+}
+
+func (v *Load) Operands(rands []*Value) []*Value {
+	if v.Mem == nil {
+		return append(rands, &v.X)
+	} else {
+		return append(rands, &v.X, &v.Mem)
+	}
 }
 
 // Non-Instruction Values:

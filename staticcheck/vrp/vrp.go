@@ -506,6 +506,7 @@ func (g *Graph) Solve() Ranges {
 						if !g.Range(v).(StringInterval).IsKnown() {
 							g.SetRange(v, StringInterval{NewIntInterval(NewZ(0), PInfinity)})
 						}
+					case types.UnsafePointer:
 					default:
 						if !g.Range(v).(IntInterval).IsKnown() {
 							g.SetRange(v, InfinityFor(v))

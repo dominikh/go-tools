@@ -206,7 +206,8 @@ func (f *Function) addSpilledParam(obj types.Object) {
 	f.objects[obj] = spill
 	f.Locals = append(f.Locals, spill)
 	f.emit(spill)
-	f.emit(&Store{Addr: spill, Val: param})
+	emitStore(f, spill, param, 0)
+	// f.emit(&Store{Addr: spill, Val: param})
 }
 
 // startBody initializes the function prior to generating SSA code for its body.
@@ -215,6 +216,7 @@ func (f *Function) addSpilledParam(obj types.Object) {
 func (f *Function) startBody() {
 	f.currentBlock = f.newBasicBlock("entry")
 	f.objects = make(map[types.Object]Value) // needed for some synthetics, e.g. init
+	f.allocMem()
 }
 
 // createSyntacticParams populates f.Params and generates code (spills
@@ -353,10 +355,15 @@ func (f *Function) finishBody() {
 			if !ok || unop.Op != token.ARROW {
 				continue
 			}
-			call, ok := unop.X.(*Call)
+			cex, ok := unop.X.(*Extract)
 			if !ok {
 				continue
 			}
+			retv, ok := cex.Tuple.(*ReturnValues)
+			if !ok {
+				continue
+			}
+			call := retv.Mem.(*Call)
 			if call.Common().IsInvoke() {
 				continue
 			}
@@ -693,6 +700,7 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 				n, _ := buf.WriteString(instr.String())
 				l -= n
 				// Right-align the type if there's space.
+				// XXX don't print the type anymore once we've updated all instructions to show their own type
 				if t := v.Type(); t != nil {
 					buf.WriteByte(' ')
 					ts := relType(t, from)
