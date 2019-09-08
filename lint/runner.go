@@ -818,7 +818,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	}()
 
 	// Ensure all packages have the generated map and config. This is
-	// required by interna of the runner. Analyses that themselves
+	// required by internal of the runner. Analyses that themselves
 	// make use of either have an explicit dependency so that other
 	// runners work correctly, too.
 	analyzers = append(analyzers[0:len(analyzers):len(analyzers)], injectedAnalyses...)

@@ -91,7 +91,7 @@ func fn() {
 	}
 
 	if strings.HasPrefix(id1, gen()) {
-		id1 = id1[len(gen()):] // dunamic id3
+		id1 = id1[len(gen()):] // dynamic id3
 	}
 
 	if strings.HasPrefix(id1, s1) {
