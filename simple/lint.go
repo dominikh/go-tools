@@ -408,7 +408,7 @@ func negate(expr ast.Expr) ast.Expr {
 	}
 }
 
-// LintRedundantNilCheckWithLen checks for the following reduntant nil-checks:
+// LintRedundantNilCheckWithLen checks for the following redundant nil-checks:
 //
 //   if x == nil || len(x) == 0 {}
 //   if x != nil && len(x) != 0 {}

@@ -19,7 +19,7 @@ import (
 )
 
 // parseExpectations parses the content of a "// want ..." comment
-// and returns the expections, a mixture of diagnostics ("rx") and
+// and returns the expectations, a mixture of diagnostics ("rx") and
 // facts (name:"rx").
 func parseExpectations(text string) ([]string, error) {
 	var scanErr string

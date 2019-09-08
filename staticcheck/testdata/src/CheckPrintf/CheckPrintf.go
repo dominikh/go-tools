@@ -174,7 +174,7 @@ func fn() {
 	fmt.Printf(someString(), "hello") // OK
 
 	// d accepts pointers as long as they're not to structs.
-	// pointers to structs are dereferencd and walked.
+	// pointers to structs are dereferenced and walked.
 	fmt.Printf("%d", &s)
 
 	// staticcheck's own checks, based on bugs in go vet; see https://github.com/golang/go/issues/27672
