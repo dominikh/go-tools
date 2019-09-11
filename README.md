@@ -69,6 +69,7 @@ This project is sponsored by the following companies
 [<img src="images/sponsors/ardanlabs.png" alt="Ardan labs" width="150"></img>](https://www.ardanlabs.com/)  
 [<img src="images/sponsors/fastly.png" alt="Fastly" width="150"></img>](https://fastly.com)  
 [<img src="images/sponsors/uber.png" alt="Uber" width="150"></img>](https://uber.com)  
-[<img src="images/sponsors/fuzzit.png" alt="Fuzzit" width="150"></img>](https://fuzzit.dev)
+[<img src="images/sponsors/fuzzit.png" alt="Fuzzit" width="150"></img>](https://fuzzit.dev)  
+[<img src="images/sponsors/nats.png" alt="NATS" width="150"></img>](https://nats.io)
 
 as well as many generous people.
