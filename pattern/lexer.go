@@ -196,7 +196,6 @@ func lexString(l *lexer) stateFn {
 			runes = append(runes, r)
 		}
 	}
-	return lexStart
 }
 
 func lexType(l *lexer) stateFn {
