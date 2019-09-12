@@ -81,8 +81,6 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -1067,20 +1065,27 @@ func (r *Runner) packageHash(pkg *Package) (string, error) {
 		}
 		fmt.Fprintf(key, "file %s %x\n", f, h)
 	}
-	dir := config.Dir(pkg.GoFiles)
-	if dir == "" {
+
+	// Actually load the configuration to calculate its hash. This
+	// will take into consideration inheritance of configuration
+	// files, as well as the default configuration.
+	//
+	// OPT(dh): doing this means we'll load the config twice: once for
+	// computing the hash, and once when analyzing the package from
+	// source.
+	cdir := config.Dir(pkg.GoFiles)
+	if cdir == "" {
 		fmt.Fprintf(key, "file %s %x\n", config.ConfigName, [cache.HashSize]byte{})
 	} else {
-		h, err := cache.FileHash(filepath.Join(dir, config.ConfigName))
+		cfg, err := config.Load(cdir)
 		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Fprintf(key, "file %s %x\n", config.ConfigName, [cache.HashSize]byte{})
-			} else {
-				return "", err
-			}
-		} else {
-			fmt.Fprintf(key, "file %s %x\n", config.ConfigName, h)
+			return "", err
 		}
+		h := cache.NewHash(config.ConfigName)
+		if _, err := h.Write([]byte(cfg.String())); err != nil {
+			return "", err
+		}
+		fmt.Fprintf(key, "file %s %x\n", config.ConfigName, h.Sum())
 	}
 
 	imps := make([]*Package, len(pkg.Imports))

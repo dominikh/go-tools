@@ -14,6 +14,11 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// Dir looks at a list of absolute file names, which should make up a
+// single package, and returns the path of the directory that may
+// contain a staticcheck.conf file. It returns the empty string if no
+// such directory could be determined, for example because all files
+// were located in Go's build cache.
 func Dir(files []string) string {
 	if len(files) == 0 {
 		return ""
