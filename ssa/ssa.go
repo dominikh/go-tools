@@ -408,7 +408,7 @@ type FreeVar struct {
 // A Parameter represents an input parameter of a function.
 //
 type Parameter struct {
-	node
+	anInstruction
 
 	name      string
 	object    types.Object // a *types.Var; nil for non-source locals

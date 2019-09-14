@@ -17,7 +17,7 @@ func SimpleSwitch(x, y int) {
 	// case 1:int: call print(1:int) t1
 	// case 2:int: call print(23:int) t1
 	// case 3:int: call print(23:int) t1
-	// case 4:int: phi [3: t14, 7: t1] #<mem>
+	// case 4:int: phi [3: t15, 7: t1] #<mem>
 	// default: x == y
 	// }
 	switch x {
@@ -82,8 +82,8 @@ func ImplicitSwitches(x, y int) {
 	}
 
 	// switch x {
-	// case 3:int: call print(34:int) t10
-	// case 4:int: call print(34:int) t10
+	// case 3:int: call print(34:int) t11
+	// case 4:int: call print(34:int) t11
 	// default: x == y
 	// }
 	if x == 3 || 4 == x || x == y {
@@ -139,9 +139,9 @@ end:
 
 func SwitchInAForLoop(x int) {
 	// switch x {
-	// case 1:int: call print(1:int) t4
-	// case 2:int: call print(2:int) t4
-	// default: phi [0: t1, 5: t4] #<mem>
+	// case 1:int: call print(1:int) t5
+	// case 2:int: call print(2:int) t5
+	// default: phi [0: t1, 5: t5] #<mem>
 	// }
 loop:
 	for {
@@ -162,9 +162,9 @@ loop:
 // switch, but that's ok.
 func SwitchInAForLoopUsingGoto(x int) {
 	// switch x {
-	// case 1:int: call print(1:int) t4
-	// case 2:int: call print(2:int) t4
-	// default: phi [0: t1, 3: t4] #<mem>
+	// case 1:int: call print(1:int) t5
+	// case 2:int: call print(2:int) t5
+	// default: phi [0: t1, 3: t5] #<mem>
 	// }
 loop:
 	print("head")
@@ -265,7 +265,7 @@ func ZeroInitializedVarsAreConstants(x int) {
 // NB, potentially fragile reliance on register number.
 func SelectDesugarsToSwitch(ch chan int) {
 	// switch t5 {
-	// case 0:int: extract t2 #2
+	// case 0:int: extract t3 #2
 	// case 1:int: call println(0:int) t1
 	// case 2:int: call println(1:int) t1
 	// default: call println("default":string) t1
@@ -285,7 +285,7 @@ func SelectDesugarsToSwitch(ch chan int) {
 // NB, potentially fragile reliance on register number.
 func NonblockingSelectDefaultCasePanics(ch chan int) {
 	// switch t5 {
-	// case 0:int: extract t2 #2
+	// case 0:int: extract t3 #2
 	// case 1:int: call println(0:int) t1
 	// case 2:int: call println(1:int) t1
 	// default: make interface{} <- string ("blocking select m...":string)

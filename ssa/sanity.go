@@ -178,6 +178,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Sigma:
 	case *InitMem:
 	case *Load:
+	case *Parameter:
 	case *ReturnValues:
 		_ = instr.Mem.(*Call)
 		// TODO(adonovan): implement checks.

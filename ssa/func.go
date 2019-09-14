@@ -174,13 +174,26 @@ func (f *Function) labelledBlock(label *ast.Ident) *lblock {
 // specified name, type and source position.
 //
 func (f *Function) addParam(name string, typ types.Type, pos token.Pos) *Parameter {
+	var b *BasicBlock
+	if len(f.Blocks) > 0 {
+		b = f.Blocks[0]
+	}
 	v := &Parameter{
+		anInstruction: anInstruction{
+			block: b,
+		},
 		name:   name,
 		typ:    typ,
 		pos:    pos,
 		parent: f,
 	}
 	f.Params = append(f.Params, v)
+	if b != nil {
+		// There may be no blocks if this function has no body. We
+		// still create params, but aren't interested in the
+		// instruction.
+		f.Blocks[0].Instrs = append(f.Blocks[0].Instrs, v)
+	}
 	return v
 }
 
@@ -426,6 +439,13 @@ func (f *Function) finishBody() {
 		f.WriteTo(os.Stdout)
 		printMu.Unlock()
 	}
+
+	var wr *HTMLWriter
+	if f.Name() == os.Getenv("GOSSAFUNC") {
+		wr = NewHTMLWriter("ssa.html", f.Name(), "")
+		defer wr.Close()
+	}
+	wr.WriteFunc("start", "start", f)
 
 	if f.Prog.mode&SanityCheckFunctions != 0 {
 		mustSanityCheck(f, nil)
