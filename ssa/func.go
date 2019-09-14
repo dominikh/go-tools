@@ -434,12 +434,6 @@ func (f *Function) finishBody() {
 
 	numberNodes(f)
 
-	if f.Prog.mode&PrintFunctions != 0 {
-		printMu.Lock()
-		f.WriteTo(os.Stdout)
-		printMu.Unlock()
-	}
-
 	var wr *HTMLWriter
 	if f.Name() == os.Getenv("GOSSAFUNC") {
 		wr = NewHTMLWriter("ssa.html", f.Name(), "")
@@ -447,8 +441,73 @@ func (f *Function) finishBody() {
 	}
 	wr.WriteFunc("start", "start", f)
 
+	phiElim(f)
+	wr.WriteFunc("phiElim", "phiElim", f)
+
+	if f.Prog.mode&PrintFunctions != 0 {
+		printMu.Lock()
+		f.WriteTo(os.Stdout)
+		printMu.Unlock()
+	}
+
 	if f.Prog.mode&SanityCheckFunctions != 0 {
 		mustSanityCheck(f, nil)
+	}
+}
+
+func phiElim(f *Function) {
+	for {
+		changed := false
+		for _, b := range f.Blocks {
+			for _, instr := range b.Instrs {
+				phi, ok := instr.(*Phi)
+				if !ok {
+					continue
+				}
+				if len(*phi.Referrers()) == 0 {
+					continue
+				}
+				var v0 Value
+				elim := true
+				for _, e := range phi.Edges {
+					if e == phi {
+						continue
+					}
+					if v0 == nil {
+						v0 = e
+					}
+					if v0 != e {
+						if v0, ok := v0.(*Const); ok {
+							if e, ok := e.(*Const); ok {
+								if v0.typ == e.typ && v0.Value == e.Value {
+									continue
+								}
+							}
+						}
+						elim = false
+						break
+					}
+				}
+				if elim {
+					changed = true
+					for _, ref := range *phi.Referrers() {
+						for _, op := range ref.Operands(nil) {
+							if *op == phi {
+								*op = v0
+								// Const don't currently track referrers
+								if _, ok := v0.(*Const); !ok {
+									*v0.Referrers() = append(*v0.Referrers(), ref)
+								}
+							}
+						}
+					}
+					*phi.Referrers() = nil
+				}
+			}
+		}
+		if !changed {
+			break
+		}
 	}
 }
 
