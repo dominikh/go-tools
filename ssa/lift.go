@@ -174,11 +174,6 @@ func lift(fn *Function) {
 	// instructions.
 	usesDefer := false
 
-	// A counter used to generate ~unique ids for Phi nodes, as an
-	// aid to debugging.  We use large numbers to make them highly
-	// visible.  All nodes are renumbered later.
-	fresh := 1000
-
 	// Determine which allocs we can lift and number them densely.
 	// The renaming phase uses this numbering for compact maps.
 	numAllocs := 0
@@ -189,7 +184,7 @@ func lift(fn *Function) {
 			switch instr := instr.(type) {
 			case *Alloc:
 				index := -1
-				if liftAlloc(df, instr, newPhis, &fresh) {
+				if liftAlloc(df, instr, newPhis) {
 					index = numAllocs
 					numAllocs++
 				}
@@ -383,10 +378,7 @@ type newPhiMap map[*BasicBlock][]newPhi
 // liftAlloc determines whether alloc can be lifted into registers,
 // and if so, it populates newPhis with all the φ-nodes it may require
 // and returns true.
-//
-// fresh is a source of fresh ids for phi nodes.
-//
-func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool {
+func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 	// Don't lift aggregates into registers, because we don't have
 	// a way to express their zero-constants.
 	switch deref(alloc.Type()).Underlying().(type) {
@@ -466,9 +458,6 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap, fresh *int) bool
 					Edges:   make([]Value, len(v.Preds)),
 					Comment: alloc.Comment,
 				}
-				// This is merely a debugging aid:
-				phi.setNum(*fresh)
-				*fresh++
 
 				phi.pos = alloc.Pos()
 				phi.setType(deref(alloc.Type()))

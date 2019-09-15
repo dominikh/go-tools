@@ -18,6 +18,8 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
+type ID int32
+
 // A Program is a partial or complete Go program converted to SSA form.
 type Program struct {
 	Fset       *token.FileSet              // position information for the files of this Program
@@ -97,6 +99,8 @@ type NamedConst struct {
 
 // A Value is an SSA value that can be referenced by an instruction.
 type Value interface {
+	setID(ID)
+
 	// Name returns the name of this value, and determines how
 	// this Value appears when used as an operand of an
 	// Instruction.
@@ -110,6 +114,8 @@ type Value interface {
 	// The name of an SSA Value is not semantically significant,
 	// and may not even be unique within a function.
 	Name() string
+
+	ID() ID
 
 	// If this value is an Instruction, String returns its
 	// disassembled form; otherwise it returns unspecified
@@ -156,6 +162,8 @@ type Value interface {
 	// instead.  NB: it requires that the function was built with
 	// debug information.)
 	Pos() token.Pos
+
+	Operands(rands []*Value) []*Value // nil for non-Instructions
 }
 
 // An Instruction is an SSA instruction that computes a new Value or
@@ -166,6 +174,8 @@ type Value interface {
 // does not.
 //
 type Instruction interface {
+	setID(ID)
+
 	// String returns the disassembled form of this value.
 	//
 	// Examples of Instructions that are Values:
@@ -182,6 +192,8 @@ type Instruction interface {
 	// value it defines, e.g., 'y = local int' is both an allocation
 	// of memory 'local int' and a definition of a pointer y.)
 	String() string
+
+	ID() ID
 
 	// Parent returns the function to which this instruction
 	// belongs.
@@ -229,6 +241,8 @@ type Instruction interface {
 	// Instruction corresponds to some ast.Stmts, but not all: If
 	// and Jump instructions have no Pos(), for example.)
 	Pos() token.Pos
+
+	Referrers() *[]Instruction // nil for non-Values
 }
 
 // A Node is a node in the SSA value graph.  Every concrete type that
@@ -243,7 +257,10 @@ type Instruction interface {
 // interfaces where appropriate.
 //
 type Node interface {
+	setID(ID)
+
 	// Common methods:
+	ID() ID
 	String() string
 	Pos() token.Pos
 	Parent() *Function
@@ -294,6 +311,8 @@ type Node interface {
 // Type() returns the function's Signature.
 //
 type Function struct {
+	node
+
 	name      string
 	object    types.Object     // a declared *types.Func or one of its wrappers
 	method    *types.Selection // info about provenance of synthetic methods
@@ -374,6 +393,8 @@ type BasicBlock struct {
 // belongs to an enclosing function.
 //
 type FreeVar struct {
+	node
+
 	name      string
 	typ       types.Type
 	pos       token.Pos
@@ -387,6 +408,8 @@ type FreeVar struct {
 // A Parameter represents an input parameter of a function.
 //
 type Parameter struct {
+	node
+
 	name      string
 	object    types.Object // a *types.Var; nil for non-source locals
 	typ       types.Type
@@ -417,6 +440,8 @@ type Parameter struct {
 //	3+4i:MyComplex
 //
 type Const struct {
+	node
+
 	typ   types.Type
 	Value constant.Value
 }
@@ -428,6 +453,8 @@ type Const struct {
 // identifier.
 //
 type Global struct {
+	node
+
 	name   string
 	object types.Object // a *types.Var; may be nil for synthetics e.g. init$guard
 	typ    types.Type
@@ -456,6 +483,8 @@ type Global struct {
 // signature of the built-in for this call.
 //
 type Builtin struct {
+	node
+
 	name string
 	sig  *types.Signature
 }
@@ -1305,15 +1334,22 @@ type DebugRef struct {
 //
 type register struct {
 	anInstruction
-	num       int        // "name" of virtual register, e.g. "t0".  Not guaranteed unique.
 	typ       types.Type // type of virtual register
 	pos       token.Pos  // position of source expression, or NoPos
 	referrers []Instruction
 }
 
+type node struct {
+	id ID
+}
+
+func (n *node) setID(id ID) { n.id = id }
+func (n node) ID() ID       { return n.id }
+
 // anInstruction is a mix-in embedded by all Instructions.
 // It provides the implementations of the Block and setBlock methods.
 type anInstruction struct {
+	node
 	block *BasicBlock // the basic block of this instruction
 }
 
@@ -1505,8 +1541,7 @@ func (v *Alloc) Pos() token.Pos            { return v.pos }
 
 func (v *register) Type() types.Type          { return v.typ }
 func (v *register) setType(typ types.Type)    { v.typ = typ }
-func (v *register) Name() string              { return fmt.Sprintf("t%d", v.num) }
-func (v *register) setNum(num int)            { v.num = num }
+func (v *register) Name() string              { return fmt.Sprintf("t%d", v.id) }
 func (v *register) Referrers() *[]Instruction { return &v.referrers }
 func (v *register) Pos() token.Pos            { return v.pos }
 func (v *register) setPos(pos token.Pos)      { v.pos = pos }

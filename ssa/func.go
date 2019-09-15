@@ -267,23 +267,28 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 	}
 }
 
-// numberRegisters assigns numbers to all SSA registers
-// (value-defining Instructions) in f, to aid debugging.
-// (Non-Instruction Values are named at construction.)
-//
-func numberRegisters(f *Function) {
-	v := 0
+func numberNodes(f *Function) {
+	var base ID
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
-			switch instr.(type) {
-			case Value:
-				instr.(interface {
-					setNum(int)
-				}).setNum(v)
-				v++
-			}
+			base = numberNode(instr.(Node), base)
 		}
 	}
+}
+
+func numberNode(node Node, base ID) ID {
+	if node.ID() != 0 {
+		return base
+	}
+	base++
+	node.setID(base)
+	ops := node.Operands(nil)
+	for _, op := range ops {
+		if *op != nil {
+			base = numberNode((*op).(Node), base)
+		}
+	}
+	return base
 }
 
 // buildReferrers populates the def/use information in all non-nil
@@ -414,7 +419,7 @@ func (f *Function) finishBody() {
 
 	f.namedResults = nil // (used by lifting)
 
-	numberRegisters(f)
+	numberNodes(f)
 
 	if f.Prog.mode&PrintFunctions != 0 {
 		printMu.Lock()

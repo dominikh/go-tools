@@ -18,7 +18,7 @@ import (
 // val must be valid according to the specification of Const.Value.
 //
 func NewConst(val constant.Value, typ types.Type) *Const {
-	return &Const{typ, val}
+	return &Const{typ: typ, Value: val}
 }
 
 // intConst returns an 'int' constant that evaluates to i.
