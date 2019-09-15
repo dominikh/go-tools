@@ -2293,27 +2293,25 @@ func (p *Package) build() {
 
 	var done *BasicBlock
 
-	if p.Prog.mode&BareInits == 0 {
-		// Make init() skip if package is already initialized.
-		initguard := p.Var("init$guard")
-		doinit := init.newBasicBlock("init.start")
-		done = init.newBasicBlock("init.done")
-		emitIf(init, emitLoad(init, initguard), done, doinit)
-		init.currentBlock = doinit
-		emitStore(init, initguard, vTrue, token.NoPos)
+	// Make init() skip if package is already initialized.
+	initguard := p.Var("init$guard")
+	doinit := init.newBasicBlock("init.start")
+	done = init.newBasicBlock("init.done")
+	emitIf(init, emitLoad(init, initguard), done, doinit)
+	init.currentBlock = doinit
+	emitStore(init, initguard, vTrue, token.NoPos)
 
-		// Call the init() function of each package we import.
-		for _, pkg := range p.Pkg.Imports() {
-			prereq := p.Prog.packages[pkg]
-			if prereq == nil {
-				panic(fmt.Sprintf("Package(%q).Build(): unsatisfied import: Program.CreatePackage(%q) was not called", p.Pkg.Path(), pkg.Path()))
-			}
-			var v Call
-			v.Call.Value = prereq.init
-			v.Call.pos = init.pos
-			v.setType(types.NewTuple())
-			emitCall(init, &v)
+	// Call the init() function of each package we import.
+	for _, pkg := range p.Pkg.Imports() {
+		prereq := p.Prog.packages[pkg]
+		if prereq == nil {
+			panic(fmt.Sprintf("Package(%q).Build(): unsatisfied import: Program.CreatePackage(%q) was not called", p.Pkg.Path(), pkg.Path()))
 		}
+		var v Call
+		v.Call.Value = prereq.init
+		v.Call.pos = init.pos
+		v.setType(types.NewTuple())
+		emitCall(init, &v)
 	}
 
 	var b builder
@@ -2357,10 +2355,8 @@ func (p *Package) build() {
 	}
 
 	// Finish up init().
-	if p.Prog.mode&BareInits == 0 {
-		emitJump(init, done)
-		init.currentBlock = done
-	}
+	emitJump(init, done)
+	init.currentBlock = done
 	init.emit(new(Return))
 	init.finishBody()
 

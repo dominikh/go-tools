@@ -249,13 +249,6 @@ func TestRuntimeTypes(t *testing.T) {
 }
 
 // TestInit tests that synthesized init functions are correctly formed.
-// Bare init functions omit calls to dependent init functions and the use of
-// an init guard. They are useful in cases where the client uses a different
-// calling convention for init functions, or cases where it is easier for a
-// client to analyze bare init functions. Both of these aspects are used by
-// the llgo compiler for simpler integration with gccgo's runtime library,
-// and to simplify the analysis whereby it deduces which stores to globals
-// can be lowered to global initializers.
 func TestInit(t *testing.T) {
 	tests := []struct {
 		mode        ssa.BuilderMode
@@ -276,17 +269,6 @@ func init():
 	t4 = Store <mem> {int} i 42:int t3                               Memory
 	jump 2
 2:                                                            init.done P:2 S:0
-	return
-
-`},
-		{ssa.BareInits, `package B; import _ "errors"; var i int = 42`,
-			`# Name: B.init
-# Package: B
-# Synthetic: package initializer
-func init():
-0:                                                                entry P:0 S:0
-	t0 = InitMem                                                     Memory
-	t1 = Store <mem> {int} i 42:int t0                               Memory
 	return
 
 `},

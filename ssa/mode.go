@@ -28,7 +28,6 @@ const (
 	NaiveForm                                    // Build naïve SSA form: don't replace local loads/stores with registers
 	BuildSerially                                // Build packages serially, not in parallel.
 	GlobalDebug                                  // Enable debug info for all packages
-	BareInits                                    // Build init functions without guards or calls to dependent inits
 )
 
 const BuilderModeDoc = `Options controlling the SSA builder.
@@ -40,7 +39,6 @@ F	print [F]unction SSA code.
 S	log [S]ource locations as SSA builder progresses.
 L	build distinct packages seria[L]ly instead of in parallel.
 N	build [N]aive SSA form: don't replace local loads/stores with registers.
-I	build bare [I]nit functions: no init guards or calls to dependent inits.
 `
 
 func (m BuilderMode) String() string {

@@ -209,15 +209,13 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		}
 	}
 
-	if prog.mode&BareInits == 0 {
-		// Add initializer guard variable.
-		initguard := &Global{
-			Pkg:  p,
-			name: "init$guard",
-			typ:  types.NewPointer(tBool),
-		}
-		p.Members[initguard.Name()] = initguard
+	// Add initializer guard variable.
+	initguard := &Global{
+		Pkg:  p,
+		name: "init$guard",
+		typ:  types.NewPointer(tBool),
 	}
+	p.Members[initguard.Name()] = initguard
 
 	if prog.mode&GlobalDebug != 0 {
 		p.SetDebugMode(true)
