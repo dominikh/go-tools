@@ -83,8 +83,11 @@ func (e *element) store(fn *Function, v Value) {
 		Key:   e.k,
 		Value: emitConv(fn, v, e.t),
 	}
+	up.Mem = fn.getMem()
+	up.setType(tMemory)
 	up.pos = e.pos
 	fn.emit(up)
+	fn.setMem(up, 0)
 }
 
 func (e *element) address(fn *Function) Value {

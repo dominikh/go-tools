@@ -973,6 +973,7 @@ type SelectState struct {
 //
 type Select struct {
 	register
+	Mem      Value
 	States   []*SelectState
 	Blocking bool
 }
@@ -1216,7 +1217,8 @@ type Defer struct {
 // 	send t0 <- t1
 //
 type Send struct {
-	anInstruction
+	register
+	Mem     Value
 	Chan, X Value
 	pos     token.Pos
 }
@@ -1265,7 +1267,8 @@ type BlankStore struct {
 //	t0[t1] = t2
 //
 type MapUpdate struct {
-	anInstruction
+	register
+	Mem   Value
 	Map   Value
 	Key   Value
 	Value Value
@@ -1710,7 +1713,7 @@ func (v *MakeSlice) Operands(rands []*Value) []*Value {
 }
 
 func (v *MapUpdate) Operands(rands []*Value) []*Value {
-	return append(rands, &v.Map, &v.Key, &v.Value)
+	return append(rands, &v.Map, &v.Key, &v.Value, &v.Mem)
 }
 
 func (v *Next) Operands(rands []*Value) []*Value {
@@ -1751,11 +1754,12 @@ func (v *Select) Operands(rands []*Value) []*Value {
 	for i := range v.States {
 		rands = append(rands, &v.States[i].Chan, &v.States[i].Send)
 	}
+	rands = append(rands, &v.Mem)
 	return rands
 }
 
 func (s *Send) Operands(rands []*Value) []*Value {
-	return append(rands, &s.Chan, &s.X)
+	return append(rands, &s.Chan, &s.X, &s.Mem)
 }
 
 func (v *Slice) Operands(rands []*Value) []*Value {

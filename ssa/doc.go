@@ -57,28 +57,29 @@
 //   *Call              ✔               ✔
 //   *ChangeInterface   ✔               ✔
 //   *ChangeType        ✔               ✔
-//   *Const             ✔
+//   *Const             ✔               ✔
 //   *Convert           ✔               ✔
 //   *DebugRef                          ✔
-//   *Defer                             ✔
+//   *Defer             ✔               ✔
 //   *Extract           ✔               ✔
 //   *Field             ✔               ✔
 //   *FieldAddr         ✔               ✔
 //   *FreeVar           ✔
 //   *Function          ✔                               ✔ (func)
 //   *Global            ✔                               ✔ (var)
-//   *Go                                ✔
+//   *Go                ✔               ✔
 //   *If                                ✔
 //   *Index             ✔               ✔
 //   *IndexAddr         ✔               ✔
 //   *Jump                              ✔
+//   *Load              ✔               ✔
 //   *Lookup            ✔               ✔
 //   *MakeChan          ✔               ✔
 //   *MakeClosure       ✔               ✔
 //   *MakeInterface     ✔               ✔
 //   *MakeMap           ✔               ✔
 //   *MakeSlice         ✔               ✔
-//   *MapUpdate                         ✔
+//   *MapUpdate         ✔               ✔
 //   *NamedConst                                        ✔ (const)
 //   *Next              ✔               ✔
 //   *Panic                             ✔
@@ -88,9 +89,9 @@
 //   *Return                            ✔
 //   *RunDefers                         ✔
 //   *Select            ✔               ✔
-//   *Send                              ✔
+//   *Send              ✔               ✔
 //   *Slice             ✔               ✔
-//   *Store                             ✔
+//   *Store             ✔               ✔
 //   *Type                                              ✔ (type)
 //   *TypeAssert        ✔               ✔
 //   *UnOp              ✔               ✔

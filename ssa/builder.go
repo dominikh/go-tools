@@ -49,6 +49,7 @@ func (t *opaqueType) String() string { return t.name }
 var (
 	varOk    = newVar("ok", tBool)
 	varIndex = newVar("index", tInt)
+	varMem   = newVar("mem", tMemory)
 
 	// Type constants.
 	tBool       = types.Typ[types.Bool]
@@ -1532,7 +1533,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 	}
 	sel.setPos(s.Select)
 	var vars []*types.Var
-	vars = append(vars, varIndex, varOk)
+	vars = append(vars, varIndex, varOk, varMem)
 	for _, st := range states {
 		if st.Dir == types.RecvOnly {
 			tElem := st.Chan.Type().Underlying().(*types.Chan).Elem()
@@ -1540,9 +1541,11 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		}
 	}
 	sel.setType(types.NewTuple(vars...))
-
+	sel.Mem = fn.getMem()
 	fn.emit(sel)
 	idx := emitExtract(fn, sel, 0)
+	mem := emitExtract(fn, sel, 2)
+	fn.setMem(mem, 0)
 
 	done := fn.newBasicBlock("select.done")
 	if label != nil {
@@ -1551,7 +1554,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 
 	var defaultBody *[]ast.Stmt
 	state := 0
-	r := 2 // index in 'sel' tuple of value; increments if st.Dir==RECV
+	r := 3 // index in 'sel' tuple of value; increments if st.Dir==RECV
 	for _, cc := range s.Body.List {
 		clause := cc.(*ast.CommClause)
 		if clause.Comm == nil {
@@ -1980,12 +1983,16 @@ start:
 		b.expr(fn, s.X)
 
 	case *ast.SendStmt:
-		fn.emit(&Send{
+		instr := &Send{
 			Chan: b.expr(fn, s.Chan),
 			X: emitConv(fn, b.expr(fn, s.Value),
 				fn.Pkg.typeOf(s.Chan).Underlying().(*types.Chan).Elem()),
 			pos: s.Arrow,
-		})
+		}
+		instr.Mem = fn.getMem()
+		instr.setType(tMemory)
+		fn.emit(instr)
+		fn.setMem(instr, 0)
 
 	case *ast.IncDecStmt:
 		op := token.ADD

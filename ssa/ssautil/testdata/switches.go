@@ -265,10 +265,10 @@ func ZeroInitializedVarsAreConstants(x int) {
 // NB, potentially fragile reliance on register number.
 func SelectDesugarsToSwitch(ch chan int) {
 	// switch t14 {
-	// case 0:int: extract t13 #2
-	// case 1:int: call println(0:int) t11
-	// case 2:int: call println(1:int) t11
-	// default: call println("default":string) t11
+	// case 0:int: extract t13 #3
+	// case 1:int: call println(0:int) t15
+	// case 2:int: call println(1:int) t15
+	// default: call println("default":string) t15
 	// }
 	select {
 	case x := <-ch:
@@ -285,9 +285,9 @@ func SelectDesugarsToSwitch(ch chan int) {
 // NB, potentially fragile reliance on register number.
 func NonblockingSelectDefaultCasePanics(ch chan int) {
 	// switch t13 {
-	// case 0:int: extract t12 #2
-	// case 1:int: call println(0:int) t10
-	// case 2:int: call println(1:int) t10
+	// case 0:int: extract t12 #3
+	// case 1:int: call println(0:int) t14
+	// case 2:int: call println(1:int) t14
 	// default: make interface{} <- string ("blocking select m...":string)
 	// }
 	select {
