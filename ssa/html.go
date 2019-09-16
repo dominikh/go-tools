@@ -800,6 +800,12 @@ func ValueLongHTML(v Node) string {
 		s += fmt.Sprintf(" {%s}", html.EscapeString(v.Op.String()))
 	case *UnOp:
 		s += fmt.Sprintf(" {%s}", html.EscapeString(v.Op.String()))
+	case *Extract:
+		s += fmt.Sprintf(" {%d}", v.Index)
+	case *Field:
+		s += fmt.Sprintf(" {%d}", v.Field)
+	case *FieldAddr:
+		s += fmt.Sprintf(" {%d}", v.Field)
 	case *Const:
 		if v.Value == nil {
 			s += " {&lt;nil&gt;}"
