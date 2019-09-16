@@ -260,13 +260,15 @@ func TestInit(t *testing.T) {
 # Synthetic: package initializer
 func init():
 0:                                                                entry P:0 S:2
-	t1 = InitMem                                                     Memory
-	t2 = Load <bool> init$guard t1                                     bool
-	if t2 goto 2 else 1
+	t1 = true:bool                                                     bool
+	t2 = 42:int                                                         int
+	t3 = InitMem                                                     Memory
+	t4 = Load <bool> init$guard t3                                     bool
+	if t4 goto 2 else 1
 1:                                                           init.start P:1 S:1
-	t5 = Store <mem> {bool} init$guard true:bool t1                  Memory
-	t6 = call errors.init() t5                                       Memory
-	t8 = Store <mem> {int} i 42:int t6                               Memory
+	t6 = Store <mem> {bool} init$guard true:bool t3                  Memory
+	t7 = call errors.init() t6                                       Memory
+	t8 = Store <mem> {int} i 42:int t7                               Memory
 	jump 2
 2:                                                            init.done P:2 S:0
 	return

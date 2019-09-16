@@ -504,10 +504,10 @@ func replaceAll(x, y Value) {
 // renamed returns the value to which alloc is being renamed,
 // constructing it lazily if it's the implicit zero initialization.
 //
-func renamed(renaming []Value, alloc *Alloc) Value {
+func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 	v := renaming[alloc.index]
 	if v == nil {
-		v = zeroConst(deref(alloc.Type()))
+		v = emitConst(fn, zeroConst(deref(alloc.Type())))
 		renaming[alloc.index] = v
 	}
 	return v
@@ -574,7 +574,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 
 		case *Load:
 			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
-				newval := renamed(renaming, alloc)
+				newval := renamed(u.Parent(), renaming, alloc)
 				if debugLifting {
 					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
 						instr.Name(), instr, newval.Name())
@@ -595,7 +595,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 		case *DebugRef:
 			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // ref of Alloc cell
 				if instr.IsAddr {
-					instr.X = renamed(renaming, alloc)
+					instr.X = renamed(u.Parent(), renaming, alloc)
 					instr.IsAddr = false
 
 					// Add DebugRef to instr.X's referrers.
@@ -625,7 +625,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 		for _, np := range phis {
 			phi := np.phi
 			alloc := np.alloc
-			newval := renamed(renaming, alloc)
+			newval := renamed(u.Parent(), renaming, alloc)
 			if debugLifting {
 				fmt.Fprintf(os.Stderr, "\tsetphi %s edge %s -> %s (#%d) (alloc=%s) := %s\n",
 					phi.Name(), u, v, i, alloc.Name(), newval.Name())

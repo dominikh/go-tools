@@ -24,14 +24,6 @@ func live(f *Function) []bool {
 			if int(instr.ID()) > max {
 				max = int(instr.ID())
 			}
-
-			// TODO(dh): this is currently needed because not all
-			// operands show up in the instruction stream (in particular Const)
-			for _, op := range instr.Operands(ops) {
-				if int((*op).ID()) > max {
-					max = int((*op).ID())
-				}
-			}
 		}
 	}
 
@@ -51,6 +43,9 @@ func live(f *Function) []bool {
 		v := q[len(q)-1]
 		q = q[:len(q)-1]
 		for _, op := range v.Operands(ops) {
+			if *op == nil {
+				continue
+			}
 			if !out[(*op).ID()] {
 				out[(*op).ID()] = true
 				q = append(q, *op)
@@ -776,8 +771,6 @@ func ValueHTML(v Node) string {
 		label = v.Name()
 	case *Builtin:
 		label = v.Name()
-	case *Const:
-		label = v.String()
 	default:
 		label = class
 	}
@@ -807,6 +800,12 @@ func ValueLongHTML(v Node) string {
 		s += fmt.Sprintf(" {%s}", html.EscapeString(v.Op.String()))
 	case *UnOp:
 		s += fmt.Sprintf(" {%s}", html.EscapeString(v.Op.String()))
+	case *Const:
+		if v.Value == nil {
+			s += " {&lt;nil&gt;}"
+		} else {
+			s += fmt.Sprintf(" {%s}", html.EscapeString(v.Value.String()))
+		}
 	}
 	for _, a := range v.Operands(nil) {
 		s += fmt.Sprintf(" %s", ValueHTML(*a))

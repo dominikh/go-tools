@@ -81,10 +81,10 @@ func TestPackages(t *testing.T) {
 func NewBuffer(buf []byte) *Buffer:
 0:                                                                entry P:0 S:0
 	t1 = InitMem                                                     Memory
-	buf = parameter buf : []byte                                     []byte
+	t2 = parameter buf : []byte                                      []byte
 	t3 = new Buffer (complit)                                       *Buffer
 	t4 = &t3.buf [#0]                                               *[]byte
-	t5 = Store <mem> {[]byte} t4 buf t1                              Memory
+	t5 = Store <mem> {[]byte} t4 t2 t1                               Memory
 	return t3
 
 `[1:]

@@ -95,8 +95,8 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 			}
 			c.Call.Args = []Value{
 				v,
-				stringConst(deref(sel.Recv()).String()),
-				stringConst(sel.Obj().Name()),
+				emitConst(fn, stringConst(deref(sel.Recv()).String())),
+				emitConst(fn, stringConst(sel.Obj().Name())),
 			}
 			c.setType(v.Type())
 			v = emitCall(fn, &c)

@@ -179,14 +179,11 @@ func (f *Function) addParam(name string, typ types.Type, pos token.Pos) *Paramet
 		b = f.Blocks[0]
 	}
 	v := &Parameter{
-		anInstruction: anInstruction{
-			block: b,
-		},
-		name:   name,
-		typ:    typ,
-		pos:    pos,
-		parent: f,
+		name: name,
 	}
+	v.setBlock(b)
+	v.setType(typ)
+	v.setPos(pos)
 	f.Params = append(f.Params, v)
 	if b != nil {
 		// There may be no blocks if this function has no body. We
@@ -284,24 +281,10 @@ func numberNodes(f *Function) {
 	var base ID
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
-			base = numberNode(instr.(Node), base)
+			base++
+			instr.setID(base)
 		}
 	}
-}
-
-func numberNode(node Node, base ID) ID {
-	if node.ID() != 0 {
-		return base
-	}
-	base++
-	node.setID(base)
-	ops := node.Operands(nil)
-	for _, op := range ops {
-		if *op != nil {
-			base = numberNode((*op).(Node), base)
-		}
-	}
-	return base
 }
 
 // buildReferrers populates the def/use information in all non-nil
@@ -325,6 +308,17 @@ func buildReferrers(f *Function) {
 
 // finishBody() finalizes the function after SSA code generation of its body.
 func (f *Function) finishBody() {
+	if len(f.Blocks) > 0 && len(f.consts) > 0 {
+		instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(f.consts))
+		copy(instrs, f.consts)
+		copy(instrs[len(f.consts):], f.Blocks[0].Instrs)
+		f.Blocks[0].Instrs = instrs
+		for _, c := range f.consts {
+			c.setBlock(f.Blocks[0])
+		}
+	}
+
+	f.consts = nil
 	f.objects = nil
 	f.currentBlock = nil
 	f.lblocks = nil
@@ -424,10 +418,19 @@ func (f *Function) finishBody() {
 	buildDomTree(f)
 
 	if f.Prog.mode&NaiveForm == 0 {
-		// For debugging pre-state of lifting pass:
-		// numberRegisters(f)
-		// f.WriteTo(os.Stderr)
 		lift(f)
+
+		// lifting may have produced more constants
+		if len(f.Blocks) > 0 && len(f.consts) > 0 {
+			instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(f.consts))
+			copy(instrs, f.consts)
+			copy(instrs[len(f.consts):], f.Blocks[0].Instrs)
+			f.Blocks[0].Instrs = instrs
+			for _, c := range f.consts {
+				c.setBlock(f.Blocks[0])
+			}
+		}
+		f.consts = nil
 	}
 
 	f.namedResults = nil // (used by lifting)

@@ -179,6 +179,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *InitMem:
 	case *Load:
 	case *Parameter:
+	case *Const:
 	case *ReturnValues:
 		_ = instr.Mem.(*Call)
 		// TODO(adonovan): implement checks.
@@ -201,7 +202,9 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		} else if t == tRangeIter {
 			// not a proper type; ignore.
 		} else if b, ok := t.Underlying().(*types.Basic); ok && b.Info()&types.IsUntyped != 0 {
-			s.errorf("instruction has 'untyped' result: %s = %s : %s", v.Name(), v, t)
+			if _, ok := v.(*Const); !ok {
+				s.errorf("instruction has 'untyped' result: %s = %s : %s", v.Name(), v, t)
+			}
 		}
 		s.checkReferrerList(v)
 	}

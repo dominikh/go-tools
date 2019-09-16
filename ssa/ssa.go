@@ -340,6 +340,7 @@ type Function struct {
 	targets      *targets                // linked stack of branch targets
 	lblocks      map[*ast.Object]*lblock // labelled blocks
 	mem          *Alloc
+	consts       []Instruction
 }
 
 // BasicBlock represents an SSA basic block.
@@ -408,14 +409,10 @@ type FreeVar struct {
 // A Parameter represents an input parameter of a function.
 //
 type Parameter struct {
-	anInstruction
+	register
 
-	name      string
-	object    types.Object // a *types.Var; nil for non-source locals
-	typ       types.Type
-	pos       token.Pos
-	parent    *Function
-	referrers []Instruction
+	name   string
+	object types.Object // a *types.Var; nil for non-source locals
 }
 
 // A Const represents the value of a constant expression.
@@ -440,9 +437,8 @@ type Parameter struct {
 //	3+4i:MyComplex
 //
 type Const struct {
-	node
+	register
 
-	typ   types.Type
 	Value constant.Value
 }
 
@@ -1528,12 +1524,7 @@ func (v *Function) Referrers() *[]Instruction {
 	return nil
 }
 
-func (v *Parameter) Type() types.Type          { return v.typ }
-func (v *Parameter) Name() string              { return v.name }
-func (v *Parameter) Object() types.Object      { return v.object }
-func (v *Parameter) Referrers() *[]Instruction { return &v.referrers }
-func (v *Parameter) Pos() token.Pos            { return v.pos }
-func (v *Parameter) Parent() *Function         { return v.parent }
+func (v *Parameter) Object() types.Object { return v.object }
 
 func (v *Alloc) Type() types.Type          { return v.typ }
 func (v *Alloc) Referrers() *[]Instruction { return &v.referrers }

@@ -9,6 +9,7 @@ package ssa
 import (
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 )
@@ -144,7 +145,7 @@ func emitCompare(f *Function, op token.Token, x, y Value, pos token.Pos) Value {
 	//   if e==true { ... }
 	// even in the case when e's type is an interface.
 	// TODO(adonovan): opt: generalise to x==true, false!=y, etc.
-	if x == vTrue && op == token.EQL {
+	if x, ok := x.(*Const); ok && op == token.EQL && x.Value.Kind() == constant.Bool && constant.BoolVal(x.Value) {
 		if yt, ok := yt.(*types.Basic); ok && yt.Info()&types.IsBoolean != 0 {
 			return y
 		}
@@ -233,7 +234,7 @@ func emitConv(f *Function, val Value, typ types.Type) Value {
 
 		// Untyped nil constant?  Return interface-typed nil constant.
 		if ut_src == tUntypedNil {
-			return nilConst(typ)
+			return emitConst(f, nilConst(typ))
 		}
 
 		// Convert (non-nil) "untyped" literals to their default type.
@@ -255,7 +256,7 @@ func emitConv(f *Function, val Value, typ types.Type) Value {
 			// constant of the destination type and
 			// (initially) the same abstract value.
 			// We don't truncate the value yet.
-			return NewConst(c.Value, typ)
+			return emitConst(f, NewConst(c.Value, typ))
 		}
 
 		// We're converting from constant to non-constant type,
@@ -476,8 +477,13 @@ func zeroValue(f *Function, t types.Type) Value {
 	case *types.Struct, *types.Array:
 		return emitLoad(f, f.addLocal(t, token.NoPos))
 	default:
-		return zeroConst(t)
+		return emitConst(f, zeroConst(t))
 	}
+}
+
+func emitConst(f *Function, c *Const) *Const {
+	f.consts = append(f.consts, c)
+	return c
 }
 
 // createRecoverBlock emits to f a block of code to return after a

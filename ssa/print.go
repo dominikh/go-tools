@@ -61,7 +61,7 @@ func relString(m Member, from *types.Package) string {
 
 func (v *Parameter) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("parameter %s : %s", v.Name(), relType(v.Type(), from))
+	return fmt.Sprintf("parameter %s : %s", v.name, relType(v.Type(), from))
 }
 
 func (v *FreeVar) String() string {

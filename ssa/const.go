@@ -9,7 +9,6 @@ package ssa
 import (
 	"fmt"
 	"go/constant"
-	"go/token"
 	"go/types"
 	"strconv"
 )
@@ -18,7 +17,12 @@ import (
 // val must be valid according to the specification of Const.Value.
 //
 func NewConst(val constant.Value, typ types.Type) *Const {
-	return &Const{typ: typ, Value: val}
+	return &Const{
+		register: register{
+			typ: typ,
+		},
+		Value: val,
+	}
 }
 
 // intConst returns an 'int' constant that evaluates to i.
@@ -88,26 +92,8 @@ func (c *Const) RelString(from *types.Package) string {
 	return s + ":" + relType(c.Type(), from)
 }
 
-func (c *Const) Name() string {
-	return c.RelString(nil)
-}
-
 func (c *Const) String() string {
-	return c.Name()
-}
-
-func (c *Const) Type() types.Type {
-	return c.typ
-}
-
-func (c *Const) Referrers() *[]Instruction {
-	return nil
-}
-
-func (c *Const) Parent() *Function { return nil }
-
-func (c *Const) Pos() token.Pos {
-	return token.NoPos
+	return c.RelString(nil)
 }
 
 // IsNil returns true if this constant represents a typed or untyped nil value.
