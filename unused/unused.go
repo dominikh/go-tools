@@ -1830,7 +1830,9 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 				// nothing to do
 			case *ssa.MapUpdate:
 				// nothing to do
-			case *ssa.Lookup:
+			case *ssa.MapLookup:
+				// nothing to do
+			case *ssa.StringLookup:
 				// nothing to do
 			case *ssa.MakeSlice:
 				// nothing to do

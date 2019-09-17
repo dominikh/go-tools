@@ -262,8 +262,12 @@ func (v *Index) String() string {
 	return fmt.Sprintf("%s[%s]", relName(v.X, v), relName(v.Index, v))
 }
 
-func (v *Lookup) String() string {
+func (v *MapLookup) String() string {
 	return fmt.Sprintf("%s[%s]%s", relName(v.X, v), relName(v.Index, v), commaOk(v.CommaOk))
+}
+
+func (v *StringLookup) String() string {
+	return fmt.Sprintf("%s[%s]", relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *Range) String() string {

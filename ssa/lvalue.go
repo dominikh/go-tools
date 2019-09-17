@@ -68,7 +68,7 @@ type element struct {
 }
 
 func (e *element) load(fn *Function) Value {
-	l := &Lookup{
+	l := &MapLookup{
 		X:     e.m,
 		Index: e.k,
 	}

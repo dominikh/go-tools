@@ -3106,7 +3106,7 @@ func CheckMapBytesKey(pass *analysis.Pass) (interface{}, error) {
 						} else {
 							ident = true
 						}
-					case *ssa.Lookup:
+					case *ssa.MapLookup:
 					default:
 						// the string is used somewhere else than a
 						// map lookup

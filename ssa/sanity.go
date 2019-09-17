@@ -146,7 +146,8 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Go:
 	case *Index:
 	case *IndexAddr:
-	case *Lookup:
+	case *MapLookup:
+	case *StringLookup:
 	case *MakeChan:
 	case *MakeClosure:
 		numFree := len(instr.Fn.(*Function).FreeVars)

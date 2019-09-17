@@ -896,9 +896,7 @@ type Index struct {
 	Index Value // integer index
 }
 
-// The Lookup instruction yields element Index of collection X, a map
-// or string.  Index is an integer expression if X is a string or the
-// appropriate key type if X is a map.
+// The MapLookup instruction yields element Index of collection X, a map.
 //
 // If CommaOk, the result is a 2-tuple of the value above and a
 // boolean indicating the result of a map membership test for the key.
@@ -910,11 +908,26 @@ type Index struct {
 // 	t2 = t0[t1]
 // 	t5 = t3[t4],ok
 //
-type Lookup struct {
+type MapLookup struct {
 	register
-	X       Value // string or map
-	Index   Value // numeric or key-typed index
+	Mem     Value
+	X       Value // map
+	Index   Value // key-typed index
 	CommaOk bool  // return a value,ok pair
+}
+
+// The StringLookup instruction yields element Index of collection X, a string.
+// Index is an integer expression.
+//
+// Pos() returns the ast.IndexExpr.Lbrack, if explicit in the source.
+//
+// Example printed form:
+// 	t2 = t0[t1]
+//
+type StringLookup struct {
+	register
+	X     Value // string
+	Index Value // numeric index
 }
 
 // SelectState is a helper for Select.
@@ -1692,7 +1705,11 @@ func (*Jump) Operands(rands []*Value) []*Value {
 	return rands
 }
 
-func (v *Lookup) Operands(rands []*Value) []*Value {
+func (v *MapLookup) Operands(rands []*Value) []*Value {
+	return append(rands, &v.X, &v.Index, &v.Mem)
+}
+
+func (v *StringLookup) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X, &v.Index)
 }
 

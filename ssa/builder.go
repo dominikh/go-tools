@@ -191,11 +191,12 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 
 	case *ast.IndexExpr:
 		mapt := fn.Pkg.typeOf(e.X).Underlying().(*types.Map)
-		lookup := &Lookup{
+		lookup := &MapLookup{
 			X:       b.expr(fn, e.X),
 			Index:   emitConv(fn, b.expr(fn, e.Index), mapt.Key()),
 			CommaOk: true,
 		}
+		lookup.Mem = fn.getMem()
 		lookup.setType(typ)
 		lookup.setPos(e.Lbrack)
 		return fn.emit(lookup)
@@ -740,17 +741,18 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		case *types.Map:
 			// Maps are not addressable.
 			mapt := fn.Pkg.typeOf(e.X).Underlying().(*types.Map)
-			v := &Lookup{
+			v := &MapLookup{
 				X:     b.expr(fn, e.X),
 				Index: emitConv(fn, b.expr(fn, e.Index), mapt.Key()),
 			}
+			v.Mem = fn.getMem()
 			v.setPos(e.Lbrack)
 			v.setType(mapt.Elem())
 			return fn.emit(v)
 
 		case *types.Basic: // => string
 			// Strings are not addressable.
-			v := &Lookup{
+			v := &StringLookup{
 				X:     b.expr(fn, e.X),
 				Index: b.expr(fn, e.Index),
 			}
