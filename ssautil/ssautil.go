@@ -66,7 +66,8 @@ func IsCallResult(v ssa.Value) (*ssa.Call, bool) {
 	if !ok {
 		return nil, false
 	}
-	return retv.Mem.(*ssa.Call), true
+	call, ok := retv.Mem.(*ssa.Call)
+	return call, ok
 }
 
 func CallResult(v *ssa.Call) []*ssa.Extract {

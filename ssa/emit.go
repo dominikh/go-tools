@@ -68,6 +68,30 @@ func emitCall(f *Function, call CallInstruction) Value {
 	}
 }
 
+func emitRecv(f *Function, ch Value, commaOk bool, typ types.Type, pos token.Pos) Value {
+	recv := &Recv{
+		Chan:    ch,
+		CommaOk: commaOk,
+		Mem:     f.getMem(),
+	}
+	recv.setPos(pos)
+	recv.setType(tMemory)
+	v := f.emit(recv)
+	f.setMem(v, 0)
+
+	if commaOk {
+		retv := &ReturnValues{Mem: v}
+		retv.setType(typ)
+		f.emit(retv)
+		return retv
+	} else {
+		retv := &ReturnValues{Mem: v}
+		retv.setType(typ)
+		f.emit(retv)
+		return emitExtract(f, retv, 0)
+	}
+}
+
 // emitDebugRef emits to f a DebugRef pseudo-instruction associating
 // expression e with value v.
 //

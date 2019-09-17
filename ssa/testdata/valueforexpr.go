@@ -18,8 +18,8 @@ func f(spilled, unspilled int) {
 	(print( /*@BinOp*/ (i + 1)))
 	_, _ = /*@ReturnValues*/ (f())
 	ch := /*@MakeChan*/ (make(chan int))
-	/*@UnOp*/ (<-ch)
-	x := /*@UnOp*/ (<-ch)
+	/*@Extract*/ (<-ch)
+	x := /*@Extract*/ (<-ch)
 	_ = x
 	select {
 	case /*@Extract*/ (<-ch):

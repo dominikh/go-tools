@@ -1861,6 +1861,8 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 			case *ssa.Parameter:
 				// nothing to do
 			case *ssa.Const:
+			// nothing to do
+			case *ssa.Recv:
 				// nothing to do
 			default:
 				panic(fmt.Sprintf("unreachable: %T", instr))

@@ -3325,7 +3325,7 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 									// priority, considering the rarity of
 									// Reset and the tiny likeliness of a
 									// false positive
-									if ins, ok := ins.(*ssa.UnOp); ok && ins.Op == token.ARROW && code.IsType(ins.X.Type(), "<-chan time.Time") {
+									if ins, ok := ins.(*ssa.Recv); ok && code.IsType(ins.Chan.Type(), "<-chan time.Time") {
 										found = true
 										return false
 									}

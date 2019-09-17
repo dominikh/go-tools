@@ -23,6 +23,14 @@ func addEdge(from, to *BasicBlock) {
 	to.Preds = append(to.Preds, from)
 }
 
+// Control returns the last instruction in the block.
+func (b *BasicBlock) Control() Instruction {
+	if len(b.Instrs) == 0 {
+		return nil
+	}
+	return b.Instrs[len(b.Instrs)-1]
+}
+
 // Parent returns the function that contains block b.
 func (b *BasicBlock) Parent() *Function { return b.parent }
 
@@ -341,75 +349,6 @@ func (f *Function) finishBody() {
 		f.Locals[i] = nil
 	}
 	f.Locals = f.Locals[:j]
-
-	// comma-ok receiving from a time.Tick channel will never return
-	// ok == false, so any branching on the value of ok can be
-	// replaced with an unconditional jump. This will primarily match
-	// `for range time.Tick(x)` loops, but it can also match
-	// user-written code.
-	for _, block := range f.Blocks {
-		if len(block.Instrs) < 3 {
-			continue
-		}
-		if len(block.Succs) != 2 {
-			continue
-		}
-		var instrs []*Instruction
-		for i, ins := range block.Instrs {
-			if _, ok := ins.(*DebugRef); ok {
-				continue
-			}
-			instrs = append(instrs, &block.Instrs[i])
-		}
-
-		for i, ins := range instrs {
-			unop, ok := (*ins).(*UnOp)
-			if !ok || unop.Op != token.ARROW {
-				continue
-			}
-			cex, ok := unop.X.(*Extract)
-			if !ok {
-				continue
-			}
-			retv, ok := cex.Tuple.(*ReturnValues)
-			if !ok {
-				continue
-			}
-			call := retv.Mem.(*Call)
-			if call.Common().IsInvoke() {
-				continue
-			}
-
-			// OPT(dh): surely there is a more efficient way of doing
-			// this, than using FullName. We should already have
-			// resolved time.Tick somewhere?
-			v, ok := call.Common().Value.(*Function)
-			if !ok {
-				continue
-			}
-			t, ok := v.Object().(*types.Func)
-			if !ok {
-				continue
-			}
-			if t.FullName() != "time.Tick" {
-				continue
-			}
-			ex, ok := (*instrs[i+1]).(*Extract)
-			if !ok || ex.Tuple != unop || ex.Index != 1 {
-				continue
-			}
-
-			ifstmt, ok := (*instrs[i+2]).(*If)
-			if !ok || ifstmt.Cond != ex {
-				continue
-			}
-
-			*instrs[i+2] = NewJump(block)
-			succ := block.Succs[1]
-			block.Succs = block.Succs[0:1]
-			succ.RemovePred(block)
-		}
-	}
 
 	optimizeBlocks(f)
 

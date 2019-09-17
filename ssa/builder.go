@@ -172,8 +172,7 @@ func (b *builder) logicalBinop(fn *Function, e *ast.BinaryExpr) Value {
 //
 // Multi-result expressions include CallExprs in a multi-value
 // assignment or return statement, and "value,ok" uses of
-// TypeAssertExpr, IndexExpr (when X is a map), and UnaryExpr (when Op
-// is token.ARROW).
+// TypeAssertExpr, IndexExpr (when X is a map), and Recv.
 //
 func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 	typ := fn.Pkg.typeOf(e).(*types.Tuple)
@@ -205,14 +204,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		return emitTypeTest(fn, b.expr(fn, e.X), typ.At(0).Type(), e.Lparen)
 
 	case *ast.UnaryExpr: // must be receive <-
-		unop := &UnOp{
-			Op:      token.ARROW,
-			X:       b.expr(fn, e.X),
-			CommaOk: true,
-		}
-		unop.setType(typ)
-		unop.setPos(e.OpPos)
-		return fn.emit(unop)
+		return emitRecv(fn, b.expr(fn, e.X), true, types.NewTuple(typ.At(0), typ.At(1)), e.OpPos)
 	}
 	panic(fmt.Sprintf("exprN(%T) in %s", e, fn))
 }
@@ -607,7 +599,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			return addr.address(fn)
 		case token.ADD:
 			return b.expr(fn, e.X)
-		case token.NOT, token.ARROW, token.SUB, token.XOR: // ! <- - ^
+		case token.NOT, token.SUB, token.XOR: // ! <- - ^
 			v := &UnOp{
 				Op: e.Op,
 				X:  b.expr(fn, e.X),
@@ -615,6 +607,8 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			v.setPos(e.OpPos)
 			v.setType(tv.Type)
 			return fn.emit(v)
+		case token.ARROW:
+			return emitRecv(fn, b.expr(fn, e.X), false, types.NewTuple(anonVar(tv.Type)), e.OpPos)
 		default:
 			panic(e.Op)
 		}
@@ -1853,23 +1847,13 @@ func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, pos token.Pos)
 	loop = fn.newBasicBlock("rangechan.loop")
 	emitJump(fn, loop)
 	fn.currentBlock = loop
-	recv := &UnOp{
-		Op:      token.ARROW,
-		X:       x,
-		CommaOk: true,
-	}
-	recv.setPos(pos)
-	recv.setType(types.NewTuple(
-		newVar("k", x.Type().Underlying().(*types.Chan).Elem()),
-		varOk,
-	))
-	ko := fn.emit(recv)
+	retv := emitRecv(fn, x, true, types.NewTuple(newVar("k", x.Type().Underlying().(*types.Chan).Elem()), varOk), pos)
 	body := fn.newBasicBlock("rangechan.body")
 	done = fn.newBasicBlock("rangechan.done")
-	emitIf(fn, emitExtract(fn, ko, 1), body, done)
+	emitIf(fn, emitExtract(fn, retv, 1), body, done)
 	fn.currentBlock = body
 	if tk != nil {
-		k = emitExtract(fn, ko, 0)
+		k = emitExtract(fn, retv, 0)
 	}
 	return
 }

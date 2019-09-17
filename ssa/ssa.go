@@ -605,18 +605,10 @@ type BinOp struct {
 }
 
 // The UnOp instruction yields the result of Op X.
-// ARROW is channel receive.
 // XOR is bitwise complement.
 // SUB is negation.
 // NOT is logical negation.
 //
-// If CommaOk and Op=ARROW, the result is a 2-tuple of the value above
-// and a boolean indicating the success of the receive.  The
-// components of the tuple are accessed using Extract.
-//
-// Pos() returns the ast.UnaryExpr.OpPos, if explicit in the source.
-// For receive operations (ARROW) implicit in ranging over a channel,
-// Pos() returns the ast.RangeStmt.For.
 //
 // Example printed form:
 // 	t0 = *x
@@ -624,7 +616,7 @@ type BinOp struct {
 //
 type UnOp struct {
 	register
-	Op      token.Token // One of: NOT SUB ARROW MUL XOR ! - <- * ^
+	Op      token.Token // One of: NOT SUB XOR ! - ^
 	X       Value
 	CommaOk bool
 }
@@ -1064,8 +1056,8 @@ type TypeAssert struct {
 // The Extract instruction yields component Index of Tuple.
 //
 // This is used to access the results of instructions with multiple
-// return values, such as Call, TypeAssert, Next, UnOp(ARROW) and
-// IndexExpr(Map).
+// return values, such as Call, TypeAssert, Next, Recv,
+// IndexExpr(Map) and others.
 //
 // Example printed form:
 // 	t1 = extract t0 #1
@@ -1119,7 +1111,7 @@ type If struct {
 // components which the caller must access using Extract instructions.
 //
 // There is no instruction to return a ready-made tuple like those
-// returned by a "value,ok"-mode TypeAssert, Lookup or UnOp(ARROW) or
+// returned by a "value,ok"-mode TypeAssert, Lookup or Recv or
 // a tail-call to a function with multiple result parameters.
 //
 // Return must be the last instruction of its containing BasicBlock.
@@ -1221,6 +1213,22 @@ type Send struct {
 	Mem     Value
 	Chan, X Value
 	pos     token.Pos
+}
+
+// The Recv instruction receives from channel Chan.
+//
+// If CommaOk, the result is a 2-tuple of the value above
+// and a boolean indicating the success of the receive.  The
+// components of the tuple are accessed using Extract.
+//
+// Pos() returns the ast.UnaryExpr.OpPos, if explicit in the source.
+// For receive operations implicit in ranging over a channel,
+// Pos() returns the ast.RangeStmt.For.
+type Recv struct {
+	register
+	Mem     Value
+	Chan    Value
+	CommaOk bool
 }
 
 // The Store instruction stores Val at address Addr.
@@ -1760,6 +1768,10 @@ func (v *Select) Operands(rands []*Value) []*Value {
 
 func (s *Send) Operands(rands []*Value) []*Value {
 	return append(rands, &s.Chan, &s.X, &s.Mem)
+}
+
+func (recv *Recv) Operands(rands []*Value) []*Value {
+	return append(rands, &recv.Chan, &recv.Mem)
 }
 
 func (v *Slice) Operands(rands []*Value) []*Value {

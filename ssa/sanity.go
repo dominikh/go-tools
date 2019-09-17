@@ -180,8 +180,14 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Load:
 	case *Parameter:
 	case *Const:
+	case *Recv:
 	case *ReturnValues:
-		_ = instr.Mem.(*Call)
+		switch instr.Mem.(type) {
+		case *Call:
+		case *Recv:
+		default:
+			panic(fmt.Sprintf("unexpected type %T", instr.Mem))
+		}
 		// TODO(adonovan): implement checks.
 	default:
 		panic(fmt.Sprintf("Unknown instruction type: %T", instr))

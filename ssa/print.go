@@ -332,6 +332,10 @@ func (s *Send) String() string {
 	return fmt.Sprintf("send %s <- %s", relName(s.Chan, s), relName(s.X, s))
 }
 
+func (recv *Recv) String() string {
+	return fmt.Sprintf("Recv {%t} %s", recv.CommaOk, relName(recv.Mem, recv))
+}
+
 func (s *Defer) String() string {
 	return printCall(&s.Call, "defer ", s)
 }

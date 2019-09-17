@@ -806,6 +806,8 @@ func ValueLongHTML(v Node) string {
 		s += fmt.Sprintf(" {%d}", v.Field)
 	case *FieldAddr:
 		s += fmt.Sprintf(" {%d}", v.Field)
+	case *Recv:
+		s += fmt.Sprintf(" {%t}", v.CommaOk)
 	case *Const:
 		if v.Value == nil {
 			s += " {&lt;nil&gt;}"

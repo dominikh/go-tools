@@ -86,6 +86,7 @@
 //   *Parameter         ✔
 //   *Phi               ✔               ✔
 //   *Range             ✔               ✔
+//   *Recv              ✔               ✔
 //   *Return                            ✔
 //   *RunDefers                         ✔
 //   *Select            ✔               ✔
