@@ -32,7 +32,7 @@ import (
 	"honnef.co/go/tools/printf"
 	"honnef.co/go/tools/report"
 	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssautil"
+	"honnef.co/go/tools/ssa/ssautil"
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/analysis"
