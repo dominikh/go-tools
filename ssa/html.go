@@ -731,7 +731,7 @@ func (w *HTMLWriter) WriteFunc(phase, title string, f *Function) {
 	if w == nil {
 		return
 	}
-	w.WriteColumn(phase, title, "", FuncHTML(f, phase))
+	w.WriteColumn(phase, title, "", funcHTML(f, phase))
 }
 
 // WriteColumn writes raw HTML in a column headed by title.
@@ -766,7 +766,7 @@ func (w *HTMLWriter) WriteString(s string) {
 	}
 }
 
-func ValueHTML(v Node) string {
+func valueHTML(v Node) string {
 	if v == nil {
 		return "&lt;nil&gt;"
 	}
@@ -786,7 +786,7 @@ func ValueHTML(v Node) string {
 	return fmt.Sprintf("<span class=\"%s ssa-value\">%s</span>", class, label)
 }
 
-func ValueLongHTML(v Node) string {
+func valueLongHTML(v Node) string {
 	// TODO: Any intra-value formatting?
 	// I'm wary of adding too much visual noise,
 	// but a little bit might be valuable.
@@ -796,7 +796,7 @@ func ValueLongHTML(v Node) string {
 
 	// XXX don't bother with line numbers
 	linenumber := "<span class=\"no-line-number\">(?)</span>"
-	s += fmt.Sprintf("%s %s = %s", ValueHTML(v), linenumber, opName(v))
+	s += fmt.Sprintf("%s %s = %s", valueHTML(v), linenumber, opName(v))
 
 	if v, ok := v.(Value); ok {
 		s += " &lt;" + html.EscapeString(v.Type().String()) + "&gt;"
@@ -829,7 +829,7 @@ func ValueLongHTML(v Node) string {
 		}
 	}
 	for _, a := range v.Operands(nil) {
-		s += fmt.Sprintf(" %s", ValueHTML(*a))
+		s += fmt.Sprintf(" %s", valueHTML(*a))
 	}
 
 	// XXX we don't have NamedValues, but we have DebugRefs
@@ -852,7 +852,7 @@ func ValueLongHTML(v Node) string {
 	return s
 }
 
-func BlockHTML(b *BasicBlock) string {
+func blockHTML(b *BasicBlock) string {
 	// TODO: Using the value ID as the class ignores the fact
 	// that value IDs get recycled and that some values
 	// are transmuted into other values.
@@ -860,7 +860,7 @@ func BlockHTML(b *BasicBlock) string {
 	return fmt.Sprintf("<span class=\"%s ssa-block\">%s</span>", s, s)
 }
 
-func BlockLongHTML(b *BasicBlock) string {
+func blockLongHTML(b *BasicBlock) string {
 	var kind string
 	var term Instruction
 	if len(b.Instrs) > 0 {
@@ -888,7 +888,7 @@ func BlockLongHTML(b *BasicBlock) string {
 		if len(ops) > 0 {
 			var ss []string
 			for _, op := range ops {
-				ss = append(ss, ValueHTML(*op))
+				ss = append(ss, valueHTML(*op))
 			}
 			s += " " + strings.Join(ss, ", ")
 		}
@@ -896,13 +896,13 @@ func BlockLongHTML(b *BasicBlock) string {
 	if len(b.Succs) > 0 {
 		s += " &#8594;" // right arrow
 		for _, c := range b.Succs {
-			s += " " + BlockHTML(c)
+			s += " " + blockHTML(c)
 		}
 	}
 	return s
 }
 
-func FuncHTML(f *Function, phase string) string {
+func funcHTML(f *Function, phase string) string {
 	buf := new(bytes.Buffer)
 	fmt.Fprint(buf, "<code>")
 	p := htmlFuncPrinter{w: buf}
@@ -923,11 +923,11 @@ func (p htmlFuncPrinter) startBlock(b *BasicBlock, reachable bool) {
 		dead = "dead-block"
 	}
 	fmt.Fprintf(p.w, "<ul class=\"%s ssa-print-func %s\">", b, dead)
-	fmt.Fprintf(p.w, "<li class=\"ssa-start-block\">%s:", BlockHTML(b))
+	fmt.Fprintf(p.w, "<li class=\"ssa-start-block\">%s:", blockHTML(b))
 	if len(b.Preds) > 0 {
 		io.WriteString(p.w, " &#8592;") // left arrow
 		for _, pred := range b.Preds {
-			fmt.Fprintf(p.w, " %s", BlockHTML(pred))
+			fmt.Fprintf(p.w, " %s", blockHTML(pred))
 		}
 	}
 	if len(b.Instrs) > 0 {
@@ -946,7 +946,7 @@ func (p htmlFuncPrinter) endBlock(b *BasicBlock) {
 		io.WriteString(p.w, "</li>")
 	}
 	io.WriteString(p.w, "<li class=\"ssa-end-block\">")
-	fmt.Fprint(p.w, BlockLongHTML(b))
+	fmt.Fprint(p.w, blockLongHTML(b))
 	io.WriteString(p.w, "</li>")
 	io.WriteString(p.w, "</ul>")
 }
@@ -957,7 +957,7 @@ func (p htmlFuncPrinter) value(v Node, live bool) {
 		dead = "dead-value"
 	}
 	fmt.Fprintf(p.w, "<li class=\"ssa-long-value %s\">", dead)
-	fmt.Fprint(p.w, ValueLongHTML(v))
+	fmt.Fprint(p.w, valueLongHTML(v))
 	io.WriteString(p.w, "</li>")
 }
 
@@ -972,7 +972,7 @@ func (p htmlFuncPrinter) endDepCycle() {
 func (p htmlFuncPrinter) named(n *Parameter, vals []Value) {
 	fmt.Fprintf(p.w, "<li>name %s: ", n)
 	for _, val := range vals {
-		fmt.Fprintf(p.w, "%s ", ValueHTML(val))
+		fmt.Fprintf(p.w, "%s ", valueHTML(val))
 	}
 	fmt.Fprintf(p.w, "</li>")
 }
