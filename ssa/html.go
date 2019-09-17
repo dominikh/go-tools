@@ -6,6 +6,7 @@ package ssa
 import (
 	"bytes"
 	"fmt"
+	"go/types"
 	"html"
 	"io"
 	"log"
@@ -100,7 +101,15 @@ func fprintFunc(p funcPrinter, f *Function) {
 }
 
 func opName(v Node) string {
-	return reflect.ValueOf(v).Type().Elem().Name()
+	switch v := v.(type) {
+	case *Call:
+		if v.Common().IsInvoke() {
+			return "Invoke"
+		}
+		return "Call"
+	default:
+		return reflect.ValueOf(v).Type().Elem().Name()
+	}
 }
 
 type HTMLWriter struct {
@@ -768,7 +777,7 @@ func ValueHTML(v Node) string {
 	var label string
 	switch v := v.(type) {
 	case *Function:
-		label = v.Name()
+		label = v.Object().(*types.Func).FullName()
 	case *Builtin:
 		label = v.Name()
 	default:
@@ -808,6 +817,10 @@ func ValueLongHTML(v Node) string {
 		s += fmt.Sprintf(" {%d}", v.Field)
 	case *Recv:
 		s += fmt.Sprintf(" {%t}", v.CommaOk)
+	case *Call:
+		if v.Common().IsInvoke() {
+			s += fmt.Sprintf(" {%s}", html.EscapeString(v.Common().Method.FullName()))
+		}
 	case *Const:
 		if v.Value == nil {
 			s += " {&lt;nil&gt;}"
