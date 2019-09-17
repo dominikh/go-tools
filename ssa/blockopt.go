@@ -29,10 +29,6 @@ func markReachable(b *BasicBlock) {
 	}
 }
 
-func DeleteUnreachableBlocks(f *Function) {
-	deleteUnreachableBlocks(f)
-}
-
 // deleteUnreachableBlocks marks all reachable blocks of f and
 // eliminates (nils) all others, including possibly cyclic subgraphs.
 //
@@ -149,10 +145,6 @@ func fuseBlocks(f *Function, a *BasicBlock) bool {
 
 	f.Blocks[b.Index] = nil // delete b
 	return true
-}
-
-func OptimizeBlocks(f *Function) {
-	optimizeBlocks(f)
 }
 
 // optimizeBlocks() performs some simple block optimizations on a
