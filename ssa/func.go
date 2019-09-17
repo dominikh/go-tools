@@ -104,10 +104,6 @@ func (b *BasicBlock) replaceSucc(p, q *BasicBlock) {
 	}
 }
 
-func (b *BasicBlock) RemovePred(p *BasicBlock) {
-	b.removePred(p)
-}
-
 // removePred removes all occurrences of p in b's
 // predecessor list and φ-nodes.
 // Ordinarily there should be at most one.
