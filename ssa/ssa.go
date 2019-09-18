@@ -337,7 +337,7 @@ type Function struct {
 	targets         *targets                // linked stack of branch targets
 	lblocks         map[*ast.Object]*lblock // labelled blocks
 	mem             *Alloc
-	consts          []Instruction
+	consts          []*Const
 }
 
 func (fn *Function) results() []*Alloc {

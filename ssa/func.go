@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"io"
@@ -339,19 +340,94 @@ func buildReferrers(f *Function) {
 	}
 }
 
-// finishBody() finalizes the function after SSA code generation of its body.
-func (f *Function) finishBody() {
-	if len(f.Blocks) > 0 && len(f.consts) > 0 {
-		instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(f.consts))
-		copy(instrs, f.consts)
-		copy(instrs[len(f.consts):], f.Blocks[0].Instrs)
-		f.Blocks[0].Instrs = instrs
-		for _, c := range f.consts {
-			c.setBlock(f.Blocks[0])
+func (f *Function) emitConsts() {
+	if len(f.Blocks) == 0 {
+		f.consts = nil
+		return
+	}
+
+	if len(f.consts) == 0 {
+		return
+	} else if len(f.consts) <= 32 {
+		f.emitConstsFew()
+	} else {
+		f.emitConstsMany()
+	}
+}
+
+func (f *Function) emitConstsFew() {
+	dedup := make([]*Const, 0, 32)
+	for _, c := range f.consts {
+		if len(*c.Referrers()) == 0 {
+			continue
+		}
+		found := false
+		for _, d := range dedup {
+			if c.typ == d.typ && c.Value == d.Value {
+				replaceAll(c, d)
+				found = true
+				break
+			}
+		}
+		if !found {
+			dedup = append(dedup, c)
 		}
 	}
 
+	instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(dedup))
+	for i, c := range dedup {
+		instrs[i] = c
+		c.setBlock(f.Blocks[0])
+	}
+	copy(instrs[len(dedup):], f.Blocks[0].Instrs)
+	f.Blocks[0].Instrs = instrs
 	f.consts = nil
+}
+
+func (f *Function) emitConstsMany() {
+	type constKey struct {
+		typ   types.Type
+		value constant.Value
+	}
+
+	m := make(map[constKey]Value, len(f.consts))
+	areNil := 0
+	for i, c := range f.consts {
+		if len(*c.Referrers()) == 0 {
+			f.consts[i] = nil
+			areNil++
+			continue
+		}
+
+		k := constKey{
+			typ:   c.typ,
+			value: c.Value,
+		}
+		if dup, ok := m[k]; !ok {
+			m[k] = c
+		} else {
+			f.consts[i] = nil
+			areNil++
+			replaceAll(c, dup)
+		}
+	}
+
+	instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(f.consts)-areNil)
+	i := 0
+	for _, c := range f.consts {
+		if c != nil {
+			instrs[i] = c
+			c.setBlock(f.Blocks[0])
+			i++
+		}
+	}
+	copy(instrs[i:], f.Blocks[0].Instrs)
+	f.Blocks[0].Instrs = instrs
+	f.consts = nil
+}
+
+// finishBody() finalizes the function after SSA code generation of its body.
+func (f *Function) finishBody() {
 	f.objects = nil
 	f.currentBlock = nil
 	f.lblocks = nil
@@ -383,19 +459,10 @@ func (f *Function) finishBody() {
 
 	if f.Prog.mode&NaiveForm == 0 {
 		lift(f)
-
-		// lifting may have produced more constants
-		if len(f.Blocks) > 0 && len(f.consts) > 0 {
-			instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(f.consts))
-			copy(instrs, f.consts)
-			copy(instrs[len(f.consts):], f.Blocks[0].Instrs)
-			f.Blocks[0].Instrs = instrs
-			for _, c := range f.consts {
-				c.setBlock(f.Blocks[0])
-			}
-		}
-		f.consts = nil
 	}
+
+	// emit constants after lifting, because lifting may produce new constants.
+	f.emitConsts()
 
 	f.namedResults = nil // (used by lifting)
 	f.implicitResults = nil
