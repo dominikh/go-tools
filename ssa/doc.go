@@ -83,7 +83,7 @@
 //   *NamedConst                                        ✔ (const)
 //   *Next              ✔               ✔
 //   *Panic                             ✔
-//   *Parameter         ✔
+//   *Parameter         ✔               ✔
 //   *Phi               ✔               ✔
 //   *Range             ✔               ✔
 //   *Recv              ✔               ✔

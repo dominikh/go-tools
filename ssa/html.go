@@ -864,7 +864,7 @@ func blockLongHTML(b *BasicBlock) string {
 	var kind string
 	var term Instruction
 	if len(b.Instrs) > 0 {
-		term = b.Instrs[len(b.Instrs)-1]
+		term = b.Control()
 		kind = opName(term)
 	}
 	// TODO: improve this for HTML?

@@ -569,9 +569,8 @@ type Phi struct {
 
 // The Call instruction represents a function or method call.
 //
-// The Call instruction yields the function result if there is exactly
-// one.  Otherwise it returns a tuple, the components of which are
-// accessed via Extract.
+// The Call instruction yields the new memory state. Function results,
+// if any, can be extracted with ReturnValues and Extract.
 //
 // See CallCommon for generic function call documentation.
 //
@@ -612,7 +611,6 @@ type BinOp struct {
 //
 // Example printed form:
 // 	t0 = *x
-// 	t2 = <-t1,ok
 //
 type UnOp struct {
 	register

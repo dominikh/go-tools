@@ -2474,7 +2474,7 @@ func CheckInfiniteRecursion(pass *analysis.Pass) (interface{}, error) {
 				if len(b.Instrs) == 0 {
 					continue
 				}
-				if _, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return); ok {
+				if _, ok := b.Control().(*ssa.Return); ok {
 					canReturn = true
 					break
 				}
