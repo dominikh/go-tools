@@ -134,7 +134,6 @@ func printCall(v *CallCommon, prefix string, instr Instruction) string {
 		b.WriteString("...")
 	}
 	b.WriteString(")")
-	fmt.Fprintf(&b, " %s", relName(v.Mem, instr))
 	return b.String()
 }
 
@@ -155,11 +154,7 @@ func (v *UnOp) String() string {
 }
 
 func (v *Load) String() string {
-	if v.Mem == nil {
-		return fmt.Sprintf("LoadMem <%s> %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v))
-	} else {
-		return fmt.Sprintf("Load <%s> %s %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v), relName(v.Mem, v))
-	}
+	return fmt.Sprintf("Load <%s> %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v))
 }
 
 func printConv(prefix string, v, x Value) string {
@@ -337,7 +332,7 @@ func (s *Send) String() string {
 }
 
 func (recv *Recv) String() string {
-	return fmt.Sprintf("Recv {%t} %s", recv.CommaOk, relName(recv.Mem, recv))
+	return fmt.Sprintf("Recv {%t} %s", recv.CommaOk, relName(recv.Chan, recv))
 }
 
 func (s *Defer) String() string {
@@ -367,13 +362,8 @@ func (s *Select) String() string {
 }
 
 func (s *Store) String() string {
-	if s.Mem == nil {
-		return fmt.Sprintf("StoreMem <mem> {%s} %s %s",
-			s.Val.Type(), relName(s.Addr, s), relName(s.Val, s))
-	} else {
-		return fmt.Sprintf("Store <mem> {%s} %s %s %s",
-			s.Val.Type(), relName(s.Addr, s), relName(s.Val, s), relName(s.Mem, s))
-	}
+	return fmt.Sprintf("Store {%s} %s %s",
+		s.Val.Type(), relName(s.Addr, s), relName(s.Val, s))
 }
 
 func (s *BlankStore) String() string {

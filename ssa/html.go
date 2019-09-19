@@ -777,7 +777,11 @@ func valueHTML(v Node) string {
 	var label string
 	switch v := v.(type) {
 	case *Function:
-		label = v.Object().(*types.Func).FullName()
+		if v.Name() == "init" {
+			label = "init"
+		} else {
+			label = v.Object().(*types.Func).FullName()
+		}
 	case *Builtin:
 		label = v.Name()
 	default:

@@ -33,24 +33,14 @@ func Terminates(fn *ssa.Function) bool {
 				if !ok {
 					return true
 				}
-				retv, ok := ex.Tuple.(*ssa.ReturnValues)
+				if ex.Index != 1 {
+					return true
+				}
+				recv, ok := ex.Tuple.(*ssa.Recv)
 				if !ok {
 					return true
 				}
-
-				recv, ok := retv.Mem.(*ssa.Recv)
-				if !ok {
-					return true
-				}
-				ex2, ok := recv.Chan.(*ssa.Extract)
-				if !ok {
-					return true
-				}
-				retv2, ok := ex2.Tuple.(*ssa.ReturnValues)
-				if !ok {
-					return true
-				}
-				call, ok := retv2.Mem.(*ssa.Call)
+				call, ok := recv.Chan.(*ssa.Call)
 				if !ok {
 					return true
 				}

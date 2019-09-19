@@ -92,12 +92,11 @@ func Example_buildPackage() {
 	// func init():
 	// 0:                                                                entry P:0 S:2
 	// 	t1 = true:bool                                                     bool
-	// 	t2 = InitMem                                                     Memory
-	// 	t3 = Load <bool> init$guard t2                                     bool
-	// 	if t3 goto 2 else 1
+	// 	t2 = Load <bool> init$guard                                        bool
+	// 	if t2 goto 2 else 1
 	// 1:                                                           init.start P:1 S:1
-	// 	t5 = Store <mem> {bool} init$guard true:bool t2                  Memory
-	// 	t6 = call fmt.init() t5                                          Memory
+	// 	Store {bool} init$guard true:bool
+	// 	t5 = call fmt.init()                                                 ()
 	// 	jump 2
 	// 2:                                                            init.done P:2 S:0
 	// 	return
@@ -109,14 +108,12 @@ func Example_buildPackage() {
 	// 0:                                                                entry P:0 S:0
 	// 	t1 = "Hello, World!":string                                      string
 	// 	t2 = 0:int                                                          int
-	// 	t3 = InitMem                                                     Memory
-	// 	t4 = new [1]interface{} (varargs)                       *[1]interface{}
-	// 	t5 = &t4[0:int]                                            *interface{}
-	// 	t6 = make interface{} <- string ("Hello, World!":string)    interface{}
-	// 	t7 = Store <mem> {interface{}} t5 t6 t3                          Memory
-	// 	t8 = slice t4[:]                                          []interface{}
-	// 	t9 = call fmt.Println(t8...) t7                                  Memory
-	// 	t10 = ReturnValues t9                                (n int, err error)
+	// 	t3 = new [1]interface{} (varargs)                       *[1]interface{}
+	// 	t4 = &t3[0:int]                                            *interface{}
+	// 	t5 = make interface{} <- string ("Hello, World!":string)    interface{}
+	// 	Store {interface{}} t4 t5
+	// 	t7 = slice t3[:]                                          []interface{}
+	// 	t8 = call fmt.Println(t7...)                         (n int, err error)
 	// 	return
 }
 

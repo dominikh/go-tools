@@ -49,7 +49,6 @@ func (t *opaqueType) String() string { return t.name }
 var (
 	varOk    = newVar("ok", tBool)
 	varIndex = newVar("index", tInt)
-	varMem   = newVar("mem", tMemory)
 
 	// Type constants.
 	tBool       = types.Typ[types.Bool]
@@ -187,7 +186,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		var c Call
 		b.setCall(fn, e, &c.Call)
 		c.typ = typ
-		return emitCall(fn, &c)
+		return fn.emit(&c)
 
 	case *ast.IndexExpr:
 		mapt := fn.Pkg.typeOf(e.X).Underlying().(*types.Map)
@@ -196,7 +195,6 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 			Index:   emitConv(fn, b.expr(fn, e.Index), mapt.Key()),
 			CommaOk: true,
 		}
-		lookup.Mem = fn.getMem()
 		lookup.setType(typ)
 		lookup.setPos(e.Lbrack)
 		return fn.emit(lookup)
@@ -205,7 +203,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		return emitTypeTest(fn, b.expr(fn, e.X), typ.At(0).Type(), e.Lparen)
 
 	case *ast.UnaryExpr: // must be receive <-
-		return emitRecv(fn, b.expr(fn, e.X), true, types.NewTuple(typ.At(0), typ.At(1)), e.OpPos)
+		return emitRecv(fn, b.expr(fn, e.X), true, typ, e.OpPos)
 	}
 	panic(fmt.Sprintf("exprN(%T) in %s", e, fn))
 }
@@ -585,7 +583,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		var v Call
 		b.setCall(fn, e, &v.Call)
 		v.setType(tv.Type)
-		return emitCall(fn, &v)
+		return fn.emit(&v)
 
 	case *ast.UnaryExpr:
 		switch e.Op {
@@ -610,7 +608,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			v.setType(tv.Type)
 			return fn.emit(v)
 		case token.ARROW:
-			return emitRecv(fn, b.expr(fn, e.X), false, types.NewTuple(anonVar(tv.Type)), e.OpPos)
+			return emitRecv(fn, b.expr(fn, e.X), false, tv.Type, e.OpPos)
 		default:
 			panic(e.Op)
 		}
@@ -746,7 +744,6 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 				X:     b.expr(fn, e.X),
 				Index: emitConv(fn, b.expr(fn, e.Index), mapt.Key()),
 			}
-			v.Mem = fn.getMem()
 			v.setPos(e.Lbrack)
 			v.setType(mapt.Elem())
 			return fn.emit(v)
@@ -1530,7 +1527,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 	}
 	sel.setPos(s.Select)
 	var vars []*types.Var
-	vars = append(vars, varIndex, varOk, varMem)
+	vars = append(vars, varIndex, varOk)
 	for _, st := range states {
 		if st.Dir == types.RecvOnly {
 			tElem := st.Chan.Type().Underlying().(*types.Chan).Elem()
@@ -1538,11 +1535,8 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		}
 	}
 	sel.setType(types.NewTuple(vars...))
-	sel.Mem = fn.getMem()
 	fn.emit(sel)
 	idx := emitExtract(fn, sel, 0)
-	mem := emitExtract(fn, sel, 2)
-	fn.setMem(mem, 0)
 
 	done := fn.newBasicBlock("select.done")
 	if label != nil {
@@ -1551,7 +1545,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 
 	var defaultBody *[]ast.Stmt
 	state := 0
-	r := 3 // index in 'sel' tuple of value; increments if st.Dir==RECV
+	r := 2 // index in 'sel' tuple of value; increments if st.Dir==RECV
 	for _, cc := range s.Body.List {
 		clause := cc.(*ast.CommClause)
 		if clause.Comm == nil {
@@ -1977,10 +1971,7 @@ start:
 				fn.Pkg.typeOf(s.Chan).Underlying().(*types.Chan).Elem()),
 			pos: s.Arrow,
 		}
-		instr.Mem = fn.getMem()
-		instr.setType(tMemory)
 		fn.emit(instr)
-		fn.setMem(instr, 0)
 
 	case *ast.IncDecStmt:
 		op := token.ADD
@@ -2005,7 +1996,7 @@ start:
 		// panic is treated like an ordinary function call.
 		v := Go{pos: s.Go}
 		b.setCall(fn, s.Call, &v.Call)
-		emitCall(fn, &v)
+		fn.emit(&v)
 
 	case *ast.DeferStmt:
 		// The "intrinsics" new/make/len/cap are forbidden here.
@@ -2013,7 +2004,7 @@ start:
 		v := Defer{pos: s.Defer}
 		b.setCall(fn, s.Call, &v.Call)
 		fn.hasDefer = true
-		emitCall(fn, &v)
+		fn.emit(&v)
 
 	case *ast.ReturnStmt:
 		var results []Value
@@ -2185,19 +2176,6 @@ func (b *builder) buildFunction(fn *Function) {
 	fn.finishBody()
 }
 
-func (fn *Function) allocMem() {
-	fn.mem = fn.addLocal(tMemory, 0)
-	fn.mem.Comment = "<mem>"
-	mem := &InitMem{}
-	mem.setType(tMemory)
-	fn.emit(mem)
-	fn.setMem(mem, 0)
-}
-
-func (fn *Function) getMem() Value {
-	return emitLoadNoMem(fn, fn.mem)
-}
-
 // buildFuncDecl builds SSA code for the function or method declared
 // by decl in package pkg.
 //
@@ -2211,7 +2189,7 @@ func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 		var v Call
 		v.Call.Value = fn
 		v.setType(types.NewTuple())
-		emitCall(pkg.init, &v)
+		pkg.init.emit(&v)
 	}
 	b.buildFunction(fn)
 }
@@ -2290,7 +2268,7 @@ func (p *Package) build() {
 		v.Call.Value = prereq.init
 		v.Call.pos = init.pos
 		v.setType(types.NewTuple())
-		emitCall(init, &v)
+		init.emit(&v)
 	}
 
 	var b builder

@@ -16,10 +16,10 @@ func f(spilled, unspilled int) {
 	f := func() (int, int) { return 0, 0 }
 
 	(print( /*@BinOp*/ (i + 1)))
-	_, _ = /*@ReturnValues*/ (f())
+	_, _ = /*@Call*/ (f())
 	ch := /*@MakeChan*/ (make(chan int))
-	/*@Extract*/ (<-ch)
-	x := /*@Extract*/ (<-ch)
+	/*@Recv*/ (<-ch)
+	x := /*@Recv*/ (<-ch)
 	_ = x
 	select {
 	case /*@Extract*/ (<-ch):

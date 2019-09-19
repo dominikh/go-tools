@@ -262,13 +262,12 @@ func init():
 0:                                                                entry P:0 S:2
 	t1 = true:bool                                                     bool
 	t2 = 42:int                                                         int
-	t3 = InitMem                                                     Memory
-	t4 = Load <bool> init$guard t3                                     bool
-	if t4 goto 2 else 1
+	t3 = Load <bool> init$guard                                        bool
+	if t3 goto 2 else 1
 1:                                                           init.start P:1 S:1
-	t6 = Store <mem> {bool} init$guard true:bool t3                  Memory
-	t7 = call errors.init() t6                                       Memory
-	t8 = Store <mem> {int} i 42:int t7                               Memory
+	Store {bool} init$guard true:bool
+	t6 = call errors.init()                                              ()
+	Store {int} i 42:int
 	jump 2
 2:                                                            init.done P:2 S:0
 	return
@@ -481,8 +480,8 @@ func h(error)
 			}
 		}
 	}
-	if phis != 3 {
+	if phis != 1 {
 		g.WriteTo(os.Stderr)
-		t.Errorf("expected three Phi nodes (for the range index and memory state), got %d", phis)
+		t.Errorf("expected one Phi node (for the range index), got %d", phis)
 	}
 }

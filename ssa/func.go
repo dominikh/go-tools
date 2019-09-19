@@ -232,7 +232,6 @@ func (f *Function) startBody() {
 	entry := f.newBasicBlock("entry")
 	f.currentBlock = entry
 	f.objects = make(map[types.Object]Value) // needed for some synthetics, e.g. init
-	f.allocMem()
 }
 
 func (f *Function) exitBlock() {

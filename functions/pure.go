@@ -11,8 +11,8 @@ func IsStub(fn *ssa.Function) bool {
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr.(type) {
-			case *ssa.InitMem, *ssa.Const, *ssa.Panic, *ssa.Return, *ssa.DebugRef:
-				// InitMem and Const have no side-effects, Panic and
+			case *ssa.Const, *ssa.Panic, *ssa.Return, *ssa.DebugRef:
+				// Const has no side-effects, Panic and
 				// Return must be using a constant value, or there are
 				// other instructions.
 			default:

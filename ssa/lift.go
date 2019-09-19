@@ -553,14 +553,6 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 				// Delete the Store.
 				u.Instrs[i] = nil
 				u.gaps++
-
-				if i+1 < len(u.Instrs) {
-					// We've killed a store, so we must also kill its effect on the memory state.
-					if memStore, ok := u.Instrs[i+1].(*Store); ok && memStore.Mem == nil && memStore.Val == instr {
-						u.Instrs[i+1] = nil
-						u.gaps++
-					}
-				}
 			}
 
 		case *Load:
@@ -574,10 +566,6 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 				// the loaded value by the
 				// dominating stored value.
 				replaceAll(instr, newval)
-				if instr.Mem != nil {
-					refs := instr.Mem.Referrers()
-					*refs = removeInstr(*refs, instr)
-				}
 				// Delete the Load.
 				u.Instrs[i] = nil
 				u.gaps++

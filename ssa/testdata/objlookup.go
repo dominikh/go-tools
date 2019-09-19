@@ -141,8 +141,8 @@ func main() {
 
 	ch := make(chan int) //@ ssa(ch,"MakeChan")
 	select {
-	case x := <-ch: //@ ssa(x,"Extract") /*receive*/, ssa(ch,"MakeChan")
-		_ = x //@ ssa(x,"Extract")
+	case x := <-ch: //@ ssa(x,"Recv") /*receive*/, ssa(ch,"MakeChan")
+		_ = x //@ ssa(x,"Recv")
 	}
 
 	// .Op is an inter-package FieldVal-selection.

@@ -336,7 +336,6 @@ type Function struct {
 	implicitResults []*Alloc                // tuple of results
 	targets         *targets                // linked stack of branch targets
 	lblocks         map[*ast.Object]*lblock // labelled blocks
-	mem             *Alloc
 	consts          []*Const
 }
 
@@ -574,8 +573,9 @@ type Phi struct {
 
 // The Call instruction represents a function or method call.
 //
-// The Call instruction yields the new memory state. Function results,
-// if any, can be extracted with ReturnValues and Extract.
+// The Call instruction yields the function result if there is exactly
+// one.  Otherwise it returns a tuple, the components of which are
+// accessed via Extract.
 //
 // See CallCommon for generic function call documentation.
 //
@@ -631,8 +631,7 @@ type UnOp struct {
 // specified.
 type Load struct {
 	register
-	Mem Value
-	X   Value
+	X Value
 }
 
 // The ChangeType instruction applies to X a value-preserving type
@@ -913,7 +912,6 @@ type Index struct {
 //
 type MapLookup struct {
 	register
-	Mem     Value
 	X       Value // map
 	Index   Value // key-typed index
 	CommaOk bool  // return a value,ok pair
@@ -981,7 +979,6 @@ type SelectState struct {
 //
 type Select struct {
 	register
-	Mem      Value
 	States   []*SelectState
 	Blocking bool
 }
@@ -1194,7 +1191,7 @@ type Panic struct {
 // 	go invoke t5.Println(...t6)
 //
 type Go struct {
-	register
+	anInstruction
 	Call CallCommon
 	pos  token.Pos
 }
@@ -1212,7 +1209,7 @@ type Go struct {
 // 	defer invoke t5.Println(...t6)
 //
 type Defer struct {
-	register
+	anInstruction
 	Call CallCommon
 	pos  token.Pos
 }
@@ -1225,8 +1222,7 @@ type Defer struct {
 // 	send t0 <- t1
 //
 type Send struct {
-	register
-	Mem     Value
+	anInstruction
 	Chan, X Value
 	pos     token.Pos
 }
@@ -1242,7 +1238,6 @@ type Send struct {
 // Pos() returns the ast.RangeStmt.For.
 type Recv struct {
 	register
-	Mem     Value
 	Chan    Value
 	CommaOk bool
 }
@@ -1259,8 +1254,7 @@ type Recv struct {
 // 	*x = y
 //
 type Store struct {
-	register
-	Mem  Value
+	anInstruction
 	Addr Value
 	Val  Value
 	pos  token.Pos
@@ -1291,8 +1285,7 @@ type BlankStore struct {
 //	t0[t1] = t2
 //
 type MapUpdate struct {
-	register
-	Mem   Value
+	anInstruction
 	Map   Value
 	Key   Value
 	Value Value
@@ -1431,7 +1424,6 @@ type CallCommon struct {
 	Value   Value       // receiver (invoke mode) or func value (call mode)
 	Method  *types.Func // abstract method (invoke mode)
 	Args    []Value     // actual parameters (in static method call, includes receiver)
-	Mem     Value
 	Results Value
 	pos     token.Pos // position of CallExpr.Lparen, iff explicit in source
 }
@@ -1497,20 +1489,16 @@ func (c *CallCommon) Description() string {
 type CallInstruction interface {
 	Instruction
 	Common() *CallCommon // returns the common parts of the call
-	Value() Value
+	Value() *Call
 }
-
-func (s *Call) Type() types.Type  { return tMemory }
-func (s *Defer) Type() types.Type { return tMemory }
-func (s *Go) Type() types.Type    { return tMemory }
 
 func (s *Call) Common() *CallCommon  { return &s.Call }
 func (s *Defer) Common() *CallCommon { return &s.Call }
 func (s *Go) Common() *CallCommon    { return &s.Call }
 
-func (s *Call) Value() Value  { return s }
-func (s *Defer) Value() Value { return s }
-func (s *Go) Value() Value    { return s }
+func (s *Call) Value() *Call  { return s }
+func (s *Defer) Value() *Call { return nil }
+func (s *Go) Value() *Call    { return nil }
 
 func (v *Builtin) Type() types.Type        { return v.sig }
 func (v *Builtin) Name() string            { return v.name }
@@ -1648,7 +1636,6 @@ func (c *CallCommon) Operands(rands []*Value) []*Value {
 	for i := range c.Args {
 		rands = append(rands, &c.Args[i])
 	}
-	rands = append(rands, &c.Mem)
 	return rands
 }
 
@@ -1709,7 +1696,7 @@ func (*Jump) Operands(rands []*Value) []*Value {
 }
 
 func (v *MapLookup) Operands(rands []*Value) []*Value {
-	return append(rands, &v.X, &v.Index, &v.Mem)
+	return append(rands, &v.X, &v.Index)
 }
 
 func (v *StringLookup) Operands(rands []*Value) []*Value {
@@ -1741,7 +1728,7 @@ func (v *MakeSlice) Operands(rands []*Value) []*Value {
 }
 
 func (v *MapUpdate) Operands(rands []*Value) []*Value {
-	return append(rands, &v.Map, &v.Key, &v.Value, &v.Mem)
+	return append(rands, &v.Map, &v.Key, &v.Value)
 }
 
 func (v *Next) Operands(rands []*Value) []*Value {
@@ -1782,16 +1769,15 @@ func (v *Select) Operands(rands []*Value) []*Value {
 	for i := range v.States {
 		rands = append(rands, &v.States[i].Chan, &v.States[i].Send)
 	}
-	rands = append(rands, &v.Mem)
 	return rands
 }
 
 func (s *Send) Operands(rands []*Value) []*Value {
-	return append(rands, &s.Chan, &s.X, &s.Mem)
+	return append(rands, &s.Chan, &s.X)
 }
 
 func (recv *Recv) Operands(rands []*Value) []*Value {
-	return append(rands, &recv.Chan, &recv.Mem)
+	return append(rands, &recv.Chan)
 }
 
 func (v *Slice) Operands(rands []*Value) []*Value {
@@ -1799,11 +1785,7 @@ func (v *Slice) Operands(rands []*Value) []*Value {
 }
 
 func (s *Store) Operands(rands []*Value) []*Value {
-	if s.Mem == nil {
-		return append(rands, &s.Addr, &s.Val)
-	} else {
-		return append(rands, &s.Addr, &s.Val, &s.Mem)
-	}
+	return append(rands, &s.Addr, &s.Val)
 }
 
 func (s *BlankStore) Operands(rands []*Value) []*Value {
@@ -1819,11 +1801,7 @@ func (v *UnOp) Operands(rands []*Value) []*Value {
 }
 
 func (v *Load) Operands(rands []*Value) []*Value {
-	if v.Mem == nil {
-		return append(rands, &v.X)
-	} else {
-		return append(rands, &v.X, &v.Mem)
-	}
+	return append(rands, &v.X)
 }
 
 // Non-Instruction Values:
