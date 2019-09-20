@@ -63,7 +63,9 @@ var (
 
 // builder holds state associated with the package currently being built.
 // Its methods contain all the logic for AST-to-SSA conversion.
-type builder struct{}
+type builder struct {
+	printFunc string
+}
 
 // cond emits to fn code to evaluate boolean condition e and jump
 // to t or f depending on its value, performing various simplifications.
@@ -539,6 +541,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			syntax:    e,
 		}
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
+		fn2.initHTML(b.printFunc)
 		b.buildFunction(fn2)
 		if fn2.FreeVars == nil {
 			return fn2
@@ -2271,7 +2274,9 @@ func (p *Package) build() {
 		init.emit(&v)
 	}
 
-	var b builder
+	b := builder{
+		printFunc: p.printFunc,
+	}
 
 	// Initialize package-level vars in correct order.
 	for _, varinit := range p.info.InitOrder {

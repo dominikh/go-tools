@@ -468,15 +468,11 @@ func (f *Function) finishBody() {
 
 	numberNodes(f)
 
-	var wr *HTMLWriter
-	if f.Name() == os.Getenv("GOSSAFUNC") {
-		wr = NewHTMLWriter("ssa.html", f.Name(), "")
-		defer wr.Close()
-	}
-	wr.WriteFunc("start", "start", f)
+	defer f.wr.Close()
+	f.wr.WriteFunc("start", "start", f)
 
 	phiElim(f)
-	wr.WriteFunc("phiElim", "phiElim", f)
+	f.wr.WriteFunc("phiElim", "phiElim", f)
 
 	if f.Prog.mode&PrintFunctions != 0 {
 		printMu.Lock()
@@ -885,3 +881,12 @@ func (n extentNode) End() token.Pos { return n[1] }
 // information; this avoids pinning the AST in memory.
 //
 func (f *Function) Syntax() ast.Node { return f.syntax }
+
+func (f *Function) initHTML(name string) {
+	if name == "" {
+		return
+	}
+	if rel := f.RelString(nil); rel == name {
+		f.wr = NewHTMLWriter("ssa.html", rel, "")
+	}
+}

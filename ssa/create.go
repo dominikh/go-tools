@@ -95,6 +95,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 			Pkg:       pkg,
 			Prog:      pkg.Prog,
 		}
+		fn.initHTML(pkg.printFunc)
 		if syntax == nil {
 			fn.Synthetic = "loaded from gc object file"
 		}
@@ -164,12 +165,13 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 //
 func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *types.Info, importable bool) *Package {
 	p := &Package{
-		Prog:    prog,
-		Members: make(map[string]Member),
-		values:  make(map[types.Object]Value),
-		Pkg:     pkg,
-		info:    info,  // transient (CREATE and BUILD phases)
-		files:   files, // transient (CREATE and BUILD phases)
+		Prog:      prog,
+		Members:   make(map[string]Member),
+		values:    make(map[types.Object]Value),
+		Pkg:       pkg,
+		info:      info,  // transient (CREATE and BUILD phases)
+		files:     files, // transient (CREATE and BUILD phases)
+		printFunc: prog.PrintFunc,
 	}
 
 	// Add init() function.
@@ -180,6 +182,7 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		Pkg:       p,
 		Prog:      prog,
 	}
+	p.init.initHTML(prog.PrintFunc)
 	p.Members[p.init.name] = p.init
 
 	// CREATE phase.

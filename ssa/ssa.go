@@ -23,6 +23,7 @@ type ID int32
 // A Program is a partial or complete Go program converted to SSA form.
 type Program struct {
 	Fset       *token.FileSet              // position information for the files of this Program
+	PrintFunc  string                      // create ssa.html for function specified in PrintFunc
 	imported   map[string]*Package         // all importable Packages, keyed by import path
 	packages   map[*types.Package]*Package // all loaded Packages, keyed by object
 	mode       BuilderMode                 // set of mode bits for SSA construction
@@ -46,12 +47,13 @@ type Program struct {
 // and unspecified other things too.
 //
 type Package struct {
-	Prog    *Program               // the owning program
-	Pkg     *types.Package         // the corresponding go/types.Package
-	Members map[string]Member      // all package members keyed by name (incl. init and init#%d)
-	values  map[types.Object]Value // package members (incl. types and methods), keyed by object
-	init    *Function              // Func("init"); the package's init function
-	debug   bool                   // include full debug info in this package
+	Prog      *Program               // the owning program
+	Pkg       *types.Package         // the corresponding go/types.Package
+	Members   map[string]Member      // all package members keyed by name (incl. init and init#%d)
+	values    map[types.Object]Value // package members (incl. types and methods), keyed by object
+	init      *Function              // Func("init"); the package's init function
+	debug     bool                   // include full debug info in this package
+	printFunc string                 // which function to print in HTML form
 
 	// The following fields are set transiently, then cleared
 	// after building.
@@ -337,6 +339,7 @@ type Function struct {
 	targets         *targets                // linked stack of branch targets
 	lblocks         map[*ast.Object]*lblock // labelled blocks
 	consts          []*Const
+	wr              *HTMLWriter
 }
 
 func (fn *Function) results() []*Alloc {

@@ -24,12 +24,14 @@ var (
 	testFlag   = flag.Bool("test", false, "include implicit test packages and executables")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	dot        bool
+	html       string
 )
 
 func init() {
 	flag.Var(&mode, "build", ssa.BuilderModeDoc)
 	flag.Var((*buildutil.TagsFlag)(&build.Default.BuildTags), "tags", buildutil.TagsFlagDoc)
 	flag.BoolVar(&dot, "dot", false, "Print Graphviz dot of CFG")
+	flag.StringVar(&html, "html", "", "Print HTML for 'function'")
 }
 
 const usage = `SSA builder.
@@ -84,7 +86,7 @@ func doMain() error {
 	}
 
 	// Create SSA-form program representation.
-	_, pkgs := ssautil.Packages(initial, mode)
+	_, pkgs := ssautil.Packages(initial, mode, &ssautil.Options{PrintFunc: html})
 
 	for i, p := range pkgs {
 		if p == nil {

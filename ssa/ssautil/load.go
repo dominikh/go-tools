@@ -16,6 +16,11 @@ import (
 	"honnef.co/go/tools/ssa"
 )
 
+type Options struct {
+	// Which function, if any, to print in HTML form
+	PrintFunc string
+}
+
 // Packages creates an SSA program for a set of packages.
 //
 // The packages must have been loaded from source syntax using the
@@ -34,8 +39,8 @@ import (
 //
 // The mode parameter controls diagnostics and checking during SSA construction.
 //
-func Packages(initial []*packages.Package, mode ssa.BuilderMode) (*ssa.Program, []*ssa.Package) {
-	return doPackages(initial, mode, false)
+func Packages(initial []*packages.Package, mode ssa.BuilderMode, opts *Options) (*ssa.Program, []*ssa.Package) {
+	return doPackages(initial, mode, false, opts)
 }
 
 // AllPackages creates an SSA program for a set of packages plus all
@@ -56,11 +61,11 @@ func Packages(initial []*packages.Package, mode ssa.BuilderMode) (*ssa.Program, 
 //
 // The mode parameter controls diagnostics and checking during SSA construction.
 //
-func AllPackages(initial []*packages.Package, mode ssa.BuilderMode) (*ssa.Program, []*ssa.Package) {
-	return doPackages(initial, mode, true)
+func AllPackages(initial []*packages.Package, mode ssa.BuilderMode, opts *Options) (*ssa.Program, []*ssa.Package) {
+	return doPackages(initial, mode, true, opts)
 }
 
-func doPackages(initial []*packages.Package, mode ssa.BuilderMode, deps bool) (*ssa.Program, []*ssa.Package) {
+func doPackages(initial []*packages.Package, mode ssa.BuilderMode, deps bool, opts *Options) (*ssa.Program, []*ssa.Package) {
 
 	var fset *token.FileSet
 	if len(initial) > 0 {
@@ -68,6 +73,9 @@ func doPackages(initial []*packages.Package, mode ssa.BuilderMode, deps bool) (*
 	}
 
 	prog := ssa.NewProgram(fset, mode)
+	if opts != nil {
+		prog.PrintFunc = opts.PrintFunc
+	}
 
 	isInitial := make(map[*packages.Package]bool, len(initial))
 	for _, p := range initial {

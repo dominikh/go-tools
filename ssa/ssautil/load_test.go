@@ -62,7 +62,7 @@ func TestPackages(t *testing.T) {
 		t.Fatal("there were errors")
 	}
 
-	prog, pkgs := ssautil.Packages(initial, 0)
+	prog, pkgs := ssautil.Packages(initial, 0, nil)
 	bytesNewBuffer := pkgs[0].Func("NewBuffer")
 	bytesNewBuffer.Pkg.Build()
 
@@ -116,6 +116,6 @@ func TestIssue28106(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prog, _ := ssautil.Packages(pkgs, 0)
+	prog, _ := ssautil.Packages(pkgs, 0, nil)
 	prog.Build() // no crash
 }
