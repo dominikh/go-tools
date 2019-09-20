@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -132,6 +133,7 @@ func opName(v Node) string {
 type HTMLWriter struct {
 	w    io.WriteCloser
 	path string
+	dot  *dotWriter
 }
 
 func NewHTMLWriter(path string, funcname, cfgMask string) *HTMLWriter {
@@ -144,6 +146,7 @@ func NewHTMLWriter(path string, funcname, cfgMask string) *HTMLWriter {
 		log.Fatalf("%v", err)
 	}
 	html := HTMLWriter{w: out, path: filepath.Join(pwd, path)}
+	html.dot = newDotWriter()
 	html.start(funcname)
 	return &html
 }
@@ -748,7 +751,7 @@ func (w *HTMLWriter) WriteFunc(phase, title string, f *Function) {
 	if w == nil {
 		return
 	}
-	w.WriteColumn(phase, title, "", funcHTML(f, phase))
+	w.WriteColumn(phase, title, "", funcHTML(f, phase, w.dot))
 }
 
 // WriteColumn writes raw HTML in a column headed by title.
@@ -909,8 +912,11 @@ func blockLongHTML(b *BasicBlock) string {
 	return s
 }
 
-func funcHTML(f *Function, phase string) string {
+func funcHTML(f *Function, phase string, dot *dotWriter) string {
 	buf := new(bytes.Buffer)
+	if dot != nil {
+		dot.writeFuncSVG(buf, phase, f)
+	}
 	fmt.Fprint(buf, "<code>")
 	p := htmlFuncPrinter{w: buf}
 	fprintFunc(p, f)
@@ -982,4 +988,111 @@ func (p htmlFuncPrinter) named(n string, vals []Value) {
 		fmt.Fprintf(p.w, "%s ", valueHTML(val))
 	}
 	fmt.Fprintf(p.w, "</li>")
+}
+
+type dotWriter struct {
+	path   string
+	broken bool
+}
+
+// newDotWriter returns non-nil value when mask is valid.
+// dotWriter will generate SVGs only for the phases specified in the mask.
+// mask can contain following patterns and combinations of them:
+// *   - all of them;
+// x-y - x through y, inclusive;
+// x,y - x and y, but not the passes between.
+func newDotWriter() *dotWriter {
+	path, err := exec.LookPath("dot")
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	return &dotWriter{path: path}
+}
+
+func (d *dotWriter) writeFuncSVG(w io.Writer, phase string, f *Function) {
+	if d.broken {
+		return
+	}
+	cmd := exec.Command(d.path, "-Tsvg")
+	pipe, err := cmd.StdinPipe()
+	if err != nil {
+		d.broken = true
+		fmt.Println(err)
+		return
+	}
+	buf := new(bytes.Buffer)
+	cmd.Stdout = buf
+	bufErr := new(bytes.Buffer)
+	cmd.Stderr = bufErr
+	err = cmd.Start()
+	if err != nil {
+		d.broken = true
+		fmt.Println(err)
+		return
+	}
+	fmt.Fprint(pipe, `digraph "" { margin=0; size="4,40"; ranksep=.2; `)
+	id := strings.Replace(phase, " ", "-", -1)
+	fmt.Fprintf(pipe, `id="g_graph_%s";`, id)
+	fmt.Fprintf(pipe, `node [style=filled,fillcolor=white,fontsize=16,fontname="Menlo,Times,serif",margin="0.01,0.03"];`)
+	fmt.Fprintf(pipe, `edge [fontsize=16,fontname="Menlo,Times,serif"];`)
+	for _, b := range f.Blocks {
+		layout := ""
+		fmt.Fprintf(pipe, `%v [label="%v%s\n%v",id="graph_node_%v_%v"];`, b, b, layout, b.Control().String(), id, b)
+	}
+	indexOf := make([]int, len(f.Blocks))
+	for i, b := range f.Blocks {
+		indexOf[b.Index] = i
+	}
+
+	// XXX
+	/*
+		ponums := make([]int32, len(f.Blocks))
+		_ = postorderWithNumbering(f, ponums)
+		isBackEdge := func(from, to int) bool {
+			return ponums[from] <= ponums[to]
+		}
+	*/
+	isBackEdge := func(from, to int) bool { return false }
+
+	for _, b := range f.Blocks {
+		for i, s := range b.Succs {
+			style := "solid"
+			color := "black"
+			arrow := "vee"
+			if isBackEdge(b.Index, s.Index) {
+				color = "blue"
+			}
+			fmt.Fprintf(pipe, `%v -> %v [label=" %d ",style="%s",color="%s",arrowhead="%s"];`, b, s, i, style, color, arrow)
+		}
+	}
+	fmt.Fprint(pipe, "}")
+	pipe.Close()
+	err = cmd.Wait()
+	if err != nil {
+		d.broken = true
+		fmt.Printf("dot: %v\n%v\n", err, bufErr.String())
+		return
+	}
+
+	svgID := "svg_graph_" + id
+	fmt.Fprintf(w, `<div class="zoom"><button onclick="return graphReduce('%s');">-</button> <button onclick="return graphEnlarge('%s');">+</button></div>`, svgID, svgID)
+	// For now, an awful hack: edit the html as it passes through
+	// our fingers, finding '<svg ' and injecting needed attributes after it.
+	err = d.copyUntil(w, buf, `<svg `)
+	if err != nil {
+		fmt.Printf("injecting attributes: %v\n", err)
+		return
+	}
+	fmt.Fprintf(w, ` id="%s" onload="makeDraggable(evt)" width="100%%" `, svgID)
+	io.Copy(w, buf)
+}
+
+func (d *dotWriter) copyUntil(w io.Writer, buf *bytes.Buffer, sep string) error {
+	i := bytes.Index(buf.Bytes(), []byte(sep))
+	if i == -1 {
+		return fmt.Errorf("couldn't find dot sep %q", sep)
+	}
+	_, err := io.CopyN(w, buf, int64(i+len(sep)))
+	return err
 }
