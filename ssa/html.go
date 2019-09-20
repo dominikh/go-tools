@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -33,7 +34,7 @@ func live(f *Function) []bool {
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr.(type) {
-			case *Store, *Call, *Go, *Defer, *Return, *BlankStore, *Jump, *If:
+			case *Store, *Call, *Go, *Defer, *Return, *BlankStore, *Jump, *If, *Panic, *RunDefers:
 				out[instr.ID()] = true
 				q = append(q, instr)
 			}
@@ -63,16 +64,27 @@ type funcPrinter interface {
 	value(v Node, live bool)
 	startDepCycle()
 	endDepCycle()
-	named(n *Parameter, vals []Value)
+	named(n string, vals []Value)
+}
+
+func namedValues(f *Function) map[types.Object][]Value {
+	names := map[types.Object][]Value{}
+	for _, b := range f.Blocks {
+		for _, instr := range b.Instrs {
+			if instr, ok := instr.(*DebugRef); ok {
+				if obj := instr.object; obj != nil {
+					names[obj] = append(names[obj], instr.X)
+				}
+			}
+		}
+	}
+	// XXX deduplicate values
+	return names
 }
 
 func fprintFunc(p funcPrinter, f *Function) {
 	// XXX does our SSA form preserve unreachable blocks?
 	// reachable, live := findlive(f)
-	// XXX
-	/*
-		defer f.retDeadcodeLive(live)
-	*/
 
 	l := live(f)
 	for _, b := range f.Blocks {
@@ -92,12 +104,17 @@ func fprintFunc(p funcPrinter, f *Function) {
 		p.endBlock(b)
 	}
 
-	// XXX we don't have names, but we do have DebugRef
-	/*
-		for _, name := range f.Names {
-			p.named(name, f.NamedValues[name])
-		}
-	*/
+	names := namedValues(f)
+	keys := make([]types.Object, 0, len(names))
+	for key := range names {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].Pos() < keys[j].Pos()
+	})
+	for _, key := range keys {
+		p.named(key.Name(), names[key])
+	}
 }
 
 func opName(v Node) string {
@@ -777,11 +794,7 @@ func valueHTML(v Node) string {
 	var label string
 	switch v := v.(type) {
 	case *Function:
-		if v.Name() == "init" {
-			label = "init"
-		} else {
-			label = v.Object().(*types.Func).FullName()
-		}
+		label = v.RelString(nil)
 	case *Builtin:
 		label = v.Name()
 	default:
@@ -798,8 +811,12 @@ func valueLongHTML(v Node) string {
 	// maybe we could replace some of that with formatting.
 	s := fmt.Sprintf("<span class=\"t%d ssa-long-value\">", v.ID())
 
-	// XXX don't bother with line numbers
 	linenumber := "<span class=\"no-line-number\">(?)</span>"
+	if v.Pos().IsValid() {
+		line := v.Parent().Prog.Fset.Position(v.Pos()).Line
+		linenumber = fmt.Sprintf("<span class=\"l%v line-number\">(%d)</span>", line, line)
+	}
+
 	s += fmt.Sprintf("%s %s = %s", valueHTML(v), linenumber, opName(v))
 
 	if v, ok := v.(Value); ok {
@@ -836,21 +853,20 @@ func valueLongHTML(v Node) string {
 		s += fmt.Sprintf(" %s", valueHTML(*a))
 	}
 
-	// XXX we don't have NamedValues, but we have DebugRefs
-	/*
-		var names []string
-		for name, values := range v.Block.Func.NamedValues {
-			for _, value := range values {
-				if value == v {
-					names = append(names, name.String())
-					break // drop duplicates.
-				}
+	// OPT(dh): we're calling namedValues many times on the same function.
+	allNames := namedValues(v.Parent())
+	var names []string
+	for name, values := range allNames {
+		for _, value := range values {
+			if v == value {
+				names = append(names, name.Name())
+				break
 			}
 		}
-		if len(names) != 0 {
-			s += " (" + strings.Join(names, ", ") + ")"
-		}
-	*/
+	}
+	if len(names) != 0 {
+		s += " (" + strings.Join(names, ", ") + ")"
+	}
 
 	s += "</span>"
 	return s
@@ -873,20 +889,7 @@ func blockLongHTML(b *BasicBlock) string {
 	}
 	// TODO: improve this for HTML?
 	s := fmt.Sprintf("<span class=\"b%d ssa-block\">%s</span>", b.Index, kind)
-	// XXX
-	/*
-		if b.Aux != nil {
-			s += html.EscapeString(fmt.Sprintf(" {%v}", b.Aux))
-		}
-	*/
-	// XXX we don't have Control, we need to look at the last
-	// instruction in the block. we probably shouldn't print the last
-	// instruction in the value list, either.
-	/*
-		if b.Control != nil {
-			s += fmt.Sprintf(" %s", b.Control.HTML())
-		}
-	*/
+
 	if term != nil {
 		ops := term.Operands(nil)
 		if len(ops) > 0 {
@@ -973,7 +976,7 @@ func (p htmlFuncPrinter) endDepCycle() {
 	fmt.Fprintln(p.w, "</span>")
 }
 
-func (p htmlFuncPrinter) named(n *Parameter, vals []Value) {
+func (p htmlFuncPrinter) named(n string, vals []Value) {
 	fmt.Fprintf(p.w, "<li>name %s: ", n)
 	for _, val := range vals {
 		fmt.Fprintf(p.w, "%s ", valueHTML(val))
