@@ -35,7 +35,18 @@ func CallName(call *ssa.CallCommon) string {
 }
 
 func IsCallTo(call *ssa.CallCommon, name string) bool { return CallName(call) == name }
-func IsType(T types.Type, name string) bool           { return types.TypeString(T, nil) == name }
+
+func IsCallToAny(call *ssa.CallCommon, names ...string) bool {
+	q := CallName(call)
+	for _, name := range names {
+		if q == name {
+			return true
+		}
+	}
+	return false
+}
+
+func IsType(T types.Type, name string) bool { return types.TypeString(T, nil) == name }
 
 func FilterDebug(instr []ssa.Instruction) []ssa.Instruction {
 	var out []ssa.Instruction
@@ -251,8 +262,13 @@ func IsCallToAST(pass *analysis.Pass, node ast.Node, name string) bool {
 }
 
 func IsCallToAnyAST(pass *analysis.Pass, node ast.Node, names ...string) bool {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	q := CallNameAST(pass, call)
 	for _, name := range names {
-		if IsCallToAST(pass, node, name) {
+		if q == name {
 			return true
 		}
 	}

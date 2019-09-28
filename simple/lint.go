@@ -311,8 +311,7 @@ func CheckForTrue(pass *analysis.Pass) (interface{}, error) {
 func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !code.IsCallToAST(pass, call, "regexp.MustCompile") &&
-			!code.IsCallToAST(pass, call, "regexp.Compile") {
+		if !code.IsCallToAnyAST(pass, call, "regexp.MustCompile", "regexp.Compile") {
 			return
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -941,23 +940,25 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		switch {
-		case code.IsCallToAST(pass, condCall, "strings.HasPrefix"):
+
+		condCallName := code.CallNameAST(pass, condCall)
+		switch condCallName {
+		case "strings.HasPrefix":
 			pkg = "strings"
 			fun = "HasPrefix"
-		case code.IsCallToAST(pass, condCall, "strings.HasSuffix"):
+		case "strings.HasSuffix":
 			pkg = "strings"
 			fun = "HasSuffix"
-		case code.IsCallToAST(pass, condCall, "strings.Contains"):
+		case "strings.Contains":
 			pkg = "strings"
 			fun = "Contains"
-		case code.IsCallToAST(pass, condCall, "bytes.HasPrefix"):
+		case "bytes.HasPrefix":
 			pkg = "bytes"
 			fun = "HasPrefix"
-		case code.IsCallToAST(pass, condCall, "bytes.HasSuffix"):
+		case "bytes.HasSuffix":
 			pkg = "bytes"
 			fun = "HasSuffix"
-		case code.IsCallToAST(pass, condCall, "bytes.Contains"):
+		case "bytes.Contains":
 			pkg = "bytes"
 			fun = "Contains"
 		default:
@@ -984,14 +985,14 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 
-			// OPT(dh): replace all the calls to IsCallToAst with CallNameAST
-			if code.IsCallToAST(pass, condCall, "strings.HasPrefix") && code.IsCallToAST(pass, rhs, "strings.TrimPrefix") ||
-				code.IsCallToAST(pass, condCall, "strings.HasSuffix") && code.IsCallToAST(pass, rhs, "strings.TrimSuffix") ||
-				code.IsCallToAST(pass, condCall, "strings.Contains") && code.IsCallToAST(pass, rhs, "strings.Replace") ||
-				code.IsCallToAST(pass, condCall, "bytes.HasPrefix") && code.IsCallToAST(pass, rhs, "bytes.TrimPrefix") ||
-				code.IsCallToAST(pass, condCall, "bytes.HasSuffix") && code.IsCallToAST(pass, rhs, "bytes.TrimSuffix") ||
-				code.IsCallToAST(pass, condCall, "bytes.Contains") && code.IsCallToAST(pass, rhs, "bytes.Replace") {
-				report.NodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s", code.CallNameAST(pass, rhs))
+			rhsName := code.CallNameAST(pass, rhs)
+			if condCallName == "strings.HasPrefix" && rhsName == "strings.TrimPrefix" ||
+				condCallName == "strings.HasSuffix" && rhsName == "strings.TrimSuffix" ||
+				condCallName == "strings.Contains" && rhsName == "strings.Replace" ||
+				condCallName == "bytes.HasPrefix" && rhsName == "bytes.TrimPrefix" ||
+				condCallName == "bytes.HasSuffix" && rhsName == "bytes.TrimSuffix" ||
+				condCallName == "bytes.Contains" && rhsName == "bytes.Replace" {
+				report.NodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s", rhsName)
 			}
 			return
 		case *ast.SliceExpr:
@@ -1662,11 +1663,10 @@ func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 func CheckRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		// OPT(dh): use CallNameAST instead of IsCallToAST
-		if !code.IsCallToAST(pass, call, "(net/http.Header).Add") &&
-			!code.IsCallToAST(pass, call, "(net/http.Header).Del") &&
-			!code.IsCallToAST(pass, call, "(net/http.Header).Get") &&
-			!code.IsCallToAST(pass, call, "(net/http.Header).Set") {
+		callName := code.CallNameAST(pass, call)
+		switch callName {
+		case "(net/http.Header).Add", "(net/http.Header).Del", "(net/http.Header).Get", "(net/http.Header).Set":
+		default:
 			return
 		}
 
@@ -1675,7 +1675,7 @@ func CheckRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) 
 		}
 
 		report.NodeFG(pass, call,
-			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", code.CallNameAST(pass, call)),
+			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", callName),
 			edit.Fix("remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, call.Args[0], call.Args[0].(*ast.CallExpr).Args[0])))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)

@@ -862,16 +862,16 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		var kind string
-		if code.IsCallToAST(pass, call, "(*text/template.Template).Parse") {
+		switch code.CallNameAST(pass, call) {
+		case "(*text/template.Template).Parse":
 			kind = "text"
-		} else if code.IsCallToAST(pass, call, "(*html/template.Template).Parse") {
+		case "(*html/template.Template).Parse":
 			kind = "html"
-		} else {
+		default:
 			return
 		}
 		sel := call.Fun.(*ast.SelectorExpr)
-		if !code.IsCallToAST(pass, sel.X, "text/template.New") &&
-			!code.IsCallToAST(pass, sel.X, "html/template.New") {
+		if !code.IsCallToAnyAST(pass, sel.X, "text/template.New", "html/template.New") {
 			// TODO(dh): this is a cheap workaround for templates with
 			// different delims. A better solution with less false
 			// negatives would use data flow analysis to see where the
@@ -2391,14 +2391,14 @@ func CheckDeferLock(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !code.IsCallTo(call.Common(), "(*sync.Mutex).Lock") && !code.IsCallTo(call.Common(), "(*sync.RWMutex).RLock") {
+				if !code.IsCallToAny(call.Common(), "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
 					continue
 				}
 				nins, ok := instrs[i+1].(*ssa.Defer)
 				if !ok {
 					continue
 				}
-				if !code.IsCallTo(&nins.Call, "(*sync.Mutex).Lock") && !code.IsCallTo(&nins.Call, "(*sync.RWMutex).RLock") {
+				if !code.IsCallToAny(&nins.Call, "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
 					continue
 				}
 				if call.Common().Args[0] != nins.Call.Args[0] {
@@ -3160,9 +3160,7 @@ func CheckSillyRegexp(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				switch code.CallName(call.Common()) {
-				case "regexp.MustCompile", "regexp.Compile", "regexp.Match", "regexp.MatchReader", "regexp.MatchString":
-				default:
+				if !code.IsCallToAny(call.Common(), "regexp.MustCompile", "regexp.Compile", "regexp.Match", "regexp.MatchReader", "regexp.MatchString") {
 					continue
 				}
 				c, ok := call.Common().Args[0].(*ssa.Const)

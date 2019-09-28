@@ -374,7 +374,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !code.IsCallTo(call.Common(), "errors.New") && !code.IsCallTo(call.Common(), "fmt.Errorf") {
+				if !code.IsCallToAny(call.Common(), "errors.New", "fmt.Errorf") {
 					continue
 				}
 
@@ -497,7 +497,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 
 				for i, name := range spec.Names {
 					val := spec.Values[i]
-					if !code.IsCallToAST(pass, val, "errors.New") && !code.IsCallToAST(pass, val, "fmt.Errorf") {
+					if !code.IsCallToAnyAST(pass, val, "errors.New", "fmt.Errorf") {
 						continue
 					}
 
