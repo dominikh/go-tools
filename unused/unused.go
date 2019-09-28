@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 
 	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
-	"honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ssa"
 )
 
@@ -1221,7 +1221,7 @@ func (g *Graph) entry(pkg *pkg) {
 			case *ast.GenDecl:
 				switch n.Tok {
 				case token.CONST:
-					groups := lintdsl.GroupSpecs(pkg.Fset, n.Specs)
+					groups := code.GroupSpecs(pkg.Fset, n.Specs)
 					for _, specs := range groups {
 						if len(specs) > 1 {
 							cg := &ConstGroup{}
@@ -1400,13 +1400,13 @@ func (g *Graph) useMethod(ctx *context, t types.Type, sel *types.Selection, by i
 	path := sel.Index()
 	assert(obj != nil)
 	if len(path) > 1 {
-		base := lintdsl.Dereference(t).Underlying().(*types.Struct)
+		base := code.Dereference(t).Underlying().(*types.Struct)
 		for _, idx := range path[:len(path)-1] {
 			next := base.Field(idx)
 			// (6.3) structs use embedded fields that help implement interfaces
 			ctx.see(base)
 			ctx.seeAndUse(next, base, edgeProvidesMethod)
-			base, _ = lintdsl.Dereference(next.Type()).Underlying().(*types.Struct)
+			base, _ = code.Dereference(next.Type()).Underlying().(*types.Struct)
 		}
 	}
 	ctx.seeAndUse(obj, by, kind)
@@ -1516,7 +1516,7 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 				seen := map[*types.Struct]struct{}{}
 				var hasExportedField func(t types.Type) bool
 				hasExportedField = func(T types.Type) bool {
-					t, ok := lintdsl.Dereference(T).Underlying().(*types.Struct)
+					t, ok := code.Dereference(T).Underlying().(*types.Struct)
 					if !ok {
 						return false
 					}
@@ -1699,7 +1699,7 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 				// (4.7) functions use fields they access
 				ctx.seeAndUse(field, fnObj, edgeFieldAccess)
 			case *ssa.FieldAddr:
-				st := lintdsl.Dereference(instr.X.Type()).Underlying().(*types.Struct)
+				st := code.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
 				ctx.seeAndUse(field, fnObj, edgeFieldAccess)
@@ -1712,10 +1712,10 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 
 					if g.wholeProgram {
 						// (e3) special case known reflection-based method callers
-						switch lintdsl.CallName(c) {
+						switch code.CallName(c) {
 						case "net/rpc.Register", "net/rpc.RegisterName", "(*net/rpc.Server).Register", "(*net/rpc.Server).RegisterName":
 							var arg ssa.Value
-							switch lintdsl.CallName(c) {
+							switch code.CallName(c) {
 							case "net/rpc.Register":
 								arg = c.Args[0]
 							case "net/rpc.RegisterName":
@@ -1748,8 +1748,8 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 			case *ssa.ChangeType:
 				// conversion type handled generically
 
-				s1, ok1 := lintdsl.Dereference(instr.Type()).Underlying().(*types.Struct)
-				s2, ok2 := lintdsl.Dereference(instr.X.Type()).Underlying().(*types.Struct)
+				s1, ok1 := code.Dereference(instr.Type()).Underlying().(*types.Struct)
+				s2, ok2 := code.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				if ok1 && ok2 {
 					// Converting between two structs. The fields are
 					// relevant for the conversion, but only if the

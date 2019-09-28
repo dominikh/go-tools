@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/tools/go/analysis"
-	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/staticcheck/vrp"
 )
@@ -193,7 +193,7 @@ func validEncodingBinaryType(pass *analysis.Pass, typ types.Type) bool {
 			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
 			return true
 		case types.Bool:
-			return IsGoVersion(pass, 8)
+			return code.IsGoVersion(pass, 8)
 		}
 		return false
 	case *types.Struct:
@@ -294,7 +294,7 @@ func ValidHostPort(v Value) bool {
 // ConvertedFrom reports whether value v was converted from type typ.
 func ConvertedFrom(v Value, typ string) bool {
 	change, ok := v.Value.(*ssa.ChangeType)
-	return ok && IsType(change.X.Type(), typ)
+	return ok && code.IsType(change.X.Type(), typ)
 }
 
 func UniqueStringCutset(v Value) bool {

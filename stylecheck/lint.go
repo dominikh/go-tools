@@ -12,11 +12,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/report"
 	"honnef.co/go/tools/ssa"
 
@@ -40,7 +42,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 	}
 	hasDocs := false
 	for _, f := range pass.Files {
-		if IsInTest(pass, f) {
+		if code.IsInTest(pass, f) {
 			continue
 		}
 		if f.Doc != nil && len(f.Doc.List) > 0 {
@@ -55,7 +57,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 
 	if !hasDocs {
 		for _, f := range pass.Files {
-			if IsInTest(pass, f) {
+			if code.IsInTest(pass, f) {
 				continue
 			}
 			report.Nodef(pass, f, "at least one file in a package should have a package comment")
@@ -76,7 +78,7 @@ func CheckDotImports(pass *analysis.Pass) (interface{}, error) {
 				}
 			}
 
-			if imp.Name != nil && imp.Name.Name == "." && !IsInTest(pass, f) {
+			if imp.Name != nil && imp.Name.Name == "." && !code.IsInTest(pass, f) {
 				report.NodefFG(pass, imp, "should not use dot imports")
 			}
 		}
@@ -117,7 +119,7 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 	fset := pass.Fset
 	for _, f := range pass.Files {
-		if IsMainLike(pass) || IsInTest(pass, f) {
+		if code.IsMainLike(pass) || code.IsInTest(pass, f) {
 			continue
 		}
 
@@ -151,7 +153,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 		for i, imp := range f.Imports {
 			pos := fset.Position(imp.Pos())
 
-			if !IsBlank(imp.Name) {
+			if !code.IsBlank(imp.Name) {
 				continue
 			}
 			// Only flag the first blank import in a group of imports,
@@ -160,7 +162,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 			if i > 0 {
 				prev := f.Imports[i-1]
 				prevPos := fset.Position(prev.Pos())
-				if pos.Line-1 == prevPos.Line && IsBlank(prev.Name) {
+				if pos.Line-1 == prevPos.Line && code.IsBlank(prev.Name) {
 					continue
 				}
 			}
@@ -186,7 +188,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		if (len(assign.Lhs) != 1 || len(assign.Rhs) != 1) ||
-			!IsIntLiteral(assign.Rhs[0], "1") {
+			!code.IsIntLiteral(assign.Rhs[0], "1") {
 			return
 		}
 
@@ -198,7 +200,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 			suffix = "--"
 		}
 
-		report.Nodef(pass, assign, "should replace %s with %s%s", Render(pass, assign), Render(pass, assign.Lhs[0]), suffix)
+		report.Nodef(pass, assign, "should replace %s with %s%s", report.Render(pass, assign), report.Render(pass, assign.Lhs[0]), suffix)
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 	return nil, nil
@@ -235,16 +237,16 @@ func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
-		if !ast.IsExported(fn.Name()) || IsMain(pass) || IsInTest(pass, fn) {
+		if !ast.IsExported(fn.Name()) || code.IsMain(pass) || code.IsInTest(pass, fn) {
 			continue
 		}
 		sig := fn.Type().(*types.Signature)
-		if sig.Recv() != nil && !ast.IsExported(Dereference(sig.Recv().Type()).(*types.Named).Obj().Name()) {
+		if sig.Recv() != nil && !ast.IsExported(code.Dereference(sig.Recv().Type()).(*types.Named).Obj().Name()) {
 			continue
 		}
 		res := sig.Results()
 		for i := 0; i < res.Len(); i++ {
-			if named, ok := DereferenceR(res.At(i).Type()).(*types.Named); ok &&
+			if named, ok := code.DereferenceR(res.At(i).Type()).(*types.Named); ok &&
 				!ast.IsExported(named.Obj().Name()) &&
 				named != types.Universe.Lookup("error").Type() {
 				pass.Reportf(fn.Pos(), "should not return unexported type")
@@ -262,7 +264,7 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()
-				if Dereference(recv.Type()) != T.Type() {
+				if code.Dereference(recv.Type()) != T.Type() {
 					// skip embedded methods
 					continue
 				}
@@ -289,11 +291,11 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()
-				if IsGenerated(pass, recv.Pos()) {
+				if code.IsGenerated(pass, recv.Pos()) {
 					// Don't concern ourselves with methods in generated code
 					continue
 				}
-				if Dereference(recv.Type()) != T.Type() {
+				if code.Dereference(recv.Type()) != T.Type() {
 					// skip embedded methods
 					continue
 				}
@@ -359,7 +361,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		if IsInTest(pass, fn) {
+		if code.IsInTest(pass, fn) {
 			// We don't care about malformed error messages in tests;
 			// they're usually for direct human consumption, not part
 			// of an API
@@ -372,7 +374,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !IsCallTo(call.Common(), "errors.New") && !IsCallTo(call.Common(), "fmt.Errorf") {
+				if !code.IsCallTo(call.Common(), "errors.New") && !code.IsCallTo(call.Common(), "fmt.Errorf") {
 					continue
 				}
 
@@ -442,7 +444,7 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 			T := pass.TypesInfo.TypeOf(name)
-			if !IsType(T, "time.Duration") && !IsType(T, "*time.Duration") {
+			if !code.IsType(T, "time.Duration") && !code.IsType(T, "*time.Duration") {
 				continue
 			}
 			for _, suffix := range suffixes {
@@ -495,7 +497,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 
 				for i, name := range spec.Names {
 					val := spec.Values[i]
-					if !IsCallToAST(pass, val, "errors.New") && !IsCallToAST(pass, val, "fmt.Errorf") {
+					if !code.IsCallToAST(pass, val, "errors.New") && !code.IsCallToAST(pass, val, "fmt.Errorf") {
 						continue
 					}
 
@@ -590,7 +592,7 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		var arg int
-		switch CallNameAST(pass, call) {
+		switch code.CallNameAST(pass, call) {
 		case "net/http.Error":
 			arg = 2
 		case "net/http.Redirect":
@@ -645,8 +647,8 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
-	r := MustParse(`(BinaryExpr right tok left)`)
+	q := pattern.MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
+	r := pattern.MustParse(`(BinaryExpr right tok left)`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			report.NodeFG(pass, node, "don't use Yoda conditions",
@@ -677,7 +679,7 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 
 func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if IsInTest(pass, node) {
+		if code.IsInTest(pass, node) {
 			return
 		}
 
@@ -721,7 +723,7 @@ func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
 			genDecl = nil
 			return false
 		}
-		if IsInTest(pass, node) {
+		if code.IsInTest(pass, node) {
 			return false
 		}
 
@@ -785,7 +787,7 @@ func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
 			genDecl = nil
 			return false
 		}
-		if IsInTest(pass, node) {
+		if code.IsInTest(pass, node) {
 			return false
 		}
 

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/types/typeutil"
 	. "honnef.co/go/tools/arg"
+	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/internal/sharedcheck"
@@ -26,7 +27,7 @@ import (
 )
 
 func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
-	q1 := MustParse(`
+	q1 := pattern.MustParse(`
 		(ForStmt
 			nil nil nil
 			select@(SelectStmt
@@ -35,7 +36,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 						(UnaryExpr "<-" _)
 						(AssignStmt _ _ (UnaryExpr "<-" _)))
 					_)))`)
-	q2 := MustParse(`(SelectStmt (CommClause _ _))`)
+	q2 := pattern.MustParse(`(SelectStmt (CommClause _ _))`)
 
 	seen := map[ast.Node]struct{}{}
 	fn := func(node ast.Node) {
@@ -53,7 +54,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
-	before := MustParse(`
+	before := pattern.MustParse(`
 		(Or
 			(RangeStmt
 				key value ":=" src@(Ident _)
@@ -67,7 +68,7 @@ func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
 					(IndexExpr dst@(Ident _) key)
 					"="
 					(IndexExpr src key))]))`)
-	after := MustParse(`(CallExpr (Ident "copy") [dst src])`)
+	after := pattern.MustParse(`(CallExpr (Ident "copy") [dst src])`)
 	fn := func(node ast.Node) {
 		m, edits, ok := MatchAndEdit(pass, before, after, node)
 		if !ok {
@@ -97,7 +98,7 @@ func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
 
 func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if IsInTest(pass, node) {
+		if code.IsInTest(pass, node) {
 			return
 		}
 
@@ -105,18 +106,18 @@ func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 		if expr.Op != token.EQL && expr.Op != token.NEQ {
 			return
 		}
-		x := IsBoolConst(pass, expr.X)
-		y := IsBoolConst(pass, expr.Y)
+		x := code.IsBoolConst(pass, expr.X)
+		y := code.IsBoolConst(pass, expr.Y)
 		if !x && !y {
 			return
 		}
 		var other ast.Expr
 		var val bool
 		if x {
-			val = BoolConst(pass, expr.X)
+			val = code.BoolConst(pass, expr.X)
 			other = expr.Y
 		} else {
-			val = BoolConst(pass, expr.Y)
+			val = code.BoolConst(pass, expr.Y)
 			other = expr.X
 		}
 		basic, ok := pass.TypesInfo.TypeOf(other).Underlying().(*types.Basic)
@@ -127,7 +128,7 @@ func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 		if (expr.Op == token.EQL && !val) || (expr.Op == token.NEQ && val) {
 			op = "!"
 		}
-		r := op + Render(pass, other)
+		r := op + report.Render(pass, other)
 		l1 := len(r)
 		r = strings.TrimLeft(r, "!")
 		if (l1-len(r))%2 == 1 {
@@ -141,9 +142,9 @@ func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(CallExpr _ [(CallExpr sel@(SelectorExpr recv _) [])])`)
-	rs := MustParse(`(CallExpr (SelectorExpr recv (Ident "String")) [])`)
-	rb := MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
+	q := pattern.MustParse(`(CallExpr _ [(CallExpr sel@(SelectorExpr recv _) [])])`)
+	rs := pattern.MustParse(`(CallExpr (SelectorExpr recv (Ident "String")) [])`)
+	rb := pattern.MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -153,11 +154,11 @@ func LintBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 		sel := m.State["sel"].(*ast.SelectorExpr)
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
-		if typ == types.Universe.Lookup("string").Type() && IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
-			report.NodeFG(pass, call, fmt.Sprintf("should use %v.String() instead of %v", Render(pass, sel.X), Render(pass, call)),
+		if typ == types.Universe.Lookup("string").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
+			report.NodeFG(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, rs, m.State, node)))
-		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).String") {
-			report.NodeFG(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", Render(pass, sel.X), Render(pass, call)),
+		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).String") {
+			report.NodeFG(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, rb, m.State, node)))
 		}
 
@@ -180,7 +181,7 @@ func LintStringsContains(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		value, ok := ExprToInt(pass, expr.Y)
+		value, ok := code.ExprToInt(pass, expr.Y)
 		if !ok {
 			return
 		}
@@ -243,24 +244,24 @@ func LintStringsContains(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		report.NodeFG(pass, node, fmt.Sprintf("should use %s instead", Render(pass, r)),
-			edit.Fix(fmt.Sprintf("simplify use of %s", Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r)))
+		report.NodeFG(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)),
+			edit.Fix(fmt.Sprintf("simplify use of %s", report.Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r)))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
 }
 
 func LintBytesCompare(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (BasicLit "INT" "0"))`)
-	rn := MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
-	re := MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
+	q := pattern.MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (BasicLit "INT" "0"))`)
+	rn := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
+	re := pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
 			return
 		}
 
-		args := RenderArgs(pass, m.State["args"].([]ast.Expr))
+		args := report.RenderArgs(pass, m.State["args"].([]ast.Expr))
 		prefix := ""
 		if m.State["op"].(token.Token) == token.NEQ {
 			prefix = "!"
@@ -287,7 +288,7 @@ func LintForTrue(pass *analysis.Pass) (interface{}, error) {
 		if loop.Init != nil || loop.Post != nil {
 			return
 		}
-		if !IsBoolConst(pass, loop.Cond) || !BoolConst(pass, loop.Cond) {
+		if !code.IsBoolConst(pass, loop.Cond) || !code.BoolConst(pass, loop.Cond) {
 			return
 		}
 		report.NodefFG(pass, loop, "should use for {} instead of for true {}")
@@ -299,8 +300,8 @@ func LintForTrue(pass *analysis.Pass) (interface{}, error) {
 func LintRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !IsCallToAST(pass, call, "regexp.MustCompile") &&
-			!IsCallToAST(pass, call, "regexp.Compile") {
+		if !code.IsCallToAST(pass, call, "regexp.MustCompile") &&
+			!code.IsCallToAST(pass, call, "regexp.Compile") {
 			return
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -351,8 +352,8 @@ func LintRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
-	qIf := MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Ident _)])] nil)`)
-	qRet := MustParse(`(ReturnStmt [ret@(Ident _)])`)
+	qIf := pattern.MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Ident _)])] nil)`)
+	qRet := pattern.MustParse(`(ReturnStmt [ret@(Ident _)])`)
 	fn := func(node ast.Node) {
 		block := node.(*ast.BlockStmt)
 		l := len(block.List)
@@ -385,11 +386,11 @@ func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		ret1 := m1.State["ret"].(*ast.Ident)
-		if !IsBoolConst(pass, ret1) {
+		if !code.IsBoolConst(pass, ret1) {
 			return
 		}
 		ret2 := m2.State["ret"].(*ast.Ident)
-		if !IsBoolConst(pass, ret2) {
+		if !code.IsBoolConst(pass, ret2) {
 			return
 		}
 
@@ -404,8 +405,8 @@ func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
 			cond = negate(cond)
 		}
 		report.NodefFG(pass, n1, "should use 'return %s' instead of 'if %s { return %s }; return %s'",
-			Render(pass, cond),
-			Render(pass, cond), Render(pass, ret1), Render(pass, ret2))
+			report.Render(pass, cond),
+			report.Render(pass, cond), report.Render(pass, ret1), report.Render(pass, ret2))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 	return nil, nil
@@ -457,7 +458,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
 		_, ok := expr.(*ast.BasicLit)
 		if ok {
-			return true, IsZero(expr)
+			return true, code.IsIntLiteral(expr, "0")
 		}
 		id, ok := expr.(*ast.Ident)
 		if !ok {
@@ -493,7 +494,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if !IsNil(pass, x.Y) {
+		if !code.IsNil(pass, x.Y) {
 			return
 		}
 
@@ -521,7 +522,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if eqNil && !IsZero(y.Y) { // must be len(x) == *0*
+		if eqNil && !code.IsIntLiteral(y.Y, "0") { // must be len(x) == *0*
 			return
 		}
 
@@ -573,7 +574,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintSlicing(pass *analysis.Pass) (interface{}, error) {
-	before := MustParse(`(SliceExpr x@(Object _) low (CallExpr (Builtin "len") [x]) nil)`)
+	before := pattern.MustParse(`(SliceExpr x@(Object _) low (CallExpr (Builtin "len") [x]) nil)`)
 	fn := func(node ast.Node) {
 		if _, ok := Match(pass, before, node); ok {
 			expr := node.(*ast.SliceExpr)
@@ -604,7 +605,7 @@ func refersTo(pass *analysis.Pass, expr ast.Expr, ident types.Object) bool {
 }
 
 func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`
+	q := pattern.MustParse(`
 		(RangeStmt
 			(Ident "_")
 			val@(Object _)
@@ -644,7 +645,7 @@ func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
 			},
 		}
 
-		report.NodeFG(pass, node, fmt.Sprintf("should replace loop with %s", Render(pass, r)),
+		report.NodeFG(pass, node, fmt.Sprintf("should replace loop with %s", report.Render(pass, r)),
 			edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r)))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
@@ -652,8 +653,8 @@ func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(CallExpr (SelectorExpr (CallExpr (Function "time.Now") []) (Function "(time.Time).Sub")) [arg])`)
-	r := MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
+	q := pattern.MustParse(`(CallExpr (SelectorExpr (CallExpr (Function "time.Now") []) (Function "(time.Time).Sub")) [arg])`)
+	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			report.NodeFG(pass, node, "should use time.Since instead of time.Now().Sub",
@@ -665,9 +666,9 @@ func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(CallExpr (Function "(time.Time).Sub") [(CallExpr (Function "time.Now") [])])`)
-	r := MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
-	if !IsGoVersion(pass, 8) {
+	q := pattern.MustParse(`(CallExpr (Function "(time.Time).Sub") [(CallExpr (Function "time.Now") [])])`)
+	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
+	if !code.IsGoVersion(pass, 8) {
 		return nil, nil
 	}
 	fn := func(node ast.Node) {
@@ -686,14 +687,14 @@ func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
-	q1 := MustParse(`
+	q1 := pattern.MustParse(`
 		(AssignStmt
 			[_ (Ident "_")]
 			_
 			(Or
 				(IndexExpr _ _)
 				(UnaryExpr "<-" _))) `)
-	q2 := MustParse(`
+	q2 := pattern.MustParse(`
 		(AssignStmt
 			(Ident "_") _ recv@(UnaryExpr "<-" _))`)
 	fn1 := func(node ast.Node) {
@@ -712,27 +713,27 @@ func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		rs := node.(*ast.RangeStmt)
 
 		// for _
-		if rs.Value == nil && IsBlank(rs.Key) {
+		if rs.Value == nil && code.IsBlank(rs.Key) {
 			report.NodeFG(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1})))
 		}
 
 		// for _, _
-		if IsBlank(rs.Key) && IsBlank(rs.Value) {
+		if code.IsBlank(rs.Key) && code.IsBlank(rs.Value) {
 			// FIXME we should mark both key and value
 			report.NodeFG(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1})))
 		}
 
 		// for x, _
-		if !IsBlank(rs.Key) && IsBlank(rs.Value) {
+		if !code.IsBlank(rs.Key) && code.IsBlank(rs.Value) {
 			report.NodeFG(pass, rs.Value, "unnecessary assignment to the blank identifier",
 				edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()})))
 		}
 	}
 
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn1)
-	if IsGoVersion(pass, 4) {
+	if code.IsGoVersion(pass, 4) {
 		pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn3)
 	}
 	return nil, nil
@@ -845,7 +846,7 @@ func LintSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 		if typ1 == typ2 {
 			return
 		}
-		if IsGoVersion(pass, 8) {
+		if code.IsGoVersion(pass, 8) {
 			if !types.IdenticalIgnoreTags(s1, s2) {
 				return
 			}
@@ -877,9 +878,9 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 		case *ast.Ident:
 			return node1.Obj == node2.(*ast.Ident).Obj
 		case *ast.SelectorExpr:
-			return Render(pass, node1) == Render(pass, node2)
+			return report.Render(pass, node1) == report.Render(pass, node2)
 		case *ast.IndexExpr:
-			return Render(pass, node1) == Render(pass, node2)
+			return report.Render(pass, node1) == report.Render(pass, node2)
 		}
 		return false
 	}
@@ -917,22 +918,22 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		switch {
-		case IsCallToAST(pass, condCall, "strings.HasPrefix"):
+		case code.IsCallToAST(pass, condCall, "strings.HasPrefix"):
 			pkg = "strings"
 			fun = "HasPrefix"
-		case IsCallToAST(pass, condCall, "strings.HasSuffix"):
+		case code.IsCallToAST(pass, condCall, "strings.HasSuffix"):
 			pkg = "strings"
 			fun = "HasSuffix"
-		case IsCallToAST(pass, condCall, "strings.Contains"):
+		case code.IsCallToAST(pass, condCall, "strings.Contains"):
 			pkg = "strings"
 			fun = "Contains"
-		case IsCallToAST(pass, condCall, "bytes.HasPrefix"):
+		case code.IsCallToAST(pass, condCall, "bytes.HasPrefix"):
 			pkg = "bytes"
 			fun = "HasPrefix"
-		case IsCallToAST(pass, condCall, "bytes.HasSuffix"):
+		case code.IsCallToAST(pass, condCall, "bytes.HasSuffix"):
 			pkg = "bytes"
 			fun = "HasSuffix"
-		case IsCallToAST(pass, condCall, "bytes.Contains"):
+		case code.IsCallToAST(pass, condCall, "bytes.Contains"):
 			pkg = "bytes"
 			fun = "Contains"
 		default:
@@ -958,13 +959,15 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 			if len(rhs.Args) < 2 || !sameNonDynamic(condCall.Args[0], rhs.Args[0]) || !sameNonDynamic(condCall.Args[1], rhs.Args[1]) {
 				return
 			}
-			if IsCallToAST(pass, condCall, "strings.HasPrefix") && IsCallToAST(pass, rhs, "strings.TrimPrefix") ||
-				IsCallToAST(pass, condCall, "strings.HasSuffix") && IsCallToAST(pass, rhs, "strings.TrimSuffix") ||
-				IsCallToAST(pass, condCall, "strings.Contains") && IsCallToAST(pass, rhs, "strings.Replace") ||
-				IsCallToAST(pass, condCall, "bytes.HasPrefix") && IsCallToAST(pass, rhs, "bytes.TrimPrefix") ||
-				IsCallToAST(pass, condCall, "bytes.HasSuffix") && IsCallToAST(pass, rhs, "bytes.TrimSuffix") ||
-				IsCallToAST(pass, condCall, "bytes.Contains") && IsCallToAST(pass, rhs, "bytes.Replace") {
-				report.NodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s", CallNameAST(pass, rhs))
+
+			// OPT(dh): replace all the calls to IsCallToAst with CallNameAST
+			if code.IsCallToAST(pass, condCall, "strings.HasPrefix") && code.IsCallToAST(pass, rhs, "strings.TrimPrefix") ||
+				code.IsCallToAST(pass, condCall, "strings.HasSuffix") && code.IsCallToAST(pass, rhs, "strings.TrimSuffix") ||
+				code.IsCallToAST(pass, condCall, "strings.Contains") && code.IsCallToAST(pass, rhs, "strings.Replace") ||
+				code.IsCallToAST(pass, condCall, "bytes.HasPrefix") && code.IsCallToAST(pass, rhs, "bytes.TrimPrefix") ||
+				code.IsCallToAST(pass, condCall, "bytes.HasSuffix") && code.IsCallToAST(pass, rhs, "bytes.TrimSuffix") ||
+				code.IsCallToAST(pass, condCall, "bytes.Contains") && code.IsCallToAST(pass, rhs, "bytes.Replace") {
+				report.NodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s", code.CallNameAST(pass, rhs))
 			}
 			return
 		case *ast.SliceExpr:
@@ -989,7 +992,7 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 				index = slice.Low
 			case "HasSuffix":
 				if slice.Low != nil {
-					n, ok := ExprToInt(pass, slice.Low)
+					n, ok := code.ExprToInt(pass, slice.Low)
 					if !ok || n != 0 {
 						return
 					}
@@ -1018,8 +1021,8 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 					if !ok {
 						return
 					}
-					s1, ok1 := ExprToString(pass, lit)
-					s2, ok2 := ExprToString(pass, condCall.Args[1])
+					s1, ok1 := code.ExprToString(pass, lit)
+					s2, ok2 := code.ExprToString(pass, condCall.Args[1])
 					if !ok1 || !ok2 || s1 != s2 {
 						return
 					}
@@ -1035,8 +1038,8 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 				if pkg != "strings" {
 					return
 				}
-				string, ok1 := ExprToString(pass, condCall.Args[1])
-				int, ok2 := ExprToInt(pass, slice.Low)
+				string, ok1 := code.ExprToString(pass, condCall.Args[1])
+				int, ok2 := code.ExprToInt(pass, slice.Low)
 				if !ok1 || !ok2 || int != int64(len(string)) {
 					return
 				}
@@ -1075,7 +1078,7 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 	// TODO(dh): detect length that is an expression, not a variable name
 	// TODO(dh): support sliding to a different offset than the beginning of the slice
 
-	q := MustParse(`
+	q := pattern.MustParse(`
 		(ForStmt
 			(AssignStmt initvar@(Ident _) _ (BasicLit "INT" "0"))
 			(BinaryExpr initvar "<" limit@(Ident _))
@@ -1084,7 +1087,7 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 				(IndexExpr slice@(Ident _) initvar)
 				"="
 				(IndexExpr slice (BinaryExpr offset@(Ident _) "+" initvar)))])`)
-	r := MustParse(`
+	r := pattern.MustParse(`
 		(CallExpr
 			(Ident "copy")
 			[(SliceExpr slice nil limit nil)
@@ -1107,8 +1110,8 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
-	q1 := MustParse(`(CallExpr (Builtin "make") [typ size@(BasicLit "INT" "0")])`)
-	q2 := MustParse(`(CallExpr (Builtin "make") [typ size size])`)
+	q1 := pattern.MustParse(`(CallExpr (Builtin "make") [typ size@(BasicLit "INT" "0")])`)
+	q2 := pattern.MustParse(`(CallExpr (Builtin "make") [typ size size])`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q1, node); ok {
 			T := m.State["typ"].(ast.Expr)
@@ -1116,14 +1119,14 @@ func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 			if _, ok := pass.TypesInfo.TypeOf(T).Underlying().(*types.Slice); ok {
 				return
 			}
-			report.NodefFG(pass, size, "should use make(%s) instead", Render(pass, T))
+			report.NodefFG(pass, size, "should use make(%s) instead", report.Render(pass, T))
 		} else if m, ok := Match(pass, q2, node); ok {
 			// TODO(dh): don't consider sizes identical if they're
 			// dynamic. for example: make(T, <-ch, <-ch).
 			T := m.State["typ"].(ast.Expr)
 			size := m.State["size"].(ast.Node)
 			report.NodefFG(pass, size,
-				"should use make(%s, %s) instead", Render(pass, T), Render(pass, size))
+				"should use make(%s, %s) instead", report.Render(pass, T), report.Render(pass, size))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -1131,7 +1134,7 @@ func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
-	fn1Q := MustParse(`
+	fn1Q := pattern.MustParse(`
 		(IfStmt
 			(AssignStmt [(Ident "_") ok@(Object _)] _ [(TypeAssertExpr assert@(Object _) _)])
 			(Or
@@ -1139,7 +1142,7 @@ func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 				(BinaryExpr (BinaryExpr assert "!=" (Builtin "nil")) "&&" ok))
 			_
 			_)`)
-	fn2Q := MustParse(`
+	fn2Q := pattern.MustParse(`
 		(IfStmt
 			nil
 			(BinaryExpr lhs@(Object _) "!=" (Builtin "nil"))
@@ -1320,14 +1323,14 @@ func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	if sig.Results().Len() != 1 {
 		return false
 	}
-	if !IsType(sig.Results().At(0).Type(), "string") {
+	if !code.IsType(sig.Results().At(0).Type(), "string") {
 		return false
 	}
 	return true
 }
 
 func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
+	q := pattern.MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -1336,7 +1339,7 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 
 		format := m.State["format"].(ast.Expr)
 		arg := m.State["arg"].(ast.Expr)
-		if s, ok := ExprToString(pass, format); !ok || s != "%s" {
+		if s, ok := code.ExprToString(pass, format); !ok || s != "%s" {
 			return
 		}
 		typ := pass.TypesInfo.TypeOf(arg)
@@ -1373,8 +1376,8 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(CallExpr (Function "errors.New") [(CallExpr (Function "fmt.Sprintf") args)])`)
-	r := MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
+	q := pattern.MustParse(`(CallExpr (Function "errors.New") [(CallExpr (Function "fmt.Sprintf") args)])`)
+	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			// TODO(dh): the suggested fix may leave an unused import behind
@@ -1391,7 +1394,7 @@ func LintRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`
+	q := pattern.MustParse(`
 		(IfStmt
 			nil
 			(BinaryExpr x@(Object _) "!=" (Builtin "nil"))
@@ -1423,7 +1426,7 @@ func isPermissibleSort(pass *analysis.Pass, node ast.Node) bool {
 	if !ok {
 		return true
 	}
-	name := SelectorName(pass, sel)
+	name := code.SelectorName(pass, sel)
 	switch name {
 	case "sort.IntSlice", "sort.Float64Slice", "sort.StringSlice":
 	default:
@@ -1459,7 +1462,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 			if permissible {
 				return false
 			}
-			if !IsCallToAST(pass, node, "sort.Sort") {
+			if !code.IsCallToAST(pass, node, "sort.Sort") {
 				return true
 			}
 			if isPermissibleSort(pass, node) {
@@ -1469,7 +1472,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 			call := node.(*ast.CallExpr)
 			typeconv := call.Args[Arg("sort.Sort.data")].(*ast.CallExpr)
 			sel := typeconv.Fun.(*ast.SelectorExpr)
-			name := SelectorName(pass, sel)
+			name := code.SelectorName(pass, sel)
 
 			switch name {
 			case "sort.IntSlice":
@@ -1504,7 +1507,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`
+	q := pattern.MustParse(`
 		(IfStmt
 			(AssignStmt
 				[(Ident "_") ok@(Ident _)]
@@ -1533,7 +1536,7 @@ func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`
+	q := pattern.MustParse(`
 		(TypeSwitchStmt
 			nil
 			expr@(TypeAssertExpr ident@(Ident _) _)
@@ -1597,10 +1600,10 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			msg := fmt.Sprintf("assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate the following type assertions:%s",
-				Render(pass, ident), Render(pass, ident), at)
+				report.Render(pass, ident), report.Render(pass, ident), at)
 			if canSuggestFix {
 				var edits []analysis.TextEdit
-				after := MustParse(`(AssignStmt ident ":=" expr)`)
+				after := pattern.MustParse(`(AssignStmt ident ":=" expr)`)
 				edits = append(edits, edit.ReplaceWithPattern(pass, after, m.State, expr))
 				for _, offender := range allOffenders {
 					edits = append(edits, edit.ReplaceWithNode(pass.Fset, offender, offender.X))
@@ -1618,19 +1621,20 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !IsCallToAST(pass, call, "(net/http.Header).Add") &&
-			!IsCallToAST(pass, call, "(net/http.Header).Del") &&
-			!IsCallToAST(pass, call, "(net/http.Header).Get") &&
-			!IsCallToAST(pass, call, "(net/http.Header).Set") {
+		// OPT(dh): use CallNameAST instead of IsCallToAST
+		if !code.IsCallToAST(pass, call, "(net/http.Header).Add") &&
+			!code.IsCallToAST(pass, call, "(net/http.Header).Del") &&
+			!code.IsCallToAST(pass, call, "(net/http.Header).Get") &&
+			!code.IsCallToAST(pass, call, "(net/http.Header).Set") {
 			return
 		}
 
-		if !IsCallToAST(pass, call.Args[0], "net/http.CanonicalHeaderKey") {
+		if !code.IsCallToAST(pass, call.Args[0], "net/http.CanonicalHeaderKey") {
 			return
 		}
 
 		report.NodeFG(pass, call,
-			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", CallNameAST(pass, call)),
+			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", code.CallNameAST(pass, call)),
 			edit.Fix("remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, call.Args[0], call.Args[0].(*ast.CallExpr).Args[0])))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -1638,7 +1642,7 @@ func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`
+	q := pattern.MustParse(`
 		(Or
 			(IfStmt
 				(AssignStmt [(Ident "_") ok@(Ident _)] ":=" indexexpr@(IndexExpr _ _))
@@ -1657,7 +1661,7 @@ func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 				(AssignStmt indexexpr "=" (BasicLit "INT" "1"))))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {
-			if MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
+			if code.MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
 				return
 			}
 			report.Node(pass, node, "unnecessary guard around map access",
@@ -1669,11 +1673,11 @@ func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintElaborateSleep(pass *analysis.Pass) (interface{}, error) {
-	q := MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [arg])) body))`)
+	q := pattern.MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [arg])) body))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {
 			if body, ok := m.State["body"].([]ast.Stmt); ok && len(body) == 0 {
-				after := MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Sleep")) [arg])`)
+				after := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Sleep")) [arg])`)
 				report.NodeFG(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
 					edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass, after, m.State, node)))
 			} else {

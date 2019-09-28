@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/config"
-	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/report"
 )
 
@@ -107,7 +107,7 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 					return true
 				}
 
-				if IsInTest(pass, v) && (strings.HasPrefix(v.Name.Name, "Example") || strings.HasPrefix(v.Name.Name, "Test") || strings.HasPrefix(v.Name.Name, "Benchmark")) {
+				if code.IsInTest(pass, v) && (strings.HasPrefix(v.Name.Name, "Example") || strings.HasPrefix(v.Name.Name, "Test") || strings.HasPrefix(v.Name.Name, "Benchmark")) {
 					return true
 				}
 

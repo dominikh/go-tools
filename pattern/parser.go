@@ -14,6 +14,15 @@ type Pattern struct {
 	Relevant []reflect.Type
 }
 
+func MustParse(s string) Pattern {
+	p := &Parser{AllowTypeInfo: true}
+	pat, err := p.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return pat
+}
+
 func roots(node Node) []reflect.Type {
 	switch node := node.(type) {
 	case Or:

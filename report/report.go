@@ -1,9 +1,12 @@
 package report
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/facts"
@@ -86,4 +89,20 @@ func NodefFG(pass *analysis.Pass, node ast.Node, format string, args ...interfac
 		FilterGenerated: true,
 		Message:         fmt.Sprintf(format, args...),
 	})
+}
+
+func Render(pass *analysis.Pass, x interface{}) string {
+	var buf bytes.Buffer
+	if err := printer.Fprint(&buf, pass.Fset, x); err != nil {
+		panic(err)
+	}
+	return buf.String()
+}
+
+func RenderArgs(pass *analysis.Pass, args []ast.Expr) string {
+	var ss []string
+	for _, arg := range args {
+		ss = append(ss, Render(pass, arg))
+	}
+	return strings.Join(ss, ", ")
 }
