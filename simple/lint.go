@@ -26,7 +26,7 @@ import (
 	"honnef.co/go/tools/report"
 )
 
-func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
+func CheckSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 	q1 := pattern.MustParse(`
 		(ForStmt
 			nil nil nil
@@ -53,7 +53,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
+func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 	before := pattern.MustParse(`
 		(Or
 			(RangeStmt
@@ -96,7 +96,7 @@ func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
+func CheckIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if code.IsInTest(pass, node) {
 			return
@@ -141,7 +141,7 @@ func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
+func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(CallExpr _ [(CallExpr sel@(SelectorExpr recv _) [])])`)
 	rs := pattern.MustParse(`(CallExpr (SelectorExpr recv (Ident "String")) [])`)
 	rb := pattern.MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
@@ -167,7 +167,7 @@ func LintBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintStringsContains(pass *analysis.Pass) (interface{}, error) {
+func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 	// map of value to token to bool value
 	allowed := map[int64]map[token.Token]bool{
 		-1: {token.GTR: true, token.NEQ: true, token.EQL: false},
@@ -251,7 +251,7 @@ func LintStringsContains(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintBytesCompare(pass *analysis.Pass) (interface{}, error) {
+func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (BasicLit "INT" "0"))`)
 	rn := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
 	re := pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
@@ -282,7 +282,7 @@ func LintBytesCompare(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintForTrue(pass *analysis.Pass) (interface{}, error) {
+func CheckForTrue(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		loop := node.(*ast.ForStmt)
 		if loop.Init != nil || loop.Post != nil {
@@ -297,7 +297,7 @@ func LintForTrue(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintRegexpRaw(pass *analysis.Pass) (interface{}, error) {
+func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		if !code.IsCallToAST(pass, call, "regexp.MustCompile") &&
@@ -351,7 +351,7 @@ func LintRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
+func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 	qIf := pattern.MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Ident _)])] nil)`)
 	qRet := pattern.MustParse(`(ReturnStmt [ret@(Ident _)])`)
 	fn := func(node ast.Node) {
@@ -446,7 +446,7 @@ func negate(expr ast.Expr) ast.Expr {
 	}
 }
 
-// LintRedundantNilCheckWithLen checks for the following redundant nil-checks:
+// CheckRedundantNilCheckWithLen checks for the following redundant nil-checks:
 //
 //   if x == nil || len(x) == 0 {}
 //   if x != nil && len(x) != 0 {}
@@ -454,7 +454,7 @@ func negate(expr ast.Expr) ast.Expr {
 //   if x != nil && len(x) > N {}
 //   if x != nil && len(x) >= N {} (where N != 0)
 //
-func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
+func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
 		_, ok := expr.(*ast.BasicLit)
 		if ok {
@@ -573,7 +573,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintSlicing(pass *analysis.Pass) (interface{}, error) {
+func CheckSlicing(pass *analysis.Pass) (interface{}, error) {
 	before := pattern.MustParse(`(SliceExpr x@(Object _) low (CallExpr (Builtin "len") [x]) nil)`)
 	fn := func(node ast.Node) {
 		if _, ok := Match(pass, before, node); ok {
@@ -604,7 +604,7 @@ func refersTo(pass *analysis.Pass, expr ast.Expr, ident types.Object) bool {
 	return found
 }
 
-func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
+func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`
 		(RangeStmt
 			(Ident "_")
@@ -652,7 +652,7 @@ func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
+func CheckTimeSince(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(CallExpr (SelectorExpr (CallExpr (Function "time.Now") []) (Function "(time.Time).Sub")) [arg])`)
 	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
 	fn := func(node ast.Node) {
@@ -665,7 +665,7 @@ func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
+func CheckTimeUntil(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(CallExpr (Function "(time.Time).Sub") [(CallExpr (Function "time.Now") [])])`)
 	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
 	if !code.IsGoVersion(pass, 8) {
@@ -686,7 +686,7 @@ func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
+func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 	q1 := pattern.MustParse(`
 		(AssignStmt
 			[_ (Ident "_")]
@@ -739,7 +739,7 @@ func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
+func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 	var skip ast.Node
 	fn := func(node ast.Node) {
 		// Do not suggest type conversion between pointers
@@ -868,7 +868,7 @@ func LintSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintTrim(pass *analysis.Pass) (interface{}, error) {
+func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 	sameNonDynamic := func(node1, node2 ast.Node) bool {
 		if reflect.TypeOf(node1) != reflect.TypeOf(node2) {
 			return false
@@ -1072,7 +1072,7 @@ func LintTrim(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
+func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 	// TODO(dh): detect bs[i+offset] in addition to bs[offset+i]
 	// TODO(dh): consider merging this function with LintLoopCopy
 	// TODO(dh): detect length that is an expression, not a variable name
@@ -1109,7 +1109,7 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
+func CheckMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 	q1 := pattern.MustParse(`(CallExpr (Builtin "make") [typ size@(BasicLit "INT" "0")])`)
 	q2 := pattern.MustParse(`(CallExpr (Builtin "make") [typ size size])`)
 	fn := func(node ast.Node) {
@@ -1133,7 +1133,7 @@ func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
+func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 	fn1Q := pattern.MustParse(`
 		(IfStmt
 			(AssignStmt [(Ident "_") ok@(Object _)] _ [(TypeAssertExpr assert@(Object _) _)])
@@ -1178,7 +1178,7 @@ func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintDeclareAssign(pass *analysis.Pass) (interface{}, error) {
+func CheckDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 	hasMultipleAssignments := func(root ast.Node, ident *ast.Ident) bool {
 		num := 0
 		ast.Inspect(root, func(node ast.Node) bool {
@@ -1261,7 +1261,7 @@ func LintDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintRedundantBreak(pass *analysis.Pass) (interface{}, error) {
+func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 	fn1 := func(node ast.Node) {
 		clause := node.(*ast.CaseClause)
 		if len(clause.Body) < 2 {
@@ -1329,7 +1329,7 @@ func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	return true
 }
 
-func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
+func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
@@ -1375,7 +1375,7 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
+func CheckErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(CallExpr (Function "errors.New") [(CallExpr (Function "fmt.Sprintf") args)])`)
 	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
 	fn := func(node ast.Node) {
@@ -1389,11 +1389,11 @@ func LintErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
+func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 	return sharedcheck.CheckRangeStringRunes(pass)
 }
 
-func LintNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
+func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`
 		(IfStmt
 			nil
@@ -1436,7 +1436,7 @@ func isPermissibleSort(pass *analysis.Pass, node ast.Node) bool {
 	return false
 }
 
-func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
+func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 	type Error struct {
 		node ast.Node
 		msg  string
@@ -1506,7 +1506,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
+func CheckGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`
 		(IfStmt
 			(AssignStmt
@@ -1535,7 +1535,7 @@ func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
+func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`
 		(TypeSwitchStmt
 			nil
@@ -1618,7 +1618,7 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
+func CheckRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		// OPT(dh): use CallNameAST instead of IsCallToAST
@@ -1641,7 +1641,7 @@ func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
+func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`
 		(Or
 			(IfStmt
@@ -1672,7 +1672,7 @@ func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func LintElaborateSleep(pass *analysis.Pass) (interface{}, error) {
+func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 	q := pattern.MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [arg])) body))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {

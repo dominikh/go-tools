@@ -10,131 +10,131 @@ import (
 
 var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"S1000": {
-		Run:      LintSingleCaseSelect,
+		Run:      CheckSingleCaseSelect,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1001": {
-		Run:      LintLoopCopy,
+		Run:      CheckLoopCopy,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1002": {
-		Run:      LintIfBoolCmp,
+		Run:      CheckIfBoolCmp,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1003": {
-		Run:      LintStringsContains,
+		Run:      CheckStringsContains,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1004": {
-		Run:      LintBytesCompare,
+		Run:      CheckBytesCompare,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1005": {
-		Run:      LintUnnecessaryBlank,
+		Run:      CheckUnnecessaryBlank,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1006": {
-		Run:      LintForTrue,
+		Run:      CheckForTrue,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1007": {
-		Run:      LintRegexpRaw,
+		Run:      CheckRegexpRaw,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1008": {
-		Run:      LintIfReturn,
+		Run:      CheckIfReturn,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1009": {
-		Run:      LintRedundantNilCheckWithLen,
+		Run:      CheckRedundantNilCheckWithLen,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1010": {
-		Run:      LintSlicing,
+		Run:      CheckSlicing,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1011": {
-		Run:      LintLoopAppend,
+		Run:      CheckLoopAppend,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1012": {
-		Run:      LintTimeSince,
+		Run:      CheckTimeSince,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1016": {
-		Run:      LintSimplerStructConversion,
+		Run:      CheckSimplerStructConversion,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1017": {
-		Run:      LintTrim,
+		Run:      CheckTrim,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1018": {
-		Run:      LintLoopSlide,
+		Run:      CheckLoopSlide,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1019": {
-		Run:      LintMakeLenCap,
+		Run:      CheckMakeLenCap,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1020": {
-		Run:      LintAssertNotNil,
+		Run:      CheckAssertNotNil,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1021": {
-		Run:      LintDeclareAssign,
+		Run:      CheckDeclareAssign,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1023": {
-		Run:      LintRedundantBreak,
+		Run:      CheckRedundantBreak,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1024": {
-		Run:      LintTimeUntil,
+		Run:      CheckTimeUntil,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1025": {
-		Run:      LintRedundantSprintf,
+		Run:      CheckRedundantSprintf,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer, inspect.Analyzer, facts.Generated},
 	},
 	"S1028": {
-		Run:      LintErrorsNewSprintf,
+		Run:      CheckErrorsNewSprintf,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1029": {
-		Run:      LintRangeStringRunes,
+		Run:      CheckRangeStringRunes,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 	},
 	"S1030": {
-		Run:      LintBytesBufferConversions,
+		Run:      CheckBytesBufferConversions,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1031": {
-		Run:      LintNilCheckAroundRange,
+		Run:      CheckNilCheckAroundRange,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1032": {
-		Run:      LintSortHelpers,
+		Run:      CheckSortHelpers,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1033": {
-		Run:      LintGuardedDelete,
+		Run:      CheckGuardedDelete,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1034": {
-		Run:      LintSimplifyTypeSwitch,
+		Run:      CheckSimplifyTypeSwitch,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1035": {
-		Run:      LintRedundantCanonicalHeaderKey,
+		Run:      CheckRedundantCanonicalHeaderKey,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 	"S1036": {
-		Run:      LintUnnecessaryGuard,
+		Run:      CheckUnnecessaryGuard,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	"S1037": {
-		Run:      LintElaborateSleep,
+		Run:      CheckElaborateSleep,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
 })
