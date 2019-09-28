@@ -21,13 +21,12 @@ import (
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
-	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/report"
 )
 
 func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
-	q1 := lintutil.MustParse(`
+	q1 := MustParse(`
 		(ForStmt
 			nil nil nil
 			select@(SelectStmt
@@ -36,7 +35,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 						(UnaryExpr "<-" _)
 						(AssignStmt _ _ (UnaryExpr "<-" _)))
 					_)))`)
-	q2 := lintutil.MustParse(`(SelectStmt (CommClause _ _))`)
+	q2 := MustParse(`(SelectStmt (CommClause _ _))`)
 
 	seen := map[ast.Node]struct{}{}
 	fn := func(node ast.Node) {
@@ -54,7 +53,7 @@ func LintSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
-	before := lintutil.MustParse(`
+	before := MustParse(`
 		(Or
 			(RangeStmt
 				key value ":=" src@(Ident _)
@@ -68,7 +67,7 @@ func LintLoopCopy(pass *analysis.Pass) (interface{}, error) {
 					(IndexExpr dst@(Ident _) key)
 					"="
 					(IndexExpr src key))]))`)
-	after := lintutil.MustParse(`(CallExpr (Ident "copy") [dst src])`)
+	after := MustParse(`(CallExpr (Ident "copy") [dst src])`)
 	fn := func(node ast.Node) {
 		m, edits, ok := MatchAndEdit(pass, before, after, node)
 		if !ok {
@@ -142,9 +141,9 @@ func LintIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr _ [(CallExpr sel@(SelectorExpr recv _) [])])`)
-	rs := lintutil.MustParse(`(CallExpr (SelectorExpr recv (Ident "String")) [])`)
-	rb := lintutil.MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
+	q := MustParse(`(CallExpr _ [(CallExpr sel@(SelectorExpr recv _) [])])`)
+	rs := MustParse(`(CallExpr (SelectorExpr recv (Ident "String")) [])`)
+	rb := MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -252,9 +251,9 @@ func LintStringsContains(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintBytesCompare(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (BasicLit "INT" "0"))`)
-	rn := lintutil.MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
-	re := lintutil.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
+	q := MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (BasicLit "INT" "0"))`)
+	rn := MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
+	re := MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -352,8 +351,8 @@ func LintRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintIfReturn(pass *analysis.Pass) (interface{}, error) {
-	qIf := lintutil.MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Ident _)])] nil)`)
-	qRet := lintutil.MustParse(`(ReturnStmt [ret@(Ident _)])`)
+	qIf := MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Ident _)])] nil)`)
+	qRet := MustParse(`(ReturnStmt [ret@(Ident _)])`)
 	fn := func(node ast.Node) {
 		block := node.(*ast.BlockStmt)
 		l := len(block.List)
@@ -574,7 +573,7 @@ func LintRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintSlicing(pass *analysis.Pass) (interface{}, error) {
-	before := lintutil.MustParse(`(SliceExpr x@(Object _) low (CallExpr (Builtin "len") [x]) nil)`)
+	before := MustParse(`(SliceExpr x@(Object _) low (CallExpr (Builtin "len") [x]) nil)`)
 	fn := func(node ast.Node) {
 		if _, ok := Match(pass, before, node); ok {
 			expr := node.(*ast.SliceExpr)
@@ -605,7 +604,7 @@ func refersTo(pass *analysis.Pass, expr ast.Expr, ident types.Object) bool {
 }
 
 func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(RangeStmt
 			(Ident "_")
 			val@(Object _)
@@ -653,8 +652,8 @@ func LintLoopAppend(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr (SelectorExpr (CallExpr (Function "time.Now") []) (Function "(time.Time).Sub")) [arg])`)
-	r := lintutil.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
+	q := MustParse(`(CallExpr (SelectorExpr (CallExpr (Function "time.Now") []) (Function "(time.Time).Sub")) [arg])`)
+	r := MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			report.NodeFG(pass, node, "should use time.Since instead of time.Now().Sub",
@@ -666,8 +665,8 @@ func LintTimeSince(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr (Function "(time.Time).Sub") [(CallExpr (Function "time.Now") [])])`)
-	r := lintutil.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
+	q := MustParse(`(CallExpr (Function "(time.Time).Sub") [(CallExpr (Function "time.Now") [])])`)
+	r := MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
 	if !IsGoVersion(pass, 8) {
 		return nil, nil
 	}
@@ -687,14 +686,14 @@ func LintTimeUntil(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
-	q1 := lintutil.MustParse(`
+	q1 := MustParse(`
 		(AssignStmt
 			[_ (Ident "_")]
 			_
 			(Or
 				(IndexExpr _ _)
 				(UnaryExpr "<-" _))) `)
-	q2 := lintutil.MustParse(`
+	q2 := MustParse(`
 		(AssignStmt
 			(Ident "_") _ recv@(UnaryExpr "<-" _))`)
 	fn1 := func(node ast.Node) {
@@ -1076,7 +1075,7 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 	// TODO(dh): detect length that is an expression, not a variable name
 	// TODO(dh): support sliding to a different offset than the beginning of the slice
 
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(ForStmt
 			(AssignStmt initvar@(Ident _) _ (BasicLit "INT" "0"))
 			(BinaryExpr initvar "<" limit@(Ident _))
@@ -1085,7 +1084,7 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 				(IndexExpr slice@(Ident _) initvar)
 				"="
 				(IndexExpr slice (BinaryExpr offset@(Ident _) "+" initvar)))])`)
-	r := lintutil.MustParse(`
+	r := MustParse(`
 		(CallExpr
 			(Ident "copy")
 			[(SliceExpr slice nil limit nil)
@@ -1108,8 +1107,8 @@ func LintLoopSlide(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
-	q1 := lintutil.MustParse(`(CallExpr (Builtin "make") [typ size@(BasicLit "INT" "0")])`)
-	q2 := lintutil.MustParse(`(CallExpr (Builtin "make") [typ size size])`)
+	q1 := MustParse(`(CallExpr (Builtin "make") [typ size@(BasicLit "INT" "0")])`)
+	q2 := MustParse(`(CallExpr (Builtin "make") [typ size size])`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q1, node); ok {
 			T := m.State["typ"].(ast.Expr)
@@ -1132,7 +1131,7 @@ func LintMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
-	fn1Q := lintutil.MustParse(`
+	fn1Q := MustParse(`
 		(IfStmt
 			(AssignStmt [(Ident "_") ok@(Object _)] _ [(TypeAssertExpr assert@(Object _) _)])
 			(Or
@@ -1140,7 +1139,7 @@ func LintAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 				(BinaryExpr (BinaryExpr assert "!=" (Builtin "nil")) "&&" ok))
 			_
 			_)`)
-	fn2Q := lintutil.MustParse(`
+	fn2Q := MustParse(`
 		(IfStmt
 			nil
 			(BinaryExpr lhs@(Object _) "!=" (Builtin "nil"))
@@ -1328,7 +1327,7 @@ func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
 }
 
 func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
+	q := MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -1374,8 +1373,8 @@ func LintRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr (Function "errors.New") [(CallExpr (Function "fmt.Sprintf") args)])`)
-	r := lintutil.MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
+	q := MustParse(`(CallExpr (Function "errors.New") [(CallExpr (Function "fmt.Sprintf") args)])`)
+	r := MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			// TODO(dh): the suggested fix may leave an unused import behind
@@ -1392,7 +1391,7 @@ func LintRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(IfStmt
 			nil
 			(BinaryExpr x@(Object _) "!=" (Builtin "nil"))
@@ -1505,7 +1504,7 @@ func LintSortHelpers(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(IfStmt
 			(AssignStmt
 				[(Ident "_") ok@(Ident _)]
@@ -1534,7 +1533,7 @@ func LintGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(TypeSwitchStmt
 			nil
 			expr@(TypeAssertExpr ident@(Ident _) _)
@@ -1601,7 +1600,7 @@ func LintSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 				Render(pass, ident), Render(pass, ident), at)
 			if canSuggestFix {
 				var edits []analysis.TextEdit
-				after := lintutil.MustParse(`(AssignStmt ident ":=" expr)`)
+				after := MustParse(`(AssignStmt ident ":=" expr)`)
 				edits = append(edits, edit.ReplaceWithPattern(pass, after, m.State, expr))
 				for _, offender := range allOffenders {
 					edits = append(edits, edit.ReplaceWithNode(pass.Fset, offender, offender.X))
@@ -1639,7 +1638,7 @@ func LintRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(Or
 			(IfStmt
 				(AssignStmt [(Ident "_") ok@(Ident _)] ":=" indexexpr@(IndexExpr _ _))
@@ -1658,7 +1657,7 @@ func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 				(AssignStmt indexexpr "=" (BasicLit "INT" "1"))))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {
-			if lintutil.MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
+			if MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
 				return
 			}
 			report.Node(pass, node, "unnecessary guard around map access",
@@ -1670,11 +1669,11 @@ func LintUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 }
 
 func LintElaborateSleep(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [arg])) body))`)
+	q := MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [arg])) body))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {
 			if body, ok := m.State["body"].([]ast.Stmt); ok && len(body) == 0 {
-				after := lintutil.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Sleep")) [arg])`)
+				after := MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Sleep")) [arg])`)
 				report.NodeFG(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
 					edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass, after, m.State, node)))
 			} else {

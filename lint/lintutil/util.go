@@ -12,7 +12,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"go/ast"
 	"go/build"
 	"go/token"
 	"io"
@@ -30,22 +29,12 @@ import (
 	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil/format"
-	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/go/packages"
 )
-
-func MustParse(s string) pattern.Pattern {
-	p := &pattern.Parser{AllowTypeInfo: true}
-	pat, err := p.Parse(s)
-	if err != nil {
-		panic(err)
-	}
-	return pat
-}
 
 func NewVersionFlag() flag.Getter {
 	tags := build.Default.ReleaseTags
@@ -421,60 +410,4 @@ func InitializeAnalyzers(docs map[string]*lint.Documentation, analyzers map[stri
 		}
 	}
 	return out
-}
-
-func MayHaveSideEffects(expr ast.Expr) bool {
-	switch expr := expr.(type) {
-	case *ast.BasicLit:
-		return false
-	case *ast.BinaryExpr:
-		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Y)
-	case *ast.CallExpr:
-		return true
-	case *ast.CompositeLit:
-		if MayHaveSideEffects(expr.Type) {
-			return true
-		}
-		for _, elt := range expr.Elts {
-			if MayHaveSideEffects(elt) {
-				return true
-			}
-		}
-		return false
-	case *ast.Ident:
-		return false
-	case *ast.IndexExpr:
-		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Index)
-	case *ast.KeyValueExpr:
-		return MayHaveSideEffects(expr.Key) || MayHaveSideEffects(expr.Value)
-	case *ast.SelectorExpr:
-		return MayHaveSideEffects(expr.X)
-	case *ast.SliceExpr:
-		return MayHaveSideEffects(expr.X) ||
-			MayHaveSideEffects(expr.Low) ||
-			MayHaveSideEffects(expr.High) ||
-			MayHaveSideEffects(expr.Max)
-	case *ast.StarExpr:
-		return MayHaveSideEffects(expr.X)
-	case *ast.TypeAssertExpr:
-		return MayHaveSideEffects(expr.X)
-	case *ast.UnaryExpr:
-		if MayHaveSideEffects(expr.X) {
-			return true
-		}
-		return expr.Op == token.ARROW
-	case *ast.ParenExpr:
-		return MayHaveSideEffects(expr.X)
-	case nil:
-		return false
-	default:
-		panic(fmt.Sprintf("internal error: unhandled type %T", expr))
-	}
-}
-
-func Selector(x, sel string) *ast.SelectorExpr {
-	return &ast.SelectorExpr{
-		X:   &ast.Ident{Name: x},
-		Sel: &ast.Ident{Name: sel},
-	}
 }

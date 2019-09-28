@@ -425,3 +425,68 @@ func MatchAndEdit(pass *analysis.Pass, before, after pattern.Pattern, node ast.N
 	}}
 	return m, edit, true
 }
+
+func MayHaveSideEffects(expr ast.Expr) bool {
+	switch expr := expr.(type) {
+	case *ast.BasicLit:
+		return false
+	case *ast.BinaryExpr:
+		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Y)
+	case *ast.CallExpr:
+		return true
+	case *ast.CompositeLit:
+		if MayHaveSideEffects(expr.Type) {
+			return true
+		}
+		for _, elt := range expr.Elts {
+			if MayHaveSideEffects(elt) {
+				return true
+			}
+		}
+		return false
+	case *ast.Ident:
+		return false
+	case *ast.IndexExpr:
+		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Index)
+	case *ast.KeyValueExpr:
+		return MayHaveSideEffects(expr.Key) || MayHaveSideEffects(expr.Value)
+	case *ast.SelectorExpr:
+		return MayHaveSideEffects(expr.X)
+	case *ast.SliceExpr:
+		return MayHaveSideEffects(expr.X) ||
+			MayHaveSideEffects(expr.Low) ||
+			MayHaveSideEffects(expr.High) ||
+			MayHaveSideEffects(expr.Max)
+	case *ast.StarExpr:
+		return MayHaveSideEffects(expr.X)
+	case *ast.TypeAssertExpr:
+		return MayHaveSideEffects(expr.X)
+	case *ast.UnaryExpr:
+		if MayHaveSideEffects(expr.X) {
+			return true
+		}
+		return expr.Op == token.ARROW
+	case *ast.ParenExpr:
+		return MayHaveSideEffects(expr.X)
+	case nil:
+		return false
+	default:
+		panic(fmt.Sprintf("internal error: unhandled type %T", expr))
+	}
+}
+
+func Selector(x, sel string) *ast.SelectorExpr {
+	return &ast.SelectorExpr{
+		X:   &ast.Ident{Name: x},
+		Sel: &ast.Ident{Name: sel},
+	}
+}
+
+func MustParse(s string) pattern.Pattern {
+	p := &pattern.Parser{AllowTypeInfo: true}
+	pat, err := p.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return pat
+}

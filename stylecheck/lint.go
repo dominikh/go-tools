@@ -17,7 +17,6 @@ import (
 	"honnef.co/go/tools/internal/passes/buildssa"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
-	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/report"
 	"honnef.co/go/tools/ssa"
 
@@ -646,8 +645,8 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
-	r := lintutil.MustParse(`(BinaryExpr right tok left)`)
+	q := MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
+	r := MustParse(`(BinaryExpr right tok left)`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			report.NodeFG(pass, node, "don't use Yoda conditions",

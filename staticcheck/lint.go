@@ -27,7 +27,6 @@ import (
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
-	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/printf"
 	"honnef.co/go/tools/report"
@@ -818,7 +817,7 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 					nargs := make([]ast.Expr, len(call.Args))
 					for j, a := range call.Args {
 						if i == j {
-							nargs[j] = lintutil.Selector("syscall", "SIGTERM")
+							nargs[j] = Selector("syscall", "SIGTERM")
 						} else {
 							nargs[j] = a
 						}
@@ -901,8 +900,8 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
-	rns := lintutil.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
-	rs := lintutil.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
+	rns := MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
+	rs := MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		if !IsCallToAST(pass, call, "time.Sleep") {
@@ -933,7 +932,7 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(GoStmt
 			(CallExpr
 				(FuncLit
@@ -975,7 +974,7 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 		// channel receives.
 
 		if loop.Cond != nil {
-			if lintutil.MayHaveSideEffects(loop.Cond) {
+			if MayHaveSideEffects(loop.Cond) {
 				return
 			}
 			if ident, ok := loop.Cond.(*ast.Ident); ok {
@@ -1459,8 +1458,8 @@ func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 var cgoIdent = regexp.MustCompile(`^_C(func|var)_.+$`)
 
 func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
-	q1 := lintutil.MustParse(`(UnaryExpr "&" (StarExpr obj))`)
-	q2 := lintutil.MustParse(`(StarExpr (UnaryExpr "&" _))`)
+	q1 := MustParse(`(UnaryExpr "&" (StarExpr obj))`)
+	q2 := MustParse(`(StarExpr (UnaryExpr "&" _))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q1, node); ok {
 			if ident, ok := m.State["obj"].(*ast.Ident); !ok || !cgoIdent.MatchString(ident.Name) {
@@ -1548,7 +1547,7 @@ func CheckCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 			fix = edit.Fix("canonicalize header key", edit.ReplaceWithString(pass.Fset, op.Index, strconv.Quote(canonical)))
 		case *ast.Ident:
 			call := &ast.CallExpr{
-				Fun:  lintutil.Selector("http", "CanonicalHeaderKey"),
+				Fun:  Selector("http", "CanonicalHeaderKey"),
 				Args: []ast.Expr{op.Index},
 			}
 			fix = edit.Fix("wrap in http.CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, op.Index, call))
@@ -2116,12 +2115,12 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 
 func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 	todo := &ast.CallExpr{
-		Fun: lintutil.Selector("context", "TODO"),
+		Fun: Selector("context", "TODO"),
 	}
 	bg := &ast.CallExpr{
-		Fun: lintutil.Selector("context", "Background"),
+		Fun: Selector("context", "Background"),
 	}
-	q := lintutil.MustParse(`(CallExpr fun@(Function _) (Builtin "nil"):_)`)
+	q := MustParse(`(CallExpr fun@(Function _) (Builtin "nil"):_)`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -2154,8 +2153,8 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr (Ident "io") (Ident (Or "SeekStart" "SeekCurrent" "SeekEnd"))) arg2])`)
-	r := lintutil.MustParse(`(CallExpr fun [arg2 arg1])`)
+	q := MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr (Ident "io") (Ident (Or "SeekStart" "SeekCurrent" "SeekEnd"))) arg2])`)
+	r := MustParse(`(CallExpr fun [arg2 arg1])`)
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
 			report.Node(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
@@ -2516,7 +2515,7 @@ func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(UnaryExpr "!" single@(UnaryExpr "!" x))`)
+	q := MustParse(`(UnaryExpr "!" single@(UnaryExpr "!" x))`)
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, q, node); ok {
 			report.Node(pass, node, "negating a boolean twice has no effect; is this a typo?",
@@ -2553,7 +2552,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		for _, cond := range conds {
-			if lintutil.MayHaveSideEffects(cond) {
+			if MayHaveSideEffects(cond) {
 				return
 			}
 		}
@@ -3295,12 +3294,12 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckToLowerToUpperComparison(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`
+	q := MustParse(`
 		(BinaryExpr
 			(CallExpr fun@(Function (Or "strings.ToLower" "strings.ToUpper")) [a])
  			tok@(Or "==" "!=")
  			(CallExpr fun [b]))`)
-	r := lintutil.MustParse(`(CallExpr (SelectorExpr (Ident "strings") (Ident "EqualFold")) [a b])`)
+	r := MustParse(`(CallExpr (SelectorExpr (Ident "strings") (Ident "EqualFold")) [a b])`)
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, q, node)
 		if !ok {
@@ -3391,7 +3390,7 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
-	q := lintutil.MustParse(`(CallExpr (Builtin "append") [_])`)
+	q := MustParse(`(CallExpr (Builtin "append") [_])`)
 	fn := func(node ast.Node) {
 		_, ok := Match(pass, q, node)
 		if !ok {
