@@ -900,9 +900,12 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var (
+	checkTimeSleepConstantPatternRns = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
+	checkTimeSleepConstantPatternRs  = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
+)
+
 func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
-	rns := pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
-	rs := pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		if !code.IsCallToAST(pass, call, "time.Sleep") {
@@ -925,22 +928,23 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 
 		report.Node(pass, lit,
 			fmt.Sprintf("sleeping for %d nanoseconds is probably a bug; be explicit if it isn't", n),
-			edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass, rns, pattern.State{"duration": lit}, lit)),
-			edit.Fix("use seconds", edit.ReplaceWithPattern(pass, rs, pattern.State{"duration": lit}, lit)))
+			edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit}, lit)),
+			edit.Fix("use seconds", edit.ReplaceWithPattern(pass, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}, lit)))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
 }
 
+var checkWaitgroupAddQ = pattern.MustParse(`
+	(GoStmt
+		(CallExpr
+			(FuncLit
+				_
+				call@(CallExpr (Function "(*sync.WaitGroup).Add") _):_) _))`)
+
 func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
-	q := pattern.MustParse(`
-		(GoStmt
-			(CallExpr
-				(FuncLit
-					_
-					call@(CallExpr (Function "(*sync.WaitGroup).Add") _):_) _))`)
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, q, node); ok {
+		if m, ok := Match(pass, checkWaitgroupAddQ, node); ok {
 			call := m.State["call"].(ast.Node)
 			report.Nodef(pass, call, "should call %s before starting the goroutine to avoid a race",
 				report.Render(pass, call))
@@ -1454,19 +1458,21 @@ func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-// cgo produces code like fn(&*_Cvar_kSomeCallbacks) which we don't
-// want to flag.
-var cgoIdent = regexp.MustCompile(`^_C(func|var)_.+$`)
+var (
+	// cgo produces code like fn(&*_Cvar_kSomeCallbacks) which we don't
+	// want to flag.
+	cgoIdent               = regexp.MustCompile(`^_C(func|var)_.+$`)
+	checkIneffectiveCopyQ1 = pattern.MustParse(`(UnaryExpr "&" (StarExpr obj))`)
+	checkIneffectiveCopyQ2 = pattern.MustParse(`(StarExpr (UnaryExpr "&" _))`)
+)
 
 func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
-	q1 := pattern.MustParse(`(UnaryExpr "&" (StarExpr obj))`)
-	q2 := pattern.MustParse(`(StarExpr (UnaryExpr "&" _))`)
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, q1, node); ok {
+		if m, ok := Match(pass, checkIneffectiveCopyQ1, node); ok {
 			if ident, ok := m.State["obj"].(*ast.Ident); !ok || !cgoIdent.MatchString(ident.Name) {
 				report.Nodef(pass, node, "&*x will be simplified to x. It will not copy x.")
 			}
-		} else if _, ok := Match(pass, q2, node); ok {
+		} else if _, ok := Match(pass, checkIneffectiveCopyQ2, node); ok {
 			report.Nodef(pass, node, "*&x will be simplified to x. It will not copy x.")
 		}
 	}
@@ -2114,6 +2120,8 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Function _) (Builtin "nil"):_)`)
+
 func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 	todo := &ast.CallExpr{
 		Fun: Selector("context", "TODO"),
@@ -2121,9 +2129,8 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 	bg := &ast.CallExpr{
 		Fun: Selector("context", "Background"),
 	}
-	q := pattern.MustParse(`(CallExpr fun@(Function _) (Builtin "nil"):_)`)
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, q, node)
+		m, ok := Match(pass, checkNilContextQ, node)
 		if !ok {
 			return
 		}
@@ -2153,11 +2160,14 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var (
+	checkSeekerQ = pattern.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr (Ident "io") (Ident (Or "SeekStart" "SeekCurrent" "SeekEnd"))) arg2])`)
+	checkSeekerR = pattern.MustParse(`(CallExpr fun [arg2 arg1])`)
+)
+
 func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
-	q := pattern.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr (Ident "io") (Ident (Or "SeekStart" "SeekCurrent" "SeekEnd"))) arg2])`)
-	r := pattern.MustParse(`(CallExpr fun [arg2 arg1])`)
 	fn := func(node ast.Node) {
-		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
+		if _, edits, ok := MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
 			report.Node(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
 				edit.Fix("swap arguments", edits...))
 		}
@@ -2515,10 +2525,11 @@ func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var checkDoubleNegationQ = pattern.MustParse(`(UnaryExpr "!" single@(UnaryExpr "!" x))`)
+
 func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
-	q := pattern.MustParse(`(UnaryExpr "!" single@(UnaryExpr "!" x))`)
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, q, node); ok {
+		if m, ok := Match(pass, checkDoubleNegationQ, node); ok {
 			report.Node(pass, node, "negating a boolean twice has no effect; is this a typo?",
 				edit.Fix("turn into single negation", edit.ReplaceWithNode(pass.Fset, node, m.State["single"].(ast.Node))),
 				edit.Fix("remove double negation", edit.ReplaceWithNode(pass.Fset, node, m.State["x"].(ast.Node))))
@@ -3294,19 +3305,22 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var (
+	checkToLowerToUpperComparisonQ = pattern.MustParse(`
+	(BinaryExpr
+		(CallExpr fun@(Function (Or "strings.ToLower" "strings.ToUpper")) [a])
+ 		tok@(Or "==" "!=")
+ 		(CallExpr fun [b]))`)
+	checkToLowerToUpperComparisonR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "strings") (Ident "EqualFold")) [a b])`)
+)
+
 func CheckToLowerToUpperComparison(pass *analysis.Pass) (interface{}, error) {
-	q := pattern.MustParse(`
-		(BinaryExpr
-			(CallExpr fun@(Function (Or "strings.ToLower" "strings.ToUpper")) [a])
- 			tok@(Or "==" "!=")
- 			(CallExpr fun [b]))`)
-	r := pattern.MustParse(`(CallExpr (SelectorExpr (Ident "strings") (Ident "EqualFold")) [a b])`)
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, q, node)
+		m, ok := Match(pass, checkToLowerToUpperComparisonQ, node)
 		if !ok {
 			return
 		}
-		rn := pattern.NodeToAST(r.Root, m.State).(ast.Expr)
+		rn := pattern.NodeToAST(checkToLowerToUpperComparisonR.Root, m.State).(ast.Expr)
 		if m.State["tok"].(token.Token) == token.NEQ {
 			rn = &ast.UnaryExpr{
 				Op: token.NOT,
@@ -3390,10 +3404,11 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var checkSingleArgAppendQ = pattern.MustParse(`(CallExpr (Builtin "append") [_])`)
+
 func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
-	q := pattern.MustParse(`(CallExpr (Builtin "append") [_])`)
 	fn := func(node ast.Node) {
-		_, ok := Match(pass, q, node)
+		_, ok := Match(pass, checkSingleArgAppendQ, node)
 		if !ok {
 			return
 		}

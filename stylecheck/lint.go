@@ -646,11 +646,14 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var (
+	checkYodaConditionsQ = pattern.MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
+	checkYodaConditionsR = pattern.MustParse(`(BinaryExpr right tok left)`)
+)
+
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
-	q := pattern.MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
-	r := pattern.MustParse(`(BinaryExpr right tok left)`)
 	fn := func(node ast.Node) {
-		if _, edits, ok := MatchAndEdit(pass, q, r, node); ok {
+		if _, edits, ok := MatchAndEdit(pass, checkYodaConditionsQ, checkYodaConditionsR, node); ok {
 			report.NodeFG(pass, node, "don't use Yoda conditions",
 				edit.Fix("un-Yoda-fy", edits...))
 		}
