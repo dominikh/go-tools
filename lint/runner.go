@@ -89,6 +89,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
@@ -197,15 +198,14 @@ type result struct {
 }
 
 type Runner struct {
-	cache *cache.Cache
+	cache     *cache.Cache
+	goVersion int
+	stats     *Stats
 
 	analyzerIDs analyzerIDs
 
 	// limits parallelism of loading packages
 	loadSem chan struct{}
-
-	goVersion int
-	stats     *Stats
 }
 
 type analyzerIDs struct {
@@ -484,7 +484,9 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 	}
 
 	// Then with this analyzer
+	t := time.Now()
 	ret, err := ac.analyzer.Run(pass)
+	r.stats.MeasureAnalyzer(ac.analyzer, ac.pkg, time.Since(t))
 	if err != nil {
 		return nil, err
 	}
