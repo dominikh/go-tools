@@ -117,6 +117,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("debug.version", false, "Print detailed version information about this program")
 	flags.Bool("debug.no-compile-errors", false, "Don't print compile errors")
 	flags.String("debug.measure-analyzers", "", "Write analysis measurements to `file`. `file` will be opened for appending if it already exists.")
+	flags.Uint("debug.repeat-analyzers", 0, "Run analyzers `num` times")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -156,6 +157,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
 	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
 	debugNoCompile := fs.Lookup("debug.no-compile-errors").Value.(flag.Getter).Get().(bool)
+	debugRepeat := fs.Lookup("debug.repeat-analyzers").Value.(flag.Getter).Get().(uint)
 
 	var measureAnalyzers func(analysis *analysis.Analyzer, pkg *lint.Package, d time.Duration)
 	if path := fs.Lookup("debug.measure-analyzers").Value.(flag.Getter).Get().(string); path != "" {
@@ -243,6 +245,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 		GoVersion:                goVersion,
 		Config:                   cfg,
 		PrintAnalyzerMeasurement: measureAnalyzers,
+		RepeatAnalyzers:          debugRepeat,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -309,6 +312,7 @@ type Options struct {
 	LintTests                bool
 	GoVersion                int
 	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *lint.Package, d time.Duration)
+	RepeatAnalyzers          uint
 }
 
 func computeSalt() ([]byte, error) {
@@ -347,6 +351,7 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 		CumulativeCheckers: cums,
 		GoVersion:          opt.GoVersion,
 		Config:             opt.Config,
+		RepeatAnalyzers:    opt.RepeatAnalyzers,
 	}
 	l.Stats.PrintAnalyzerMeasurement = opt.PrintAnalyzerMeasurement
 	cfg := &packages.Config{}

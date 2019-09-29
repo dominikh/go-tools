@@ -134,6 +134,7 @@ type Linter struct {
 	GoVersion          int
 	Config             config.Config
 	Stats              Stats
+	RepeatAnalyzers    uint
 }
 
 type CumulativeChecker interface {
@@ -186,6 +187,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		return nil, err
 	}
 	r.goVersion = l.GoVersion
+	r.repeatAnalyzers = l.RepeatAnalyzers
 
 	pkgs, err := r.Run(cfg, patterns, allowedAnalyzers, hasCumulative)
 	if err != nil {

@@ -198,9 +198,10 @@ type result struct {
 }
 
 type Runner struct {
-	cache     *cache.Cache
-	goVersion int
-	stats     *Stats
+	cache           *cache.Cache
+	goVersion       int
+	stats           *Stats
+	repeatAnalyzers uint
 
 	analyzerIDs analyzerIDs
 
@@ -484,11 +485,15 @@ func (r *Runner) runAnalysisUser(pass *analysis.Pass, ac *analysisAction) (inter
 	}
 
 	// Then with this analyzer
-	t := time.Now()
-	ret, err := ac.analyzer.Run(pass)
-	r.stats.MeasureAnalyzer(ac.analyzer, ac.pkg, time.Since(t))
-	if err != nil {
-		return nil, err
+	var ret interface{}
+	for i := uint(0); i < r.repeatAnalyzers+1; i++ {
+		var err error
+		t := time.Now()
+		ret, err = ac.analyzer.Run(pass)
+		r.stats.MeasureAnalyzer(ac.analyzer, ac.pkg, time.Since(t))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(ac.analyzer.FactTypes) > 0 {
