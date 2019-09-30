@@ -45,5 +45,11 @@ func fn5() {
 	}
 }
 
+func fn6() {
+	if true {
+	} else {
+	}
+}
+
 func gen() bool    { return false }
 func gen2() string { return "" }

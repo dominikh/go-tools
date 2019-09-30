@@ -2542,31 +2542,39 @@ func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
 func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 	seen := map[ast.Node]bool{}
 
-	var collectConds func(ifstmt *ast.IfStmt, inits []ast.Stmt, conds []ast.Expr) ([]ast.Stmt, []ast.Expr)
-	collectConds = func(ifstmt *ast.IfStmt, inits []ast.Stmt, conds []ast.Expr) ([]ast.Stmt, []ast.Expr) {
+	var collectConds func(ifstmt *ast.IfStmt, conds []ast.Expr) ([]ast.Expr, bool)
+	collectConds = func(ifstmt *ast.IfStmt, conds []ast.Expr) ([]ast.Expr, bool) {
 		seen[ifstmt] = true
+		// Bail if any if-statement has an Init statement or side effects in its condition
 		if ifstmt.Init != nil {
-			inits = append(inits, ifstmt.Init)
+			return nil, false
 		}
+		if code.MayHaveSideEffects(ifstmt.Cond) {
+			return nil, false
+		}
+
 		conds = append(conds, ifstmt.Cond)
 		if elsestmt, ok := ifstmt.Else.(*ast.IfStmt); ok {
-			return collectConds(elsestmt, inits, conds)
+			return collectConds(elsestmt, conds)
 		}
-		return inits, conds
+		return conds, true
 	}
 	fn := func(node ast.Node) {
 		ifstmt := node.(*ast.IfStmt)
 		if seen[ifstmt] {
+			// this if-statement is part of an if/else-if chain that we've already processed
 			return
 		}
-		inits, conds := collectConds(ifstmt, nil, nil)
-		if len(inits) > 0 {
+		if ifstmt.Else == nil {
+			// there can be at most one condition
 			return
 		}
-		for _, cond := range conds {
-			if code.MayHaveSideEffects(cond) {
-				return
-			}
+		conds, ok := collectConds(ifstmt, nil)
+		if !ok {
+			return
+		}
+		if len(conds) < 2 {
+			return
 		}
 		counts := map[string]int{}
 		for _, cond := range conds {
