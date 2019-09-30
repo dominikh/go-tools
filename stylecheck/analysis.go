@@ -42,8 +42,9 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Requires: []*analysis.Analyzer{config.Analyzer},
 	},
 	"ST1013": {
-		Run:      CheckHTTPStatusCodes,
-		Requires: []*analysis.Analyzer{facts.Generated, facts.TokenFile, config.Analyzer},
+		Run: CheckHTTPStatusCodes,
+		// TODO(dh): why does this depend on facts.TokenFile?
+		Requires: []*analysis.Analyzer{facts.Generated, facts.TokenFile, config.Analyzer, inspect.Analyzer},
 	},
 	"ST1015": {
 		Run:      CheckDefaultCaseOrder,

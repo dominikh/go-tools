@@ -582,14 +582,8 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 	for _, code := range config.For(pass).HTTPStatusCodeWhitelist {
 		whitelist[code] = true
 	}
-	fn := func(node ast.Node) bool {
-		if node == nil {
-			return true
-		}
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
 
 		var arg int
 		switch code.CallNameAST(pass, call) {
@@ -602,32 +596,28 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		case "net/http.RedirectHandler":
 			arg = 1
 		default:
-			return true
+			return
 		}
 		lit, ok := call.Args[arg].(*ast.BasicLit)
 		if !ok {
-			return true
+			return
 		}
 		if whitelist[lit.Value] {
-			return true
+			return
 		}
 
 		n, err := strconv.Atoi(lit.Value)
 		if err != nil {
-			return true
+			return
 		}
 		s, ok := httpStatusCodes[n]
 		if !ok {
-			return true
+			return
 		}
 		report.NodeFG(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
 			edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(pass.Fset, lit, "http."+s)))
-		return true
 	}
-	// OPT(dh): replace with inspector
-	for _, f := range pass.Files {
-		ast.Inspect(f, fn)
-	}
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
 }
 
