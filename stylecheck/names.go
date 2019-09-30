@@ -10,6 +10,8 @@ import (
 	"unicode"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/report"
@@ -86,96 +88,106 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 		if strings.IndexFunc(f.Name.Name, unicode.IsUpper) != -1 {
 			report.PosfFG(pass, f.Pos(), "should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name))
 		}
+	}
 
-		ast.Inspect(f, func(node ast.Node) bool {
-			switch v := node.(type) {
-			case *ast.AssignStmt:
-				if v.Tok != token.DEFINE {
-					return true
+	fn := func(node ast.Node) {
+		switch v := node.(type) {
+		case *ast.AssignStmt:
+			if v.Tok != token.DEFINE {
+				return
+			}
+			for _, exp := range v.Lhs {
+				if id, ok := exp.(*ast.Ident); ok {
+					check(id, "var", initialisms)
 				}
-				for _, exp := range v.Lhs {
-					if id, ok := exp.(*ast.Ident); ok {
-						check(id, "var", initialisms)
-					}
-				}
-			case *ast.FuncDecl:
-				// Functions with no body are defined elsewhere (in
-				// assembly, or via go:linkname). These are likely to
-				// be something very low level (such as the runtime),
-				// where our rules don't apply.
-				if v.Body == nil {
-					return true
-				}
+			}
+		case *ast.FuncDecl:
+			// Functions with no body are defined elsewhere (in
+			// assembly, or via go:linkname). These are likely to
+			// be something very low level (such as the runtime),
+			// where our rules don't apply.
+			if v.Body == nil {
+				return
+			}
 
-				if code.IsInTest(pass, v) && (strings.HasPrefix(v.Name.Name, "Example") || strings.HasPrefix(v.Name.Name, "Test") || strings.HasPrefix(v.Name.Name, "Benchmark")) {
-					return true
-				}
+			if code.IsInTest(pass, v) && (strings.HasPrefix(v.Name.Name, "Example") || strings.HasPrefix(v.Name.Name, "Test") || strings.HasPrefix(v.Name.Name, "Benchmark")) {
+				return
+			}
 
-				thing := "func"
-				if v.Recv != nil {
-					thing = "method"
-				}
+			thing := "func"
+			if v.Recv != nil {
+				thing = "method"
+			}
 
-				if !isTechnicallyExported(v) {
-					check(v.Name, thing, initialisms)
-				}
+			if !isTechnicallyExported(v) {
+				check(v.Name, thing, initialisms)
+			}
 
-				checkList(v.Type.Params, thing+" parameter", initialisms)
-				checkList(v.Type.Results, thing+" result", initialisms)
-			case *ast.GenDecl:
-				if v.Tok == token.IMPORT {
-					return true
-				}
-				var thing string
-				switch v.Tok {
-				case token.CONST:
-					thing = "const"
-				case token.TYPE:
-					thing = "type"
-				case token.VAR:
-					thing = "var"
-				}
-				for _, spec := range v.Specs {
-					switch s := spec.(type) {
-					case *ast.TypeSpec:
-						check(s.Name, thing, initialisms)
-					case *ast.ValueSpec:
-						for _, id := range s.Names {
-							check(id, thing, initialisms)
-						}
-					}
-				}
-			case *ast.InterfaceType:
-				// Do not check interface method names.
-				// They are often constrained by the method names of concrete types.
-				for _, x := range v.Methods.List {
-					ft, ok := x.Type.(*ast.FuncType)
-					if !ok { // might be an embedded interface name
-						continue
-					}
-					checkList(ft.Params, "interface method parameter", initialisms)
-					checkList(ft.Results, "interface method result", initialisms)
-				}
-			case *ast.RangeStmt:
-				if v.Tok == token.ASSIGN {
-					return true
-				}
-				if id, ok := v.Key.(*ast.Ident); ok {
-					check(id, "range var", initialisms)
-				}
-				if id, ok := v.Value.(*ast.Ident); ok {
-					check(id, "range var", initialisms)
-				}
-			case *ast.StructType:
-				for _, f := range v.Fields.List {
-					for _, id := range f.Names {
-						check(id, "struct field", initialisms)
+			checkList(v.Type.Params, thing+" parameter", initialisms)
+			checkList(v.Type.Results, thing+" result", initialisms)
+		case *ast.GenDecl:
+			if v.Tok == token.IMPORT {
+				return
+			}
+			var thing string
+			switch v.Tok {
+			case token.CONST:
+				thing = "const"
+			case token.TYPE:
+				thing = "type"
+			case token.VAR:
+				thing = "var"
+			}
+			for _, spec := range v.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					check(s.Name, thing, initialisms)
+				case *ast.ValueSpec:
+					for _, id := range s.Names {
+						check(id, thing, initialisms)
 					}
 				}
 			}
-			return true
-		})
+		case *ast.InterfaceType:
+			// Do not check interface method names.
+			// They are often constrained by the method names of concrete types.
+			for _, x := range v.Methods.List {
+				ft, ok := x.Type.(*ast.FuncType)
+				if !ok { // might be an embedded interface name
+					continue
+				}
+				checkList(ft.Params, "interface method parameter", initialisms)
+				checkList(ft.Results, "interface method result", initialisms)
+			}
+		case *ast.RangeStmt:
+			if v.Tok == token.ASSIGN {
+				return
+			}
+			if id, ok := v.Key.(*ast.Ident); ok {
+				check(id, "range var", initialisms)
+			}
+			if id, ok := v.Value.(*ast.Ident); ok {
+				check(id, "range var", initialisms)
+			}
+		case *ast.StructType:
+			for _, f := range v.Fields.List {
+				for _, id := range f.Names {
+					check(id, "struct field", initialisms)
+				}
+			}
+		}
 	}
+
+	needle := []ast.Node{
+		(*ast.AssignStmt)(nil),
+		(*ast.FuncDecl)(nil),
+		(*ast.GenDecl)(nil),
+		(*ast.InterfaceType)(nil),
+		(*ast.RangeStmt)(nil),
+		(*ast.StructType)(nil),
+	}
+
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(needle, fn)
 	return nil, nil
 }
 

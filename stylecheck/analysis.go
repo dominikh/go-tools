@@ -19,7 +19,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"ST1003": {
 		Run:      CheckNames,
-		Requires: []*analysis.Analyzer{facts.Generated, config.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, config.Analyzer},
 	},
 	"ST1005": {
 		Run:      CheckErrorStrings,
