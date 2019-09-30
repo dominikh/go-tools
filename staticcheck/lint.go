@@ -1187,6 +1187,10 @@ func CheckLoopEmptyDefault(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
+	// TODO(dh): this check ignores the existence of side-effects and
+	// happily flags fn() == fn() – so far, we've had nobody complain
+	// about a false positive, and it's caught several bugs in real
+	// code.
 	fn := func(node ast.Node) {
 		op := node.(*ast.BinaryExpr)
 		switch op.Op {
@@ -1205,6 +1209,9 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
+		if reflect.TypeOf(op.X) != reflect.TypeOf(op.Y) {
+			return
+		}
 		if report.Render(pass, op.X) != report.Render(pass, op.Y) {
 			return
 		}
