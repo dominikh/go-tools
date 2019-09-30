@@ -3101,9 +3101,13 @@ func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
 		if assign.Tok != token.ASSIGN || len(assign.Lhs) != len(assign.Rhs) {
 			return
 		}
-		for i, stmt := range assign.Lhs {
-			rlh := report.Render(pass, stmt)
-			rrh := report.Render(pass, assign.Rhs[i])
+		for i, lhs := range assign.Lhs {
+			rhs := assign.Rhs[i]
+			if reflect.TypeOf(lhs) != reflect.TypeOf(rhs) {
+				continue
+			}
+			rlh := report.Render(pass, lhs)
+			rrh := report.Render(pass, rhs)
 			if rlh == rrh {
 				report.PosfFG(pass, assign.Pos(), "self-assignment of %s to %s", rrh, rlh)
 			}
