@@ -34,7 +34,8 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 	},
 	"ST1011": {
-		Run: CheckTimeNames,
+		Run:      CheckTimeNames,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	"ST1012": {
 		Run:      CheckErrorVarNames,

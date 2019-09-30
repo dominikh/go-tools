@@ -455,30 +455,30 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	for _, f := range pass.Files {
-		ast.Inspect(f, func(node ast.Node) bool {
-			switch node := node.(type) {
-			case *ast.ValueSpec:
-				fn(node.Names)
-			case *ast.FieldList:
-				for _, field := range node.List {
-					fn(field.Names)
-				}
-			case *ast.AssignStmt:
-				if node.Tok != token.DEFINE {
-					break
-				}
-				var names []*ast.Ident
-				for _, lhs := range node.Lhs {
-					if lhs, ok := lhs.(*ast.Ident); ok {
-						names = append(names, lhs)
-					}
-				}
-				fn(names)
+
+	fn2 := func(node ast.Node) {
+		switch node := node.(type) {
+		case *ast.ValueSpec:
+			fn(node.Names)
+		case *ast.FieldList:
+			for _, field := range node.List {
+				fn(field.Names)
 			}
-			return true
-		})
+		case *ast.AssignStmt:
+			if node.Tok != token.DEFINE {
+				break
+			}
+			var names []*ast.Ident
+			for _, lhs := range node.Lhs {
+				if lhs, ok := lhs.(*ast.Ident); ok {
+					names = append(names, lhs)
+				}
+			}
+			fn(names)
+		}
 	}
+
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ValueSpec)(nil), (*ast.FieldList)(nil), (*ast.AssignStmt)(nil)}, fn2)
 	return nil, nil
 }
 
