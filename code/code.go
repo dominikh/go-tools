@@ -380,6 +380,17 @@ func Generator(pass *analysis.Pass, pos token.Pos) (facts.Generator, bool) {
 
 func MayHaveSideEffects(expr ast.Expr) bool {
 	switch expr := expr.(type) {
+	case *ast.BadExpr:
+		return true
+	case *ast.Ellipsis:
+		return MayHaveSideEffects(expr.Elt)
+	case *ast.FuncLit:
+		// the literal itself cannot have side ffects, only calling it
+		// might, which is handled by CallExpr.
+		return false
+	case *ast.ArrayType, *ast.StructType, *ast.FuncType, *ast.InterfaceType, *ast.MapType, *ast.ChanType:
+		// types cannot have side effects
+		return false
 	case *ast.BasicLit:
 		return false
 	case *ast.BinaryExpr:
