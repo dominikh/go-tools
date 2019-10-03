@@ -110,6 +110,9 @@ func fuseBlocks(f *Function, a *BasicBlock) bool {
 	if len(a.Succs) != 1 {
 		return false
 	}
+	if a.Succs[0] == f.Exit {
+		return false
+	}
 	b := a.Succs[0]
 	if len(b.Preds) != 1 {
 		return false
