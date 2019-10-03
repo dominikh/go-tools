@@ -122,7 +122,7 @@ func emitCompare(f *Function, op token.Token, x, y Value, pos token.Pos) Value {
 	//   if e==true { ... }
 	// even in the case when e's type is an interface.
 	// TODO(adonovan): opt: generalise to x==true, false!=y, etc.
-	if x, ok := x.(*Const); ok && op == token.EQL && x.Value.Kind() == constant.Bool && constant.BoolVal(x.Value) {
+	if x, ok := x.(*Const); ok && op == token.EQL && x.Value != nil && x.Value.Kind() == constant.Bool && constant.BoolVal(x.Value) {
 		if yt, ok := yt.(*types.Basic); ok && yt.Info()&types.IsBoolean != 0 {
 			return y
 		}
