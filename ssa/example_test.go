@@ -93,13 +93,13 @@ func Example_buildPackage() {
 	// 0:                                                                entry P:0 S:2
 	// 	t1 = true:bool                                                     bool
 	// 	t2 = Load <bool> init$guard                                        bool
-	// 	if t2 goto 2 else 1
-	// 1:                                                           init.start P:1 S:1
-	// 	Store {bool} init$guard true:bool
-	// 	t5 = call fmt.init()                                                 ()
-	// 	jump 2
-	// 2:                                                            init.done P:2 S:0
+	// 	if t2 goto 1 else 2
+	// 1:                                                                 exit P:2 S:0
 	// 	return
+	// 2:                                                           init.start P:1 S:1
+	// 	Store {bool} init$guard true:bool
+	// 	t6 = call fmt.init()                                                 ()
+	// 	jump 1
 	//
 	// # Name: hello.main
 	// # Package: hello

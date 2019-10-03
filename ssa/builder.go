@@ -2256,7 +2256,7 @@ func (p *Package) build() {
 	// Make init() skip if package is already initialized.
 	initguard := p.Var("init$guard")
 	doinit := init.newBasicBlock("init.start")
-	done = init.newBasicBlock("init.done")
+	done = init.Exit
 	emitIf(init, emitLoad(init, initguard), done, doinit)
 	init.currentBlock = doinit
 	emitStore(init, initguard, emitConst(init, NewConst(constant.MakeBool(true), tBool)), token.NoPos)
@@ -2318,9 +2318,6 @@ func (p *Package) build() {
 
 	// Finish up init().
 	emitJump(init, done)
-	init.currentBlock = done
-	init.emit(new(Return))
-	addEdge(init.currentBlock, init.Exit)
 	init.finishBody()
 
 	p.info = nil // We no longer need ASTs or go/types deductions.
