@@ -63,6 +63,16 @@ func (b *BasicBlock) predIndex(c *BasicBlock) int {
 	panic(fmt.Sprintf("no edge %s -> %s", c, b))
 }
 
+// succIndex returns the i such that b.Succs[i] == c or -1 if there is none.
+func (b *BasicBlock) succIndex(c *BasicBlock) int {
+	for i, succ := range b.Succs {
+		if succ == c {
+			return i
+		}
+	}
+	return -1
+}
+
 // hasPhi returns true if b.Instrs contains φ-nodes.
 func (b *BasicBlock) hasPhi() bool {
 	_, ok := b.Instrs[0].(*Phi)
@@ -425,6 +435,67 @@ func (f *Function) emitConstsMany() {
 	f.consts = nil
 }
 
+// buildFakeExits ensures that every block in the function is
+// reachable in reverse from the Exit block. This is required to build
+// a full post-dominator tree, and to ensure the exit block's
+// inclusion in the dominator tree.
+func buildFakeExits(fn *Function) {
+	// Find back-edges via forward DFS
+	var seen BlockSet
+	var backEdges BlockSet
+	var dfs func(b *BasicBlock)
+	dfs = func(b *BasicBlock) {
+		if !seen.Add(b) {
+			backEdges.Add(b)
+			return
+		}
+		for _, pred := range b.Succs {
+			dfs(pred)
+		}
+	}
+	dfs(fn.Blocks[0])
+buildLoop:
+	for {
+		var seen BlockSet
+		var dfs func(b *BasicBlock)
+		dfs = func(b *BasicBlock) {
+			if !seen.Add(b) {
+				return
+			}
+			for _, pred := range b.Preds {
+				dfs(pred)
+			}
+			if b == fn.Exit {
+				for _, b := range fn.Blocks {
+					if fn.fakeExits.Has(b) {
+						dfs(b)
+					}
+				}
+			}
+		}
+		dfs(fn.Exit)
+
+		for _, b := range fn.Blocks {
+			if !seen.Has(b) && backEdges.Has(b) {
+				// Block b is not reachable from the exit block. Add a
+				// fake jump from b to exit, then try again. Note that we
+				// only add one fake edge at a time, as it may make
+				// multiple blocks reachable.
+				//
+				// We only consider those blocks that have back edges.
+				// Any unreachable block that doesn't have a back edge
+				// must flow into a loop, which by definition has a
+				// back edge. Thus, by looking for loops, we should
+				// need fewer fake edges overall.
+				fn.fakeExits.Add(b)
+				continue buildLoop
+			}
+		}
+
+		break
+	}
+}
+
 // finishBody() finalizes the function after SSA code generation of its body.
 func (f *Function) finishBody() {
 	f.objects = nil
@@ -451,10 +522,9 @@ func (f *Function) finishBody() {
 	f.Locals = f.Locals[:j]
 
 	optimizeBlocks(f)
-
 	buildReferrers(f)
-
 	buildDomTree(f)
+	buildPostDomTree(f)
 
 	if f.Prog.mode&NaiveForm == 0 {
 		lift(f)
@@ -471,9 +541,6 @@ func (f *Function) finishBody() {
 	defer f.wr.Close()
 	f.wr.WriteFunc("start", "start", f)
 
-	phiElim(f)
-	f.wr.WriteFunc("phiElim", "phiElim", f)
-
 	if f.Prog.mode&PrintFunctions != 0 {
 		printMu.Lock()
 		f.WriteTo(os.Stdout)
@@ -485,60 +552,27 @@ func (f *Function) finishBody() {
 	}
 }
 
-func phiElim(f *Function) {
-	for {
-		changed := false
-		for _, b := range f.Blocks {
-			for _, instr := range b.Instrs {
-				phi, ok := instr.(*Phi)
-				if !ok {
-					continue
-				}
-				if len(*phi.Referrers()) == 0 {
-					continue
-				}
-				var v0 Value
-				elim := true
-				for _, e := range phi.Edges {
-					if e == phi {
+func isUselessPhi(phi *Phi) (Value, bool) {
+	var v0 Value
+	for _, e := range phi.Edges {
+		if e == phi {
+			continue
+		}
+		if v0 == nil {
+			v0 = e
+		}
+		if v0 != e {
+			if v0, ok := v0.(*Const); ok {
+				if e, ok := e.(*Const); ok {
+					if v0.typ == e.typ && v0.Value == e.Value {
 						continue
 					}
-					if v0 == nil {
-						v0 = e
-					}
-					if v0 != e {
-						if v0, ok := v0.(*Const); ok {
-							if e, ok := e.(*Const); ok {
-								if v0.typ == e.typ && v0.Value == e.Value {
-									continue
-								}
-							}
-						}
-						elim = false
-						break
-					}
-				}
-				if elim {
-					changed = true
-					for _, ref := range *phi.Referrers() {
-						for _, op := range ref.Operands(nil) {
-							if *op == phi {
-								*op = v0
-								// Const don't currently track referrers
-								if _, ok := v0.(*Const); !ok {
-									*v0.Referrers() = append(*v0.Referrers(), ref)
-								}
-							}
-						}
-					}
-					*phi.Referrers() = nil
 				}
 			}
-		}
-		if !changed {
-			break
+			return nil, false
 		}
 	}
+	return v0, true
 }
 
 func (f *Function) RemoveNilBlocks() {

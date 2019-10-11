@@ -91,6 +91,13 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	switch instr := instr.(type) {
 	case *If, *Jump, *Return, *Panic:
 		s.errorf("control flow instruction not at end of block")
+	case *Sigma:
+		if idx > 0 {
+			prev := s.block.Instrs[idx-1]
+			if _, ok := prev.(*Sigma); !ok {
+				s.errorf("Sigma instruction follows a non-Sigma: %T", prev)
+			}
+		}
 	case *Phi:
 		if idx == 0 {
 			// It suffices to apply this check to just the first phi node.
@@ -99,8 +106,10 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 			}
 		} else {
 			prev := s.block.Instrs[idx-1]
-			if _, ok := prev.(*Phi); !ok {
-				s.errorf("Phi instruction follows a non-Phi: %T", prev)
+			switch prev.(type) {
+			case *Phi, *Sigma:
+			default:
+				s.errorf("Phi instruction follows a non-Phi, non-Sigma: %T", prev)
 			}
 		}
 		if ne, np := len(instr.Edges), len(s.block.Preds); ne != np {
@@ -176,7 +185,6 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *UnOp:
 	case *DebugRef:
 	case *BlankStore:
-	case *Sigma:
 	case *Load:
 	case *Parameter:
 	case *Const:
@@ -266,8 +274,8 @@ func (s *sanity) checkBlock(b *BasicBlock, index int) {
 	}
 
 	// Check all blocks are reachable.
-	// (The entry block is always implicitly reachable.)
-	if index > 0 && len(b.Preds) == 0 {
+	// (The entry block is always implicitly reachable, the exit block may be unreachable.)
+	if index > 1 && len(b.Preds) == 0 {
 		s.warnf("unreachable block")
 		if b.Instrs == nil {
 			// Since this block is about to be pruned,
@@ -400,7 +408,11 @@ func (s *sanity) checkReferrerList(v Value) {
 	}
 	for i, ref := range *refs {
 		if _, ok := s.instrs[ref]; !ok {
-			s.errorf("%s.Referrers()[%d] = %s is not an instruction belonging to this function", v.Name(), i, ref)
+			if val, ok := ref.(Value); ok {
+				s.errorf("%s.Referrers()[%d] = %s = %s is not an instruction belonging to this function", v.Name(), i, val.Name(), val)
+			} else {
+				s.errorf("%s.Referrers()[%d] = %s is not an instruction belonging to this function", v.Name(), i, ref)
+			}
 		}
 	}
 }

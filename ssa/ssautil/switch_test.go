@@ -6,16 +6,17 @@
 
 // +build !android
 
-package ssautil_test
+package ssautil
 
 import (
+	"bytes"
+	"fmt"
 	"go/parser"
 	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/loader"
 	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssa/ssautil"
 )
 
 func TestSwitches(t *testing.T) {
@@ -33,7 +34,7 @@ func TestSwitches(t *testing.T) {
 		return
 	}
 
-	prog := ssautil.CreateProgram(iprog, 0)
+	prog := CreateProgram(iprog, 0)
 	mainPkg := prog.Package(iprog.Created[0].Pkg)
 	mainPkg.Build()
 
@@ -55,12 +56,12 @@ func TestSwitches(t *testing.T) {
 				}
 			}
 
-			switches := ssautil.Switches(fn)
+			switches := Switches(fn)
 			if len(switches) != len(wantSwitches) {
 				t.Errorf("in %s, found %d switches, want %d", fn, len(switches), len(wantSwitches))
 			}
 			for i, sw := range switches {
-				got := sw.String()
+				got := sw.testString()
 				if i >= len(wantSwitches) {
 					continue
 				}
@@ -71,4 +72,40 @@ func TestSwitches(t *testing.T) {
 			}
 		}
 	}
+}
+
+func (sw *Switch) testString() string {
+	// same as the actual String method, but use the second to last
+	// instruction instead, to skip over all the phi and sigma nodes
+	// that SSI produces.
+	var buf bytes.Buffer
+	if sw.ConstCases != nil {
+		fmt.Fprintf(&buf, "switch %s {\n", sw.X.Name())
+		for _, c := range sw.ConstCases {
+			n := len(c.Body.Instrs) - 2
+			if n < 0 {
+				n = 0
+			}
+			fmt.Fprintf(&buf, "case %s: %s\n", c.Value, c.Body.Instrs[n])
+		}
+	} else {
+		fmt.Fprintf(&buf, "switch %s.(type) {\n", sw.X.Name())
+		for _, c := range sw.TypeCases {
+			n := len(c.Body.Instrs) - 2
+			if n < 0 {
+				n = 0
+			}
+			fmt.Fprintf(&buf, "case %s %s: %s\n",
+				c.Binding.Name(), c.Type, c.Body.Instrs[n])
+		}
+	}
+	if sw.Default != nil {
+		n := len(sw.Default.Instrs) - 2
+		if n < 0 {
+			n = 0
+		}
+		fmt.Fprintf(&buf, "default: %s\n", sw.Default.Instrs[n])
+	}
+	fmt.Fprintf(&buf, "}")
+	return buf.String()
 }

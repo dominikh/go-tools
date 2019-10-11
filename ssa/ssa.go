@@ -340,6 +340,7 @@ type Function struct {
 	lblocks         map[*ast.Object]*lblock // labelled blocks
 	consts          []*Const
 	wr              *HTMLWriter
+	fakeExits       BlockSet
 }
 
 func (fn *Function) results() []*Alloc {
@@ -377,6 +378,7 @@ type BasicBlock struct {
 	Preds, Succs []*BasicBlock  // predecessors and successors
 	succs2       [2]*BasicBlock // initial space for Succs
 	dom          domInfo        // dominator tree info
+	pdom         domInfo        // post-dominator tree info
 	post         int
 	gaps         int // number of nil Instrs (transient)
 	rundefers    int // number of rundefers (transient)
@@ -536,24 +538,9 @@ var _ Value = (*Sigma)(nil)
 
 type Sigma struct {
 	register
-	X      Value
-	Branch bool
-}
-
-func (p *Sigma) Value() Value {
-	v := p.X
-	for {
-		sigma, ok := v.(*Sigma)
-		if !ok {
-			break
-		}
-		v = sigma
-	}
-	return v
-}
-
-func (p *Sigma) String() string {
-	return fmt.Sprintf("σ [%s.%t]", relName(p.X, p), p.Branch)
+	From    *BasicBlock
+	X       Value
+	Comment string
 }
 
 // The Phi instruction represents an SSA φ-node, which combines values

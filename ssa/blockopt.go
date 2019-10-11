@@ -39,6 +39,12 @@ func deleteUnreachableBlocks(f *Function) {
 		b.Index = white
 	}
 	markReachable(f.Blocks[0])
+	// In SSI form, we need the exit to be reachable for correct
+	// post-dominance information. In original form, however, we
+	// cannot unconditionally mark it reachable because we won't
+	// be adding fake edges, and this breaks the calculation of
+	// dominance information.
+	markReachable(f.Exit)
 	for i, b := range f.Blocks {
 		if b.Index == white {
 			for _, c := range b.Succs {

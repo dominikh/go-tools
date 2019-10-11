@@ -480,8 +480,8 @@ func h(error)
 			}
 		}
 	}
-	if phis != 1 {
+	if expected := 3; phis != expected {
 		g.WriteTo(os.Stderr)
-		t.Errorf("expected one Phi node (for the range index), got %d", phis)
+		t.Errorf("expected %d Phi nodes (for the range index and SSI), got %d", expected, phis)
 	}
 }

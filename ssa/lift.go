@@ -94,6 +94,32 @@ func buildDomFrontier(fn *Function) domFrontier {
 	return df
 }
 
+type postDomFrontier [][]*BasicBlock
+
+func (rdf postDomFrontier) add(u, v *BasicBlock) {
+	rdf[u.Index] = append(rdf[u.Index], v)
+}
+
+func (rdf postDomFrontier) build(fn *Function) {
+	for _, b := range fn.Blocks {
+		if len(b.Succs) >= 2 {
+			for _, s := range b.Succs {
+				runner := s
+				for runner != b.pdom.idom {
+					rdf.add(runner, b)
+					runner = runner.pdom.idom
+				}
+			}
+		}
+	}
+}
+
+func buildPostDomFrontier(fn *Function) postDomFrontier {
+	rdf := make(postDomFrontier, len(fn.Blocks))
+	rdf.build(fn)
+	return rdf
+}
+
 func removeInstr(refs []Instruction, instr Instruction) []Instruction {
 	i := 0
 	for _, ref := range refs {
@@ -138,6 +164,7 @@ func lift(fn *Function) {
 	//
 	// But we will start with the simplest correct code.
 	df := buildDomFrontier(fn)
+	rdf := buildPostDomFrontier(fn)
 
 	if debugLifting {
 		title := false
@@ -153,6 +180,7 @@ func lift(fn *Function) {
 	}
 
 	newPhis := make(newPhiMap)
+	newSigmas := make(newSigmaMap)
 
 	// During this pass we will replace some BasicBlock.Instrs
 	// (allocs, loads and stores) with nil, keeping a count in
@@ -175,7 +203,7 @@ func lift(fn *Function) {
 			switch instr := instr.(type) {
 			case *Alloc:
 				index := -1
-				if liftAlloc(df, instr, newPhis) {
+				if liftAlloc(df, rdf, instr, newPhis, newSigmas) {
 					index = numAllocs
 					numAllocs++
 				}
@@ -196,15 +224,31 @@ func lift(fn *Function) {
 	renaming := make([]Value, numAllocs)
 
 	// Renaming.
-	rename(fn.Blocks[0], renaming, newPhis)
+	rename(fn.Blocks[0], renaming, newPhis, newSigmas)
 
 	// Eliminate dead φ-nodes.
-	removeDeadPhis(fn.Blocks, newPhis)
+	for changed := true; changed; {
+		r1 := removeDeadPhis(fn.Blocks, newPhis)
+		r2 := removeDeadSigmas(fn.Blocks, newSigmas)
+		changed = r1 || r2
+	}
 
-	// Prepend remaining live φ-nodes to each block.
+	// Prepend remaining live φ-nodes to each block and possibly kill rundefers.
 	for _, b := range fn.Blocks {
 		nps := newPhis[b]
 		j := len(nps)
+
+		var sigmas []*Sigma
+		for _, pred := range b.Preds {
+			nss := newSigmas[pred]
+			idx := pred.succIndex(b)
+			for _, newSigma := range nss {
+				if sigma := newSigma.sigmas[idx]; sigma != nil {
+					sigmas = append(sigmas, sigma)
+				}
+			}
+		}
+		j += len(sigmas)
 
 		rundefersToKill := b.rundefers
 		if usesDefer {
@@ -219,8 +263,11 @@ func lift(fn *Function) {
 		// TODO(adonovan): opt: compact in situ (rightwards)
 		// if Instrs has sufficient space or slack.
 		dst := make([]Instruction, len(b.Instrs)+j-b.gaps-rundefersToKill)
+		for i, sigma := range sigmas {
+			dst[i] = sigma
+		}
 		for i, np := range nps {
-			dst[i] = np.phi
+			dst[i+len(sigmas)] = np.phi
 		}
 		for _, instr := range b.Instrs {
 			if instr == nil {
@@ -254,8 +301,31 @@ func lift(fn *Function) {
 
 // removeDeadPhis removes φ-nodes not transitively needed by a
 // non-Phi, non-DebugRef instruction.
-func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) {
-	// First pass: find the set of "live" φ-nodes: those reachable
+func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) bool {
+	// find all phis that are trivial and can be replaced with a
+	// non-phi value. run until we reach a fixpoint, because replacing
+	// a phi may make other phis trivial.
+	for changed := true; changed; {
+		changed = false
+		for _, npList := range newPhis {
+			for _, np := range npList {
+				if np.phi.block == nil {
+					// already eliminated
+					continue
+				}
+				if r, ok := isUselessPhi(np.phi); ok {
+					// useless phi, replace its uses with the
+					// replacement value. the dead phi pass will clean
+					// up the phi afterwards.
+					replaceAll(np.phi, r)
+					np.phi.block = nil
+					changed = true
+				}
+			}
+		}
+	}
+
+	// find the set of "live" φ-nodes: those reachable
 	// from some non-Phi instruction.
 	//
 	// We compute reachability in reverse, starting from each φ,
@@ -280,7 +350,8 @@ func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) {
 		}
 	}
 
-	// Second pass: eliminate unused phis from newPhis.
+	// eliminate unused phis from newPhis.
+	changed := false
 	for block, npList := range newPhis {
 		j := 0
 		for _, np := range npList {
@@ -289,6 +360,7 @@ func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) {
 				j++
 			} else {
 				// discard it, first removing it from referrers
+				changed = true
 				for _, val := range np.phi.Edges {
 					if refs := val.Referrers(); refs != nil {
 						*refs = removeInstr(*refs, np.phi)
@@ -299,6 +371,47 @@ func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) {
 		}
 		newPhis[block] = npList[:j]
 	}
+
+	return changed
+}
+
+func removeDeadSigmas(blocks []*BasicBlock, newSigmas newSigmaMap) bool {
+	liveSigmas := make(map[*Sigma]bool)
+	for _, npList := range newSigmas {
+		for _, np := range npList {
+			for _, sigma := range np.sigmas {
+				if sigma == nil {
+					continue
+				}
+				if !liveSigmas[sigma] && sigmaHasDirectReferrer(sigma) {
+					markLiveSigma(liveSigmas, sigma)
+				}
+			}
+		}
+	}
+
+	changed := false
+	for _, npList := range newSigmas {
+		for npi := range npList {
+			np := &npList[npi]
+			for i, sigma := range np.sigmas {
+				if sigma == nil {
+					continue
+				}
+				if !liveSigmas[sigma] {
+					// discard it, first removing it from referrers
+					changed = true
+					val := sigma.X
+					if refs := val.Referrers(); refs != nil {
+						*refs = removeInstr(*refs, sigma)
+					}
+					sigma.block = nil
+					np.sigmas[i] = nil
+				}
+			}
+		}
+	}
+	return changed
 }
 
 // markLivePhi marks phi, and all φ-nodes transitively reachable via
@@ -314,12 +427,32 @@ func markLivePhi(livePhis map[*Phi]bool, phi *Phi) {
 	}
 }
 
+func markLiveSigma(liveSigmas map[*Sigma]bool, sigma *Sigma) {
+	liveSigmas[sigma] = true
+	for _, rand := range sigma.Operands(nil) {
+		if q, ok := (*rand).(*Sigma); ok {
+			if !liveSigmas[q] {
+				markLiveSigma(liveSigmas, q)
+			}
+		}
+	}
+}
+
 // phiHasDirectReferrer reports whether phi is directly referred to by
 // a non-Phi instruction.  Such instructions are the
 // roots of the liveness traversal.
 func phiHasDirectReferrer(phi *Phi) bool {
 	for _, instr := range *phi.Referrers() {
 		if _, ok := instr.(*Phi); !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func sigmaHasDirectReferrer(sigma *Sigma) bool {
+	for _, instr := range *sigma.Referrers() {
+		if _, ok := instr.(*Sigma); !ok {
 			return true
 		}
 	}
@@ -362,14 +495,26 @@ type newPhi struct {
 	alloc *Alloc
 }
 
+type newSigma struct {
+	alloc  *Alloc
+	sigmas [2]*Sigma
+}
+
 // newPhiMap records for each basic block, the set of newPhis that
 // must be prepended to the block.
 type newPhiMap map[*BasicBlock][]newPhi
+type newSigmaMap map[*BasicBlock][]newSigma
 
 // liftAlloc determines whether alloc can be lifted into registers,
 // and if so, it populates newPhis with all the φ-nodes it may require
 // and returns true.
-func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
+func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) bool {
+	fn := alloc.Parent()
+	var defblocks BlockSet
+	var useblocks BlockSet
+	var Aphi BlockSet
+	var Asigma BlockSet
+	var W BlockSet
 	// Don't lift aggregates into registers, because we don't have
 	// a way to express their zero-constants.
 	switch deref(alloc.Type()).Underlying().(type) {
@@ -379,7 +524,7 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 
 	// Don't lift named return values in functions that defer
 	// calls that may recover from panic.
-	if fn := alloc.Parent(); fn.hasDefer {
+	if fn.hasDefer {
 		for _, nr := range fn.namedResults {
 			if nr == alloc {
 				return false
@@ -389,7 +534,6 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 
 	// Compute defblocks, the set of blocks containing a
 	// definition of the alloc cell.
-	var defblocks BlockSet
 	for _, instr := range *alloc.Referrers() {
 		// Bail out if we discover the alloc is not liftable;
 		// the only operations permitted to use the alloc are
@@ -407,6 +551,10 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 			if instr.X != alloc {
 				panic("Alloc.Referrers is inconsistent")
 			}
+			useblocks.Add(instr.Block())
+			for _, ref := range *instr.Referrers() {
+				useblocks.Add(ref.Block())
+			}
 		case *DebugRef:
 			// ok
 		default:
@@ -420,46 +568,85 @@ func liftAlloc(df domFrontier, alloc *Alloc, newPhis newPhiMap) bool {
 		fmt.Fprintln(os.Stderr, "\tlifting ", alloc, alloc.Name())
 	}
 
-	fn := alloc.Parent()
-
 	// Φ-insertion.
 	//
 	// What follows is the body of the main loop of the insert-φ
 	// function described by Cytron et al, but instead of using
 	// counter tricks, we just reset the 'hasAlready' and 'work'
 	// sets each iteration.  These are bitmaps so it's pretty cheap.
-	//
-	// TODO(adonovan): opt: recycle slice storage for W,
-	// hasAlready, defBlocks across liftAlloc calls.
-	var hasAlready BlockSet
 
 	// Initialize W and work to defblocks.
-	var work BlockSet = defblocks // blocks seen
-	var W BlockSet                // blocks to do
-	W.Set(&defblocks.Int)
 
-	// Traverse iterated dominance frontier, inserting φ-nodes.
-	for i := W.Take(); i != -1; i = W.Take() {
-		u := fn.Blocks[i]
-		for _, v := range df[u.Index] {
-			if hasAlready.Add(v) {
-				// Create φ-node.
-				// It will be prepended to v.Instrs later, if needed.
-				phi := &Phi{
-					Edges:   make([]Value, len(v.Preds)),
-					Comment: alloc.Comment,
+	for change := true; change; {
+		change = false
+		{
+			// Traverse iterated dominance frontier, inserting φ-nodes.
+			W.Set(&defblocks.Int)
+
+			for i := W.Take(); i != -1; i = W.Take() {
+				n := fn.Blocks[i]
+				for _, y := range df[n.Index] {
+					if Aphi.Add(y) {
+						// Create φ-node.
+						// It will be prepended to v.Instrs later, if needed.
+						phi := &Phi{
+							Edges:   make([]Value, len(y.Preds)),
+							Comment: alloc.Comment,
+						}
+
+						phi.pos = alloc.Pos()
+						phi.setType(deref(alloc.Type()))
+						phi.block = y
+						if debugLifting {
+							fmt.Fprintf(os.Stderr, "\tplace %s = %s at block %s\n", phi.Name(), phi, y)
+						}
+						newPhis[y] = append(newPhis[y], newPhi{phi, alloc})
+
+						for _, p := range y.Preds {
+							useblocks.Add(p)
+						}
+						change = true
+						if defblocks.Add(y) {
+							W.Add(y)
+						}
+					}
 				}
+			}
+		}
 
-				phi.pos = alloc.Pos()
-				phi.setType(deref(alloc.Type()))
-				phi.block = v
-				if debugLifting {
-					fmt.Fprintf(os.Stderr, "\tplace %s = %s at block %s\n", phi.Name(), phi, v)
-				}
-				newPhis[v] = append(newPhis[v], newPhi{phi, alloc})
+		{
+			W.Set(&useblocks.Int)
+			for i := W.Take(); i != -1; i = W.Take() {
+				n := fn.Blocks[i]
+				for _, y := range rdf[n.Index] {
+					if Asigma.Add(y) {
+						l := &Sigma{
+							From:    y,
+							X:       alloc,
+							Comment: alloc.Comment,
+						}
+						l.pos = alloc.Pos()
+						l.setType(deref(alloc.Type()))
+						l.block = y.Succs[0]
 
-				if work.Add(v) {
-					W.Add(v)
+						r := &Sigma{
+							From:    y,
+							X:       alloc,
+							Comment: alloc.Comment,
+						}
+						r.pos = alloc.Pos()
+						r.setType(deref(alloc.Type()))
+						r.block = y.Succs[1]
+
+						newSigmas[y] = append(newSigmas[y], newSigma{alloc, [2]*Sigma{l, r}})
+						for _, s := range y.Succs {
+							defblocks.Add(s)
+						}
+						change = true
+						if useblocks.Add(y) {
+							W.Add(y)
+						}
+					}
 				}
 			}
 		}
@@ -514,12 +701,33 @@ func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 // dominating stored value; newPhis[x] is the set of new φ-nodes to be
 // prepended to block x.
 //
-func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
+func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSigmaMap) {
 	// Each φ-node becomes the new name for its associated Alloc.
 	for _, np := range newPhis[u] {
 		phi := np.phi
 		alloc := np.alloc
 		renaming[alloc.index] = phi
+	}
+
+	updateOperands := func(instr Instruction) {
+		for _, op := range instr.Operands(nil) {
+			if load, ok := (*op).(*Load); ok {
+				if alloc, ok := load.X.(*Alloc); ok && alloc.index >= 0 {
+					newval := renamed(u.Parent(), renaming, alloc)
+					if debugLifting {
+						fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
+							load.Name(), load, newval.Name())
+					}
+					if refs := (*op).Referrers(); refs != nil {
+						*refs = removeInstr(*refs, instr)
+					}
+					*op = newval
+					if refs := newval.Referrers(); refs != nil {
+						*refs = append(*refs, instr)
+					}
+				}
+			}
+		}
 	}
 
 	// Rename loads and stores of allocs.
@@ -538,6 +746,9 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 			}
 
 		case *Store:
+			// First update the operands of the Store, same as we do in the default case.
+			updateOperands(instr)
+
 			if alloc, ok := instr.Addr.(*Alloc); ok && alloc.index >= 0 { // store to Alloc cell
 				// Replace dominated loads by the stored value.
 				renaming[alloc.index] = instr.Val
@@ -556,25 +767,30 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 			}
 
 		case *Load:
+			// First update the operands of the Store, same as we do in the default case.
+			updateOperands(instr)
+
 			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
-				newval := renamed(u.Parent(), renaming, alloc)
 				if debugLifting {
-					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
-						instr.Name(), instr, newval.Name())
+					fmt.Fprintf(os.Stderr, "\tkill load %s = %s\n",
+						instr.Name(), instr)
 				}
-				// Replace all references to
-				// the loaded value by the
-				// dominating stored value.
-				replaceAll(instr, newval)
-				// Delete the Load.
+				// Delete the Load. All of its uses will be replaced
+				// later. We cannot replace them all in one go,
+				// because multiple blocks may refer to the same load
+				// and thus be dominated by different σ-nodes.
 				u.Instrs[i] = nil
 				u.gaps++
 			}
 
 		case *DebugRef:
-			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // ref of Alloc cell
+			switch x := instr.X.(type) {
+			case *Alloc:
+				if x.index < 0 {
+					continue
+				}
 				if instr.IsAddr {
-					instr.X = renamed(u.Parent(), renaming, alloc)
+					instr.X = renamed(u.Parent(), renaming, x)
 					instr.IsAddr = false
 
 					// Add DebugRef to instr.X's referrers.
@@ -590,12 +806,27 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 					u.Instrs[i] = nil
 					u.gaps++
 				}
+			case *Load:
+				updateOperands(instr)
+			}
+
+		default:
+			// Replace all loads with the dominating stored value.
+			updateOperands(instr)
+		}
+	}
+
+	for _, sigmas := range newSigmas[u] {
+		for _, sigma := range sigmas.sigmas {
+			sigma.X = renamed(u.Parent(), renaming, sigmas.alloc)
+			if refs := sigma.X.Referrers(); refs != nil {
+				*refs = append(*refs, sigma)
 			}
 		}
 	}
 
 	// For each φ-node in a CFG successor, rename the edge.
-	for _, v := range u.Succs {
+	for succi, v := range u.Succs {
 		phis := newPhis[v]
 		if len(phis) == 0 {
 			continue
@@ -604,7 +835,17 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 		for _, np := range phis {
 			phi := np.phi
 			alloc := np.alloc
-			newval := renamed(u.Parent(), renaming, alloc)
+			// if there's a sigma node, use it, else use the dominating value
+			var newval Value
+			for _, sigmas := range newSigmas[u] {
+				if sigmas.alloc == alloc {
+					newval = sigmas.sigmas[succi]
+					break
+				}
+			}
+			if newval == nil {
+				newval = renamed(u.Parent(), renaming, alloc)
+			}
 			if debugLifting {
 				fmt.Fprintf(os.Stderr, "\tsetphi %s edge %s -> %s (#%d) (alloc=%s) := %s\n",
 					phi.Name(), u, v, i, alloc.Name(), newval.Name())
@@ -618,15 +859,16 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap) {
 
 	// Continue depth-first recursion over domtree, pushing a
 	// fresh copy of the renaming map for each subtree.
-	for i, v := range u.dom.children {
-		r := renaming
-		if i < len(u.dom.children)-1 {
-			// On all but the final iteration, we must make
-			// a copy to avoid destructive update.
-			r = make([]Value, len(renaming))
-			copy(r, renaming)
+	r := make([]Value, len(renaming))
+	for _, v := range u.dom.children {
+		// XXX add debugging
+		copy(r, renaming)
+		if idx := u.succIndex(v); idx != -1 {
+			for _, sigma := range newSigmas[u] {
+				r[sigma.alloc.index] = sigma.sigmas[idx]
+			}
 		}
-		rename(v, r, newPhis)
+		rename(v, r, newPhis, newSigmas)
 	}
 
 }

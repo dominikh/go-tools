@@ -2176,6 +2176,8 @@ func (b *builder) buildFunction(fn *Function) {
 		// fn.emit(new(Return))
 		emitJump(fn, fn.Exit)
 	}
+	optimizeBlocks(fn)
+	buildFakeExits(fn)
 	fn.finishBody()
 }
 

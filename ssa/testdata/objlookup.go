@@ -54,7 +54,7 @@ func main() {
 	fmt.Println(v1)        //@ ssa(v1,"Load") // load
 	f := func(param int) { //@ ssa(f,"MakeClosure"), ssa(param,"Parameter")
 		if y := 1; y > 0 { //@ ssa(y,"Const")
-			print(v1, param) //@ ssa(v1,"Load") /*load*/, ssa(param,"Parameter")
+			print(v1, param) //@ ssa(v1,"Load") /*load*/, ssa(param,"Sigma")
 		}
 		param = 2      //@ ssa(param,"Const")
 		println(param) //@ ssa(param,"Const")

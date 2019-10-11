@@ -20,6 +20,7 @@ package ssa
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"sort"
@@ -89,6 +90,9 @@ func buildDomTree(fn *Function) {
 		for _, succ := range b.Succs {
 			dfs(succ)
 		}
+		if fn.fakeExits.Has(b) {
+			dfs(fn.Exit)
+		}
 		order = append(order, b)
 		b.post = len(order) - 1
 	}
@@ -107,9 +111,9 @@ func buildDomTree(fn *Function) {
 		// entry node
 		for _, b := range order[1:] {
 			var newIdom *BasicBlock
-			for _, p := range b.Preds {
+			do := func(p *BasicBlock) {
 				if idoms[p.Index] == nil {
-					continue
+					return
 				}
 				if newIdom == nil {
 					newIdom = p
@@ -125,6 +129,16 @@ func buildDomTree(fn *Function) {
 						}
 					}
 					newIdom = finger1
+				}
+			}
+			for _, p := range b.Preds {
+				do(p)
+			}
+			if b == fn.Exit {
+				for _, p := range fn.Blocks {
+					if fn.fakeExits.Has(p) {
+						do(p)
+					}
 				}
 			}
 
@@ -145,11 +159,110 @@ func buildDomTree(fn *Function) {
 
 	numberDomTree(fn.Blocks[0], 0, 0)
 
-	// printDomTreeDot(os.Stderr, f) // debugging
+	// printDomTreeDot(os.Stderr, fn) // debugging
 	// printDomTreeText(os.Stderr, root, 0) // debugging
 
 	if fn.Prog.mode&SanityCheckFunctions != 0 {
 		sanityCheckDomTree(fn)
+	}
+}
+
+// buildPostDomTree is like buildDomTree, but builds the post-dominator tree instead.
+func buildPostDomTree(fn *Function) {
+	// The step numbers refer to the original LT paper; the
+	// reordering is due to Georgiadis.
+
+	// Clear any previous domInfo.
+	for _, b := range fn.Blocks {
+		b.pdom = domInfo{}
+	}
+
+	idoms := make([]*BasicBlock, len(fn.Blocks))
+
+	order := make([]*BasicBlock, 0, len(fn.Blocks))
+	var seen BlockSet
+	var dfs func(b *BasicBlock)
+	dfs = func(b *BasicBlock) {
+		if !seen.Add(b) {
+			return
+		}
+		for _, pred := range b.Preds {
+			dfs(pred)
+		}
+		if b == fn.Exit {
+			for _, p := range fn.Blocks {
+				if fn.fakeExits.Has(p) {
+					dfs(p)
+				}
+			}
+		}
+		order = append(order, b)
+		b.post = len(order) - 1
+	}
+	dfs(fn.Exit)
+
+	for i := 0; i < len(order)/2; i++ {
+		o := len(order) - i - 1
+		order[i], order[o] = order[o], order[i]
+	}
+
+	idoms[fn.Exit.Index] = fn.Exit
+	changed := true
+	for changed {
+		changed = false
+		// iterate over all nodes in reverse postorder, except for the
+		// exit node
+		for _, b := range order[1:] {
+			var newIdom *BasicBlock
+			do := func(p *BasicBlock) {
+				if idoms[p.Index] == nil {
+					return
+				}
+				if newIdom == nil {
+					newIdom = p
+				} else {
+					finger1 := p
+					finger2 := newIdom
+					for finger1 != finger2 {
+						for finger1.post < finger2.post {
+							finger1 = idoms[finger1.Index]
+						}
+						for finger2.post < finger1.post {
+							finger2 = idoms[finger2.Index]
+						}
+					}
+					newIdom = finger1
+				}
+			}
+			for _, p := range b.Succs {
+				do(p)
+			}
+			if fn.fakeExits.Has(b) {
+				do(fn.Exit)
+			}
+
+			if idoms[b.Index] != newIdom {
+				idoms[b.Index] = newIdom
+				changed = true
+			}
+		}
+	}
+
+	for i, b := range idoms {
+		fn.Blocks[i].pdom.idom = b
+		if i == b.Index {
+			continue
+		}
+		b.pdom.children = append(b.pdom.children, fn.Blocks[i])
+	}
+
+	numberPostDomTree(fn.Exit, 0, 0)
+
+	// printPostDomTreeDot(os.Stderr, fn) // debugging
+	// printPostDomTreeText(os.Stderr, fn.Exit, 0) // debugging
+
+	if fn.Prog.mode&SanityCheckFunctions != 0 { // XXX
+		sanityCheckDomTree(fn) // XXX
 	}
 }
 
@@ -164,6 +277,21 @@ func numberDomTree(v *BasicBlock, pre, post int32) (int32, int32) {
 		pre, post = numberDomTree(child, pre, post)
 	}
 	v.dom.post = post
+	post++
+	return pre, post
+}
+
+// numberPostDomTree sets the pre- and post-order numbers of a depth-first
+// traversal of the post-dominator tree rooted at v.  These are used to
+// answer post-dominance queries in constant time.
+//
+func numberPostDomTree(v *BasicBlock, pre, post int32) (int32, int32) {
+	v.pdom.pre = pre
+	pre++
+	for _, child := range v.pdom.children {
+		pre, post = numberPostDomTree(child, pre, post)
+	}
+	v.pdom.post = post
 	post++
 	return pre, post
 }
@@ -212,6 +340,13 @@ func sanityCheckDomTree(f *Function) {
 			x.Set(&all)
 			for _, pred := range b.Preds {
 				x.And(&x, &D[pred.Index])
+			}
+			if b == f.Exit {
+				for _, p := range f.Blocks {
+					if f.fakeExits.Has(p) {
+						x.And(&x, &D[p.Index])
+					}
+				}
 			}
 			x.SetBit(&x, i, 1) // a block always dominates itself.
 			if D[i].Cmp(&x) != 0 {
@@ -263,7 +398,7 @@ func printDomTreeText(buf *bytes.Buffer, v *BasicBlock, indent int) {
 // printDomTreeDot prints the dominator tree of f in AT&T GraphViz
 // (.dot) format.
 //lint:ignore U1000 used during debugging
-func printDomTreeDot(buf *bytes.Buffer, f *Function) {
+func printDomTreeDot(buf io.Writer, f *Function) {
 	fmt.Fprintln(buf, "//", f)
 	fmt.Fprintln(buf, "digraph domtree {")
 	for i, b := range f.Blocks {
@@ -279,6 +414,39 @@ func printDomTreeDot(buf *bytes.Buffer, f *Function) {
 		// CFG edges.
 		for _, pred := range b.Preds {
 			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"dotted\",weight=0];\n", pred.dom.pre, v.pre)
+		}
+	}
+	fmt.Fprintln(buf, "}")
+}
+
+// printDomTree prints the dominator tree as text, using indentation.
+//lint:ignore U1000 used during debugging
+func printPostDomTreeText(buf io.Writer, v *BasicBlock, indent int) {
+	fmt.Fprintf(buf, "%*s%s\n", 4*indent, "", v)
+	for _, child := range v.pdom.children {
+		printPostDomTreeText(buf, child, indent+1)
+	}
+}
+
+// printDomTreeDot prints the dominator tree of f in AT&T GraphViz
+// (.dot) format.
+//lint:ignore U1000 used during debugging
+func printPostDomTreeDot(buf io.Writer, f *Function) {
+	fmt.Fprintln(buf, "//", f)
+	fmt.Fprintln(buf, "digraph pdomtree {")
+	for _, b := range f.Blocks {
+		v := b.pdom
+		fmt.Fprintf(buf, "\tn%d [label=\"%s (%d, %d)\",shape=\"rectangle\"];\n", v.pre, b, v.pre, v.post)
+		// TODO(adonovan): improve appearance of edges
+		// belonging to both dominator tree and CFG.
+
+		// Dominator tree edge.
+		if b != f.Exit {
+			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"solid\",weight=100];\n", v.idom.pdom.pre, v.pre)
+		}
+		// CFG edges.
+		for _, pred := range b.Preds {
+			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"dotted\",weight=0];\n", pred.pdom.pre, v.pre)
 		}
 	}
 	fmt.Fprintln(buf, "}")

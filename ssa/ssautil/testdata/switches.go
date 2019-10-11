@@ -18,7 +18,7 @@ func SimpleSwitch(x, y int) {
 	// case 2:int: call print(23:int)
 	// case 3:int: call print(23:int)
 	// case 4:int: call print(3:int)
-	// default: t8 == t9
+	// default: t33 == t34
 	// }
 	switch x {
 	case 1:
@@ -45,10 +45,10 @@ func SwitchWithNonConstantCase(x int) {
 	// case 1:int: call print(1:int)
 	// case 2:int: call print(23:int)
 	// case 3:int: call print(23:int)
-	// default: call four()
+	// default: t26 == t27
 	// }
 
-	// switch t8 {
+	// switch t32 {
 	// case 5:int: call print(5:int)
 	// case 6:int: call print(6:int)
 	// default: call print("done":string)
@@ -75,16 +75,16 @@ func ImplicitSwitches(x, y int) {
 	// switch t12 {
 	// case 1:int: call print(12:int)
 	// case 2:int: call print(12:int)
-	// default: t12 < 5:int
+	// default: t27 < 5:int
 	// }
 	if x == 1 || 2 == x || x < 5 {
 		print(12)
 	}
 
-	// switch t12 {
+	// switch t24 {
 	// case 3:int: call print(34:int)
 	// case 4:int: call print(34:int)
-	// default: t12 == t13
+	// default: t49 == t50
 	// }
 	if x == 3 || 4 == x || x == y {
 		print(34)
@@ -138,10 +138,10 @@ end:
 }
 
 func SwitchInAForLoop(x int) {
-	// switch t4 {
+	// switch t8 {
 	// case 1:int: call print(1:int)
 	// case 2:int: call print(2:int)
-	// default: call print("head":string)
+	// default: t8 == 1:int
 	// }
 loop:
 	for {
@@ -161,10 +161,10 @@ loop:
 // As before, the default case points back to the block containing the
 // switch, but that's ok.
 func SwitchInAForLoopUsingGoto(x int) {
-	// switch t4 {
+	// switch t8 {
 	// case 1:int: call print(1:int)
 	// case 2:int: call print(2:int)
-	// default: call print("head":string)
+	// default: t8 == 1:int
 	// }
 loop:
 	print("head")
@@ -184,9 +184,9 @@ end:
 }
 
 func UnstructuredSwitchInAForLoop(x int) {
-	// switch t4 {
+	// switch t8 {
 	// case 1:int: call print(1:int)
-	// case 2:int: t4 == 1:int
+	// case 2:int: t8 == 1:int
 	// default: call print("end":string)
 	// }
 	for {
@@ -265,7 +265,7 @@ func ZeroInitializedVarsAreConstants(x int) {
 // NB, potentially fragile reliance on register number.
 func SelectDesugarsToSwitch(ch chan int) {
 	// switch t7 {
-	// case 0:int: extract t6 #2
+	// case 0:int: call println(t11)
 	// case 1:int: call println(0:int)
 	// case 2:int: call println(1:int)
 	// default: call println("default":string)
@@ -285,7 +285,7 @@ func SelectDesugarsToSwitch(ch chan int) {
 // NB, potentially fragile reliance on register number.
 func NonblockingSelectDefaultCasePanics(ch chan int) {
 	// switch t7 {
-	// case 0:int: extract t6 #2
+	// case 0:int: call println(t11)
 	// case 1:int: call println(0:int)
 	// case 2:int: call println(1:int)
 	// default: make interface{} <- string ("blocking select m...":string)
@@ -304,11 +304,11 @@ func NonblockingSelectDefaultCasePanics(ch chan int) {
 
 // NB, reliance on fragile register numbering.
 func SimpleTypeSwitch(x interface{}) {
-	// switch t2.(type) {
-	// case t9 int: call println(t2)
-	// case t15 bool: call println(t2)
-	// case t19 string: call println(t19)
-	// default: call println(t2)
+	// switch t9.(type) {
+	// case t11 int: call println(t16)
+	// case t21 bool: call println(t16)
+	// case t26 string: call println(t26)
+	// default: call println(t31)
 	// }
 	switch y := x.(type) {
 	case nil:
@@ -326,8 +326,8 @@ func SimpleTypeSwitch(x interface{}) {
 func DuplicateTypesAreNotEliminated(x interface{}) {
 	// switch t3.(type) {
 	// case t5 string: call println(1:int)
-	// case t12 interface{}: call println(t12)
-	// case t18 int: call println(3:int)
+	// case t13 interface{}: call println(t13)
+	// case t20 int: call println(3:int)
 	// default: return
 	// }
 	switch y := x.(type) {
@@ -343,8 +343,8 @@ func DuplicateTypesAreNotEliminated(x interface{}) {
 // NB, potentially fragile reliance on register number.
 func AdHocTypeSwitch(x interface{}) {
 	// switch t2.(type) {
-	// case t4 int: call println(t4)
-	// case t11 string: call println(t11)
+	// case t4 int: call println(t8)
+	// case t13 string: call println(t16)
 	// default: call print("default":string)
 	// }
 	if i, ok := x.(int); ok {

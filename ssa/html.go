@@ -851,6 +851,8 @@ func valueLongHTML(v Node) string {
 		} else {
 			s += fmt.Sprintf(" {%s}", html.EscapeString(v.Value.String()))
 		}
+	case *Sigma:
+		s += fmt.Sprintf(" {#%s}", v.From)
 	}
 	for _, a := range v.Operands(nil) {
 		s += fmt.Sprintf(" %s", valueHTML(*a))

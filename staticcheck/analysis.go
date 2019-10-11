@@ -118,10 +118,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckIneffectiveCopy,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	"SA4002": {
-		Run:      CheckDiffSizeComparison,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
-	},
+	// "SA4002": {
+	// 	Run:      CheckDiffSizeComparison,
+	// 	Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
+	// },
 	"SA4003": {
 		Run:      CheckExtremeComparison,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
@@ -232,10 +232,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 	},
 	"SA6002": makeCallCheckerAnalyzer(checkSyncPoolValueRules),
-	"SA6003": {
-		Run:      CheckRangeStringRunes,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
-	},
+	// "SA6003": {
+	// 	Run:      CheckRangeStringRunes,
+	// 	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	// },
 	"SA6005": {
 		Run:      CheckToLowerToUpperComparison,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},

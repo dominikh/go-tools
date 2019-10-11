@@ -145,7 +145,7 @@ func (c *ArraySliceConstraint) String() string {
 	return fmt.Sprintf("%s[%s:%s]", c.X.Name(), lname, uname)
 }
 func (c *SliceIntersectionConstraint) String() string {
-	return fmt.Sprintf("%s = %s.%t ⊓ %s", c.Y().Name(), c.X.Name(), c.Y().(*ssa.Sigma).Branch, c.I)
+	panic("unreachable")
 }
 func (c *SliceLengthConstraint) String() string {
 	return fmt.Sprintf("%s = len(%s)", c.Y().Name(), c.X.Name())

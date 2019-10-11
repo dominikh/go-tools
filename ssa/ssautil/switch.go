@@ -131,10 +131,20 @@ func Switches(fn *ssa.Function) []Switch {
 	return switches
 }
 
+func isSameX(x1 ssa.Value, x2 ssa.Value) bool {
+	if x1 == x2 {
+		return true
+	}
+	if x2, ok := x2.(*ssa.Sigma); ok {
+		return isSameX(x1, x2.X)
+	}
+	return false
+}
+
 func valueSwitch(sw *Switch, k *ssa.Const, seen map[*ssa.BasicBlock]bool) {
 	b := sw.Start
 	x := sw.X
-	for x == sw.X {
+	for isSameX(sw.X, x) {
 		if seen[b] {
 			break
 		}
@@ -146,8 +156,18 @@ func valueSwitch(sw *Switch, k *ssa.Const, seen map[*ssa.BasicBlock]bool) {
 			Value: k,
 		})
 		b = b.Succs[1]
-		if len(b.Instrs) > 2 {
-			// Block b contains not just 'if x == k',
+		n := 0
+		for _, instr := range b.Instrs {
+			switch instr.(type) {
+			case *ssa.If, *ssa.BinOp:
+				n++
+			case *ssa.Sigma, *ssa.Phi, *ssa.DebugRef:
+			default:
+				n += 1000
+			}
+		}
+		if n != 2 {
+			// Block b contains not just 'if x == k' and σ/ϕ nodes,
 			// so it may have side effects that
 			// make it unsafe to elide.
 			break
@@ -165,7 +185,7 @@ func valueSwitch(sw *Switch, k *ssa.Const, seen map[*ssa.BasicBlock]bool) {
 func typeSwitch(sw *Switch, y ssa.Value, T types.Type, seen map[*ssa.BasicBlock]bool) {
 	b := sw.Start
 	x := sw.X
-	for x == sw.X {
+	for isSameX(sw.X, x) {
 		if seen[b] {
 			break
 		}
@@ -178,7 +198,17 @@ func typeSwitch(sw *Switch, y ssa.Value, T types.Type, seen map[*ssa.BasicBlock]
 			Binding: y,
 		})
 		b = b.Succs[1]
-		if len(b.Instrs) > 4 {
+		n := 0
+		for _, instr := range b.Instrs {
+			switch instr.(type) {
+			case *ssa.TypeAssert, *ssa.Extract, *ssa.If:
+				n++
+			case *ssa.Sigma, *ssa.Phi:
+			default:
+				n += 1000
+			}
+		}
+		if n != 4 {
 			// Block b contains not just
 			//  {TypeAssert; Extract #0; Extract #1; If}
 			// so it may have side effects that

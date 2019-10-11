@@ -77,7 +77,6 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 	fn.startBody()
 	fn.addSpilledParam(recv)
 	createParams(fn, start)
-	// XXX exit block
 
 	indices := sel.Index()
 

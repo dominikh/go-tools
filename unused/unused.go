@@ -1826,6 +1826,8 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 				// nothing to do
 			case *ssa.Phi:
 				// nothing to do
+			case *ssa.Sigma:
+				// nothing to do
 			case *ssa.MakeMap:
 				// nothing to do
 			case *ssa.MapUpdate:

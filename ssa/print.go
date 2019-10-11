@@ -84,6 +84,14 @@ func (v *Alloc) String() string {
 	return fmt.Sprintf("%s %s (%s)", op, relType(deref(v.Type()), from), v.Comment)
 }
 
+func (p *Sigma) String() string {
+	s := fmt.Sprintf("σ(%d: %s)", p.From.Index, p.X.Name())
+	if p.Comment != "" {
+		s += " #" + p.Comment
+	}
+	return s
+}
+
 func (v *Phi) String() string {
 	var b bytes.Buffer
 	b.WriteString("phi [")

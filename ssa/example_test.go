@@ -105,7 +105,7 @@ func Example_buildPackage() {
 	// # Package: hello
 	// # Location: hello.go:8:6
 	// func main():
-	// 0:                                                                entry P:0 S:0
+	// 0:                                                                entry P:0 S:1
 	// 	t1 = "Hello, World!":string                                      string
 	// 	t2 = 0:int                                                          int
 	// 	t3 = new [1]interface{} (varargs)                       *[1]interface{}
@@ -114,6 +114,8 @@ func Example_buildPackage() {
 	// 	Store {interface{}} t4 t5
 	// 	t7 = slice t3[:]                                          []interface{}
 	// 	t8 = call fmt.Println(t7...)                         (n int, err error)
+	// 	jump 1
+	// 1:                                                                 exit P:1 S:0
 	// 	return
 }
 

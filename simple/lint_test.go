@@ -31,7 +31,7 @@ func TestAll(t *testing.T) {
 		"S1024": {{Dir: "CheckTimeUntil_go17", Version: "1.7"}, {Dir: "CheckTimeUntil_go18", Version: "1.8"}},
 		"S1025": {{Dir: "CheckRedundantSprintf"}},
 		"S1028": {{Dir: "CheckErrorsNewSprintf"}},
-		"S1029": {{Dir: "CheckRangeStringRunes"}},
+		// "S1029": {{Dir: "CheckRangeStringRunes"}},
 		"S1030": {{Dir: "CheckBytesBufferConversions"}},
 		"S1031": {{Dir: "CheckNilCheckAroundRange"}},
 		"S1032": {{Dir: "CheckSortHelpers"}},

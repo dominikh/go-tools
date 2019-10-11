@@ -117,7 +117,7 @@ func (c *StringSliceConstraint) String() string {
 	return fmt.Sprintf("%s[%s:%s]", c.X.Name(), lname, uname)
 }
 func (c *StringIntersectionConstraint) String() string {
-	return fmt.Sprintf("%s = %s %s %s (%t branch)", c.Y().Name(), c.A.Name(), c.Op, c.B.Name(), c.Y().(*ssa.Sigma).Branch)
+	panic("unreachable")
 }
 func (c StringConcatConstraint) String() string {
 	return fmt.Sprintf("%s = %s + %s", c.Y().Name(), c.A.Name(), c.B.Name())

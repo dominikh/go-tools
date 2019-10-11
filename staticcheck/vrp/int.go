@@ -359,7 +359,7 @@ func (c *IntConversionConstraint) String() string {
 	return fmt.Sprintf("%s = %s(%s)", c.Y().Name(), c.Y().Type(), c.X.Name())
 }
 func (c *IntIntersectionConstraint) String() string {
-	return fmt.Sprintf("%s = %s %s %s (%t branch)", c.Y().Name(), c.A.Name(), c.Op, c.B.Name(), c.Y().(*ssa.Sigma).Branch)
+	panic("unreachable")
 }
 func (c *IntIntervalConstraint) String() string { return fmt.Sprintf("%s = %s", c.Y().Name(), c.I) }
 

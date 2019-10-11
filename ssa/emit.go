@@ -358,6 +358,10 @@ func emitTailCall(f *Function, call *Call) {
 			ret.Results = append(ret.Results, v)
 		}
 	}
+
+	f.Exit = f.newBasicBlock("exit")
+	emitJump(f, f.Exit)
+	f.currentBlock = f.Exit
 	f.emit(&ret)
 	f.currentBlock = nil
 }

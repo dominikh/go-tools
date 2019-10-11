@@ -11,11 +11,19 @@ func IsStub(fn *ssa.Function) bool {
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr.(type) {
-			case *ssa.Const, *ssa.Panic, *ssa.Return, *ssa.DebugRef:
-				// Const has no side-effects, Panic and
-				// Return must be using a constant value, or there are
-				// other instructions.
+			case *ssa.Const:
+				// const naturally has no side-effects
+			case *ssa.Panic:
+				// panic is a stub if it only uses constants
+			case *ssa.Return:
+				// return is a stub if it only uses constants
+			case *ssa.DebugRef:
+			case *ssa.Jump:
+				// if there are no disallowed instructions, then we're
+				// only jumping to the exit block (or possibly
+				// somewhere else that's stubby?)
 			default:
+				// all other instructions are assumed to do actual work
 				return false
 			}
 		}
