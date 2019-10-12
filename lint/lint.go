@@ -271,6 +271,9 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	for _, cum := range l.CumulativeCheckers {
 		for _, res := range cum.Result() {
 			pkg := tpkgToPkg[res.Pkg()]
+			if pkg == nil {
+				panic(fmt.Sprintf("analyzer %s flagged object %s in package %s, a package that we aren't tracking", cum.Analyzer(), res, res.Pkg()))
+			}
 			allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
 			if allowedChecks[cum.Analyzer().Name] {
 				pos := DisplayPosition(pkg.Fset, res.Pos())
@@ -286,15 +289,6 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		}
 	}
 
-	var checkerNames []string
-	for _, c := range allowedAnalyzers {
-		checkerNames = append(checkerNames, c.Name)
-	}
-	for _, a := range injectedAnalyses {
-		checkerNames = append(checkerNames, a.Name)
-	}
-	sort.Strings(checkerNames)
-	cacheKey := strings.Join(checkerNames, " ")
 	for _, pkg := range pkgs {
 		if !pkg.fromSource {
 			// Don't cache packages that we loaded from the cache
@@ -309,7 +303,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		if err := gob.NewEncoder(buf).Encode(cpkg); err != nil {
 			return nil, err
 		}
-		id := cache.Subkey(pkg.actionID, "data "+cacheKey)
+		id := cache.Subkey(pkg.actionID, "data "+r.problemsCacheKey)
 		if err := r.cache.PutBytes(id, buf.Bytes()); err != nil {
 			return nil, err
 		}

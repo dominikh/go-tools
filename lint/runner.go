@@ -203,7 +203,8 @@ type Runner struct {
 	stats           *Stats
 	repeatAnalyzers uint
 
-	analyzerIDs analyzerIDs
+	analyzerIDs      analyzerIDs
+	problemsCacheKey string
 
 	// limits parallelism of loading packages
 	loadSem chan struct{}
@@ -368,14 +369,8 @@ func (r *Runner) runAnalysis(ac *analysisAction) (ret interface{}, err error) {
 }
 
 func (r *Runner) loadCachedPackage(pkg *Package, analyzers []*analysis.Analyzer) (cachedPackage, bool) {
-	var checkerNames []string
-	for _, a := range analyzers {
-		checkerNames = append(checkerNames, a.Name)
-	}
 	// OPT(dh): we can cache this computation, it'll be the same for all packages
-	sort.Strings(checkerNames)
-	cacheKey := strings.Join(checkerNames, " ")
-	id := cache.Subkey(pkg.actionID, "data "+cacheKey)
+	id := cache.Subkey(pkg.actionID, "data "+r.problemsCacheKey)
 
 	b, _, err := r.cache.GetBytes(id)
 	if err != nil {
@@ -558,6 +553,14 @@ func NewRunner(stats *Stats) (*Runner, error) {
 // accomodate cumulative analyzes that require additional steps to
 // produce diagnostics.
 func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analysis.Analyzer, hasCumulative bool) ([]*Package, error) {
+	checkerNames := make([]string, len(analyzers))
+	for i, a := range analyzers {
+		checkerNames[i] = a.Name
+	}
+	sort.Strings(checkerNames)
+	r.problemsCacheKey = strings.Join(checkerNames, " ")
+
+	var allAnalyzers []*analysis.Analyzer
 	r.analyzerIDs = analyzerIDs{m: map[*analysis.Analyzer]int{}}
 	id := 0
 	seen := map[*analysis.Analyzer]struct{}{}
@@ -567,6 +570,7 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 			return
 		}
 		seen[a] = struct{}{}
+		allAnalyzers = append(allAnalyzers, a)
 		r.analyzerIDs.m[a] = id
 		id++
 		for _, f := range a.FactTypes {
@@ -585,6 +589,11 @@ func (r *Runner) Run(cfg *packages.Config, patterns []string, analyzers []*analy
 	for _, a := range injectedAnalyses {
 		dfs(a)
 	}
+	// Run all analyzers on all packages (subject to further
+	// restrictions enforced later). This guarantees that if analyzer
+	// A1 depends on A2, and A2 has facts, that A2 will run on the
+	// dependencies of user-provided packages, even though A1 won't.
+	analyzers = allAnalyzers
 
 	var dcfg packages.Config
 	if cfg != nil {
@@ -893,7 +902,7 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 			defer wg.Done()
 			// Only initial packages and packages with missing
 			// facts will have been loaded from source.
-			if pkg.initial || r.hasFacts(a) {
+			if pkg.initial || len(a.FactTypes) > 0 {
 				if _, err := r.runAnalysis(ac); err != nil {
 					errs[i] = analysisError{a, pkg, err}
 					return
@@ -951,32 +960,6 @@ func (r *Runner) processPkg(pkg *Package, analyzers []*analysis.Analyzer) {
 	// live that export data wouldn't also. We only need to discard
 	// the AST and the TypesInfo maps; that happens after we return
 	// from processPkg.
-}
-
-// hasFacts reports whether an analysis exports any facts. An analysis
-// that has a transitive dependency that exports facts is considered
-// to be exporting facts.
-func (r *Runner) hasFacts(a *analysis.Analyzer) bool {
-	ret := false
-	seen := make([]bool, len(r.analyzerIDs.m))
-	var dfs func(*analysis.Analyzer)
-	dfs = func(a *analysis.Analyzer) {
-		if seen[r.analyzerIDs.get(a)] {
-			return
-		}
-		seen[r.analyzerIDs.get(a)] = true
-		if len(a.FactTypes) > 0 {
-			ret = true
-		}
-		for _, req := range a.Requires {
-			if ret {
-				break
-			}
-			dfs(req)
-		}
-	}
-	dfs(a)
-	return ret
 }
 
 func parseDirective(s string) (cmd string, args []string) {
