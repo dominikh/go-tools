@@ -125,6 +125,16 @@ func opName(v Node) string {
 			return "Invoke"
 		}
 		return "Call"
+	case *Alloc:
+		if v.Heap {
+			return "HeapAlloc"
+		}
+		return "StackAlloc"
+	case *Select:
+		if v.Blocking {
+			return "SelectBlocking"
+		}
+		return "SelectNonBlocking"
 	default:
 		return reflect.ValueOf(v).Type().Elem().Name()
 	}
@@ -834,11 +844,25 @@ func valueLongHTML(v Node) string {
 	case *UnOp:
 		s += fmt.Sprintf(" {%s}", html.EscapeString(v.Op.String()))
 	case *Extract:
-		s += fmt.Sprintf(" {%d}", v.Index)
+		name := v.Tuple.Type().(*types.Tuple).At(v.Index).Name()
+		s += fmt.Sprintf(" [%d] (%s)", v.Index, name)
 	case *Field:
-		s += fmt.Sprintf(" {%d}", v.Field)
+		st := v.X.Type().Underlying().(*types.Struct)
+		// Be robust against a bad index.
+		name := "?"
+		if 0 <= v.Field && v.Field < st.NumFields() {
+			name = st.Field(v.Field).Name()
+		}
+		s += fmt.Sprintf(" [%d] (%s)", v.Field, name)
 	case *FieldAddr:
-		s += fmt.Sprintf(" {%d}", v.Field)
+		st := deref(v.X.Type()).Underlying().(*types.Struct)
+		// Be robust against a bad index.
+		name := "?"
+		if 0 <= v.Field && v.Field < st.NumFields() {
+			name = st.Field(v.Field).Name()
+		}
+
+		s += fmt.Sprintf(" [%d] (%s)", v.Field, name)
 	case *Recv:
 		s += fmt.Sprintf(" {%t}", v.CommaOk)
 	case *Call:
@@ -852,10 +876,16 @@ func valueLongHTML(v Node) string {
 			s += fmt.Sprintf(" {%s}", html.EscapeString(v.Value.String()))
 		}
 	case *Sigma:
-		s += fmt.Sprintf(" {#%s}", v.From)
+		s += fmt.Sprintf(" [#%s]", v.From)
 	}
 	for _, a := range v.Operands(nil) {
 		s += fmt.Sprintf(" %s", valueHTML(*a))
+	}
+	switch v := v.(type) {
+	case *Alloc:
+		s += fmt.Sprintf(" (%s)", v.Comment)
+	case *Sigma:
+		s += fmt.Sprintf(" (%s)", v.Comment)
 	}
 
 	// OPT(dh): we're calling namedValues many times on the same function.

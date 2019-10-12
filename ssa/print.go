@@ -35,8 +35,6 @@ func relName(v Value, i Instruction) string {
 	switch v := v.(type) {
 	case Member: // *Function or *Global
 		return v.RelString(from)
-	case *Const:
-		return v.RelString(from)
 	}
 	return v.Name()
 }
@@ -61,44 +59,43 @@ func relString(m Member, from *types.Package) string {
 
 func (v *Parameter) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("parameter %s : %s", v.name, relType(v.Type(), from))
+	return fmt.Sprintf("Parameter <%s> {%s}", relType(v.Type(), from), v.name)
 }
 
 func (v *FreeVar) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("freevar %s : %s", v.Name(), relType(v.Type(), from))
+	return fmt.Sprintf("FreeVar <%s> %s", relType(v.Type(), from), v.Name())
 }
 
 func (v *Builtin) String() string {
-	return fmt.Sprintf("builtin %s", v.Name())
+	return fmt.Sprintf("Builtin %s", v.Name())
 }
 
 // Instruction.String()
 
 func (v *Alloc) String() string {
-	op := "local"
-	if v.Heap {
-		op = "new"
-	}
 	from := v.Parent().pkg()
-	return fmt.Sprintf("%s %s (%s)", op, relType(deref(v.Type()), from), v.Comment)
+	storage := "Stack"
+	if v.Heap {
+		storage = "Heap"
+	}
+	return fmt.Sprintf("%sAlloc <%s> (%s)", storage, relType(v.Type(), from), v.Comment)
 }
 
-func (p *Sigma) String() string {
-	s := fmt.Sprintf("σ(%d: %s)", p.From.Index, p.X.Name())
-	if p.Comment != "" {
-		s += " #" + p.Comment
+func (v *Sigma) String() string {
+	from := v.Parent().pkg()
+	s := fmt.Sprintf("Sigma <%s> [b%d] %s", relType(v.Type(), from), v.From.Index, v.X.Name())
+	if v.Comment != "" {
+		s += fmt.Sprintf(" (%s)", v.Comment)
 	}
 	return s
 }
 
 func (v *Phi) String() string {
 	var b bytes.Buffer
-	b.WriteString("phi [")
+	fmt.Fprintf(&b, "Phi <%s>", v.Type())
 	for i, edge := range v.Edges {
-		if i > 0 {
-			b.WriteString(", ")
-		}
+		b.WriteString(" ")
 		// Be robust against malformed CFG.
 		if v.block == nil {
 			b.WriteString("??")
@@ -108,40 +105,38 @@ func (v *Phi) String() string {
 		if i < len(v.block.Preds) {
 			block = v.block.Preds[i].Index
 		}
-		fmt.Fprintf(&b, "%d: ", block)
+		fmt.Fprintf(&b, "%d:", block)
 		edgeVal := "<nil>" // be robust
 		if edge != nil {
 			edgeVal = relName(edge, v)
 		}
 		b.WriteString(edgeVal)
 	}
-	b.WriteString("]")
 	if v.Comment != "" {
-		b.WriteString(" #")
-		b.WriteString(v.Comment)
+		fmt.Fprintf(&b, " (%s)", v.Comment)
 	}
 	return b.String()
 }
 
 func printCall(v *CallCommon, prefix string, instr Instruction) string {
 	var b bytes.Buffer
-	b.WriteString(prefix)
 	if !v.IsInvoke() {
-		fmt.Fprintf(&b, "call %s", relName(v.Value, instr))
-	} else {
-		fmt.Fprintf(&b, "invoke %s.%s", relName(v.Value, instr), v.Method.Name())
-	}
-	b.WriteString("(")
-	for i, arg := range v.Args {
-		if i != 0 {
-			b.WriteString(", ")
+		if value, ok := instr.(Value); ok {
+			fmt.Fprintf(&b, "%s <%s> %s", prefix, relType(value.Type(), instr.Parent().pkg()), relName(v.Value, instr))
+		} else {
+			fmt.Fprintf(&b, "%s %s", prefix, relName(v.Value, instr))
 		}
+	} else {
+		if value, ok := instr.(Value); ok {
+			fmt.Fprintf(&b, "%sInvoke <%s> %s.%s", prefix, relType(value.Type(), instr.Parent().pkg()), relName(v.Value, instr), v.Method.Name())
+		} else {
+			fmt.Fprintf(&b, "%sInvoke %s.%s", prefix, relName(v.Value, instr), v.Method.Name())
+		}
+	}
+	for _, arg := range v.Args {
+		b.WriteString(" ")
 		b.WriteString(relName(arg, instr))
 	}
-	if v.Signature().Variadic() {
-		b.WriteString("...")
-	}
-	b.WriteString(")")
 	return b.String()
 }
 
@@ -150,15 +145,15 @@ func (c *CallCommon) String() string {
 }
 
 func (v *Call) String() string {
-	return printCall(&v.Call, "", v)
+	return printCall(&v.Call, "Call", v)
 }
 
 func (v *BinOp) String() string {
-	return fmt.Sprintf("%s %s %s", relName(v.X, v), v.Op.String(), relName(v.Y, v))
+	return fmt.Sprintf("BinOp <%s> {%s} %s %s", relType(v.Type(), v.Parent().pkg()), v.Op.String(), relName(v.X, v), relName(v.Y, v))
 }
 
 func (v *UnOp) String() string {
-	return fmt.Sprintf("%s%s%s", v.Op, relName(v.X, v), commaOk(v.CommaOk))
+	return fmt.Sprintf("UnOp <%s> {%s} %s", relType(v.Type(), v.Parent().pkg()), v.Op.String(), relName(v.X, v))
 }
 
 func (v *Load) String() string {
@@ -167,60 +162,42 @@ func (v *Load) String() string {
 
 func printConv(prefix string, v, x Value) string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("%s %s <- %s (%s)",
+	return fmt.Sprintf("%s <%s> %s",
 		prefix,
 		relType(v.Type(), from),
-		relType(x.Type(), from),
 		relName(x, v.(Instruction)))
 }
 
-func (v *ChangeType) String() string      { return printConv("changetype", v, v.X) }
-func (v *Convert) String() string         { return printConv("convert", v, v.X) }
-func (v *ChangeInterface) String() string { return printConv("change interface", v, v.X) }
-func (v *MakeInterface) String() string   { return printConv("make", v, v.X) }
+func (v *ChangeType) String() string      { return printConv("ChangeType", v, v.X) }
+func (v *Convert) String() string         { return printConv("Convert", v, v.X) }
+func (v *ChangeInterface) String() string { return printConv("ChangeInterface", v, v.X) }
+func (v *MakeInterface) String() string   { return printConv("MakeInterface", v, v.X) }
 
 func (v *MakeClosure) String() string {
+	from := v.Parent().pkg()
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "make closure %s", relName(v.Fn, v))
+	fmt.Fprintf(&b, "MakeClosure <%s> %s", relType(v.Type(), from), relName(v.Fn, v))
 	if v.Bindings != nil {
-		b.WriteString(" [")
-		for i, c := range v.Bindings {
-			if i > 0 {
-				b.WriteString(", ")
-			}
+		for _, c := range v.Bindings {
+			b.WriteString(" ")
 			b.WriteString(relName(c, v))
 		}
-		b.WriteString("]")
 	}
 	return b.String()
 }
 
 func (v *MakeSlice) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("make %s %s %s",
+	return fmt.Sprintf("MakeSlice <%s> %s %s",
 		relType(v.Type(), from),
 		relName(v.Len, v),
 		relName(v.Cap, v))
 }
 
 func (v *Slice) String() string {
-	var b bytes.Buffer
-	b.WriteString("slice ")
-	b.WriteString(relName(v.X, v))
-	b.WriteString("[")
-	if v.Low != nil {
-		b.WriteString(relName(v.Low, v))
-	}
-	b.WriteString(":")
-	if v.High != nil {
-		b.WriteString(relName(v.High, v))
-	}
-	if v.Max != nil {
-		b.WriteString(":")
-		b.WriteString(relName(v.Max, v))
-	}
-	b.WriteString("]")
-	return b.String()
+	from := v.Parent().pkg()
+	return fmt.Sprintf("Slice <%s> %s %s %s %s",
+		relType(v.Type(), from), relName(v.X, v), relName(v.Low, v), relName(v.High, v), relName(v.Max, v))
 }
 
 func (v *MakeMap) String() string {
@@ -229,22 +206,23 @@ func (v *MakeMap) String() string {
 		res = relName(v.Reserve, v)
 	}
 	from := v.Parent().pkg()
-	return fmt.Sprintf("make %s %s", relType(v.Type(), from), res)
+	return fmt.Sprintf("MakeMap <%s> %s", relType(v.Type(), from), res)
 }
 
 func (v *MakeChan) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("make %s %s", relType(v.Type(), from), relName(v.Size, v))
+	return fmt.Sprintf("MakeChan <%s> %s", relType(v.Type(), from), relName(v.Size, v))
 }
 
 func (v *FieldAddr) String() string {
+	from := v.Parent().pkg()
 	st := deref(v.X.Type()).Underlying().(*types.Struct)
 	// Be robust against a bad index.
 	name := "?"
 	if 0 <= v.Field && v.Field < st.NumFields() {
 		name = st.Field(v.Field).Name()
 	}
-	return fmt.Sprintf("&%s.%s [#%d]", relName(v.X, v), name, v.Field)
+	return fmt.Sprintf("FieldAddr <%s> [%d] (%s) %s", relType(v.Type(), from), v.Field, name, relName(v.X, v))
 }
 
 func (v *Field) String() string {
@@ -254,40 +232,49 @@ func (v *Field) String() string {
 	if 0 <= v.Field && v.Field < st.NumFields() {
 		name = st.Field(v.Field).Name()
 	}
-	return fmt.Sprintf("%s.%s [#%d]", relName(v.X, v), name, v.Field)
+	from := v.Parent().pkg()
+	return fmt.Sprintf("Field <%s> [%d] (%s) %s", relType(v.Type(), from), v.Field, name, relName(v.X, v))
 }
 
 func (v *IndexAddr) String() string {
-	return fmt.Sprintf("&%s[%s]", relName(v.X, v), relName(v.Index, v))
+	from := v.Parent().pkg()
+	return fmt.Sprintf("IndexAddr <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *Index) String() string {
-	return fmt.Sprintf("%s[%s]", relName(v.X, v), relName(v.Index, v))
+	from := v.Parent().pkg()
+	return fmt.Sprintf("Index <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *MapLookup) String() string {
-	return fmt.Sprintf("%s[%s]%s", relName(v.X, v), relName(v.Index, v), commaOk(v.CommaOk))
+	from := v.Parent().pkg()
+	return fmt.Sprintf("MapLookup <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *StringLookup) String() string {
-	return fmt.Sprintf("%s[%s]", relName(v.X, v), relName(v.Index, v))
+	from := v.Parent().pkg()
+	return fmt.Sprintf("StringLookup <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *Range) String() string {
-	return "range " + relName(v.X, v)
+	from := v.Parent().pkg()
+	return fmt.Sprintf("Range <%s> %s", relType(v.Type(), from), relName(v.X, v))
 }
 
 func (v *Next) String() string {
-	return "next " + relName(v.Iter, v)
+	from := v.Parent().pkg()
+	return fmt.Sprintf("Next <%s> %s", relType(v.Type(), from), relName(v.Iter, v))
 }
 
 func (v *TypeAssert) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("typeassert%s %s.(%s)", commaOk(v.CommaOk), relName(v.X, v), relType(v.AssertedType, from))
+	return fmt.Sprintf("TypeAssert <%s> %s", relType(v.Type(), from), relName(v.X, v))
 }
 
 func (v *Extract) String() string {
-	return fmt.Sprintf("extract %s #%d", relName(v.Tuple, v), v.Index)
+	from := v.Parent().pkg()
+	name := v.Tuple.Type().(*types.Tuple).At(v.Index).Name()
+	return fmt.Sprintf("Extract <%s> [%d] (%s) %s", relType(v.Type(), from), v.Index, name, relName(v.Tuple, v))
 }
 
 func (s *Jump) String() string {
@@ -296,11 +283,16 @@ func (s *Jump) String() string {
 	if s.block != nil && len(s.block.Succs) == 1 {
 		block = s.block.Succs[0].Index
 	}
-	return fmt.Sprintf("jump %d", block)
+	return fmt.Sprintf("Jump → b%d", block)
 }
 
 func (s *Unreachable) String() string {
-	return "Unreachable"
+	// Be robust against malformed CFG.
+	block := -1
+	if s.block != nil && len(s.block.Succs) == 1 {
+		block = s.block.Succs[0].Index
+	}
+	return fmt.Sprintf("Unreachable → b%d", block)
 }
 
 func (s *If) String() string {
@@ -310,45 +302,47 @@ func (s *If) String() string {
 		tblock = s.block.Succs[0].Index
 		fblock = s.block.Succs[1].Index
 	}
-	return fmt.Sprintf("if %s goto %d else %d", relName(s.Cond, s), tblock, fblock)
+	return fmt.Sprintf("If %s → b%d b%d", relName(s.Cond, s), tblock, fblock)
 }
 
 func (s *Go) String() string {
-	return printCall(&s.Call, "go ", s)
+	return printCall(&s.Call, "Go", s)
 }
 
 func (s *Panic) String() string {
-	return "panic " + relName(s.X, s)
+	// Be robust against malformed CFG.
+	block := -1
+	if s.block != nil && len(s.block.Succs) == 1 {
+		block = s.block.Succs[0].Index
+	}
+	return fmt.Sprintf("Panic %s → b%d", relName(s.X, s), block)
 }
 
 func (s *Return) String() string {
 	var b bytes.Buffer
-	b.WriteString("return")
-	for i, r := range s.Results {
-		if i == 0 {
-			b.WriteString(" ")
-		} else {
-			b.WriteString(", ")
-		}
+	b.WriteString("Return")
+	for _, r := range s.Results {
+		b.WriteString(" ")
 		b.WriteString(relName(r, s))
 	}
 	return b.String()
 }
 
 func (*RunDefers) String() string {
-	return "rundefers"
+	return "RunDefers"
 }
 
 func (s *Send) String() string {
-	return fmt.Sprintf("send %s <- %s", relName(s.Chan, s), relName(s.X, s))
+	return fmt.Sprintf("Send %s %s", relName(s.Chan, s), relName(s.X, s))
 }
 
 func (recv *Recv) String() string {
-	return fmt.Sprintf("Recv {%t} %s", recv.CommaOk, relName(recv.Chan, recv))
+	from := recv.Parent().pkg()
+	return fmt.Sprintf("Recv <%s> %s", relType(recv.Type(), from), relName(recv.Chan, recv))
 }
 
 func (s *Defer) String() string {
-	return printCall(&s.Call, "defer ", s)
+	return printCall(&s.Call, "Defer", s)
 }
 
 func (s *Select) String() string {
@@ -368,9 +362,10 @@ func (s *Select) String() string {
 	}
 	non := ""
 	if !s.Blocking {
-		non = "non"
+		non = "Non"
 	}
-	return fmt.Sprintf("select %sblocking [%s]", non, b.String())
+	from := s.Parent().pkg()
+	return fmt.Sprintf("Select%sBlocking <%s> [%s]", non, relType(s.Type(), from), b.String())
 }
 
 func (s *Store) String() string {
@@ -379,11 +374,11 @@ func (s *Store) String() string {
 }
 
 func (s *BlankStore) String() string {
-	return fmt.Sprintf("_ = %s", relName(s.Val, s))
+	return fmt.Sprintf("BlankStore %s", relName(s.Val, s))
 }
 
 func (s *MapUpdate) String() string {
-	return fmt.Sprintf("%s[%s] = %s", relName(s.Map, s), relName(s.Key, s), relName(s.Value, s))
+	return fmt.Sprintf("MapUpdate %s %s %s", relName(s.Map, s), relName(s.Key, s), relName(s.Value, s))
 }
 
 func (s *DebugRef) String() string {
@@ -453,11 +448,4 @@ func WritePackage(buf *bytes.Buffer, p *Package) {
 	}
 
 	fmt.Fprintf(buf, "\n")
-}
-
-func commaOk(x bool) string {
-	if x {
-		return ",ok"
-	}
-	return ""
 }

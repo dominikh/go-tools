@@ -86,7 +86,7 @@ func (sw *Switch) testString() string {
 			if n < 0 {
 				n = 0
 			}
-			fmt.Fprintf(&buf, "case %s: %s\n", c.Value, c.Body.Instrs[n])
+			fmt.Fprintf(&buf, "case %s: %s\n", c.Value.Name(), c.Body.Instrs[n])
 		}
 	} else {
 		fmt.Fprintf(&buf, "switch %s.(type) {\n", sw.X.Name())

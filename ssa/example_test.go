@@ -79,44 +79,46 @@ func Example_buildPackage() {
 	hello.Func("main").WriteTo(os.Stdout)
 
 	// Output:
-	//
 	// package hello:
 	//   func  init       func()
 	//   var   init$guard bool
 	//   func  main       func()
-	//   const message    message = "Hello, World!":untyped string
+	//   const message    message = Const <untyped string> {"Hello, World!"}
 	//
 	// # Name: hello.init
 	// # Package: hello
 	// # Synthetic: package initializer
 	// func init():
-	// 0:                                                                entry P:0 S:2
-	// 	t1 = true:bool                                                     bool
-	// 	t2 = Load <bool> init$guard                                        bool
-	// 	if t2 goto 1 else 2
-	// 1:                                                                 exit P:2 S:0
-	// 	return
-	// 2:                                                           init.start P:1 S:1
-	// 	Store {bool} init$guard true:bool
-	// 	t6 = call fmt.init()                                                 ()
-	// 	jump 1
+	// b0:
+	// 	t1 = Const <bool> {true}
+	// 	t2 = Load <bool> init$guard
+	// 	If t2 → b1 b2
+	//
+	// b1: ← b0 b2
+	// 	Return
+	//
+	// b2: ← b0
+	// 	Store {bool} init$guard t1
+	// 	t6 = Call <()> fmt.init
+	// 	Jump → b1
 	//
 	// # Name: hello.main
 	// # Package: hello
 	// # Location: hello.go:8:6
 	// func main():
-	// 0:                                                                entry P:0 S:1
-	// 	t1 = "Hello, World!":string                                      string
-	// 	t2 = 0:int                                                          int
-	// 	t3 = new [1]interface{} (varargs)                       *[1]interface{}
-	// 	t4 = &t3[0:int]                                            *interface{}
-	// 	t5 = make interface{} <- string ("Hello, World!":string)    interface{}
+	// b0:
+	// 	t1 = Const <string> {"Hello, World!"}
+	// 	t2 = Const <int> {0}
+	// 	t3 = HeapAlloc <*[1]interface{}> (varargs)
+	// 	t4 = IndexAddr <*interface{}> t3 t2
+	// 	t5 = MakeInterface <interface{}> t1
 	// 	Store {interface{}} t4 t5
-	// 	t7 = slice t3[:]                                          []interface{}
-	// 	t8 = call fmt.Println(t7...)                         (n int, err error)
-	// 	jump 1
-	// 1:                                                                 exit P:1 S:0
-	// 	return
+	// 	t7 = Slice <[]interface{}> t3 <nil> <nil> <nil>
+	// 	t8 = Call <(n int, err error)> fmt.Println t7
+	// 	Jump → b1
+	//
+	// b1: ← b0
+	// 	Return
 }
 
 // This example builds SSA code for a set of packages using the

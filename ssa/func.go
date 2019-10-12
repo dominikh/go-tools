@@ -815,19 +815,20 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 		buf.WriteString("\t(external)\n")
 	}
 
-	// NB. column calculations are confused by non-ASCII
-	// characters and assume 8-space tabs.
-	const punchcard = 80 // for old time's sake.
-	const tabwidth = 8
 	for _, b := range f.Blocks {
 		if b == nil {
 			// Corrupt CFG.
 			fmt.Fprintf(buf, ".nil:\n")
 			continue
 		}
-		n, _ := fmt.Fprintf(buf, "%d:", b.Index)
-		bmsg := fmt.Sprintf("%s P:%d S:%d", b.Comment, len(b.Preds), len(b.Succs))
-		fmt.Fprintf(buf, "%*s%s\n", punchcard-1-n-len(bmsg), "", bmsg)
+		fmt.Fprintf(buf, "b%d:", b.Index)
+		if len(b.Preds) > 0 {
+			fmt.Fprint(buf, " ←")
+			for _, pred := range b.Preds {
+				fmt.Fprintf(buf, " b%d", pred.Index)
+			}
+		}
+		buf.WriteByte('\n')
 
 		if false { // CFG debugging
 			fmt.Fprintf(buf, "\t# CFG: %s --> %s --> %s\n", b.Preds, b, b.Succs)
@@ -836,25 +837,11 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 			buf.WriteString("\t")
 			switch v := instr.(type) {
 			case Value:
-				l := punchcard - tabwidth
 				// Left-align the instruction.
 				if name := v.Name(); name != "" {
-					n, _ := fmt.Fprintf(buf, "%s = ", name)
-					l -= n
+					fmt.Fprintf(buf, "%s = ", name)
 				}
-				n, _ := buf.WriteString(instr.String())
-				l -= n
-				// Right-align the type if there's space.
-				// XXX don't print the type anymore once we've updated all instructions to show their own type
-				if t := v.Type(); t != nil {
-					buf.WriteByte(' ')
-					ts := relType(t, from)
-					l -= len(ts) + len("  ") // (spaces before and after type)
-					if l > 0 {
-						fmt.Fprintf(buf, "%*s", l, "")
-					}
-					buf.WriteString(ts)
-				}
+				buf.WriteString(instr.String())
 			case nil:
 				// Be robust against bad transforms.
 				buf.WriteString("<deleted>")
@@ -863,8 +850,8 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 			}
 			buf.WriteString("\n")
 		}
+		buf.WriteString("\n")
 	}
-	fmt.Fprintf(buf, "\n")
 }
 
 // newBasicBlock adds to f a new basic block and returns it.  It does

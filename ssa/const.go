@@ -75,25 +75,25 @@ func zeroConst(t types.Type) *Const {
 }
 
 func (c *Const) RelString(from *types.Package) string {
-	var s string
+	var p string
 	if c.Value == nil {
-		s = "nil"
+		p = "nil"
 	} else if c.Value.Kind() == constant.String {
-		s = constant.StringVal(c.Value)
+		v := constant.StringVal(c.Value)
 		const max = 20
 		// TODO(adonovan): don't cut a rune in half.
-		if len(s) > max {
-			s = s[:max-3] + "..." // abbreviate
+		if len(v) > max {
+			v = v[:max-3] + "..." // abbreviate
 		}
-		s = strconv.Quote(s)
+		p = strconv.Quote(v)
 	} else {
-		s = c.Value.String()
+		p = c.Value.String()
 	}
-	return s + ":" + relType(c.Type(), from)
+	return fmt.Sprintf("Const <%s> {%s}", relType(c.Type(), from), p)
 }
 
 func (c *Const) String() string {
-	return c.RelString(nil)
+	return c.RelString(c.Parent().pkg())
 }
 
 // IsNil returns true if this constant represents a typed or untyped nil value.

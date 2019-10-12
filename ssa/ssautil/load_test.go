@@ -79,14 +79,15 @@ func TestPackages(t *testing.T) {
 # Package: bytes
 # Location: $GOROOT/src/bytes/buffer.go:1
 func NewBuffer(buf []byte) *Buffer:
-0:                                                                entry P:0 S:1
-	t1 = parameter buf : []byte                                      []byte
-	t2 = new Buffer (complit)                                       *Buffer
-	t3 = &t2.buf [#0]                                               *[]byte
+b0:
+	t1 = Parameter <[]byte> {buf}
+	t2 = HeapAlloc <*Buffer> (complit)
+	t3 = FieldAddr <*[]byte> [0] (buf) t2
 	Store {[]byte} t3 t1
-	jump 1
-1:                                                                 exit P:1 S:0
-	return t2
+	Jump → b1
+
+b1: ← b0
+	Return t2
 
 `[1:]
 	if got != want {

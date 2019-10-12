@@ -612,9 +612,8 @@ type BinOp struct {
 //
 type UnOp struct {
 	register
-	Op      token.Token // One of: NOT SUB XOR ! - ^
-	X       Value
-	CommaOk bool
+	Op token.Token // One of: NOT SUB XOR ! - ^
+	X  Value
 }
 
 // The Load instruction loads a value from a memory address.

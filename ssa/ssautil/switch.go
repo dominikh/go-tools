@@ -71,7 +71,7 @@ func (sw *Switch) String() string {
 	if sw.ConstCases != nil {
 		fmt.Fprintf(&buf, "switch %s {\n", sw.X.Name())
 		for _, c := range sw.ConstCases {
-			fmt.Fprintf(&buf, "case %s: %s\n", c.Value, c.Body.Instrs[0])
+			fmt.Fprintf(&buf, "case %s: %s\n", c.Value.Name(), c.Body.Instrs[0])
 		}
 	} else {
 		fmt.Fprintf(&buf, "switch %s.(type) {\n", sw.X.Name())
