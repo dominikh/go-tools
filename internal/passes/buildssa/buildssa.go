@@ -19,11 +19,18 @@ import (
 	"honnef.co/go/tools/ssa"
 )
 
+type willExit struct{}
+type willUnwind struct{}
+
+func (*willExit) AFact()   {}
+func (*willUnwind) AFact() {}
+
 var Analyzer = &analysis.Analyzer{
 	Name:       "buildssa",
 	Doc:        "build SSA-form IR for later passes",
 	Run:        run,
 	ResultType: reflect.TypeOf(new(SSA)),
+	FactTypes:  []analysis.Fact{new(willExit), new(willUnwind)},
 }
 
 // SSA provides SSA-form intermediate representation for all the
@@ -58,7 +65,19 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, p := range pkgs {
 			if !created[p] {
 				created[p] = true
-				prog.CreatePackage(p, nil, nil, true)
+				ssapkg := prog.CreatePackage(p, nil, nil, true)
+				for _, fn := range ssapkg.Functions {
+					if ast.IsExported(fn.Name()) {
+						var exit willExit
+						var unwind willUnwind
+						if pass.ImportObjectFact(fn.Object(), &exit) {
+							fn.WillExit = true
+						}
+						if pass.ImportObjectFact(fn.Object(), &unwind) {
+							fn.WillUnwind = true
+						}
+					}
+				}
 				createAll(p.Imports())
 			}
 		}
@@ -71,44 +90,22 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	// Compute list of source functions, including literals,
 	// in source order.
-	var funcs []*ssa.Function
 	var addAnons func(f *ssa.Function)
+	funcs := make([]*ssa.Function, len(ssapkg.Functions))
+	copy(funcs, ssapkg.Functions)
 	addAnons = func(f *ssa.Function) {
-		funcs = append(funcs, f)
 		for _, anon := range f.AnonFuncs {
+			funcs = append(funcs, anon)
 			addAnons(anon)
 		}
 	}
-	addAnons(ssapkg.Members["init"].(*ssa.Function))
-	for _, f := range pass.Files {
-		for _, decl := range f.Decls {
-			if fdecl, ok := decl.(*ast.FuncDecl); ok {
-
-				// SSA will not build a Function
-				// for a FuncDecl named blank.
-				// That's arguably too strict but
-				// relaxing it would break uniqueness of
-				// names of package members.
-				if fdecl.Name.Name == "_" {
-					continue
-				}
-
-				// (init functions have distinct Func
-				// objects named "init" and distinct
-				// ssa.Functions named "init#1", ...)
-
-				fn := pass.TypesInfo.Defs[fdecl.Name].(*types.Func)
-				if fn == nil {
-					panic(fn)
-				}
-
-				f := ssapkg.Prog.FuncValue(fn)
-				if f == nil {
-					panic(fn)
-				}
-
-				addAnons(f)
-			}
+	for _, fn := range ssapkg.Functions {
+		addAnons(fn)
+		if fn.WillExit {
+			pass.ExportObjectFact(fn.Object(), new(willExit))
+		}
+		if fn.WillUnwind {
+			pass.ExportObjectFact(fn.Object(), new(willUnwind))
 		}
 	}
 

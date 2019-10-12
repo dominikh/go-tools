@@ -18,11 +18,6 @@ package ssa
 // are emitted to the package's init() function in the order specified
 // by go/types.Info.InitOrder, then code for each function in the
 // package is generated in lexical order.
-// The BUILD phases for distinct packages are independent and are
-// executed in parallel.
-//
-// TODO(adonovan): indeed, building functions is now embarrassingly parallel.
-// Audit for concurrency then benchmark using more goroutines.
 //
 // The builder's and Program's indices (maps) are populated and
 // mutated during the CREATE phase, but during the BUILD phase they
@@ -36,7 +31,6 @@ import (
 	"go/token"
 	"go/types"
 	"os"
-	"sync"
 )
 
 type opaqueType struct {
@@ -72,11 +66,10 @@ type builder struct {
 //
 // Postcondition: fn.currentBlock is nil.
 //
-func (b *builder) cond(fn *Function, e ast.Expr, t, f *BasicBlock) {
+func (b *builder) cond(fn *Function, e ast.Expr, t, f *BasicBlock) *If {
 	switch e := e.(type) {
 	case *ast.ParenExpr:
-		b.cond(fn, e.X, t, f)
-		return
+		return b.cond(fn, e.X, t, f)
 
 	case *ast.BinaryExpr:
 		switch e.Op {
@@ -84,21 +77,18 @@ func (b *builder) cond(fn *Function, e ast.Expr, t, f *BasicBlock) {
 			ltrue := fn.newBasicBlock("cond.true")
 			b.cond(fn, e.X, ltrue, f)
 			fn.currentBlock = ltrue
-			b.cond(fn, e.Y, t, f)
-			return
+			return b.cond(fn, e.Y, t, f)
 
 		case token.LOR:
 			lfalse := fn.newBasicBlock("cond.false")
 			b.cond(fn, e.X, t, lfalse)
 			fn.currentBlock = lfalse
-			b.cond(fn, e.Y, t, f)
-			return
+			return b.cond(fn, e.Y, t, f)
 		}
 
 	case *ast.UnaryExpr:
 		if e.Op == token.NOT {
-			b.cond(fn, e.X, f, t)
-			return
+			return b.cond(fn, e.X, f, t)
 		}
 	}
 
@@ -108,7 +98,7 @@ func (b *builder) cond(fn *Function, e ast.Expr, t, f *BasicBlock) {
 	// The value of a constant condition may be platform-specific,
 	// and may cause blocks that are reachable in some configuration
 	// to be hidden from subsequent analyses such as bug-finding tools.
-	emitIf(fn, b.expr(fn, e), t, f)
+	return emitIf(fn, b.expr(fn, e), t, f)
 }
 
 // logicalBinop emits code to fn to evaluate e, a &&- or
@@ -1235,7 +1225,8 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	if s.Init != nil {
 		b.stmt(fn, s.Init)
 	}
-	var tag Value = emitConst(fn, NewConst(constant.MakeBool(true), tBool))
+	kTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool))
+	var tag Value = kTrue
 	if s.Tag != nil {
 		tag = b.expr(fn, s.Tag)
 	}
@@ -1276,13 +1267,23 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 		var nextCond *BasicBlock
 		for _, cond := range cc.List {
 			nextCond = fn.newBasicBlock("switch.next")
-			// TODO(adonovan): opt: when tag==vTrue, we'd
-			// get better code if we use b.cond(cond)
-			// instead of BinOp(EQL, tag, b.expr(cond))
-			// followed by If.  Don't forget conversions
-			// though.
-			cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), cond.Pos())
-			emitIf(fn, cond, body, nextCond)
+			if tag == kTrue {
+				// emit a proper if/else chain instead of a comparison
+				// of a value against true.
+				//
+				// NOTE(dh): adonovan had a todo saying "don't forget
+				// conversions though". As far as I can tell, there
+				// aren't any conversions that we need to take care of
+				// here. `case bool(a) && bool(b)` as well as `case
+				// bool(a && b)` are being taken care of by b.cond,
+				// and `case a` where a is not of type bool is
+				// invalid.
+				b.cond(fn, cond, body, nextCond)
+			} else {
+				cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), cond.Pos())
+				emitIf(fn, cond, body, nextCond)
+			}
+
 			fn.currentBlock = nextCond
 		}
 		fn.currentBlock = body
@@ -2081,7 +2082,8 @@ start:
 		if s.Else != nil {
 			els = fn.newBasicBlock("if.else")
 		}
-		b.cond(fn, s.Cond, then, els)
+		instr := b.cond(fn, s.Cond, then, els)
+		instr.pos = s.Pos()
 		fn.currentBlock = then
 		b.stmt(fn, s.Body)
 		emitJump(fn, done)
@@ -2137,6 +2139,16 @@ func (b *builder) buildFunction(fn *Function) {
 		panic(n)
 	}
 
+	if fn.Package().Pkg.Path() == "syscall" && fn.Name() == "Exit" {
+		// syscall.Exit is a stub and the way os.Exit terminates the
+		// process. Note that there are other functions in the runtime
+		// that also terminate or unwind that we cannot analyze.
+		// However, they aren't stubs, so buildExits ends up getting
+		// called on them, so that's where we handle those special
+		// cases.
+		fn.WillExit = true
+	}
+
 	if body == nil {
 		// External function.
 		if fn.Params == nil {
@@ -2178,6 +2190,7 @@ func (b *builder) buildFunction(fn *Function) {
 	}
 	optimizeBlocks(fn)
 	buildFakeExits(fn)
+	b.buildExits(fn)
 	fn.finishBody()
 }
 
@@ -2200,7 +2213,6 @@ func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 }
 
 // Build calls Package.Build for each package in prog.
-// Building occurs in parallel unless the BuildSerially mode flag was set.
 //
 // Build is intended for whole-program analysis; a typical compiler
 // need only build a single package.
@@ -2208,19 +2220,9 @@ func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 // Build is idempotent and thread-safe.
 //
 func (prog *Program) Build() {
-	var wg sync.WaitGroup
 	for _, p := range prog.packages {
-		if prog.mode&BuildSerially != 0 {
-			p.Build()
-		} else {
-			wg.Add(1)
-			go func(p *Package) {
-				p.Build()
-				wg.Done()
-			}(p)
-		}
+		p.Build()
 	}
-	wg.Wait()
 }
 
 // Build builds SSA code for all functions and vars in package p.

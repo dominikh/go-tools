@@ -283,12 +283,14 @@ func emitJump(f *Function, target *BasicBlock) {
 // cond, and updates the control-flow graph.
 // Postcondition: f.currentBlock is nil.
 //
-func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) {
+func emitIf(f *Function, cond Value, tblock, fblock *BasicBlock) *If {
 	b := f.currentBlock
-	b.emit(&If{Cond: cond})
+	stmt := &If{Cond: cond}
+	b.emit(stmt)
 	addEdge(b, tblock)
 	addEdge(b, fblock)
 	f.currentBlock = nil
+	return stmt
 }
 
 // emitExtract emits to f an instruction to extract the index'th

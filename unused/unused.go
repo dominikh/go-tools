@@ -1814,6 +1814,8 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 				// nothing to do
 			case *ssa.Jump:
 				// nothing to do
+			case *ssa.Unreachable:
+				// nothing to do
 			case *ssa.IndexAddr:
 				// nothing to do
 			case *ssa.Extract:

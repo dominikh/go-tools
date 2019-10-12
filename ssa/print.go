@@ -299,6 +299,10 @@ func (s *Jump) String() string {
 	return fmt.Sprintf("jump %d", block)
 }
 
+func (s *Unreachable) String() string {
+	return "Unreachable"
+}
+
 func (s *If) String() string {
 	// Be robust against malformed CFG.
 	tblock, fblock := -1, -1

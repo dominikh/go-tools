@@ -26,7 +26,6 @@ const (
 	LogSource                                    // Log source locations as SSA builder progresses
 	SanityCheckFunctions                         // Perform sanity checking of function bodies
 	NaiveForm                                    // Build naïve SSA form: don't replace local loads/stores with registers
-	BuildSerially                                // Build packages serially, not in parallel.
 	GlobalDebug                                  // Enable debug info for all packages
 )
 
@@ -37,7 +36,6 @@ D	include [D]ebug info for every function.
 P	print [P]ackage inventory.
 F	print [F]unction SSA code.
 S	log [S]ource locations as SSA builder progresses.
-L	build distinct packages seria[L]ly instead of in parallel.
 N	build [N]aive SSA form: don't replace local loads/stores with registers.
 `
 
@@ -61,9 +59,6 @@ func (m BuilderMode) String() string {
 	if m&NaiveForm != 0 {
 		buf.WriteByte('N')
 	}
-	if m&BuildSerially != 0 {
-		buf.WriteByte('L')
-	}
 	return buf.String()
 }
 
@@ -79,13 +74,11 @@ func (m *BuilderMode) Set(s string) error {
 		case 'F':
 			mode |= PrintFunctions
 		case 'S':
-			mode |= LogSource | BuildSerially
+			mode |= LogSource
 		case 'C':
 			mode |= SanityCheckFunctions
 		case 'N':
 			mode |= NaiveForm
-		case 'L':
-			mode |= BuildSerially
 		default:
 			return fmt.Errorf("unknown BuilderMode option: %q", c)
 		}

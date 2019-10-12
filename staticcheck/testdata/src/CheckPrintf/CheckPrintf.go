@@ -211,7 +211,7 @@ func someFunction() {}
 
 // multi is used by the test.
 func multi() []interface{} {
-	panic("don't call - testing only")
+	return nil
 }
 
 type stringer int

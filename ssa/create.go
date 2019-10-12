@@ -101,6 +101,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 		}
 
 		pkg.values[obj] = fn
+		pkg.Functions = append(pkg.Functions, fn)
 		if sig.Recv() == nil {
 			pkg.Members[name] = fn // package-level function
 		}
@@ -184,6 +185,7 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 	}
 	p.init.initHTML(prog.PrintFunc)
 	p.Members[p.init.name] = p.init
+	p.Functions = append(p.Functions, p.init)
 
 	// CREATE phase.
 	// Allocate all package members: vars, funcs, consts and types.

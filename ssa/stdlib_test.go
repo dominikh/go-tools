@@ -17,120 +17,114 @@ package ssa_test
 
 import (
 	"go/ast"
-	"go/build"
 	"go/token"
 	"runtime"
 	"testing"
 	"time"
 
-	"golang.org/x/tools/go/buildutil"
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/ssa"
 	"honnef.co/go/tools/ssa/ssautil"
 )
-
-// Skip the set of packages that transitively depend on
-// cmd/internal/objfile, which uses vendoring,
-// which go/loader does not yet support.
-// TODO(adonovan): add support for vendoring and delete this.
-var skip = map[string]bool{
-	"cmd/addr2line":        true,
-	"cmd/internal/objfile": true,
-	"cmd/nm":               true,
-	"cmd/objdump":          true,
-	"cmd/pprof":            true,
-}
 
 func bytesAllocated() uint64 {
 	runtime.GC()
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
-	return stats.Alloc
+	return stats.TotalAlloc
 }
 
 func TestStdlib(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode; too slow (golang.org/issue/14113)")
 	}
+
+	var (
+		numFuncs  int
+		numInstrs int
+
+		dLoad   time.Duration
+		dCreate time.Duration
+		dBuild  time.Duration
+
+		allocLoad  uint64
+		allocBuild uint64
+	)
+
 	// Load, parse and type-check the program.
 	t0 := time.Now()
 	alloc0 := bytesAllocated()
 
-	// Load, parse and type-check the program.
-	ctxt := build.Default // copy
-	ctxt.GOPATH = ""      // disable GOPATH
-	conf := loader.Config{Build: &ctxt}
-	for _, path := range buildutil.AllPackages(conf.Build) {
-		if skip[path] {
-			continue
-		}
-		conf.ImportWithTests(path)
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypesSizes,
 	}
-
-	iprog, err := conf.Load()
+	pkgs, err := packages.Load(cfg, "std")
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
+	allocLoad = bytesAllocated() - alloc0
+	dLoad = time.Since(t0)
 
-	t1 := time.Now()
-	alloc1 := bytesAllocated()
+	alloc0 = bytesAllocated()
+	for _, pkg := range pkgs {
+		if len(pkg.Errors) != 0 {
+			t.Fatalf("Load failed: %v", pkg.Errors)
+		}
 
-	// Create SSA packages.
-	var mode ssa.BuilderMode
-	// Comment out these lines during benchmarking.  Approx SSA build costs are noted.
-	mode |= ssa.SanityCheckFunctions // + 2% space, + 4% time
-	mode |= ssa.GlobalDebug          // +30% space, +18% time
-	prog := ssautil.CreateProgram(iprog, mode)
+		var mode ssa.BuilderMode
+		// Comment out these lines during benchmarking.  Approx SSA build costs are noted.
+		mode |= ssa.SanityCheckFunctions // + 2% space, + 4% time
+		mode |= ssa.GlobalDebug          // +30% space, +18% time
+		prog := ssa.NewProgram(pkg.Fset, mode)
 
-	t2 := time.Now()
+		t0 := time.Now()
+		var ssapkg *ssa.Package
+		for _, pkg2 := range pkgs {
+			r := prog.CreatePackage(pkg2.Types, pkg2.Syntax, pkg2.TypesInfo, true)
+			if pkg2 == pkg {
+				ssapkg = r
+			}
+		}
+		dCreate += time.Since(t0)
 
-	// Build SSA.
-	prog.Build()
+		t0 = time.Now()
+		ssapkg.Build()
+		dBuild += time.Since(t0)
 
-	t3 := time.Now()
-	alloc3 := bytesAllocated()
+		allFuncs := ssautil.AllFunctions(prog)
+		numFuncs += len(allFuncs)
 
-	numPkgs := len(prog.AllPackages())
-	if want := 140; numPkgs < want {
-		t.Errorf("Loaded only %d packages, want at least %d", numPkgs, want)
-	}
+		// Check that all non-synthetic functions have distinct names.
+		// Synthetic wrappers for exported methods should be distinct too,
+		// except for unexported ones (explained at (*Function).RelString).
+		byName := make(map[string]*ssa.Function)
+		for fn := range allFuncs {
+			if fn.Synthetic == "" || ast.IsExported(fn.Name()) {
+				str := fn.String()
+				prev := byName[str]
+				byName[str] = fn
+				if prev != nil {
+					t.Errorf("%s: duplicate function named %s",
+						prog.Fset.Position(fn.Pos()), str)
+					t.Errorf("%s:   (previously defined here)",
+						prog.Fset.Position(prev.Pos()))
+				}
+			}
+		}
 
-	// Keep iprog reachable until after we've measured memory usage.
-	if len(iprog.AllPackages) == 0 {
-		panic("unreachable")
-	}
-
-	allFuncs := ssautil.AllFunctions(prog)
-
-	// Check that all non-synthetic functions have distinct names.
-	// Synthetic wrappers for exported methods should be distinct too,
-	// except for unexported ones (explained at (*Function).RelString).
-	byName := make(map[string]*ssa.Function)
-	for fn := range allFuncs {
-		if fn.Synthetic == "" || ast.IsExported(fn.Name()) {
-			str := fn.String()
-			prev := byName[str]
-			byName[str] = fn
-			if prev != nil {
-				t.Errorf("%s: duplicate function named %s",
-					prog.Fset.Position(fn.Pos()), str)
-				t.Errorf("%s:   (previously defined here)",
-					prog.Fset.Position(prev.Pos()))
+		// Dump some statistics.
+		var numInstrs int
+		for fn := range allFuncs {
+			for _, b := range fn.Blocks {
+				numInstrs += len(b.Instrs)
 			}
 		}
 	}
-
-	// Dump some statistics.
-	var numInstrs int
-	for fn := range allFuncs {
-		for _, b := range fn.Blocks {
-			numInstrs += len(b.Instrs)
-		}
-	}
+	allocBuild = bytesAllocated() - alloc0
 
 	// determine line count
 	var lineCount int
-	prog.Fset.Iterate(func(f *token.File) bool {
+	pkgs[0].Fset.Iterate(func(f *token.File) bool {
 		lineCount += f.LineCount()
 		return true
 	})
@@ -140,14 +134,14 @@ func TestStdlib(t *testing.T) {
 
 	t.Log("GOMAXPROCS:           ", runtime.GOMAXPROCS(0))
 	t.Log("#Source lines:        ", lineCount)
-	t.Log("Load/parse/typecheck: ", t1.Sub(t0))
-	t.Log("SSA create:           ", t2.Sub(t1))
-	t.Log("SSA build:            ", t3.Sub(t2))
+	t.Log("Load/parse/typecheck: ", dLoad)
+	t.Log("SSA create:           ", dCreate)
+	t.Log("SSA build:            ", dBuild)
 
 	// SSA stats:
-	t.Log("#Packages:            ", numPkgs)
-	t.Log("#Functions:           ", len(allFuncs))
+	t.Log("#Packages:            ", len(pkgs))
+	t.Log("#Functions:           ", numFuncs)
 	t.Log("#Instructions:        ", numInstrs)
-	t.Log("#MB AST+types:        ", int64(alloc1-alloc0)/1e6)
-	t.Log("#MB SSA:              ", int64(alloc3-alloc1)/1e6)
+	t.Log("#MB AST+types:        ", allocLoad/1e6)
+	t.Log("#MB SSA:              ", allocBuild/1e6)
 }

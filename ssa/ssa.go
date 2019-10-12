@@ -50,6 +50,7 @@ type Package struct {
 	Prog      *Program               // the owning program
 	Pkg       *types.Package         // the corresponding go/types.Package
 	Members   map[string]Member      // all package members keyed by name (incl. init and init#%d)
+	Functions []*Function            // all functions
 	values    map[types.Object]Value // package members (incl. types and methods), keyed by object
 	init      *Function              // Func("init"); the package's init function
 	debug     bool                   // include full debug info in this package
@@ -316,19 +317,21 @@ type Function struct {
 	Signature *types.Signature
 	pos       token.Pos
 
-	Synthetic string        // provenance of synthetic function; "" for true source functions
-	syntax    ast.Node      // *ast.Func{Decl,Lit}; replaced with simple ast.Node after build, unless debug mode
-	parent    *Function     // enclosing function if anon; nil if global
-	Pkg       *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
-	Prog      *Program      // enclosing program
-	Params    []*Parameter  // function parameters; for methods, includes receiver
-	FreeVars  []*FreeVar    // free variables whose values must be supplied by closure
-	Locals    []*Alloc      // local variables of this function
-	Blocks    []*BasicBlock // basic blocks of the function; nil => external
-	Exit      *BasicBlock   // The function's exit block
-	AnonFuncs []*Function   // anonymous functions directly beneath this one
-	referrers []Instruction // referring instructions (iff Parent() != nil)
-	hasDefer  bool
+	Synthetic  string        // provenance of synthetic function; "" for true source functions
+	syntax     ast.Node      // *ast.Func{Decl,Lit}; replaced with simple ast.Node after build, unless debug mode
+	parent     *Function     // enclosing function if anon; nil if global
+	Pkg        *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
+	Prog       *Program      // enclosing program
+	Params     []*Parameter  // function parameters; for methods, includes receiver
+	FreeVars   []*FreeVar    // free variables whose values must be supplied by closure
+	Locals     []*Alloc      // local variables of this function
+	Blocks     []*BasicBlock // basic blocks of the function; nil => external
+	Exit       *BasicBlock   // The function's exit block
+	AnonFuncs  []*Function   // anonymous functions directly beneath this one
+	referrers  []Instruction // referring instructions (iff Parent() != nil)
+	hasDefer   bool
+	WillExit   bool // Calling this function will always terminate the process
+	WillUnwind bool // Calling this function will always unwind (it will call runtime.Goexit or panic)
 
 	// The following fields are set transiently during building,
 	// then cleared.
@@ -1087,6 +1090,16 @@ type Jump struct {
 	anInstruction
 }
 
+// The Unreachable pseudo-instruction signals that execution cannot
+// continue after the preceeding function call because it terminates
+// the process.
+//
+// The instruction acts as a control instruction, jumping to the exit
+// block. However, this jump will never execute.
+type Unreachable struct {
+	anInstruction
+}
+
 // The If instruction transfers control to one of the two successors
 // of its owning block, depending on the boolean Cond: the first if
 // true, the second if false.
@@ -1094,7 +1107,7 @@ type Jump struct {
 // An If instruction must be the last instruction of its containing
 // BasicBlock.
 //
-// Pos() returns NoPos.
+// Pos() returns the *ast.IfStmt, if explicit in the source.
 //
 // Example printed form:
 // 	if t0 goto done else body
@@ -1102,6 +1115,7 @@ type Jump struct {
 type If struct {
 	anInstruction
 	Cond Value
+	pos  token.Pos
 }
 
 // The Return instruction returns values and control back to the calling
@@ -1597,19 +1611,20 @@ func (p *Package) Type(name string) (t *Type) {
 	return
 }
 
-func (v *Call) Pos() token.Pos       { return v.Call.pos }
-func (s *Defer) Pos() token.Pos      { return s.pos }
-func (s *Go) Pos() token.Pos         { return s.pos }
-func (s *MapUpdate) Pos() token.Pos  { return s.pos }
-func (s *Panic) Pos() token.Pos      { return s.pos }
-func (s *Return) Pos() token.Pos     { return s.pos }
-func (s *Send) Pos() token.Pos       { return s.pos }
-func (s *Store) Pos() token.Pos      { return s.pos }
-func (s *BlankStore) Pos() token.Pos { return token.NoPos }
-func (s *If) Pos() token.Pos         { return token.NoPos }
-func (s *Jump) Pos() token.Pos       { return token.NoPos }
-func (s *RunDefers) Pos() token.Pos  { return token.NoPos }
-func (s *DebugRef) Pos() token.Pos   { return s.Expr.Pos() }
+func (v *Call) Pos() token.Pos        { return v.Call.pos }
+func (s *Defer) Pos() token.Pos       { return s.pos }
+func (s *Go) Pos() token.Pos          { return s.pos }
+func (s *MapUpdate) Pos() token.Pos   { return s.pos }
+func (s *Panic) Pos() token.Pos       { return s.pos }
+func (s *Return) Pos() token.Pos      { return s.pos }
+func (s *Send) Pos() token.Pos        { return s.pos }
+func (s *Store) Pos() token.Pos       { return s.pos }
+func (s *BlankStore) Pos() token.Pos  { return token.NoPos }
+func (s *If) Pos() token.Pos          { return s.pos }
+func (s *Jump) Pos() token.Pos        { return token.NoPos }
+func (s *Unreachable) Pos() token.Pos { return token.NoPos }
+func (s *RunDefers) Pos() token.Pos   { return token.NoPos }
+func (s *DebugRef) Pos() token.Pos    { return s.Expr.Pos() }
 
 // Operands.
 
@@ -1682,6 +1697,10 @@ func (v *IndexAddr) Operands(rands []*Value) []*Value {
 }
 
 func (*Jump) Operands(rands []*Value) []*Value {
+	return rands
+}
+
+func (*Unreachable) Operands(rands []*Value) []*Value {
 	return rands
 }
 
