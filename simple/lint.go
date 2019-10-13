@@ -44,10 +44,10 @@ func CheckSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, checkSingleCaseSelectQ1, node); ok {
 			seen[m.State["select"].(ast.Node)] = struct{}{}
-			report.NodefFG(pass, node, "should use for range instead of for { select {} }")
+			report.Report(pass, node, "should use for range instead of for { select {} }", report.FilterGenerated())
 		} else if _, ok := Match(pass, checkSingleCaseSelectQ2, node); ok {
 			if _, ok := seen[node]; !ok {
-				report.NodefFG(pass, node, "should use a simple channel send/receive instead of select with a single case")
+				report.Report(pass, node, "should use a simple channel send/receive instead of select with a single case", report.FilterGenerated())
 			}
 		}
 	}
@@ -90,11 +90,12 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 
 		tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
 		if err == nil && tv.IsBuiltin() {
-			report.NodeFG(pass, node,
+			report.Report(pass, node,
 				"should use copy() instead of a loop",
-				edit.Fix("replace loop with call to copy()", edits...))
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("replace loop with call to copy()", edits...)))
 		} else {
-			report.NodeFG(pass, node, "should use copy() instead of a loop")
+			report.Report(pass, node, "should use copy() instead of a loop", report.FilterGenerated())
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
@@ -139,8 +140,9 @@ func CheckIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 		if (l1-len(r))%2 == 1 {
 			r = "!" + r
 		}
-		report.NodeFG(pass, expr, fmt.Sprintf("should omit comparison to bool constant, can be simplified to %s", r),
-			edit.Fix("simplify bool comparison", edit.ReplaceWithString(pass.Fset, expr, r)))
+		report.Report(pass, expr, fmt.Sprintf("should omit comparison to bool constant, can be simplified to %s", r),
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("simplify bool comparison", edit.ReplaceWithString(pass.Fset, expr, r))))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -163,11 +165,13 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
 		if typ == types.Universe.Lookup("string").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
-			report.NodeFG(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
-				edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRs, m.State, node)))
+			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRs, m.State, node))))
 		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).String") {
-			report.NodeFG(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
-				edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRb, m.State, node)))
+			report.Report(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRb, m.State, node))))
 		}
 
 	}
@@ -252,8 +256,9 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		report.NodeFG(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)),
-			edit.Fix(fmt.Sprintf("simplify use of %s", report.Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r)))
+		report.Report(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)),
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix(fmt.Sprintf("simplify use of %s", report.Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -287,7 +292,7 @@ func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		default:
 			panic(fmt.Sprintf("unexpected token %v", tok))
 		}
-		report.NodeFG(pass, node, fmt.Sprintf("should use %sbytes.Equal(%s) instead", prefix, args), fix)
+		report.Report(pass, node, fmt.Sprintf("should use %sbytes.Equal(%s) instead", prefix, args), report.FilterGenerated(), report.Fixes(fix))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -302,7 +307,7 @@ func CheckForTrue(pass *analysis.Pass) (interface{}, error) {
 		if !code.IsBoolConst(pass, loop.Cond) || !code.BoolConst(pass, loop.Cond) {
 			return
 		}
-		report.NodefFG(pass, loop, "should use for {} instead of for true {}")
+		report.Report(pass, loop, "should use for {} instead of for true {}", report.FilterGenerated())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 	return nil, nil
@@ -355,7 +360,7 @@ func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		report.NodefFG(pass, call, "should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name)
+		report.Report(pass, call, fmt.Sprintf("should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name), report.FilterGenerated())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -417,9 +422,11 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 		if ret1.Name == "false" {
 			cond = negate(cond)
 		}
-		report.NodefFG(pass, n1, "should use 'return %s' instead of 'if %s { return %s }; return %s'",
-			report.Render(pass, cond),
-			report.Render(pass, cond), report.Render(pass, ret1), report.Render(pass, ret2))
+		report.Report(pass, n1,
+			fmt.Sprintf("should use 'return %s' instead of 'if %s { return %s }; return %s'",
+				report.Render(pass, cond),
+				report.Render(pass, cond), report.Render(pass, ret1), report.Render(pass, ret2)),
+			report.FilterGenerated())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
 	return nil, nil
@@ -580,7 +587,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		default:
 			return
 		}
-		report.NodefFG(pass, expr, "should omit nil check; len() for %s is defined as zero", nilType)
+		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType), report.FilterGenerated())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
 	return nil, nil
@@ -592,9 +599,10 @@ func CheckSlicing(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if _, ok := Match(pass, checkSlicingQ, node); ok {
 			expr := node.(*ast.SliceExpr)
-			report.NodeFG(pass, expr.High,
+			report.Report(pass, expr.High,
 				"should omit second index in slice, s[a:len(s)] is identical to s[a:]",
-				edit.Fix("simplify slice expression", edit.Delete(expr.High)))
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("simplify slice expression", edit.Delete(expr.High))))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.SliceExpr)(nil)}, fn)
@@ -659,8 +667,9 @@ func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 			},
 		}
 
-		report.NodeFG(pass, node, fmt.Sprintf("should replace loop with %s", report.Render(pass, r)),
-			edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r)))
+		report.Report(pass, node, fmt.Sprintf("should replace loop with %s", report.Render(pass, r)),
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
 	return nil, nil
@@ -674,8 +683,9 @@ var (
 func CheckTimeSince(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, checkTimeSinceQ, checkTimeSinceR, node); ok {
-			report.NodeFG(pass, node, "should use time.Since instead of time.Now().Sub",
-				edit.Fix("replace with call to time.Since", edits...))
+			report.Report(pass, node, "should use time.Since instead of time.Now().Sub",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("replace with call to time.Since", edits...)))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -695,10 +705,11 @@ func CheckTimeUntil(pass *analysis.Pass) (interface{}, error) {
 		if _, ok := Match(pass, checkTimeUntilQ, node); ok {
 			if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
 				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]interface{}{"arg": sel.X}).(ast.Node)
-				report.NodeFG(pass, node, "should use time.Until instead of t.Sub(time.Now())",
-					edit.Fix("replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r)))
+				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
+					report.FilterGenerated(),
+					report.Fixes(edit.Fix("replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
 			} else {
-				report.NodefFG(pass, node, "should use time.Until instead of t.Sub(time.Now())")
+				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())", report.FilterGenerated())
 			}
 		}
 	}
@@ -724,11 +735,13 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		if _, ok := Match(pass, checkUnnecessaryBlankQ1, node); ok {
 			r := *node.(*ast.AssignStmt)
 			r.Lhs = r.Lhs[0:1]
-			report.NodeFG(pass, node, "unnecessary assignment to the blank identifier",
-				edit.Fix("remove assignment to blank identifier", edit.ReplaceWithNode(pass.Fset, node, &r)))
+			report.Report(pass, node, "unnecessary assignment to the blank identifier",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.ReplaceWithNode(pass.Fset, node, &r))))
 		} else if m, ok := Match(pass, checkUnnecessaryBlankQ2, node); ok {
-			report.NodeFG(pass, node, "unnecessary assignment to the blank identifier",
-				edit.Fix("simplify channel receive operation", edit.ReplaceWithNode(pass.Fset, node, m.State["recv"].(ast.Node))))
+			report.Report(pass, node, "unnecessary assignment to the blank identifier",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("simplify channel receive operation", edit.ReplaceWithNode(pass.Fset, node, m.State["recv"].(ast.Node)))))
 		}
 	}
 
@@ -737,21 +750,24 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 
 		// for _
 		if rs.Value == nil && code.IsBlank(rs.Key) {
-			report.NodeFG(pass, rs.Key, "unnecessary assignment to the blank identifier",
-				edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1})))
+			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
 		// for _, _
 		if code.IsBlank(rs.Key) && code.IsBlank(rs.Value) {
 			// FIXME we should mark both key and value
-			report.NodeFG(pass, rs.Key, "unnecessary assignment to the blank identifier",
-				edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1})))
+			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
 		// for x, _
 		if !code.IsBlank(rs.Key) && code.IsBlank(rs.Value) {
-			report.NodeFG(pass, rs.Value, "unnecessary assignment to the blank identifier",
-				edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()})))
+			report.Report(pass, rs.Value, "unnecessary assignment to the blank identifier",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()}))))
 		}
 	}
 
@@ -883,9 +899,10 @@ func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 			Fun:  lit.Type,
 			Args: []ast.Expr{ident},
 		}
-		report.NodeFG(pass, node,
+		report.Report(pass, node,
 			fmt.Sprintf("should convert %s (type %s) to %s instead of using struct literal", ident.Name, typ2.Obj().Name(), typ1.Obj().Name()),
-			edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r)))
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil)}, fn)
 	return nil, nil
@@ -992,7 +1009,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				condCallName == "bytes.HasPrefix" && rhsName == "bytes.TrimPrefix" ||
 				condCallName == "bytes.HasSuffix" && rhsName == "bytes.TrimSuffix" ||
 				condCallName == "bytes.Contains" && rhsName == "bytes.Replace" {
-				report.NodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s", rhsName)
+				report.Report(pass, ifstmt, fmt.Sprintf("should replace this if statement with an unconditional %s", rhsName), report.FilterGenerated())
 			}
 			return
 		case *ast.SliceExpr:
@@ -1090,7 +1107,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 			case "HasSuffix":
 				replacement = "TrimSuffix"
 			}
-			report.NodefFG(pass, ifstmt, "should replace this if statement with an unconditional %s.%s", pkg, replacement)
+			report.Report(pass, ifstmt, fmt.Sprintf("should replace this if statement with an unconditional %s.%s", pkg, replacement), report.FilterGenerated())
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
@@ -1130,8 +1147,9 @@ func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		report.NodeFG(pass, loop, "should use copy() instead of loop for sliding slice elements",
-			edit.Fix("use copy() instead of loop", edits...))
+		report.Report(pass, loop, "should use copy() instead of loop for sliding slice elements",
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("use copy() instead of loop", edits...)))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
 	return nil, nil
@@ -1150,14 +1168,15 @@ func CheckMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 			if _, ok := pass.TypesInfo.TypeOf(T).Underlying().(*types.Slice); ok {
 				return
 			}
-			report.NodefFG(pass, size, "should use make(%s) instead", report.Render(pass, T))
+			report.Report(pass, size, fmt.Sprintf("should use make(%s) instead", report.Render(pass, T)), report.FilterGenerated())
 		} else if m, ok := Match(pass, checkMakeLenCapQ2, node); ok {
 			// TODO(dh): don't consider sizes identical if they're
 			// dynamic. for example: make(T, <-ch, <-ch).
 			T := m.State["typ"].(ast.Expr)
 			size := m.State["size"].(ast.Node)
-			report.NodefFG(pass, size,
-				"should use make(%s, %s) instead", report.Render(pass, T), report.Render(pass, size))
+			report.Report(pass, size,
+				fmt.Sprintf("should use make(%s, %s) instead", report.Render(pass, T), report.Render(pass, size)),
+				report.FilterGenerated())
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -1195,7 +1214,7 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 		}
 		assert := m.State["assert"].(types.Object)
 		assign := m.State["ok"].(types.Object)
-		report.NodefFG(pass, node, "when %s is true, %s can't be nil", assign.Name(), assert.Name())
+		report.Report(pass, node, fmt.Sprintf("when %s is true, %s can't be nil", assign.Name(), assert.Name()), report.FilterGenerated())
 	}
 	fn2 := func(node ast.Node) {
 		m, ok := Match(pass, checkAssertNotNilFn2Q, node)
@@ -1205,7 +1224,7 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 		ifstmt := m.State["ifstmt"].(*ast.IfStmt)
 		lhs := m.State["lhs"].(types.Object)
 		assignIdent := m.State["ok"].(types.Object)
-		report.NodefFG(pass, ifstmt, "when %s is true, %s can't be nil", assignIdent.Name(), lhs.Name())
+		report.Report(pass, ifstmt, fmt.Sprintf("when %s is true, %s can't be nil", assignIdent.Name(), lhs.Name()), report.FilterGenerated())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn1)
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn2)
@@ -1287,8 +1306,9 @@ func CheckDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 				},
 				Tok: gdecl.Tok,
 			}
-			report.NodeFG(pass, decl, "should merge variable declaration with assignment on next line",
-				edit.Fix("merge declaration with assignment", edit.ReplaceWithNode(pass.Fset, edit.Range{decl.Pos(), assign.End()}, r)))
+			report.Report(pass, decl, "should merge variable declaration with assignment on next line",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("merge declaration with assignment", edit.ReplaceWithNode(pass.Fset, edit.Range{decl.Pos(), assign.End()}, r))))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
@@ -1305,7 +1325,7 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 		if !ok || branch.Tok != token.BREAK || branch.Label != nil {
 			return
 		}
-		report.NodefFG(pass, branch, "redundant break statement")
+		report.Report(pass, branch, "redundant break statement", report.FilterGenerated())
 	}
 	fn2 := func(node ast.Node) {
 		var ret *ast.FieldList
@@ -1332,7 +1352,7 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 		}
 		// we don't need to check rst.Results as we already
 		// checked x.Type.Results to be nil.
-		report.NodefFG(pass, rst, "redundant return statement")
+		report.Report(pass, rst, "redundant return statement", report.FilterGenerated())
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CaseClause)(nil)}, fn1)
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn2)
@@ -1387,22 +1407,24 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 					Sel: &ast.Ident{Name: "String"},
 				},
 			}
-			report.Node(pass, node, "should use String() instead of fmt.Sprintf",
-				edit.Fix("replace with call to String method", edit.ReplaceWithNode(pass.Fset, node, replacement)))
+			report.Report(pass, node, "should use String() instead of fmt.Sprintf",
+				report.Fixes(edit.Fix("replace with call to String method", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 			return
 		}
 
 		if typ.Underlying() == types.Universe.Lookup("string").Type() {
 			if typ == types.Universe.Lookup("string").Type() {
-				report.NodeFG(pass, node, "the argument is already a string, there's no need to use fmt.Sprintf",
-					edit.Fix("remove unnecessary call to fmt.Sprintf", edit.ReplaceWithNode(pass.Fset, node, arg)))
+				report.Report(pass, node, "the argument is already a string, there's no need to use fmt.Sprintf",
+					report.FilterGenerated(),
+					report.Fixes(edit.Fix("remove unnecessary call to fmt.Sprintf", edit.ReplaceWithNode(pass.Fset, node, arg))))
 			} else {
 				replacement := &ast.CallExpr{
 					Fun:  &ast.Ident{Name: "string"},
 					Args: []ast.Expr{arg},
 				}
-				report.NodeFG(pass, node, "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf",
-					edit.Fix("replace with conversion to string", edit.ReplaceWithNode(pass.Fset, node, replacement)))
+				report.Report(pass, node, "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf",
+					report.FilterGenerated(),
+					report.Fixes(edit.Fix("replace with conversion to string", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 			}
 		}
 	}
@@ -1419,8 +1441,9 @@ func CheckErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, checkErrorsNewSprintfQ, checkErrorsNewSprintfR, node); ok {
 			// TODO(dh): the suggested fix may leave an unused import behind
-			report.NodeFG(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))",
-				edit.Fix("use fmt.Errorf", edits...))
+			report.Report(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("use fmt.Errorf", edits...)))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
@@ -1446,7 +1469,7 @@ func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 		}
 		switch m.State["x"].(types.Object).Type().Underlying().(type) {
 		case *types.Slice, *types.Map:
-			report.NodeFG(pass, node, "unnecessary nil check around range")
+			report.Report(pass, node, "unnecessary nil check around range", report.FilterGenerated())
 
 		}
 	}
@@ -1540,7 +1563,7 @@ func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 		prev = err.node.Pos()
-		report.NodefFG(pass, err.node, "%s", err.msg)
+		report.Report(pass, err.node, err.msg, report.FilterGenerated())
 	}
 	return nil, nil
 }
@@ -1558,15 +1581,10 @@ var checkGuardedDeleteQ = pattern.MustParse(`
 func CheckGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, checkGuardedDeleteQ, node); ok {
-			report.Report(pass, report.Options{
-				Node:            node,
-				ShortRange:      true,
-				FilterGenerated: true,
-				Message:         "unnecessary guard around call to delete",
-				Fixes: []analysis.SuggestedFix{
-					edit.Fix("remove guard", edit.ReplaceWithNode(pass.Fset, node, m.State["call"].(ast.Node))),
-				},
-			})
+			report.Report(pass, node, "unnecessary guard around call to delete",
+				report.ShortRange(),
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("remove guard", edit.ReplaceWithNode(pass.Fset, node, m.State["call"].(ast.Node)))))
 		}
 	}
 
@@ -1650,9 +1668,11 @@ func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 				for _, offender := range allOffenders {
 					edits = append(edits, edit.ReplaceWithNode(pass.Fset, offender, offender.X))
 				}
-				report.NodeFG(pass, expr, msg, edit.Fix("simplify type switch", edits...))
+				report.Report(pass, expr, msg,
+					report.FilterGenerated(),
+					report.Fixes(edit.Fix("simplify type switch", edits...)))
 			} else {
-				report.NodeFG(pass, expr, msg)
+				report.Report(pass, expr, msg, report.FilterGenerated())
 			}
 		}
 	}
@@ -1674,9 +1694,10 @@ func CheckRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) 
 			return
 		}
 
-		report.NodeFG(pass, call,
+		report.Report(pass, call,
 			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", callName),
-			edit.Fix("remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, call.Args[0], call.Args[0].(*ast.CallExpr).Args[0])))
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, call.Args[0], call.Args[0].(*ast.CallExpr).Args[0]))))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -1706,8 +1727,8 @@ func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 			if code.MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
 				return
 			}
-			report.Node(pass, node, "unnecessary guard around map access",
-				edit.Fix("simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node))))
+			report.Report(pass, node, "unnecessary guard around map access",
+				report.Fixes(edit.Fix("simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
@@ -1723,12 +1744,13 @@ func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, checkElaborateSleepQ, node); ok {
 			if body, ok := m.State["body"].([]ast.Stmt); ok && len(body) == 0 {
-				report.NodeFG(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
-					edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass, checkElaborateSleepR, m.State, node)))
+				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
+					report.FilterGenerated(),
+					report.Fixes(edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass, checkElaborateSleepR, m.State, node))))
 			} else {
 				// TODO(dh): we could make a suggested fix if the body
 				// doesn't declare or shadow any identifiers
-				report.NodefFG(pass, node, "should use time.Sleep instead of elaborate way of sleeping")
+				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping", report.FilterGenerated())
 			}
 		}
 	}

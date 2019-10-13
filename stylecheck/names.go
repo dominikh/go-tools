@@ -4,6 +4,7 @@
 package stylecheck
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"strings"
@@ -49,7 +50,7 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 
 		// Handle two common styles from other languages that don't belong in Go.
 		if len(id.Name) >= 5 && allCaps(id.Name) && strings.Contains(id.Name, "_") {
-			report.PosfFG(pass, id.Pos(), "should not use ALL_CAPS in Go names; use CamelCase instead")
+			report.Report(pass, id, "should not use ALL_CAPS in Go names; use CamelCase instead", report.FilterGenerated())
 			return
 		}
 
@@ -59,10 +60,10 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if len(id.Name) > 2 && strings.Contains(id.Name[1:len(id.Name)-1], "_") {
-			report.PosfFG(pass, id.Pos(), "should not use underscores in Go names; %s %s should be %s", thing, id.Name, should)
+			report.Report(pass, id, fmt.Sprintf("should not use underscores in Go names; %s %s should be %s", thing, id.Name, should), report.FilterGenerated())
 			return
 		}
-		report.PosfFG(pass, id.Pos(), "%s %s should be %s", thing, id.Name, should)
+		report.Report(pass, id, fmt.Sprintf("%s %s should be %s", thing, id.Name, should), report.FilterGenerated())
 	}
 	checkList := func(fl *ast.FieldList, thing string, initialisms map[string]bool) {
 		if fl == nil {
@@ -83,10 +84,10 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.Files {
 		// Package names need slightly different handling than other names.
 		if !strings.HasSuffix(f.Name.Name, "_test") && strings.Contains(f.Name.Name, "_") {
-			report.PosfFG(pass, f.Pos(), "should not use underscores in package names")
+			report.Report(pass, f, "should not use underscores in package names", report.FilterGenerated())
 		}
 		if strings.IndexFunc(f.Name.Name, unicode.IsUpper) != -1 {
-			report.PosfFG(pass, f.Pos(), "should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name))
+			report.Report(pass, f, fmt.Sprintf("should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name)), report.FilterGenerated())
 		}
 	}
 

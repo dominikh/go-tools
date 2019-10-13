@@ -16,11 +16,11 @@ import (
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/internal/passes/buildir"
+	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/report"
-	"honnef.co/go/tools/ir"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -49,7 +49,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			hasDocs = true
 			prefix := "Package " + f.Name.Name + " "
 			if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
-				report.Nodef(pass, f.Doc, `package comment should be of the form "%s..."`, prefix)
+				report.Report(pass, f.Doc, fmt.Sprintf(`package comment should be of the form "%s..."`, prefix))
 			}
 			f.Doc.Text()
 		}
@@ -60,7 +60,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			if code.IsInTest(pass, f) {
 				continue
 			}
-			report.Nodef(pass, f, "at least one file in a package should have a package comment")
+			report.Report(pass, f, "at least one file in a package should have a package comment")
 		}
 	}
 	return nil, nil
@@ -79,7 +79,7 @@ func CheckDotImports(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if imp.Name != nil && imp.Name.Name == "." && !code.IsInTest(pass, f) {
-				report.NodefFG(pass, imp, "should not use dot imports")
+				report.Report(pass, imp, "should not use dot imports", report.FilterGenerated())
 			}
 		}
 	}
@@ -109,7 +109,7 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 					pos := lint.DisplayPosition(pass.Fset, imp.Pos())
 					s += "\n\t" + "also imported at " + pos.String()
 				}
-				report.NodefFG(pass, value[0], s)
+				report.Report(pass, value[0], s, report.FilterGenerated())
 			}
 		}
 	}
@@ -168,7 +168,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if imp.Doc == nil && imp.Comment == nil && !skip[imp] {
-				report.Nodef(pass, imp, "a blank import should be only in a main or test package, or have a comment justifying it")
+				report.Report(pass, imp, "a blank import should be only in a main or test package, or have a comment justifying it")
 			}
 		}
 	}
@@ -200,7 +200,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 			suffix = "--"
 		}
 
-		report.Nodef(pass, assign, "should replace %s with %s%s", report.Render(pass, assign), report.Render(pass, assign.Lhs[0]), suffix)
+		report.Report(pass, assign, fmt.Sprintf("should replace %s with %s%s", report.Render(pass, assign), report.Render(pass, assign.Lhs[0]), suffix))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
 	return nil, nil
@@ -222,7 +222,7 @@ fnLoop:
 		}
 		for i := rets.Len() - 2; i >= 0; i-- {
 			if rets.At(i).Type() == types.Universe.Lookup("error").Type() {
-				pass.Reportf(rets.At(i).Pos(), "error should be returned as the last argument")
+				report.Report(pass, rets.At(i), "error should be returned as the last argument")
 				continue fnLoop
 			}
 		}
@@ -249,7 +249,7 @@ func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
 			if named, ok := code.DereferenceR(res.At(i).Type()).(*types.Named); ok &&
 				!ast.IsExported(named.Obj().Name()) &&
 				named != types.Universe.Lookup("error").Type() {
-				pass.Reportf(fn.Pos(), "should not return unexported type")
+				report.Report(pass, fn, "should not return unexported type")
 			}
 		}
 	}
@@ -269,10 +269,10 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				if recv.Name() == "self" || recv.Name() == "this" {
-					report.PosfFG(pass, recv.Pos(), `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`)
+					report.Report(pass, recv, `receiver name should be a reflection of its identity; don't use generic names such as "this" or "self"`, report.FilterGenerated())
 				}
 				if recv.Name() == "_" {
-					report.PosfFG(pass, recv.Pos(), "receiver name should not be an underscore, omit the name if it is unused")
+					report.Report(pass, recv, "receiver name should not be an underscore, omit the name if it is unused", report.FilterGenerated())
 				}
 			}
 		}
@@ -315,7 +315,7 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 			}
 			sort.Strings(seen)
 
-			pass.Reportf(firstFn.Pos(), "methods on the same type should have the same receiver name (seen %s)", strings.Join(seen, ", "))
+			report.Report(pass, firstFn, fmt.Sprintf("methods on the same type should have the same receiver name (seen %s)", strings.Join(seen, ", ")))
 		}
 	}
 	return nil, nil
@@ -339,7 +339,7 @@ fnLoop:
 		for i := 1; i < params.Len(); i++ {
 			param := params.At(i)
 			if types.TypeString(param.Type(), nil) == "context.Context" {
-				pass.Reportf(param.Pos(), "context.Context should be the first argument of a function")
+				report.Report(pass, param, "context.Context should be the first argument of a function")
 				continue fnLoop
 			}
 		}
@@ -389,7 +389,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				}
 				switch s[len(s)-1] {
 				case '.', ':', '!', '\n':
-					pass.Reportf(call.Pos(), "error strings should not end with punctuation or a newline")
+					report.Report(pass, call, "error strings should not end with punctuation or a newline")
 				}
 				idx := strings.IndexByte(s, ' ')
 				if idx == -1 {
@@ -423,7 +423,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				//
 				// It could still be a proper noun, though.
 
-				pass.Reportf(call.Pos(), "error strings should not be capitalized")
+				report.Report(pass, call, "error strings should not be capitalized")
 			}
 		}
 	}
@@ -449,7 +449,7 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 			}
 			for _, suffix := range suffixes {
 				if strings.HasSuffix(name.Name, suffix) {
-					report.Nodef(pass, name, "var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix)
+					report.Report(pass, name, fmt.Sprintf("var %s is of type %v; don't use unit-specific suffix %q", name.Name, T, suffix))
 					break
 				}
 			}
@@ -506,7 +506,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 						prefix = "Err"
 					}
 					if !strings.HasPrefix(name.Name, prefix) {
-						report.Nodef(pass, name, "error var %s should have name of the form %sFoo", name.Name, prefix)
+						report.Report(pass, name, fmt.Sprintf("error var %s should have name of the form %sFoo", name.Name, prefix))
 					}
 				}
 			}
@@ -614,8 +614,9 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		report.NodeFG(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
-			edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(pass.Fset, lit, "http."+s)))
+		report.Report(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(pass.Fset, lit, "http."+s))))
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
 	return nil, nil
@@ -627,7 +628,7 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 		list := stmt.Body.List
 		for i, c := range list {
 			if c.(*ast.CaseClause).List == nil && i != 0 && i != len(list)-1 {
-				report.NodefFG(pass, c, "default case should be first or last in switch statement")
+				report.Report(pass, c, "default case should be first or last in switch statement", report.FilterGenerated())
 				break
 			}
 		}
@@ -644,8 +645,9 @@ var (
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if _, edits, ok := MatchAndEdit(pass, checkYodaConditionsQ, checkYodaConditionsR, node); ok {
-			report.NodeFG(pass, node, "don't use Yoda conditions",
-				edit.Fix("un-Yoda-fy", edits...))
+			report.Report(pass, node, "don't use Yoda conditions",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("un-Yoda-fy", edits...)))
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
@@ -660,9 +662,9 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
-				report.Nodef(pass, lit, "string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r)
+				report.Report(pass, lit, fmt.Sprintf("string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r))
 			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
-				report.Nodef(pass, lit, "string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r)
+				report.Report(pass, lit, fmt.Sprintf("string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r))
 			}
 		}
 	}
@@ -701,7 +703,7 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 		}
 		prefix := decl.Name.Name + " "
 		if !strings.HasPrefix(decl.Doc.Text(), prefix) {
-			report.NodefFG(pass, decl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix)
+			report.Report(pass, decl.Doc, fmt.Sprintf(`comment on exported %s %s should be of the form "%s..."`, kind, decl.Name.Name, prefix), report.FilterGenerated())
 		}
 	}
 
@@ -758,7 +760,7 @@ func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
 				}
 			}
 			if !strings.HasPrefix(s, node.Name.Name+" ") {
-				report.NodefFG(pass, doc, `comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name)
+				report.Report(pass, doc, fmt.Sprintf(`comment on exported type %s should be of the form "%s ..." (with optional leading article)`, node.Name.Name, node.Name.Name), report.FilterGenerated())
 			}
 			return false
 		case *ast.FuncLit, *ast.FuncDecl:
@@ -809,7 +811,7 @@ func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
 				if genDecl.Tok == token.CONST {
 					kind = "const"
 				}
-				report.NodefFG(pass, genDecl.Doc, `comment on exported %s %s should be of the form "%s..."`, kind, name, prefix)
+				report.Report(pass, genDecl.Doc, fmt.Sprintf(`comment on exported %s %s should be of the form "%s..."`, kind, name, prefix), report.FilterGenerated())
 			}
 			return false
 		case *ast.FuncLit, *ast.FuncDecl:

@@ -10,32 +10,81 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/facts"
+	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/lint"
 )
 
 type Options struct {
-	Node            ast.Node
 	ShortRange      bool
 	FilterGenerated bool
-	Message         string
 	Fixes           []analysis.SuggestedFix
 }
 
-func Report(pass *analysis.Pass, opts Options) {
-	file := lint.DisplayPosition(pass.Fset, opts.Node.Pos()).Filename
-	if opts.FilterGenerated {
+type fullPositioner interface {
+	Pos() token.Pos
+	End() token.Pos
+}
+
+type Option func(*Options)
+
+func ShortRange() Option {
+	return func(opts *Options) {
+		opts.ShortRange = true
+	}
+}
+
+func FilterGenerated() Option {
+	return func(opts *Options) {
+		opts.FilterGenerated = true
+	}
+}
+
+func Fixes(fixes ...analysis.SuggestedFix) Option {
+	return func(opts *Options) {
+		opts.Fixes = append(opts.Fixes, fixes...)
+	}
+}
+
+func Report(pass *analysis.Pass, node lint.Positioner, message string, opts ...Option) {
+	var start, end token.Pos
+	if irnode, ok := node.(ir.Node); ok {
+		if refs := irnode.Referrers(); refs != nil {
+			for _, ref := range *refs {
+				if ref, ok := ref.(*ir.DebugRef); ok {
+					node = ref.Expr
+					break
+				}
+			}
+		}
+	}
+	switch node := node.(type) {
+	case fullPositioner:
+		start = node.Pos()
+		end = node.End()
+	default:
+		start = node.Pos()
+		end = token.NoPos
+	}
+
+	cfg := &Options{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	file := lint.DisplayPosition(pass.Fset, start).Filename
+	if cfg.FilterGenerated {
 		m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
 		if _, ok := m[file]; ok {
 			return
 		}
 	}
 
-	start := opts.Node.Pos()
-	end := opts.Node.End()
-	if opts.ShortRange {
-		switch node := opts.Node.(type) {
+	if cfg.ShortRange {
+		switch node := node.(type) {
 		case *ast.IfStmt:
 			end = node.Cond.End()
+		case *ast.File:
+			end = node.Name.End()
 		default:
 			panic(fmt.Sprintf("unhandled type %T", node))
 		}
@@ -44,51 +93,10 @@ func Report(pass *analysis.Pass, opts Options) {
 	d := analysis.Diagnostic{
 		Pos:            start,
 		End:            end,
-		Message:        opts.Message,
-		SuggestedFixes: opts.Fixes,
+		Message:        message,
+		SuggestedFixes: cfg.Fixes,
 	}
 	pass.Report(d)
-}
-
-func PosfFG(pass *analysis.Pass, pos token.Pos, f string, args ...interface{}) {
-	file := lint.DisplayPosition(pass.Fset, pos).Filename
-	m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
-	if _, ok := m[file]; ok {
-		return
-	}
-	pass.Reportf(pos, f, args...)
-}
-
-func Node(pass *analysis.Pass, node ast.Node, msg string, fixes ...analysis.SuggestedFix) {
-	Report(pass, Options{
-		Node:    node,
-		Message: msg,
-		Fixes:   fixes,
-	})
-}
-
-func NodeFG(pass *analysis.Pass, node ast.Node, msg string, fixes ...analysis.SuggestedFix) {
-	Report(pass, Options{
-		Node:            node,
-		FilterGenerated: true,
-		Message:         msg,
-		Fixes:           fixes,
-	})
-}
-
-func Nodef(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
-	Report(pass, Options{
-		Node:    node,
-		Message: fmt.Sprintf(format, args...),
-	})
-}
-
-func NodefFG(pass *analysis.Pass, node ast.Node, format string, args ...interface{}) {
-	Report(pass, Options{
-		Node:            node,
-		FilterGenerated: true,
-		Message:         fmt.Sprintf(format, args...),
-	})
 }
 
 func Render(pass *analysis.Pass, x interface{}) string {
