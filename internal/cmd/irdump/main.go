@@ -20,7 +20,7 @@ import (
 
 // flags
 var (
-	mode       = ir.BuilderMode(0)
+	mode       = ir.BuilderMode(ir.PrintPackages | ir.PrintFunctions)
 	testFlag   = flag.Bool("test", false, "include implicit test packages and executables")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	dot        bool
