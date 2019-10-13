@@ -182,8 +182,8 @@ func lift(fn *Function) {
 		}
 	}
 
-	newPhis := make(newPhiMap)
-	newSigmas := make(newSigmaMap)
+	newPhis := make(newPhiMap, len(fn.Blocks))
+	newSigmas := make(newSigmaMap, len(fn.Blocks))
 
 	// During this pass we will replace some BasicBlock.Instrs
 	// (allocs, loads and stores) with nil, keeping a count in
@@ -236,10 +236,10 @@ func lift(fn *Function) {
 
 	// Prepend remaining live φ-nodes to each block and possibly kill rundefers.
 	for _, b := range fn.Blocks {
-		nps := newPhis[b]
+		nps := newPhis[b.Index]
 		head := make([]Instruction, 0, len(nps))
 		for _, pred := range b.Preds {
-			nss := newSigmas[pred]
+			nss := newSigmas[pred.Index]
 			idx := pred.succIndex(b)
 			for _, newSigma := range nss {
 				if sigma := newSigma.sigmas[idx]; sigma.live {
@@ -493,8 +493,8 @@ type newSigma struct {
 
 // newPhiMap records for each basic block, the set of newPhis that
 // must be prepended to the block.
-type newPhiMap map[*BasicBlock][]newPhi
-type newSigmaMap map[*BasicBlock][]newSigma
+type newPhiMap [][]newPhi
+type newSigmaMap [][]newSigma
 
 // liftAlloc determines whether alloc can be lifted into registers,
 // and if so, it populates newPhis with all the φ-nodes it may require
@@ -593,7 +593,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 						if debugLifting {
 							fmt.Fprintf(os.Stderr, "\tplace %s = %s at block %s\n", phi.Name(), phi, y)
 						}
-						newPhis[y] = append(newPhis[y], newPhi{phi, alloc})
+						newPhis[y.Index] = append(newPhis[y.Index], newPhi{phi, alloc})
 
 						for _, p := range y.Preds {
 							useblocks.Add(p)
@@ -636,7 +636,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 						r.setType(deref(alloc.Type()))
 						r.block = y.Succs[1]
 
-						newSigmas[y] = append(newSigmas[y], newSigma{alloc, [2]*Sigma{l, r}})
+						newSigmas[y.Index] = append(newSigmas[y.Index], newSigma{alloc, [2]*Sigma{l, r}})
 						for _, s := range y.Succs {
 							defblocks.Add(s)
 						}
@@ -700,7 +700,7 @@ func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 //
 func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSigmaMap) {
 	// Each φ-node becomes the new name for its associated Alloc.
-	for _, np := range newPhis[u] {
+	for _, np := range newPhis[u.Index] {
 		phi := np.phi
 		alloc := np.alloc
 		renaming[alloc.index] = phi
@@ -813,7 +813,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 		}
 	}
 
-	for _, sigmas := range newSigmas[u] {
+	for _, sigmas := range newSigmas[u.Index] {
 		for _, sigma := range sigmas.sigmas {
 			sigma.X = renamed(u.Parent(), renaming, sigmas.alloc)
 		}
@@ -821,7 +821,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 
 	// For each φ-node in a CFG successor, rename the edge.
 	for succi, v := range u.Succs {
-		phis := newPhis[v]
+		phis := newPhis[v.Index]
 		if len(phis) == 0 {
 			continue
 		}
@@ -831,7 +831,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 			alloc := np.alloc
 			// if there's a sigma node, use it, else use the dominating value
 			var newval Value
-			for _, sigmas := range newSigmas[u] {
+			for _, sigmas := range newSigmas[u.Index] {
 				if sigmas.alloc == alloc {
 					newval = sigmas.sigmas[succi]
 					break
@@ -858,7 +858,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 		// XXX add debugging
 		copy(r, renaming)
 		if idx := u.succIndex(v); idx != -1 {
-			for _, sigma := range newSigmas[u] {
+			for _, sigma := range newSigmas[u.Index] {
 				r[sigma.alloc.index] = sigma.sigmas[idx]
 			}
 		}
