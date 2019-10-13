@@ -246,8 +246,13 @@ func (f *Function) startBody() {
 
 func (f *Function) blockset(i int) *BlockSet {
 	bs := &f.blocksets[i]
-	if len(bs.values) < len(f.Blocks) {
-		bs.values = make([]bool, len(f.Blocks))
+	if len(bs.values) != len(f.Blocks) {
+		if cap(bs.values) >= len(f.Blocks) {
+			bs.values = bs.values[:len(f.Blocks)]
+			bs.Clear()
+		} else {
+			bs.values = make([]bool, len(f.Blocks))
+		}
 	} else {
 		bs.Clear()
 	}

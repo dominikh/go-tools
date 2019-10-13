@@ -59,6 +59,8 @@ var (
 // Its methods contain all the logic for AST-to-IR conversion.
 type builder struct {
 	printFunc string
+
+	blocksets [5]BlockSet
 }
 
 // cond emits to fn code to evaluate boolean condition e and jump
@@ -2172,6 +2174,7 @@ func (b *builder) buildFunction(fn *Function) {
 	if fn.Prog.mode&LogSource != 0 {
 		defer logStack("build function %s @ %s", fn, fn.Prog.Fset.Position(fn.pos))()
 	}
+	fn.blocksets = b.blocksets
 	fn.startBody()
 	fn.createSyntacticParams(recvField, functype)
 	fn.exitBlock()
@@ -2192,6 +2195,7 @@ func (b *builder) buildFunction(fn *Function) {
 	buildFakeExits(fn)
 	b.buildExits(fn)
 	fn.finishBody()
+	b.blocksets = fn.blocksets
 }
 
 // buildFuncDecl builds IR code for the function or method declared
