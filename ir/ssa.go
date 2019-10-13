@@ -575,6 +575,8 @@ type Sigma struct {
 	From    *BasicBlock
 	X       Value
 	Comment string
+
+	live bool // used during lifting
 }
 
 // The Phi instruction represents an SSA φ-node, which combines values
@@ -593,6 +595,8 @@ type Phi struct {
 	register
 	Comment string  // a hint as to its purpose
 	Edges   []Value // Edges[i] is value for Block().Preds[i]
+
+	live bool // used during lifting
 }
 
 // The Call instruction represents a function or method call.

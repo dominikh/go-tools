@@ -324,6 +324,9 @@ func numberNodes(f *Function) {
 	var base ID
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
+			if instr == nil {
+				continue
+			}
 			base++
 			instr.setID(base)
 		}

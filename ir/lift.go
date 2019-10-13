@@ -230,49 +230,58 @@ func lift(fn *Function) {
 	// Renaming.
 	rename(fn.Blocks[0], renaming, newPhis, newSigmas)
 
-	// Eliminate dead φ-nodes.
-	for changed := true; changed; {
-		r1 := removeDeadPhis(fn.Blocks, newPhis)
-		r2 := removeDeadSigmas(fn.Blocks, newSigmas)
-		changed = r1 || r2
-	}
+	simplifyPhis(newPhis)
+
+	// Eliminate dead φ- and σ-nodes.
+	markLiveNodes(fn.Blocks, newPhis, newSigmas)
 
 	// Prepend remaining live φ-nodes to each block and possibly kill rundefers.
 	for _, b := range fn.Blocks {
 		nps := newPhis[b]
-		j := len(nps)
-
-		var sigmas []*Sigma
+		head := make([]Instruction, 0, len(nps))
 		for _, pred := range b.Preds {
 			nss := newSigmas[pred]
 			idx := pred.succIndex(b)
 			for _, newSigma := range nss {
-				if sigma := newSigma.sigmas[idx]; sigma != nil {
-					sigmas = append(sigmas, sigma)
+				if sigma := newSigma.sigmas[idx]; sigma.live {
+					head = append(head, sigma)
+
+					// we didn't populate referrers before, as most
+					// sigma nodes will be killed
+					if refs := sigma.X.Referrers(); refs != nil {
+						*refs = append(*refs, sigma)
+					}
+				} else {
+					sigma.block = nil
 				}
 			}
 		}
-		j += len(sigmas)
+		for _, np := range nps {
+			if np.phi.live {
+				head = append(head, np.phi)
+			} else {
+				for _, edge := range np.phi.Edges {
+					if refs := edge.Referrers(); refs != nil {
+						*refs = removeInstr(*refs, np.phi)
+					}
+				}
+				np.phi.block = nil
+			}
+		}
 
 		rundefersToKill := b.rundefers
 		if usesDefer {
 			rundefersToKill = 0
 		}
 
+		j := len(head)
 		if j+b.gaps+rundefersToKill == 0 {
 			continue // fast path: no new phis or gaps
 		}
 
 		// Compact nps + non-nil Instrs into a new slice.
-		// TODO(adonovan): opt: compact in situ (rightwards)
-		// if Instrs has sufficient space or slack.
 		dst := make([]Instruction, len(b.Instrs)+j-b.gaps-rundefersToKill)
-		for i, sigma := range sigmas {
-			dst[i] = sigma
-		}
-		for i, np := range nps {
-			dst[i+len(sigmas)] = np.phi
-		}
+		copy(dst, head)
 		for _, instr := range b.Instrs {
 			if instr == nil {
 				continue
@@ -303,9 +312,82 @@ func lift(fn *Function) {
 	fn.Locals = fn.Locals[:j]
 }
 
-// removeDeadPhis removes φ-nodes not transitively needed by a
-// non-Phi, non-DebugRef instruction.
-func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) bool {
+func hasDirectReferrer(instr Instruction) bool {
+	for _, instr := range *instr.Referrers() {
+		switch instr.(type) {
+		case *Phi, *Sigma:
+			// ignore
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func markLiveNodes(blocks []*BasicBlock, newPhis newPhiMap, newSigmas newSigmaMap) {
+	// Phi and sigma nodes are considered live if a non-phi, non-sigma
+	// node uses them. Once we find a node that is live, we mark all
+	// of its operands as used, too.
+	for _, npList := range newPhis {
+		for _, np := range npList {
+			phi := np.phi
+			if !phi.live && hasDirectReferrer(phi) {
+				markLivePhi(phi)
+			}
+		}
+	}
+	for _, npList := range newSigmas {
+		for _, np := range npList {
+			for _, sigma := range np.sigmas {
+				if !sigma.live && hasDirectReferrer(sigma) {
+					markLiveSigma(sigma)
+				}
+			}
+		}
+	}
+	// Existing φ-nodes due to && and || operators
+	// are all considered live (see Go issue 19622).
+	for _, b := range blocks {
+		for _, phi := range b.phis() {
+			markLivePhi(phi.(*Phi))
+		}
+	}
+}
+
+func markLivePhi(phi *Phi) {
+	phi.live = true
+	for _, rand := range phi.Edges {
+		switch rand := rand.(type) {
+		case *Phi:
+			if !rand.live {
+				markLivePhi(rand)
+			}
+		case *Sigma:
+			if !rand.live {
+				markLiveSigma(rand)
+			}
+		}
+	}
+}
+
+func markLiveSigma(sigma *Sigma) {
+	sigma.live = true
+	switch rand := sigma.X.(type) {
+	case *Phi:
+		if !rand.live {
+			markLivePhi(rand)
+		}
+	case *Sigma:
+		if !rand.live {
+			markLiveSigma(rand)
+		}
+	}
+}
+
+// simplifyPhis replaces trivial phis with non-phi alternatives. Phi
+// nodes where all edges are identical, or consist of only the phi
+// itself and one other value, may be replaced with the value.
+func simplifyPhis(newPhis newPhiMap) {
 	// find all phis that are trivial and can be replaced with a
 	// non-phi value. run until we reach a fixpoint, because replacing
 	// a phi may make other phis trivial.
@@ -313,8 +395,8 @@ func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) bool {
 		changed = false
 		for _, npList := range newPhis {
 			for _, np := range npList {
-				if np.phi.block == nil {
-					// already eliminated
+				if np.phi.live {
+					// we're reusing 'live' to mean 'dead' in the context of simplifyPhis
 					continue
 				}
 				if r, ok := isUselessPhi(np.phi); ok {
@@ -322,145 +404,18 @@ func removeDeadPhis(blocks []*BasicBlock, newPhis newPhiMap) bool {
 					// replacement value. the dead phi pass will clean
 					// up the phi afterwards.
 					replaceAll(np.phi, r)
-					np.phi.block = nil
+					np.phi.live = true
 					changed = true
 				}
 			}
 		}
 	}
 
-	// find the set of "live" φ-nodes: those reachable
-	// from some non-Phi instruction.
-	//
-	// We compute reachability in reverse, starting from each φ,
-	// rather than forwards, starting from each live non-Phi
-	// instruction, because this way visits much less of the
-	// Value graph.
-	livePhis := make(map[*Phi]bool)
 	for _, npList := range newPhis {
 		for _, np := range npList {
-			phi := np.phi
-			if !livePhis[phi] && phiHasDirectReferrer(phi) {
-				markLivePhi(livePhis, phi)
-			}
+			np.phi.live = false
 		}
 	}
-
-	// Existing φ-nodes due to && and || operators
-	// are all considered live (see Go issue 19622).
-	for _, b := range blocks {
-		for _, phi := range b.phis() {
-			markLivePhi(livePhis, phi.(*Phi))
-		}
-	}
-
-	// eliminate unused phis from newPhis.
-	changed := false
-	for block, npList := range newPhis {
-		j := 0
-		for _, np := range npList {
-			if livePhis[np.phi] {
-				npList[j] = np
-				j++
-			} else {
-				// discard it, first removing it from referrers
-				changed = true
-				for _, val := range np.phi.Edges {
-					if refs := val.Referrers(); refs != nil {
-						*refs = removeInstr(*refs, np.phi)
-					}
-				}
-				np.phi.block = nil
-			}
-		}
-		newPhis[block] = npList[:j]
-	}
-
-	return changed
-}
-
-func removeDeadSigmas(blocks []*BasicBlock, newSigmas newSigmaMap) bool {
-	liveSigmas := make(map[*Sigma]bool)
-	for _, npList := range newSigmas {
-		for _, np := range npList {
-			for _, sigma := range np.sigmas {
-				if sigma == nil {
-					continue
-				}
-				if !liveSigmas[sigma] && sigmaHasDirectReferrer(sigma) {
-					markLiveSigma(liveSigmas, sigma)
-				}
-			}
-		}
-	}
-
-	changed := false
-	for _, npList := range newSigmas {
-		for npi := range npList {
-			np := &npList[npi]
-			for i, sigma := range np.sigmas {
-				if sigma == nil {
-					continue
-				}
-				if !liveSigmas[sigma] {
-					// discard it, first removing it from referrers
-					changed = true
-					val := sigma.X
-					if refs := val.Referrers(); refs != nil {
-						*refs = removeInstr(*refs, sigma)
-					}
-					sigma.block = nil
-					np.sigmas[i] = nil
-				}
-			}
-		}
-	}
-	return changed
-}
-
-// markLivePhi marks phi, and all φ-nodes transitively reachable via
-// its Operands, live.
-func markLivePhi(livePhis map[*Phi]bool, phi *Phi) {
-	livePhis[phi] = true
-	for _, rand := range phi.Operands(nil) {
-		if q, ok := (*rand).(*Phi); ok {
-			if !livePhis[q] {
-				markLivePhi(livePhis, q)
-			}
-		}
-	}
-}
-
-func markLiveSigma(liveSigmas map[*Sigma]bool, sigma *Sigma) {
-	liveSigmas[sigma] = true
-	for _, rand := range sigma.Operands(nil) {
-		if q, ok := (*rand).(*Sigma); ok {
-			if !liveSigmas[q] {
-				markLiveSigma(liveSigmas, q)
-			}
-		}
-	}
-}
-
-// phiHasDirectReferrer reports whether phi is directly referred to by
-// a non-Phi instruction.  Such instructions are the
-// roots of the liveness traversal.
-func phiHasDirectReferrer(phi *Phi) bool {
-	for _, instr := range *phi.Referrers() {
-		if _, ok := instr.(*Phi); !ok {
-			return true
-		}
-	}
-	return false
-}
-
-func sigmaHasDirectReferrer(sigma *Sigma) bool {
-	for _, instr := range *sigma.Referrers() {
-		if _, ok := instr.(*Sigma); !ok {
-			return true
-		}
-	}
-	return false
 }
 
 type BlockSet struct{ big.Int } // (inherit methods from Int)
@@ -621,6 +576,11 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 			for i := W.Take(); i != -1; i = W.Take() {
 				n := fn.Blocks[i]
 				for _, y := range rdf[n.Index] {
+					// OPT(dh): if we had liveness information, we
+					// could avoid adding sigma nodes for already dead
+					// variables. but would calculating liveness
+					// information be cheaper than pruning dead sigmas
+					// later?
 					if Asigma.Add(y) {
 						l := &Sigma{
 							From:    y,
@@ -820,9 +780,6 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 	for _, sigmas := range newSigmas[u] {
 		for _, sigma := range sigmas.sigmas {
 			sigma.X = renamed(u.Parent(), renaming, sigmas.alloc)
-			if refs := sigma.X.Referrers(); refs != nil {
-				*refs = append(*refs, sigma)
-			}
 		}
 	}
 
