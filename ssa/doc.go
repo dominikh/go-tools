@@ -53,6 +53,7 @@
 //                      Value?          Instruction?    Member?
 //   *Alloc             ✔               ✔
 //   *BinOp             ✔               ✔
+//   *BlankStore                        ✔
 //   *Builtin           ✔
 //   *Call              ✔               ✔
 //   *ChangeInterface   ✔               ✔
@@ -91,12 +92,14 @@
 //   *RunDefers                         ✔
 //   *Select            ✔               ✔
 //   *Send              ✔               ✔
+//   *Sigma             ✔               ✔
 //   *Slice             ✔               ✔
 //   *Store             ✔               ✔
 //   *StringLookup      ✔               ✔
 //   *Type                                              ✔ (type)
 //   *TypeAssert        ✔               ✔
 //   *UnOp              ✔               ✔
+//   *Unreachable                       ✔
 //
 // Other key types in this package include: Program, Package, Function
 // and BasicBlock.

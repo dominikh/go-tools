@@ -50,7 +50,7 @@ type Package struct {
 	Prog      *Program               // the owning program
 	Pkg       *types.Package         // the corresponding go/types.Package
 	Members   map[string]Member      // all package members keyed by name (incl. init and init#%d)
-	Functions []*Function            // all functions
+	Functions []*Function            // all functions, including anonymous ones
 	values    map[types.Object]Value // package members (incl. types and methods), keyed by object
 	init      *Function              // Func("init"); the package's init function
 	debug     bool                   // include full debug info in this package
@@ -118,6 +118,15 @@ type Value interface {
 	// and may not even be unique within a function.
 	Name() string
 
+	// ID returns the ID of this value. IDs are unique within a single
+	// function and are densely numbered, but may contain gaps.
+	// Values and other Instructions share the same ID space.
+	// Globally, values are identified by their addresses. However,
+	// IDs exist to facilitate efficient storage of mappings between
+	// values and data when analysing functions.
+	//
+	// NB: IDs are allocated late in the SSA construction process and
+	// are not available to early stages of said process.
 	ID() ID
 
 	// If this value is an Instruction, String returns its
@@ -132,7 +141,7 @@ type Value interface {
 	Type() types.Type
 
 	// Parent returns the function to which this Value belongs.
-	// It returns nil for named Functions, Builtin, Const and Global.
+	// It returns nil for named Functions, Builtin and Global.
 	Parent() *Function
 
 	// Referrers returns the list of instructions that have this
@@ -145,7 +154,7 @@ type Value interface {
 	// Referrers is currently only defined if Parent()!=nil,
 	// i.e. for the function-local values FreeVar, Parameter,
 	// Functions (iff anonymous) and all value-defining instructions.
-	// It returns nil for named Functions, Builtin, Const and Global.
+	// It returns nil for named Functions, Builtin and Global.
 	//
 	// Instruction.Operands contains the inverse of this relation.
 	Referrers() *[]Instruction
@@ -182,20 +191,28 @@ type Instruction interface {
 	// String returns the disassembled form of this value.
 	//
 	// Examples of Instructions that are Values:
-	//       "x + y"     (BinOp)
-	//       "len([])"   (Call)
+	//       "BinOp <int> {+} t1 t2"  (BinOp)
+	//       "Call <int> len t1"      (Call)
 	// Note that the name of the Value is not printed.
 	//
 	// Examples of Instructions that are not Values:
-	//       "return x"  (Return)
-	//       "*y = x"    (Store)
+	//       "Return t1"              (Return)
+	//       "Store {int} t2 t1"      (Store)
 	//
-	// (The separation Value.Name() from Value.String() is useful
+	// (The separation of Value.Name() from Value.String() is useful
 	// for some analyses which distinguish the operation from the
 	// value it defines, e.g., 'y = local int' is both an allocation
 	// of memory 'local int' and a definition of a pointer y.)
 	String() string
 
+	// ID returns the ID of this instruction. IDs are unique within a single
+	// function and are densely numbered, but may contain gaps.
+	// Globally, instructions are identified by their addresses. However,
+	// IDs exist to facilitate efficient storage of mappings between
+	// instructions and data when analysing functions.
+	//
+	// NB: IDs are allocated late in the SSA construction process and
+	// are not available to early stages of said process.
 	ID() ID
 
 	// Parent returns the function to which this instruction
@@ -241,8 +258,8 @@ type Instruction interface {
 	// (Do not use this position to determine which Instruction
 	// corresponds to an ast.Expr; see the notes for Value.Pos.
 	// This position may be used to determine which non-Value
-	// Instruction corresponds to some ast.Stmts, but not all: If
-	// and Jump instructions have no Pos(), for example.)
+	// Instruction corresponds to some ast.Stmts, but not all:
+	// Jump instructions have no Pos(), for example.)
 	Pos() token.Pos
 
 	Referrers() *[]Instruction // nil for non-Values
@@ -356,7 +373,7 @@ func (fn *Function) results() []*Alloc {
 // BasicBlock represents an SSA basic block.
 //
 // The final element of Instrs is always an explicit transfer of
-// control (If, Jump, Return, or Panic).
+// control (If, Jump, Return, Panic, or Unreachable).
 //
 // A block may contain no Instructions only if it is unreachable,
 // i.e., Preds is nil.  Empty blocks are typically pruned.
@@ -444,9 +461,9 @@ type Parameter struct {
 // Pos() returns token.NoPos.
 //
 // Example printed form:
-// 	42:int
-//	"hello":untyped string
-//	3+4i:MyComplex
+// 	Const <int> {42}
+// 	Const <untyped string> {"test"}
+// 	Const <MyComplex> {(3 + 4i)}
 //
 type Const struct {
 	register
@@ -508,12 +525,12 @@ type Builtin struct {
 //
 // If Heap is false, Alloc allocates space in the function's
 // activation record (frame); we refer to an Alloc(Heap=false) as a
-// "local" alloc.  Each local Alloc returns the same address each time
+// "stack" alloc.  Each stack Alloc returns the same address each time
 // it is executed within the same activation; the space is
 // re-initialized to zero.
 //
 // If Heap is true, Alloc allocates space in the heap; we
-// refer to an Alloc(Heap=true) as a "new" alloc.  Each new Alloc
+// refer to an Alloc(Heap=true) as a "heap" alloc.  Each heap Alloc
 // returns a different address each time it is executed.
 //
 // When Alloc is applied to a channel, map or slice type, it returns
@@ -526,8 +543,8 @@ type Builtin struct {
 // allocates a varargs slice.
 //
 // Example printed form:
-// 	t0 = local int
-// 	t1 = new int
+// 	t1 = StackAlloc <*int>
+// 	t2 = HeapAlloc <*int> (new)
 //
 type Alloc struct {
 	register
@@ -539,6 +556,20 @@ type Alloc struct {
 var _ Instruction = (*Sigma)(nil)
 var _ Value = (*Sigma)(nil)
 
+// The Sigma instruction represents an SSI σ-node, which splits values
+// at branches in the control flow.
+//
+// Conceptually, σ-nodes exist at the end of blocks that branch and
+// constitute parallel assignments to one value per destination block.
+// However, such a representation would be awkward to work with, so
+// instead we place σ-nodes at the beginning of branch targets. The
+// From field denotes to which incoming edge the node applies.
+//
+// Within a block, all σ-nodes must appear before all non-σ nodes.
+//
+// Example printed form:
+// 	t2 = Sigma <int> [#0] t1 (x)
+//
 type Sigma struct {
 	register
 	From    *BasicBlock
@@ -548,7 +579,7 @@ type Sigma struct {
 
 // The Phi instruction represents an SSA φ-node, which combines values
 // that differ across incoming control-flow edges and yields a new
-// value.  Within a block, all φ-nodes must appear before all non-φ
+// value.  Within a block, all φ-nodes must appear before all non-φ, non-σ
 // nodes.
 //
 // Pos() returns the position of the && or || for short-circuit
@@ -556,7 +587,7 @@ type Sigma struct {
 // during SSA renaming.
 //
 // Example printed form:
-// 	t2 = phi [0: t0, 1: t1]
+// 	t3 = Phi <int> 2:t1 4:t2 (x)
 //
 type Phi struct {
 	register
@@ -575,9 +606,9 @@ type Phi struct {
 // Pos() returns the ast.CallExpr.Lparen, if explicit in the source.
 //
 // Example printed form:
-// 	t2 = println(t0, t1)
-// 	t4 = t3()
-// 	t7 = invoke t5.Println(...t6)
+// 	t3 = Call <()> println t1 t2
+// 	t4 = Call <()> foo$1
+// 	t6 = Invoke <string> t5.String
 //
 type Call struct {
 	register
@@ -589,7 +620,7 @@ type Call struct {
 // Pos() returns the ast.BinaryExpr.OpPos, if explicit in the source.
 //
 // Example printed form:
-// 	t1 = t0 + 1:int
+// 	t3 = BinOp <int> {+} t2 t1
 //
 type BinOp struct {
 	register
@@ -608,7 +639,7 @@ type BinOp struct {
 //
 //
 // Example printed form:
-// 	t0 = *x
+// 	t2 = UnOp <int> {^} t1
 //
 type UnOp struct {
 	register
@@ -618,9 +649,13 @@ type UnOp struct {
 
 // The Load instruction loads a value from a memory address.
 //
-// For implicit memory loads Pos() returns the position of the
+// For implicit memory loads, Pos() returns the position of the
 // most closely associated source-level construct; the details are not
 // specified.
+//
+// Example printed form:
+// 	t2 = Load <int> t1
+//
 type Load struct {
 	register
 	X Value
@@ -642,7 +677,7 @@ type Load struct {
 // from an explicit conversion in the source.
 //
 // Example printed form:
-// 	t1 = changetype *int <- IntPtr (t0)
+// 	t2 = ChangeType <*T> t1
 //
 type ChangeType struct {
 	register
@@ -671,7 +706,7 @@ type ChangeType struct {
 // from an explicit conversion in the source.
 //
 // Example printed form:
-// 	t1 = convert []byte <- string (t0)
+// 	t2 = Convert <[]byte> t1
 //
 type Convert struct {
 	register
@@ -688,7 +723,7 @@ type Convert struct {
 // otherwise.
 //
 // Example printed form:
-// 	t1 = change interface interface{} <- I (t0)
+// 	t2 = ChangeInterface <I1> t1
 //
 type ChangeInterface struct {
 	register
@@ -708,8 +743,7 @@ type ChangeInterface struct {
 // from an explicit conversion in the source.
 //
 // Example printed form:
-// 	t1 = make interface{} <- int (42:int)
-// 	t2 = make Stringer <- t0
+// 	t2 = MakeInterface <interface{}> t1
 //
 type MakeInterface struct {
 	register
@@ -725,8 +759,8 @@ type MakeInterface struct {
 // closure or the ast.SelectorExpr.Sel for a bound method closure.
 //
 // Example printed form:
-// 	t0 = make closure anon@1.2 [x y z]
-// 	t1 = make closure bound$(main.I).add [i]
+// 	t1 = MakeClosure <func()> foo$1 t1 t2
+// 	t5 = MakeClosure <func(int)> (T).foo$bound t4
 //
 type MakeClosure struct {
 	register
@@ -743,8 +777,8 @@ type MakeClosure struct {
 // the ast.CompositeLit.Lbrack if created by a literal.
 //
 // Example printed form:
-// 	t1 = make map[string]int t0
-// 	t1 = make StringIntMap t0
+// 	t1 = MakeMap <map[string]int>
+// 	t2 = MakeMap <StringIntMap> t1
 //
 type MakeMap struct {
 	register
@@ -760,8 +794,8 @@ type MakeMap struct {
 // created it.
 //
 // Example printed form:
-// 	t0 = make chan int 0
-// 	t0 = make IntChan 0
+// 	t3 = MakeChan <chan int> t1
+// 	t4 = MakeChan <chan IntChan> t2
 //
 type MakeChan struct {
 	register
@@ -782,8 +816,8 @@ type MakeChan struct {
 // created it.
 //
 // Example printed form:
-// 	t1 = make []string 1:int t0
-// 	t1 = make StringSlice 1:int t0
+// 	t3 = MakeSlice <[]string> t1 t2
+// 	t4 = MakeSlice <StringSlice> t1 t2
 //
 type MakeSlice struct {
 	register
@@ -805,7 +839,7 @@ type MakeSlice struct {
 // NoPos if not explicit in the source (e.g. a variadic argument slice).
 //
 // Example printed form:
-// 	t1 = slice t0[1:]
+// 	t4 = Slice <[]int> t3 t2 t1 <nil>
 //
 type Slice struct {
 	register
@@ -827,7 +861,7 @@ type Slice struct {
 // field, if explicit in the source.
 //
 // Example printed form:
-// 	t1 = &t0.name [#1]
+// 	t2 = FieldAddr <*int> [0] (X) t1
 //
 type FieldAddr struct {
 	register
@@ -845,7 +879,7 @@ type FieldAddr struct {
 // field, if explicit in the source.
 //
 // Example printed form:
-// 	t1 = t0.name [#1]
+// 	t2 = FieldAddr <int> [0] (X) t1
 //
 type Field struct {
 	register
@@ -856,7 +890,7 @@ type Field struct {
 // The IndexAddr instruction yields the address of the element at
 // index Index of collection X.  Index is an integer expression.
 //
-// The elements of maps and strings are not addressable; use Lookup or
+// The elements of maps and strings are not addressable; use StringLookup, MapLookup or
 // MapUpdate instead.
 //
 // Dynamically, this instruction panics if X evaluates to a nil *array
@@ -868,7 +902,7 @@ type Field struct {
 // explicit in the source.
 //
 // Example printed form:
-// 	t2 = &t0[t1]
+// 	t3 = IndexAddr <*int> t2 t1
 //
 type IndexAddr struct {
 	register
@@ -882,7 +916,7 @@ type IndexAddr struct {
 // explicit in the source.
 //
 // Example printed form:
-// 	t2 = t0[t1]
+// 	t3 = Index <int> t2 t1
 //
 type Index struct {
 	register
@@ -899,8 +933,8 @@ type Index struct {
 // Pos() returns the ast.IndexExpr.Lbrack, if explicit in the source.
 //
 // Example printed form:
-// 	t2 = t0[t1]
-// 	t5 = t3[t4],ok
+// 	t4 = MapLookup <string> t3 t1
+// 	t6 = MapLookup <(string, bool)> t3 t2
 //
 type MapLookup struct {
 	register
@@ -915,7 +949,7 @@ type MapLookup struct {
 // Pos() returns the ast.IndexExpr.Lbrack, if explicit in the source.
 //
 // Example printed form:
-// 	t2 = t0[t1]
+// 	t3 = StringLookup <uint8> t2 t1
 //
 type StringLookup struct {
 	register
@@ -937,10 +971,10 @@ type SelectState struct {
 // The Select instruction tests whether (or blocks until) one
 // of the specified sent or received states is entered.
 //
-// Let n be the number of States for which Dir==RECV and T_i (0<=i<n)
+// Let n be the number of States for which Dir==RECV and Tᵢ (0 ≤ i < n)
 // be the element type of each such state's Chan.
 // Select returns an n+2-tuple
-//    (index int, recvOk bool, r_0 T_0, ... r_n-1 T_n-1)
+//    (index int, recvOk bool, r₀ T₀, ... rₙ-1 Tₙ-1)
 // The tuple's components, described below, must be accessed via the
 // Extract instruction.
 //
@@ -953,9 +987,9 @@ type SelectState struct {
 // If !Blocking, select doesn't block if no states hold; instead it
 // returns immediately with index equal to -1.
 //
-// If the chosen channel was used for a receive, the r_i component is
+// If the chosen channel was used for a receive, the rᵢ component is
 // set to the received value, where i is the index of that state among
-// all n receive states; otherwise r_i has the zero value of type T_i.
+// all n receive states; otherwise rᵢ has the zero value of type Tᵢ.
 // Note that the receive index i is not the same as the state
 // index index.
 //
@@ -966,8 +1000,8 @@ type SelectState struct {
 // Pos() returns the ast.SelectStmt.Select.
 //
 // Example printed form:
-// 	t3 = select nonblocking [<-t0, t1<-t2]
-// 	t4 = select blocking []
+// 	t6 = SelectNonBlocking <(index int, ok bool, int)> [<-t4, t5<-t1]
+// 	t11 = SelectBlocking <(index int, ok bool)> []
 //
 type Select struct {
 	register
@@ -985,7 +1019,7 @@ type Select struct {
 // Pos() returns the ast.RangeStmt.For.
 //
 // Example printed form:
-// 	t0 = range "hello":string
+// 	t2 = Range <iter> t1
 //
 type Range struct {
 	register
@@ -1008,7 +1042,8 @@ type Range struct {
 // The types of k and/or v may be types.Invalid.
 //
 // Example printed form:
-// 	t1 = next t0
+// 	t5 = Next <(ok bool, k int, v rune)> t2
+// 	t5 = Next <(ok bool, k invalid type, v invalid type)> t2
 //
 type Next struct {
 	register
@@ -1048,8 +1083,8 @@ type Next struct {
 // type-switch statement.
 //
 // Example printed form:
-// 	t1 = typeassert t0.(int)
-// 	t3 = typeassert,ok t2.(T)
+// 	t2 = TypeAssert <int> t1
+// 	t4 = TypeAssert <(value fmt.Stringer, ok bool)> t1
 //
 type TypeAssert struct {
 	register
@@ -1062,10 +1097,10 @@ type TypeAssert struct {
 //
 // This is used to access the results of instructions with multiple
 // return values, such as Call, TypeAssert, Next, Recv,
-// IndexExpr(Map) and others.
+// MapLookup and others.
 //
 // Example printed form:
-// 	t1 = extract t0 #1
+// 	t7 = Extract <bool> [1] (ok) t4
 //
 type Extract struct {
 	register
@@ -1083,7 +1118,7 @@ type Extract struct {
 // Pos() returns NoPos.
 //
 // Example printed form:
-// 	jump done
+// 	Jump → b1
 //
 type Jump struct {
 	anInstruction
@@ -1095,6 +1130,13 @@ type Jump struct {
 //
 // The instruction acts as a control instruction, jumping to the exit
 // block. However, this jump will never execute.
+//
+// An Unreachable instruction must be the last instruction of its
+// containing BasicBlock.
+//
+// Example printed form:
+// 	Unreachable → b1
+//
 type Unreachable struct {
 	anInstruction
 }
@@ -1109,7 +1151,7 @@ type Unreachable struct {
 // Pos() returns the *ast.IfStmt, if explicit in the source.
 //
 // Example printed form:
-// 	if t0 goto done else body
+// 	If t2 → b1 b2
 //
 type If struct {
 	anInstruction
@@ -1127,7 +1169,7 @@ type If struct {
 // components which the caller must access using Extract instructions.
 //
 // There is no instruction to return a ready-made tuple like those
-// returned by a "value,ok"-mode TypeAssert, Lookup or Recv or
+// returned by a "value,ok"-mode TypeAssert, MapLookup or Recv or
 // a tail-call to a function with multiple result parameters.
 //
 // Return must be the last instruction of its containing BasicBlock.
@@ -1136,8 +1178,8 @@ type If struct {
 // Pos() returns the ast.ReturnStmt.Return, if explicit in the source.
 //
 // Example printed form:
-// 	return
-// 	return nil:I, 2:int
+// 	Return
+// 	Return t1 t2
 //
 type Return struct {
 	anInstruction
@@ -1155,7 +1197,7 @@ type Return struct {
 // Pos() returns NoPos.
 //
 // Example printed form:
-//	rundefers
+// 	RunDefers
 //
 type RunDefers struct {
 	anInstruction
@@ -1173,7 +1215,7 @@ type RunDefers struct {
 // in the source.
 //
 // Example printed form:
-// 	panic t0
+// 	Panic t1
 //
 type Panic struct {
 	anInstruction
@@ -1189,9 +1231,9 @@ type Panic struct {
 // Pos() returns the ast.GoStmt.Go.
 //
 // Example printed form:
-// 	go println(t0, t1)
-// 	go t3()
-// 	go invoke t5.Println(...t6)
+// 	Go println t1
+// 	Go t3
+// 	GoInvoke t4.Bar t2
 //
 type Go struct {
 	anInstruction
@@ -1207,9 +1249,9 @@ type Go struct {
 // Pos() returns the ast.DeferStmt.Defer.
 //
 // Example printed form:
-// 	defer println(t0, t1)
-// 	defer t3()
-// 	defer invoke t5.Println(...t6)
+// 	Defer println t1
+// 	Defer t3
+// 	DeferInvoke t4.Bar t2
 //
 type Defer struct {
 	anInstruction
@@ -1222,7 +1264,7 @@ type Defer struct {
 // Pos() returns the ast.SendStmt.Arrow, if explicit in the source.
 //
 // Example printed form:
-// 	send t0 <- t1
+// 	Send t2 t1
 //
 type Send struct {
 	anInstruction
@@ -1239,6 +1281,10 @@ type Send struct {
 // Pos() returns the ast.UnaryExpr.OpPos, if explicit in the source.
 // For receive operations implicit in ranging over a channel,
 // Pos() returns the ast.RangeStmt.For.
+//
+// Example printed form:
+// 	t2 = Recv <int> t1
+// 	t3 = Recv <(int, bool)> t1
 type Recv struct {
 	register
 	Chan    Value
@@ -1254,7 +1300,7 @@ type Recv struct {
 // implementation choices, the details are not specified.
 //
 // Example printed form:
-// 	*x = y
+// 	Store {int} t2 t1
 //
 type Store struct {
 	anInstruction
@@ -1271,7 +1317,7 @@ type Store struct {
 // Pos() returns NoPos.
 //
 // Example printed form:
-//	_ = t0
+// 	BlankStore t1
 //
 type BlankStore struct {
 	anInstruction
@@ -1285,7 +1331,7 @@ type BlankStore struct {
 // if explicit in the source.
 //
 // Example printed form:
-//	t0[t1] = t2
+// 	MapUpdate t3 t1 t2
 //
 type MapUpdate struct {
 	anInstruction
@@ -1305,11 +1351,6 @@ type MapUpdate struct {
 // expression.  This is not the same as the "designated" token as
 // documented at Value.Pos(). e.g. CallExpr.Pos() does not return the
 // position of the ("designated") Lparen token.
-//
-// If Expr is an *ast.Ident denoting a var or func, Object() returns
-// the object; though this information can be obtained from the type
-// checker, including it here greatly facilitates debugging.
-// For non-Ident expressions, Object() returns nil.
 //
 // DebugRefs are generated only for functions built with debugging
 // enabled; see Package.SetDebugMode() and the GlobalDebug builder
@@ -1345,11 +1386,6 @@ type DebugRef struct {
 //
 // Temporary names are automatically assigned to each register on
 // completion of building a function in SSA form.
-//
-// Clients must not assume that the 'id' value (and the Name() derived
-// from it) is unique within a function.  As always in this API,
-// semantics are determined only by identity; names exist only to
-// facilitate debugging.
 //
 type register struct {
 	anInstruction
@@ -1400,9 +1436,9 @@ type anInstruction struct {
 // Args[0] contains the receiver parameter.
 //
 // Example printed form:
-// 	t2 = println(t0, t1)
-// 	go t3()
-//	defer t5(...t6)
+// 	t3 = Call <()> println t1 t2
+// 	Go t3
+// 	Defer t3
 //
 // 2. "invoke" mode: when Method is non-nil (IsInvoke), a CallCommon
 // represents a dynamically dispatched call to an interface method.
@@ -1416,9 +1452,9 @@ type anInstruction struct {
 // receiver but the first true argument.
 //
 // Example printed form:
-// 	t1 = invoke t0.String()
-// 	go invoke t3.Run(t2)
-// 	defer invoke t4.Handle(...t5)
+// 	t6 = Invoke <string> t5.String
+// 	GoInvoke t4.Bar t2
+// 	DeferInvoke t4.Bar t2
 //
 // For all calls to variadic functions (Signature().Variadic()),
 // the last element of Args is a slice.
