@@ -706,8 +706,9 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 		renaming[alloc.index] = phi
 	}
 
+	var rands []*Value
 	updateOperands := func(instr Instruction) {
-		for _, op := range instr.Operands(nil) {
+		for _, op := range instr.Operands(rands[:0]) {
 			if load, ok := (*op).(*Load); ok {
 				if alloc, ok := load.X.(*Alloc); ok && alloc.index >= 0 {
 					newval := renamed(u.Parent(), renaming, alloc)
@@ -753,10 +754,11 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 					fmt.Fprintf(os.Stderr, "\tkill store %s; new value: %s\n",
 						instr, instr.Val.Name())
 				}
-				for _, op := range instr.Operands(nil) {
-					if refs := (*op).Referrers(); refs != nil {
-						*refs = removeInstr(*refs, instr)
-					}
+				if refs := instr.Addr.Referrers(); refs != nil {
+					*refs = removeInstr(*refs, instr)
+				}
+				if refs := instr.Val.Referrers(); refs != nil {
+					*refs = removeInstr(*refs, instr)
 				}
 				// Delete the Store.
 				u.Instrs[i] = nil
