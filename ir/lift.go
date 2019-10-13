@@ -482,14 +482,12 @@ func (s *BlockSet) Has(b *BasicBlock) bool {
 // take removes an arbitrary element from a set s and
 // returns its index, or returns -1 if empty.
 func (s *BlockSet) Take() int {
-	l := s.BitLen()
-	for i := 0; i < l; i++ {
-		if s.Bit(i) == 1 {
-			s.SetBit(&s.Int, i, 0)
-			return i
-		}
+	if s.BitLen() == 0 {
+		return -1
 	}
-	return -1
+	off := int(s.TrailingZeroBits())
+	s.SetBit(&s.Int, off, 0)
+	return off
 }
 
 // newPhi is a pair of a newly introduced φ-node and the lifted Alloc
