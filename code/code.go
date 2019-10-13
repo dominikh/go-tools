@@ -13,30 +13,30 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/astutil"
 	"honnef.co/go/tools/facts"
+	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/lint"
-	"honnef.co/go/tools/ssa"
 )
 
-func CallName(call *ssa.CallCommon) string {
+func CallName(call *ir.CallCommon) string {
 	if call.IsInvoke() {
 		return ""
 	}
 	switch v := call.Value.(type) {
-	case *ssa.Function:
+	case *ir.Function:
 		fn, ok := v.Object().(*types.Func)
 		if !ok {
 			return ""
 		}
 		return lint.FuncName(fn)
-	case *ssa.Builtin:
+	case *ir.Builtin:
 		return v.Name()
 	}
 	return ""
 }
 
-func IsCallTo(call *ssa.CallCommon, name string) bool { return CallName(call) == name }
+func IsCallTo(call *ir.CallCommon, name string) bool { return CallName(call) == name }
 
-func IsCallToAny(call *ssa.CallCommon, names ...string) bool {
+func IsCallToAny(call *ir.CallCommon, names ...string) bool {
 	q := CallName(call)
 	for _, name := range names {
 		if q == name {
@@ -48,17 +48,17 @@ func IsCallToAny(call *ssa.CallCommon, names ...string) bool {
 
 func IsType(T types.Type, name string) bool { return types.TypeString(T, nil) == name }
 
-func FilterDebug(instr []ssa.Instruction) []ssa.Instruction {
-	var out []ssa.Instruction
+func FilterDebug(instr []ir.Instruction) []ir.Instruction {
+	var out []ir.Instruction
 	for _, ins := range instr {
-		if _, ok := ins.(*ssa.DebugRef); !ok {
+		if _, ok := ins.(*ir.DebugRef); !ok {
 			out = append(out, ins)
 		}
 	}
 	return out
 }
 
-func IsExample(fn *ssa.Function) bool {
+func IsExample(fn *ir.Function) bool {
 	if !strings.HasPrefix(fn.Name(), "Example") {
 		return false
 	}

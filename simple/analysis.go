@@ -4,7 +4,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"honnef.co/go/tools/facts"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/lint/lintutil"
 )
 
@@ -95,7 +95,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"S1025": {
 		Run:      CheckRedundantSprintf,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, inspect.Analyzer, facts.Generated},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, inspect.Analyzer, facts.Generated},
 	},
 	"S1028": {
 		Run:      CheckErrorsNewSprintf,
@@ -103,7 +103,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	// "S1029": {
 	// 	Run:      CheckRangeStringRunes,
-	// 	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	// 	Requires: []*analysis.Analyzer{buildir.Analyzer},
 	// },
 	"S1030": {
 		Run:      CheckBytesBufferConversions,

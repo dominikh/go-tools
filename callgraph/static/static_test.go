@@ -16,7 +16,7 @@ import (
 	"golang.org/x/tools/go/loader"
 	"honnef.co/go/tools/callgraph"
 	"honnef.co/go/tools/callgraph/static"
-	"honnef.co/go/tools/ssa/ssautil"
+	"honnef.co/go/tools/ir/irutil"
 )
 
 const input = `package P
@@ -29,7 +29,7 @@ type I interface{f()}
 func f() {
 	p := func() {}
 	g()
-	p() // SSA constant propagation => static
+	p() // IR constant propagation => static
 
 	if unknown {
 		p = h
@@ -64,7 +64,7 @@ func TestStatic(t *testing.T) {
 
 	P := iprog.Created[0].Pkg
 
-	prog := ssautil.CreateProgram(iprog, 0)
+	prog := irutil.CreateProgram(iprog, 0)
 	prog.Build()
 
 	cg := static.CallGraph(prog)

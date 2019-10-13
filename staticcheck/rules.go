@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/code"
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/staticcheck/vrp"
 )
 
@@ -27,10 +27,10 @@ const (
 
 type Call struct {
 	Pass  *analysis.Pass
-	Instr ssa.CallInstruction
+	Instr ir.CallInstruction
 	Args  []*Argument
 
-	Parent *ssa.Function
+	Parent *ir.Function
 
 	invalids []string
 }
@@ -49,17 +49,17 @@ func (arg *Argument) Invalid(msg string) {
 }
 
 type Value struct {
-	Value ssa.Value
+	Value ir.Value
 	Range vrp.Range
 }
 
 type CallCheck func(call *Call)
 
-func extractConsts(v ssa.Value) []*ssa.Const {
+func extractConsts(v ir.Value) []*ir.Const {
 	switch v := v.(type) {
-	case *ssa.Const:
-		return []*ssa.Const{v}
-	case *ssa.MakeInterface:
+	case *ir.Const:
+		return []*ir.Const{v}
+	case *ir.MakeInterface:
 		return extractConsts(v.X)
 	default:
 		return nil
@@ -169,7 +169,7 @@ func Pointer(v Value) bool {
 }
 
 func ConvertedFromInt(v Value) bool {
-	conv, ok := v.Value.(*ssa.Convert)
+	conv, ok := v.Value.(*ir.Convert)
 	if !ok {
 		return false
 	}
@@ -293,7 +293,7 @@ func ValidHostPort(v Value) bool {
 
 // ConvertedFrom reports whether value v was converted from type typ.
 func ConvertedFrom(v Value, typ string) bool {
-	change, ok := v.Value.(*ssa.ChangeType)
+	change, ok := v.Value.(*ir.ChangeType)
 	return ok && code.IsType(change.X.Type(), typ)
 }
 

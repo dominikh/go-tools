@@ -43,7 +43,7 @@ import (
 	"fmt"
 	"go/token"
 
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 // A Graph represents a call graph.
@@ -53,19 +53,19 @@ import (
 // functions.
 //
 type Graph struct {
-	Root  *Node                   // the distinguished root node
-	Nodes map[*ssa.Function]*Node // all nodes by function
+	Root  *Node                  // the distinguished root node
+	Nodes map[*ir.Function]*Node // all nodes by function
 }
 
 // New returns a new Graph with the specified root node.
-func New(root *ssa.Function) *Graph {
-	g := &Graph{Nodes: make(map[*ssa.Function]*Node)}
+func New(root *ir.Function) *Graph {
+	g := &Graph{Nodes: make(map[*ir.Function]*Node)}
 	g.Root = g.CreateNode(root)
 	return g
 }
 
 // CreateNode returns the Node for fn, creating it if not present.
-func (g *Graph) CreateNode(fn *ssa.Function) *Node {
+func (g *Graph) CreateNode(fn *ir.Function) *Node {
 	n, ok := g.Nodes[fn]
 	if !ok {
 		n = &Node{Func: fn, ID: len(g.Nodes)}
@@ -76,10 +76,10 @@ func (g *Graph) CreateNode(fn *ssa.Function) *Node {
 
 // A Node represents a node in a call graph.
 type Node struct {
-	Func *ssa.Function // the function this node represents
-	ID   int           // 0-based sequence number
-	In   []*Edge       // unordered set of incoming call edges (n.In[*].Callee == n)
-	Out  []*Edge       // unordered set of outgoing call edges (n.Out[*].Caller == n)
+	Func *ir.Function // the function this node represents
+	ID   int          // 0-based sequence number
+	In   []*Edge      // unordered set of incoming call edges (n.In[*].Callee == n)
+	Out  []*Edge      // unordered set of outgoing call edges (n.Out[*].Caller == n)
 }
 
 func (n *Node) String() string {
@@ -92,7 +92,7 @@ func (n *Node) String() string {
 // functions, e.g. reflect.Call or the root of the call graph.
 type Edge struct {
 	Caller *Node
-	Site   ssa.CallInstruction
+	Site   ir.CallInstruction
 	Callee *Node
 }
 
@@ -105,9 +105,9 @@ func (e Edge) Description() string {
 	switch e.Site.(type) {
 	case nil:
 		return "synthetic call"
-	case *ssa.Go:
+	case *ir.Go:
 		prefix = "concurrent "
-	case *ssa.Defer:
+	case *ir.Defer:
 		prefix = "deferred "
 	}
 	return prefix + e.Site.Common().Description()
@@ -122,7 +122,7 @@ func (e Edge) Pos() token.Pos {
 
 // AddEdge adds the edge (caller, site, callee) to the call graph.
 // Elimination of duplicate edges is the caller's responsibility.
-func AddEdge(caller *Node, site ssa.CallInstruction, callee *Node) {
+func AddEdge(caller *Node, site ir.CallInstruction, callee *Node) {
 	e := &Edge{caller, site, callee}
 	callee.In = append(callee.In, e)
 	caller.Out = append(caller.Out, e)

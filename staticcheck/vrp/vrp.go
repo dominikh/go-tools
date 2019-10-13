@@ -12,13 +12,13 @@ import (
 	"sort"
 	"strings"
 
+	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/lint"
-	"honnef.co/go/tools/ssa"
 )
 
 type Future interface {
 	Constraint
-	Futures() []ssa.Value
+	Futures() []ir.Value
 	Resolve()
 	IsKnown() bool
 	MarkUnresolved()
@@ -32,35 +32,35 @@ type Range interface {
 }
 
 type Constraint interface {
-	Y() ssa.Value
+	Y() ir.Value
 	isConstraint()
 	String() string
 	Eval(*Graph) Range
-	Operands() []ssa.Value
+	Operands() []ir.Value
 }
 
 type aConstraint struct {
-	y ssa.Value
+	y ir.Value
 }
 
-func NewConstraint(y ssa.Value) aConstraint {
+func NewConstraint(y ir.Value) aConstraint {
 	return aConstraint{y}
 }
 
-func (aConstraint) isConstraint()  {}
-func (c aConstraint) Y() ssa.Value { return c.y }
+func (aConstraint) isConstraint() {}
+func (c aConstraint) Y() ir.Value { return c.y }
 
 type PhiConstraint struct {
 	aConstraint
-	Vars []ssa.Value
+	Vars []ir.Value
 }
 
-func NewPhiConstraint(vars []ssa.Value, y ssa.Value) Constraint {
-	uniqm := map[ssa.Value]struct{}{}
+func NewPhiConstraint(vars []ir.Value, y ir.Value) Constraint {
+	uniqm := map[ir.Value]struct{}{}
 	for _, v := range vars {
 		uniqm[v] = struct{}{}
 	}
-	var uniq []ssa.Value
+	var uniq []ir.Value
 	for v := range uniqm {
 		uniq = append(uniq, v)
 	}
@@ -70,7 +70,7 @@ func NewPhiConstraint(vars []ssa.Value, y ssa.Value) Constraint {
 	}
 }
 
-func (c *PhiConstraint) Operands() []ssa.Value {
+func (c *PhiConstraint) Operands() []ir.Value {
 	return c.Vars
 }
 
@@ -118,7 +118,7 @@ func ConstantToZ(c constant.Value) Z {
 	return NewBigZ(n)
 }
 
-func BuildGraph(f *ssa.Function) *Graph {
+func BuildGraph(f *ir.Function) *Graph {
 	g := &Graph{
 		Vertices: map[interface{}]*Vertex{},
 		ranges:   Ranges{},
@@ -126,13 +126,13 @@ func BuildGraph(f *ssa.Function) *Graph {
 
 	var cs []Constraint
 
-	ops := make([]*ssa.Value, 16)
-	seen := map[ssa.Value]bool{}
+	ops := make([]*ir.Value, 16)
+	seen := map[ir.Value]bool{}
 	for _, block := range f.Blocks {
 		for _, ins := range block.Instrs {
 			ops = ins.Operands(ops[:0])
 			for _, op := range ops {
-				if c, ok := (*op).(*ssa.Const); ok {
+				if c, ok := (*op).(*ir.Const); ok {
 					if seen[c] {
 						continue
 					}
@@ -160,7 +160,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 	for _, block := range f.Blocks {
 		for _, ins := range block.Instrs {
 			switch ins := ins.(type) {
-			case *ssa.Convert:
+			case *ir.Convert:
 				switch v := ins.Type().Underlying().(type) {
 				case *types.Basic:
 					if (v.Info() & types.IsInteger) == 0 {
@@ -168,7 +168,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 					}
 					cs = append(cs, NewIntConversionConstraint(ins.X, ins))
 				}
-			case *ssa.Call:
+			case *ir.Call:
 				if static := ins.Common().StaticCallee(); static != nil {
 					if fn, ok := static.Object().(*types.Func); ok {
 						switch lint.FuncName(fn) {
@@ -208,7 +208,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 						}
 					}
 				}
-				builtin, ok := ins.Common().Value.(*ssa.Builtin)
+				builtin, ok := ins.Common().Value.(*ir.Builtin)
 				ops := ins.Operands(nil)
 				if !ok {
 					continue
@@ -227,7 +227,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 				case "append":
 					cs = append(cs, NewSliceAppendConstraint(ins.Common().Args[0], ins.Common().Args[1], ins))
 				}
-			case *ssa.BinOp:
+			case *ir.BinOp:
 				ops := ins.Operands(nil)
 				basic, ok := (*ops[0]).Type().Underlying().(*types.Basic)
 				if !ok {
@@ -236,7 +236,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 				switch basic.Kind() {
 				case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
 					types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.UntypedInt:
-					fns := map[token.Token]func(ssa.Value, ssa.Value, ssa.Value) Constraint{
+					fns := map[token.Token]func(ir.Value, ir.Value, ir.Value) Constraint{
 						token.ADD: NewIntAddConstraint,
 						token.SUB: NewIntSubConstraint,
 						token.MUL: NewIntMulConstraint,
@@ -251,7 +251,7 @@ func BuildGraph(f *ssa.Function) *Graph {
 						cs = append(cs, NewStringConcatConstraint(*ops[0], *ops[1], ins))
 					}
 				}
-			case *ssa.Slice:
+			case *ir.Slice:
 				typ := ins.X.Type().Underlying()
 				switch typ := typ.(type) {
 				case *types.Basic:
@@ -266,21 +266,21 @@ func BuildGraph(f *ssa.Function) *Graph {
 					}
 					cs = append(cs, NewArraySliceConstraint(ins.X, ins.Low, ins.High, ins))
 				}
-			case *ssa.Phi:
+			case *ir.Phi:
 				if !isSupportedType(ins.Type()) {
 					continue
 				}
 				ops := ins.Operands(nil)
-				dops := make([]ssa.Value, len(ops))
+				dops := make([]ir.Value, len(ops))
 				for i, op := range ops {
 					dops[i] = *op
 				}
 				cs = append(cs, NewPhiConstraint(dops, ins))
-			case *ssa.MakeChan:
+			case *ir.MakeChan:
 				cs = append(cs, NewMakeChannelConstraint(ins.Size, ins))
-			case *ssa.MakeSlice:
+			case *ir.MakeSlice:
 				cs = append(cs, NewMakeSliceConstraint(ins.Len, ins))
-			case *ssa.ChangeType:
+			case *ir.ChangeType:
 				switch ins.X.Type().Underlying().(type) {
 				case *types.Chan:
 					cs = append(cs, NewChannelChangeTypeConstraint(ins.X, ins))
@@ -326,7 +326,7 @@ func (g *Graph) Solve() Ranges {
 	var consts []Z
 	off := NewZ(1)
 	for _, n := range g.Vertices {
-		if c, ok := n.Value.(*ssa.Const); ok {
+		if c, ok := n.Value.(*ir.Const); ok {
 			basic, ok := c.Type().Underlying().(*types.Basic)
 			if !ok {
 				continue
@@ -348,7 +348,7 @@ func (g *Graph) Solve() Ranges {
 		if n == 1 {
 			g.resolveFutures(scc)
 			v := vertices[0]
-			if v, ok := v.Value.(ssa.Value); ok {
+			if v, ok := v.Value.(ir.Value); ok {
 				switch typ := v.Type().Underlying().(type) {
 				case *types.Basic:
 					switch typ.Kind() {
@@ -394,7 +394,7 @@ func (g *Graph) Solve() Ranges {
 			// removing it leads to nil pointer derefs; investigate
 			// where we're not setting values correctly.
 			for _, n := range vertices {
-				if v, ok := n.Value.(ssa.Value); ok {
+				if v, ok := n.Value.(ir.Value); ok {
 					i, ok := g.Range(v).(IntInterval)
 					if !ok {
 						continue
@@ -473,7 +473,7 @@ func VertexString(v *Vertex) string {
 	switch v := v.Value.(type) {
 	case Constraint:
 		return v.String()
-	case ssa.Value:
+	case ir.Value:
 		return v.Name()
 	case nil:
 		return "BUG: nil vertex value"
@@ -483,7 +483,7 @@ func VertexString(v *Vertex) string {
 }
 
 type Vertex struct {
-	Value   interface{} // one of Constraint or ssa.Value
+	Value   interface{} // one of Constraint or ir.Value
 	SCC     int
 	index   int
 	lowlink int
@@ -492,9 +492,9 @@ type Vertex struct {
 	Succs []Edge
 }
 
-type Ranges map[ssa.Value]Range
+type Ranges map[ir.Value]Range
 
-func (r Ranges) Get(x ssa.Value) Range {
+func (r Ranges) Get(x ir.Value) Range {
 	if x == nil {
 		return nil
 	}
@@ -537,7 +537,7 @@ func (g Graph) Graphviz() string {
 	for _, v := range g.Vertices {
 		ids[v] = i
 		shape := "box"
-		if _, ok := v.Value.(ssa.Value); ok {
+		if _, ok := v.Value.(ir.Value); ok {
 			shape = "oval"
 		}
 		lines = append(lines, fmt.Sprintf(`n%d [shape="%s", label=%q, colorscheme=spectral11, style="filled", fillcolor="%d"]`,
@@ -555,11 +555,11 @@ func (g Graph) Graphviz() string {
 	return strings.Join(lines, "\n")
 }
 
-func (g *Graph) SetRange(x ssa.Value, r Range) {
+func (g *Graph) SetRange(x ir.Value, r Range) {
 	g.ranges[x] = r
 }
 
-func (g *Graph) Range(x ssa.Value) Range {
+func (g *Graph) Range(x ir.Value) Range {
 	return g.ranges.Get(x)
 }
 
@@ -693,13 +693,13 @@ func (g *Graph) resolveFutures(scc int) {
 	}
 }
 
-func (g *Graph) entries(scc int) []ssa.Value {
-	var entries []ssa.Value
+func (g *Graph) entries(scc int) []ir.Value {
+	var entries []ir.Value
 	for _, n := range g.Vertices {
 		if n.SCC != scc {
 			continue
 		}
-		if v, ok := n.Value.(ssa.Value); ok {
+		if v, ok := n.Value.(ir.Value); ok {
 			// XXX avoid quadratic runtime
 			//
 			// XXX I cannot think of any code where the future and its
@@ -727,13 +727,13 @@ func (g *Graph) entries(scc int) []ssa.Value {
 	return entries
 }
 
-func (g *Graph) uses(scc int) map[ssa.Value][]Constraint {
-	m := map[ssa.Value][]Constraint{}
+func (g *Graph) uses(scc int) map[ir.Value][]Constraint {
+	m := map[ir.Value][]Constraint{}
 	for _, e := range g.sccEdges[scc] {
 		if e.control {
 			continue
 		}
-		if v, ok := e.From.Value.(ssa.Value); ok {
+		if v, ok := e.From.Value.(ir.Value); ok {
 			c := e.To.Value.(Constraint)
 			sink := c.Y()
 			if g.Vertices[sink].SCC == scc {
@@ -744,14 +744,14 @@ func (g *Graph) uses(scc int) map[ssa.Value][]Constraint {
 	return m
 }
 
-func (g *Graph) actives(scc int) []ssa.Value {
-	var actives []ssa.Value
+func (g *Graph) actives(scc int) []ir.Value {
+	var actives []ir.Value
 	for _, n := range g.Vertices {
 		if n.SCC != scc {
 			continue
 		}
-		if v, ok := n.Value.(ssa.Value); ok {
-			if _, ok := v.(*ssa.Const); !ok {
+		if v, ok := n.Value.(ir.Value); ok {
+			if _, ok := v.(*ir.Const); !ok {
 				actives = append(actives, v)
 			}
 		}
@@ -882,7 +882,7 @@ func flipToken(tok token.Token) token.Token {
 
 type CopyConstraint struct {
 	aConstraint
-	X ssa.Value
+	X ir.Value
 }
 
 func (c *CopyConstraint) String() string {
@@ -893,11 +893,11 @@ func (c *CopyConstraint) Eval(g *Graph) Range {
 	return g.Range(c.X)
 }
 
-func (c *CopyConstraint) Operands() []ssa.Value {
-	return []ssa.Value{c.X}
+func (c *CopyConstraint) Operands() []ir.Value {
+	return []ir.Value{c.X}
 }
 
-func NewCopyConstraint(x, y ssa.Value) Constraint {
+func NewCopyConstraint(x, y ir.Value) Constraint {
 	return &CopyConstraint{
 		aConstraint: aConstraint{
 			y: y,

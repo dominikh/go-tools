@@ -3,7 +3,7 @@ package vrp
 import (
 	"fmt"
 
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 type ChannelInterval struct {
@@ -36,22 +36,22 @@ func (c ChannelInterval) IsKnown() bool {
 
 type MakeChannelConstraint struct {
 	aConstraint
-	Buffer ssa.Value
+	Buffer ir.Value
 }
 type ChannelChangeTypeConstraint struct {
 	aConstraint
-	X ssa.Value
+	X ir.Value
 }
 
-func NewMakeChannelConstraint(buffer, y ssa.Value) Constraint {
+func NewMakeChannelConstraint(buffer, y ir.Value) Constraint {
 	return &MakeChannelConstraint{NewConstraint(y), buffer}
 }
-func NewChannelChangeTypeConstraint(x, y ssa.Value) Constraint {
+func NewChannelChangeTypeConstraint(x, y ir.Value) Constraint {
 	return &ChannelChangeTypeConstraint{NewConstraint(y), x}
 }
 
-func (c *MakeChannelConstraint) Operands() []ssa.Value       { return []ssa.Value{c.Buffer} }
-func (c *ChannelChangeTypeConstraint) Operands() []ssa.Value { return []ssa.Value{c.X} }
+func (c *MakeChannelConstraint) Operands() []ir.Value       { return []ir.Value{c.Buffer} }
+func (c *ChannelChangeTypeConstraint) Operands() []ir.Value { return []ir.Value{c.X} }
 
 func (c *MakeChannelConstraint) String() string {
 	return fmt.Sprintf("%s = make(chan, %s)", c.Y().Name(), c.Buffer.Name())

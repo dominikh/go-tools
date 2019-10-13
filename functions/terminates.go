@@ -3,13 +3,13 @@ package functions
 import (
 	"go/types"
 
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 // Terminates reports whether fn is supposed to return, that is if it
 // has at least one theoretic path that returns from the function.
 // Explicit panics do not count as terminating.
-func Terminates(fn *ssa.Function) bool {
+func Terminates(fn *ir.Function) bool {
 	if fn.Blocks == nil {
 		// assuming that a function terminates is the conservative
 		// choice
@@ -17,7 +17,7 @@ func Terminates(fn *ssa.Function) bool {
 	}
 
 	for _, block := range fn.Blocks {
-		if _, ok := block.Control().(*ssa.Return); ok {
+		if _, ok := block.Control().(*ir.Return); ok {
 			if len(block.Preds) == 0 {
 				return true
 			}
@@ -25,26 +25,26 @@ func Terminates(fn *ssa.Function) bool {
 				// Receiving from a time.Tick channel won't ever
 				// return !ok, so a range loop over it won't
 				// terminate.
-				iff, ok := pred.Control().(*ssa.If)
+				iff, ok := pred.Control().(*ir.If)
 				if !ok {
 					return true
 				}
-				ex, ok := iff.Cond.(*ssa.Extract)
+				ex, ok := iff.Cond.(*ir.Extract)
 				if !ok {
 					return true
 				}
 				if ex.Index != 1 {
 					return true
 				}
-				recv, ok := ex.Tuple.(*ssa.Recv)
+				recv, ok := ex.Tuple.(*ir.Recv)
 				if !ok {
 					return true
 				}
-				call, ok := recv.Chan.(*ssa.Call)
+				call, ok := recv.Chan.(*ir.Call)
 				if !ok {
 					return true
 				}
-				fn, ok := call.Common().Value.(*ssa.Function)
+				fn, ok := call.Common().Value.(*ir.Function)
 				if !ok {
 					return true
 				}

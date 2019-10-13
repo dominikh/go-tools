@@ -2,7 +2,7 @@ package staticcheck
 
 import (
 	"honnef.co/go/tools/facts"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/lint/lintutil"
 
 	"golang.org/x/tools/go/analysis"
@@ -10,7 +10,7 @@ import (
 )
 
 func makeCallCheckerAnalyzer(rules map[string]CallCheck, extraReqs ...*analysis.Analyzer) *analysis.Analyzer {
-	reqs := []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer, facts.TokenFile}
+	reqs := []*analysis.Analyzer{buildir.Analyzer, valueRangesAnalyzer, facts.TokenFile}
 	reqs = append(reqs, extraReqs...)
 	return &analysis.Analyzer{
 		Run:      callChecker(rules),
@@ -56,7 +56,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	"SA1014": makeCallCheckerAnalyzer(checkUnmarshalPointerRules),
 	"SA1015": {
 		Run:      CheckLeakyTimeTick,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA1016": {
 		Run:      CheckUntrappableSignal,
@@ -72,12 +72,12 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	"SA1021": makeCallCheckerAnalyzer(checkBytesEqualIPRules),
 	"SA1023": {
 		Run:      CheckWriterBufferModified,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA1024": makeCallCheckerAnalyzer(checkUniqueCutsetRules),
 	"SA1025": {
 		Run:      CheckTimerResetReturnValue,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA1026": makeCallCheckerAnalyzer(checkUnsupportedMarshal),
 	"SA1027": makeCallCheckerAnalyzer(checkAtomicAlignment),
@@ -94,11 +94,11 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA2002": {
 		Run:      CheckConcurrentTesting,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA2003": {
 		Run:      CheckDeferLock,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 
 	"SA3000": {
@@ -120,7 +120,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	// "SA4002": {
 	// 	Run:      CheckDiffSizeComparison,
-	// 	Requires: []*analysis.Analyzer{buildssa.Analyzer, valueRangesAnalyzer},
+	// 	Requires: []*analysis.Analyzer{buildir.Analyzer, valueRangesAnalyzer},
 	// },
 	"SA4003": {
 		Run:      CheckExtremeComparison,
@@ -132,19 +132,19 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA4006": {
 		Run:      CheckUnreadVariableValues,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Generated},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.Generated},
 	},
 	"SA4008": {
 		Run:      CheckLoopCondition,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA4009": {
 		Run:      CheckArgOverwritten,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA4010": {
 		Run:      CheckIneffectiveAppend,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA4011": {
 		Run:      CheckScopedBreak,
@@ -152,7 +152,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA4012": {
 		Run:      CheckNaNComparison,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA4013": {
 		Run:      CheckDoubleNegation,
@@ -169,7 +169,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA4017": {
 		Run:      CheckPureFunctions,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Purity},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.Purity},
 	},
 	"SA4018": {
 		Run:      CheckSelfAssignment,
@@ -190,7 +190,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 
 	"SA5000": {
 		Run:      CheckNilMaps,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA5001": {
 		Run:      CheckEarlyDefer,
@@ -210,11 +210,11 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA5005": {
 		Run:      CheckCyclicFinalizer,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA5007": {
 		Run:      CheckInfiniteRecursion,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA5008": {
 		Run:      CheckStructTags,
@@ -223,18 +223,18 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	"SA5009": makeCallCheckerAnalyzer(checkPrintfRules),
 	"SA5010": {
 		Run:      CheckImpossibleTypeAssertion,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.TokenFile},
 	},
 
 	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),
 	"SA6001": {
 		Run:      CheckMapBytesKey,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA6002": makeCallCheckerAnalyzer(checkSyncPoolValueRules),
 	// "SA6003": {
 	// 	Run:      CheckRangeStringRunes,
-	// 	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	// 	Requires: []*analysis.Analyzer{buildir.Analyzer},
 	// },
 	"SA6005": {
 		Run:      CheckToLowerToUpperComparison,
@@ -251,7 +251,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA9003": {
 		Run:      CheckEmptyBranch,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.TokenFile, facts.Generated},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.TokenFile, facts.Generated},
 	},
 	"SA9004": {
 		Run:      CheckMissingEnumTypesInDeclaration,

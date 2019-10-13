@@ -24,15 +24,15 @@ import (
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/functions"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
+	"honnef.co/go/tools/ir"
+	"honnef.co/go/tools/ir/irutil"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/printf"
 	"honnef.co/go/tools/report"
-	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssa/ssautil"
 	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/analysis"
@@ -51,7 +51,7 @@ func checkSortSlice(call *Call) {
 	case *types.Interface:
 		// we don't know.
 		// TODO(dh): if the value is a phi node we can look at its edges
-		if k, ok := arg.Value.Value.(*ssa.Const); ok && k.Value == nil {
+		if k, ok := arg.Value.Value.(*ir.Const); ok && k.Value == nil {
 			// literal nil, e.g. sort.Sort(nil, ...)
 			arg.Invalid(fmt.Sprintf("cannot call %s on nil literal", c))
 		}
@@ -295,16 +295,16 @@ var (
 
 func checkPrintfCall(call *Call, fIdx, vIdx int) {
 	f := call.Args[fIdx]
-	var args []ssa.Value
+	var args []ir.Value
 	switch v := call.Args[vIdx].Value.Value.(type) {
-	case *ssa.Slice:
+	case *ir.Slice:
 		var ok bool
-		args, ok = ssautil.Vararg(v)
+		args, ok = irutil.Vararg(v)
 		if !ok {
 			// We don't know what the actual arguments to the function are
 			return
 		}
-	case *ssa.Const:
+	case *ir.Const:
 		// nil, i.e. no arguments
 	default:
 		// We don't know what the actual arguments to the function are
@@ -349,7 +349,7 @@ var verbs = [...]verbFlag{
 	'x': isPseudoPointer | isInt | isString,
 }
 
-func checkPrintfCallImpl(carg *Argument, f ssa.Value, args []ssa.Value) {
+func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 	var msCache *typeutil.MethodSetCache
 	if f.Parent() != nil {
 		msCache = &f.Parent().Prog.MethodSets
@@ -569,7 +569,7 @@ func checkPrintfCallImpl(carg *Argument, f ssa.Value, args []ssa.Value) {
 		return true
 	}
 
-	k, ok := f.(*ssa.Const)
+	k, ok := f.(*ir.Const)
 	if !ok {
 		return
 	}
@@ -603,7 +603,7 @@ func checkPrintfCallImpl(carg *Argument, f ssa.Value, args []ssa.Value) {
 						verb.Raw, idx, len(args)))
 				return false
 			}
-			if arg, ok := args[idx-1].(*ssa.MakeInterface); ok {
+			if arg, ok := args[idx-1].(*ir.MakeInterface); ok {
 				if !isInfo(arg.X.Type(), types.IsInteger) {
 					carg.Invalid(fmt.Sprintf("Printf format %s reads non-int arg #%d as argument of *", verb.Raw, idx))
 				}
@@ -639,11 +639,11 @@ func checkPrintfCallImpl(carg *Argument, f ssa.Value, args []ssa.Value) {
 			carg.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
 			return
 		} else if off != 0 {
-			arg, ok := args[off-1].(*ssa.MakeInterface)
+			arg, ok := args[off-1].(*ir.MakeInterface)
 			if ok {
 				if !checkType(verb.Letter, arg.X.Type(), true) {
 					carg.Invalid(fmt.Sprintf("Printf format %s has arg #%d of wrong type %s",
-						verb.Raw, ptr, args[ptr-1].(*ssa.MakeInterface).X.Type()))
+						verb.Raw, ptr, args[ptr-1].(*ir.MakeInterface).X.Type()))
 					return
 				}
 			}
@@ -671,7 +671,7 @@ func checkAtomicAlignmentImpl(call *Call) {
 		// Not running on a 32-bit platform
 		return
 	}
-	v, ok := call.Args[0].Value.Value.(*ssa.FieldAddr)
+	v, ok := call.Args[0].Value.Value.(*ir.FieldAddr)
 	if !ok {
 		// TODO(dh): also check indexing into arrays and slices
 		return
@@ -777,7 +777,7 @@ func fieldPath(start types.Type, indices []int) string {
 	return p
 }
 
-func isInLoop(b *ssa.BasicBlock) bool {
+func isInLoop(b *ir.BasicBlock) bool {
 	sets := functions.FindLoops(b.Parent())
 	for _, set := range sets {
 		if set.Has(b) {
@@ -1407,14 +1407,14 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 
 func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 	// Initially it might seem like this check would be easier to
-	// implement in SSA. After all, we're only checking for two
+	// implement using IR. After all, we're only checking for two
 	// consecutive method calls. In reality, however, there may be any
 	// number of other instructions between the lock and unlock, while
 	// still constituting an empty critical section. For example,
 	// given `m.x().Lock(); m.x().Unlock()`, there will be a call to
 	// x(). In the AST-based approach, this has a tiny potential for a
 	// false positive (the second call to x might be doing work that
-	// is protected by the mutex). In an SSA-based approach, however,
+	// is protected by the mutex). In an IR-based approach, however,
 	// it would miss a lot of real bugs.
 
 	mutexParams := func(s ast.Stmt) (x ast.Expr, funcName string, ok bool) {
@@ -1488,23 +1488,23 @@ func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckDiffSizeComparison(pass *analysis.Pass) (interface{}, error) {
-	ranges := pass.ResultOf[valueRangesAnalyzer].(map[*ssa.Function]vrp.Ranges)
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, b := range ssafn.Blocks {
+	ranges := pass.ResultOf[valueRangesAnalyzer].(map[*ir.Function]vrp.Ranges)
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, b := range fn.Blocks {
 			for _, ins := range b.Instrs {
-				binop, ok := ins.(*ssa.BinOp)
+				binop, ok := ins.(*ir.BinOp)
 				if !ok {
 					continue
 				}
 				if binop.Op != token.EQL && binop.Op != token.NEQ {
 					continue
 				}
-				_, ok1 := binop.X.(*ssa.Slice)
-				_, ok2 := binop.Y.(*ssa.Slice)
+				_, ok1 := binop.X.(*ir.Slice)
+				_, ok2 := binop.Y.(*ir.Slice)
 				if !ok1 && !ok2 {
 					continue
 				}
-				r := ranges[ssafn]
+				r := ranges[fn]
 				r1, ok1 := r.Get(binop.X).(vrp.StringInterval)
 				r2, ok2 := r.Get(binop.Y).(vrp.StringInterval)
 				if !ok1 || !ok2 {
@@ -1601,11 +1601,11 @@ func CheckBenchmarkN(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		if code.IsExample(ssafn) {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		if code.IsExample(fn) {
 			continue
 		}
-		node := ssafn.Syntax()
+		node := fn.Syntax()
 		if node == nil {
 			continue
 		}
@@ -1616,18 +1616,18 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		switchTags := map[ssa.Value]struct{}{}
+		switchTags := map[ir.Value]struct{}{}
 		ast.Inspect(node, func(node ast.Node) bool {
 			s, ok := node.(*ast.SwitchStmt)
 			if !ok {
 				return true
 			}
-			v, _ := ssafn.ValueForExpr(s.Tag)
+			v, _ := fn.ValueForExpr(s.Tag)
 			switchTags[v] = struct{}{}
 			return true
 		})
 
-		hasUse := func(v ssa.Value) bool {
+		hasUse := func(v ir.Value) bool {
 			if _, ok := switchTags[v]; ok {
 				return true
 			}
@@ -1648,7 +1648,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 				// Either a function call with multiple return values,
 				// or a comma-ok assignment
 
-				val, _ := ssafn.ValueForExpr(assign.Rhs[0])
+				val, _ := fn.ValueForExpr(assign.Rhs[0])
 				if val == nil {
 					return true
 				}
@@ -1657,7 +1657,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					return true
 				}
 				for _, ref := range *refs {
-					ex, ok := ref.(*ssa.Extract)
+					ex, ok := ref.(*ir.Extract)
 					if !ok {
 						continue
 					}
@@ -1676,7 +1676,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 				if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
 					continue
 				}
-				val, _ := ssafn.ValueForExpr(rhs)
+				val, _ := fn.ValueForExpr(rhs)
 				if val == nil {
 					continue
 				}
@@ -1692,21 +1692,21 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckPredeterminedBooleanExprs(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				ssabinop, ok := ins.(*ssa.BinOp)
+				binop, ok := ins.(*ir.BinOp)
 				if !ok {
 					continue
 				}
-				switch ssabinop.Op {
+				switch binop.Op {
 				case token.GTR, token.LSS, token.EQL, token.NEQ, token.LEQ, token.GEQ:
 				default:
 					continue
 				}
 
-				xs, ok1 := consts(ssabinop.X, nil, nil)
-				ys, ok2 := consts(ssabinop.Y, nil, nil)
+				xs, ok1 := consts(binop.X, nil, nil)
+				ys, ok2 := consts(binop.Y, nil, nil)
 				if !ok1 || !ok2 || len(xs) == 0 || len(ys) == 0 {
 					continue
 				}
@@ -1720,15 +1720,15 @@ func CheckPredeterminedBooleanExprs(pass *analysis.Pass) (interface{}, error) {
 							}
 							continue
 						}
-						if constant.Compare(x.Value, ssabinop.Op, y.Value) {
+						if constant.Compare(x.Value, binop.Op, y.Value) {
 							trues++
 						}
 					}
 				}
 				b := trues != 0
 				if trues == 0 || trues == len(xs)*len(ys) {
-					pass.Reportf(ssabinop.Pos(), "binary expression is always %t for all possible values (%s %s %s)",
-						b, xs, ssabinop.Op, ys)
+					pass.Reportf(binop.Pos(), "binary expression is always %t for all possible values (%s %s %s)",
+						b, xs, binop.Op, ys)
 				}
 			}
 		}
@@ -1737,14 +1737,14 @@ func CheckPredeterminedBooleanExprs(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckNilMaps(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				mu, ok := ins.(*ssa.MapUpdate)
+				mu, ok := ins.(*ir.MapUpdate)
 				if !ok {
 					continue
 				}
-				c, ok := mu.Map.(*ssa.Const)
+				c, ok := mu.Map.(*ir.Const)
 				if !ok {
 					continue
 				}
@@ -1841,13 +1841,13 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ssa.Const, bool) {
+func consts(val ir.Value, out []*ir.Const, visitedPhis map[string]bool) ([]*ir.Const, bool) {
 	if visitedPhis == nil {
 		visitedPhis = map[string]bool{}
 	}
 	var ok bool
 	switch val := val.(type) {
-	case *ssa.Phi:
+	case *ir.Phi:
 		if visitedPhis[val.Name()] {
 			break
 		}
@@ -1859,9 +1859,9 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 				return nil, false
 			}
 		}
-	case *ssa.Const:
+	case *ir.Const:
 		out = append(out, val)
-	case *ssa.Convert:
+	case *ir.Convert:
 		out, ok = consts(val.X, out, visitedPhis)
 		if !ok {
 			return nil, false
@@ -1872,7 +1872,7 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 	if len(out) < 2 {
 		return out, true
 	}
-	uniq := []*ssa.Const{out[0]}
+	uniq := []*ir.Const{out[0]}
 	for _, val := range out[1:] {
 		if val.Value == uniq[len(uniq)-1].Value {
 			continue
@@ -1883,8 +1883,8 @@ func consts(val ssa.Value, out []*ssa.Const, visitedPhis map[string]bool) ([]*ss
 }
 
 func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		fn := func(node ast.Node) bool {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		cb := func(node ast.Node) bool {
 			loop, ok := node.(*ast.ForStmt)
 			if !ok {
 				return true
@@ -1915,42 +1915,42 @@ func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			v, isAddr := ssafn.ValueForExpr(cond.X)
+			v, isAddr := fn.ValueForExpr(cond.X)
 			if v == nil || isAddr {
 				return true
 			}
 			switch v := v.(type) {
-			case *ssa.Phi:
+			case *ir.Phi:
 				ops := v.Operands(nil)
 				if len(ops) != 2 {
 					return true
 				}
-				_, ok := (*ops[0]).(*ssa.Const)
+				_, ok := (*ops[0]).(*ir.Const)
 				if !ok {
 					return true
 				}
-				sigma, ok := (*ops[1]).(*ssa.Sigma)
+				sigma, ok := (*ops[1]).(*ir.Sigma)
 				if !ok {
 					return true
 				}
 				if sigma.X != v {
 					return true
 				}
-			case *ssa.Load:
+			case *ir.Load:
 				return true
 			}
 			report.Nodef(pass, cond, "variable in loop condition never changes")
 
 			return true
 		}
-		Inspect(ssafn.Syntax(), fn)
+		Inspect(fn.Syntax(), cb)
 	}
 	return nil, nil
 }
 
 func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		fn := func(node ast.Node) bool {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		cb := func(node ast.Node) bool {
 			var typ *ast.FuncType
 			var body *ast.BlockStmt
 			switch fn := node.(type) {
@@ -1970,17 +1970,17 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 			for _, field := range typ.Params.List {
 				for _, arg := range field.Names {
 					obj := pass.TypesInfo.ObjectOf(arg)
-					var ssaobj *ssa.Parameter
-					for _, param := range ssafn.Params {
+					var irobj *ir.Parameter
+					for _, param := range fn.Params {
 						if param.Object() == obj {
-							ssaobj = param
+							irobj = param
 							break
 						}
 					}
-					if ssaobj == nil {
+					if irobj == nil {
 						continue
 					}
-					refs := ssaobj.Referrers()
+					refs := irobj.Referrers()
 					if refs == nil {
 						continue
 					}
@@ -2013,7 +2013,7 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 			}
 			return true
 		}
-		Inspect(ssafn.Syntax(), fn)
+		Inspect(fn.Syntax(), cb)
 	}
 	return nil, nil
 }
@@ -2184,53 +2184,53 @@ func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckIneffectiveAppend(pass *analysis.Pass) (interface{}, error) {
-	isAppend := func(ins ssa.Value) bool {
-		call, ok := ins.(*ssa.Call)
+	isAppend := func(ins ir.Value) bool {
+		call, ok := ins.(*ir.Call)
 		if !ok {
 			return false
 		}
 		if call.Call.IsInvoke() {
 			return false
 		}
-		if builtin, ok := call.Call.Value.(*ssa.Builtin); !ok || builtin.Name() != "append" {
+		if builtin, ok := call.Call.Value.(*ir.Builtin); !ok || builtin.Name() != "append" {
 			return false
 		}
 		return true
 	}
 
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				val, ok := ins.(ssa.Value)
+				val, ok := ins.(ir.Value)
 				if !ok || !isAppend(val) {
 					continue
 				}
 
 				isUsed := false
-				visited := map[ssa.Instruction]bool{}
-				var walkRefs func(refs []ssa.Instruction)
-				walkRefs = func(refs []ssa.Instruction) {
+				visited := map[ir.Instruction]bool{}
+				var walkRefs func(refs []ir.Instruction)
+				walkRefs = func(refs []ir.Instruction) {
 				loop:
 					for _, ref := range refs {
 						if visited[ref] {
 							continue
 						}
 						visited[ref] = true
-						if _, ok := ref.(*ssa.DebugRef); ok {
+						if _, ok := ref.(*ir.DebugRef); ok {
 							continue
 						}
 						switch ref := ref.(type) {
-						case *ssa.Phi:
+						case *ir.Phi:
 							walkRefs(*ref.Referrers())
-						case *ssa.Sigma:
+						case *ir.Sigma:
 							walkRefs(*ref.Referrers())
-						case ssa.Value:
+						case ir.Value:
 							if !isAppend(ref) {
 								isUsed = true
 							} else {
 								walkRefs(*ref.Referrers())
 							}
-						case ssa.Instruction:
+						case ir.Instruction:
 							isUsed = true
 							break loop
 						}
@@ -2253,19 +2253,19 @@ func CheckIneffectiveAppend(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckConcurrentTesting(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				gostmt, ok := ins.(*ssa.Go)
+				gostmt, ok := ins.(*ir.Go)
 				if !ok {
 					continue
 				}
-				var fn *ssa.Function
+				var fn *ir.Function
 				switch val := gostmt.Call.Value.(type) {
-				case *ssa.Function:
+				case *ir.Function:
 					fn = val
-				case *ssa.MakeClosure:
-					fn = val.Fn.(*ssa.Function)
+				case *ir.MakeClosure:
+					fn = val.Fn.(*ir.Function)
 				default:
 					continue
 				}
@@ -2274,7 +2274,7 @@ func CheckConcurrentTesting(pass *analysis.Pass) (interface{}, error) {
 				}
 				for _, block := range fn.Blocks {
 					for _, ins := range block.Instrs {
-						call, ok := ins.(*ssa.Call)
+						call, ok := ins.(*ir.Call)
 						if !ok {
 							continue
 						}
@@ -2311,12 +2311,12 @@ func CheckConcurrentTesting(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func eachCall(ssafn *ssa.Function, fn func(caller *ssa.Function, site ssa.CallInstruction, callee *ssa.Function)) {
-	for _, b := range ssafn.Blocks {
+func eachCall(fn *ir.Function, cb func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function)) {
+	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			if site, ok := instr.(ssa.CallInstruction); ok {
+			if site, ok := instr.(ir.CallInstruction); ok {
 				if g := site.Common().StaticCallee(); g != nil {
-					fn(ssafn, site, g)
+					cb(fn, site, g)
 				}
 			}
 		}
@@ -2324,27 +2324,27 @@ func eachCall(ssafn *ssa.Function, fn func(caller *ssa.Function, site ssa.CallIn
 }
 
 func CheckCyclicFinalizer(pass *analysis.Pass) (interface{}, error) {
-	fn := func(caller *ssa.Function, site ssa.CallInstruction, callee *ssa.Function) {
+	cb := func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function) {
 		if callee.RelString(nil) != "runtime.SetFinalizer" {
 			return
 		}
 		arg0 := site.Common().Args[Arg("runtime.SetFinalizer.obj")]
-		if iface, ok := arg0.(*ssa.MakeInterface); ok {
+		if iface, ok := arg0.(*ir.MakeInterface); ok {
 			arg0 = iface.X
 		}
-		load, ok := arg0.(*ssa.Load)
+		load, ok := arg0.(*ir.Load)
 		if !ok {
 			return
 		}
-		v, ok := load.X.(*ssa.Alloc)
+		v, ok := load.X.(*ir.Alloc)
 		if !ok {
 			return
 		}
 		arg1 := site.Common().Args[Arg("runtime.SetFinalizer.finalizer")]
-		if iface, ok := arg1.(*ssa.MakeInterface); ok {
+		if iface, ok := arg1.(*ir.MakeInterface); ok {
 			arg1 = iface.X
 		}
-		mc, ok := arg1.(*ssa.MakeClosure)
+		mc, ok := arg1.(*ir.MakeClosure)
 		if !ok {
 			return
 		}
@@ -2355,26 +2355,26 @@ func CheckCyclicFinalizer(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		eachCall(ssafn, fn)
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		eachCall(fn, cb)
 	}
 	return nil, nil
 }
 
 /*
 func CheckSliceOutOfBounds(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				ia, ok := ins.(*ssa.IndexAddr)
+				ia, ok := ins.(*ir.IndexAddr)
 				if !ok {
 					continue
 				}
 				if _, ok := ia.X.Type().Underlying().(*types.Slice); !ok {
 					continue
 				}
-				sr, ok1 := c.funcDescs.Get(ssafn).Ranges[ia.X].(vrp.SliceInterval)
-				idxr, ok2 := c.funcDescs.Get(ssafn).Ranges[ia.Index].(vrp.IntInterval)
+				sr, ok1 := c.funcDescs.Get(fn).Ranges[ia.X].(vrp.SliceInterval)
+				idxr, ok2 := c.funcDescs.Get(fn).Ranges[ia.Index].(vrp.IntInterval)
 				if !ok1 || !ok2 || !sr.IsKnown() || !idxr.IsKnown() || sr.Length.Empty() || idxr.Empty() {
 					continue
 				}
@@ -2389,21 +2389,21 @@ func CheckSliceOutOfBounds(pass *analysis.Pass) (interface{}, error) {
 */
 
 func CheckDeferLock(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			instrs := code.FilterDebug(block.Instrs)
 			if len(instrs) < 2 {
 				continue
 			}
 			for i, ins := range instrs[:len(instrs)-1] {
-				call, ok := ins.(*ssa.Call)
+				call, ok := ins.(*ir.Call)
 				if !ok {
 					continue
 				}
 				if !code.IsCallToAny(call.Common(), "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
 					continue
 				}
-				nins, ok := instrs[i+1].(*ssa.Defer)
+				nins, ok := instrs[i+1].(*ir.Defer)
 				if !ok {
 					continue
 				}
@@ -2429,17 +2429,17 @@ func CheckDeferLock(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckNaNComparison(pass *analysis.Pass) (interface{}, error) {
-	isNaN := func(v ssa.Value) bool {
-		call, ok := v.(*ssa.Call)
+	isNaN := func(v ir.Value) bool {
+		call, ok := v.(*ir.Call)
 		if !ok {
 			return false
 		}
 		return code.IsCallTo(call.Common(), "math.NaN")
 	}
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		for _, block := range ssafn.Blocks {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				ins, ok := ins.(*ssa.BinOp)
+				ins, ok := ins.(*ir.BinOp)
 				if !ok {
 					continue
 				}
@@ -2453,12 +2453,12 @@ func CheckNaNComparison(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckInfiniteRecursion(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		eachCall(ssafn, func(caller *ssa.Function, site ssa.CallInstruction, callee *ssa.Function) {
-			if callee != ssafn {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		eachCall(fn, func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function) {
+			if callee != fn {
 				return
 			}
-			if _, ok := site.(*ssa.Go); ok {
+			if _, ok := site.(*ir.Go); ok {
 				// Recursively spawning goroutines doesn't consume
 				// stack space infinitely, so don't flag it.
 				return
@@ -2466,14 +2466,14 @@ func CheckInfiniteRecursion(pass *analysis.Pass) (interface{}, error) {
 
 			block := site.Block()
 			canReturn := false
-			for _, b := range ssafn.Blocks {
+			for _, b := range fn.Blocks {
 				if block.Dominates(b) {
 					continue
 				}
 				if len(b.Instrs) == 0 {
 					continue
 				}
-				if _, ok := b.Control().(*ssa.Return); ok {
+				if _, ok := b.Control().(*ir.Return); ok {
 					canReturn = true
 					break
 				}
@@ -2514,13 +2514,13 @@ func isName(pass *analysis.Pass, expr ast.Expr, name string) bool {
 }
 
 func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		if code.IsMainLike(pass) || code.IsInTest(pass, ssafn) {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		if code.IsMainLike(pass) || code.IsInTest(pass, fn) {
 			continue
 		}
-		for _, block := range ssafn.Blocks {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				call, ok := ins.(*ssa.Call)
+				call, ok := ins.(*ir.Call)
 				if !ok || !code.IsCallTo(call.Common(), "time.Tick") {
 					continue
 				}
@@ -2601,15 +2601,15 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 	// FIXME(dh): what happened here?
 	if false {
-		for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-			for _, block := range ssafn.Blocks {
+		for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+			for _, block := range fn.Blocks {
 				for _, ins := range block.Instrs {
-					ins, ok := ins.(*ssa.BinOp)
+					ins, ok := ins.(*ir.BinOp)
 					if !ok {
 						continue
 					}
 
-					if c, ok := ins.Y.(*ssa.Const); !ok || c.Value == nil || c.Value.Kind() != constant.Int || c.Uint64() != 0 {
+					if c, ok := ins.Y.(*ir.Const); !ok || c.Value == nil || c.Value.Kind() != constant.Int || c.Uint64() != 0 {
 						continue
 					}
 					switch ins.Op {
@@ -2760,9 +2760,9 @@ func CheckPureFunctions(pass *analysis.Pass) (interface{}, error) {
 	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
 
 fnLoop:
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		if code.IsInTest(pass, ssafn) {
-			params := ssafn.Signature.Params()
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		if code.IsInTest(pass, fn) {
+			params := fn.Signature.Params()
 			for i := 0; i < params.Len(); i++ {
 				param := params.At(i)
 				if code.IsType(param.Type(), "*testing.B") {
@@ -2778,9 +2778,9 @@ fnLoop:
 			}
 		}
 
-		for _, b := range ssafn.Blocks {
+		for _, b := range fn.Blocks {
 			for _, ins := range b.Instrs {
-				ins, ok := ins.(*ssa.Call)
+				ins, ok := ins.(*ir.Call)
 				if !ok {
 					continue
 				}
@@ -2891,8 +2891,8 @@ func callChecker(rules map[string]CallCheck) func(pass *analysis.Pass) (interfac
 }
 
 func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, error) {
-	ranges := pass.ResultOf[valueRangesAnalyzer].(map[*ssa.Function]vrp.Ranges)
-	fn := func(caller *ssa.Function, site ssa.CallInstruction, callee *ssa.Function) {
+	ranges := pass.ResultOf[valueRangesAnalyzer].(map[*ir.Function]vrp.Ranges)
+	cb := func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function) {
 		obj, ok := callee.Object().(*types.Func)
 		if !ok {
 			return
@@ -2903,12 +2903,12 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			return
 		}
 		var args []*Argument
-		ssaargs := site.Common().Args
+		irargs := site.Common().Args
 		if callee.Signature.Recv() != nil {
-			ssaargs = ssaargs[1:]
+			irargs = irargs[1:]
 		}
-		for _, arg := range ssaargs {
-			if iarg, ok := arg.(*ssa.MakeInterface); ok {
+		for _, arg := range irargs {
+			if iarg, ok := arg.(*ir.MakeInterface); ok {
 				arg = iarg.X
 			}
 			vr := ranges[site.Parent()][arg]
@@ -2939,24 +2939,24 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			pass.Reportf(call.Instr.Common().Pos(), "%s", e)
 		}
 	}
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		eachCall(ssafn, fn)
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		eachCall(fn, cb)
 	}
 	return nil, nil
 }
 
-func shortCallName(call *ssa.CallCommon) string {
+func shortCallName(call *ir.CallCommon) string {
 	if call.IsInvoke() {
 		return ""
 	}
 	switch v := call.Value.(type) {
-	case *ssa.Function:
+	case *ir.Function:
 		fn, ok := v.Object().(*types.Func)
 		if !ok {
 			return ""
 		}
 		return fn.Name()
-	case *ssa.Builtin:
+	case *ir.Builtin:
 		return v.Name()
 	}
 	return ""
@@ -2967,9 +2967,9 @@ func CheckWriterBufferModified(pass *analysis.Pass) (interface{}, error) {
 	// Taint the argument as MUST_NOT_MODIFY, then propagate that
 	// through functions like bytes.Split
 
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		sig := ssafn.Signature
-		if ssafn.Name() != "Write" || sig.Recv() == nil || sig.Params().Len() != 1 || sig.Results().Len() != 2 {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		sig := fn.Signature
+		if fn.Name() != "Write" || sig.Recv() == nil || sig.Params().Len() != 1 || sig.Results().Len() != 2 {
 			continue
 		}
 		tArg, ok := sig.Params().At(0).Type().(*types.Slice)
@@ -2986,23 +2986,23 @@ func CheckWriterBufferModified(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		for _, block := range ssafn.Blocks {
+		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
 				switch ins := ins.(type) {
-				case *ssa.Store:
-					addr, ok := ins.Addr.(*ssa.IndexAddr)
+				case *ir.Store:
+					addr, ok := ins.Addr.(*ir.IndexAddr)
 					if !ok {
 						continue
 					}
-					if addr.X != ssafn.Params[1] {
+					if addr.X != fn.Params[1] {
 						continue
 					}
 					pass.Reportf(ins.Pos(), "io.Writer.Write must not modify the provided buffer, not even temporarily")
-				case *ssa.Call:
+				case *ir.Call:
 					if !code.IsCallTo(ins.Common(), "append") {
 						continue
 					}
-					if ins.Common().Args[0] != ssafn.Params[1] {
+					if ins.Common().Args[0] != fn.Params[1] {
 						continue
 					}
 					pass.Reportf(ins.Pos(), "io.Writer.Write must not modify the provided buffer, not even temporarily")
@@ -3026,14 +3026,14 @@ func loopedRegexp(name string) CallCheck {
 }
 
 func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
-	for _, ssafn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
-		if ssafn.Syntax() == nil {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		if fn.Syntax() == nil {
 			continue
 		}
-		if code.IsExample(ssafn) {
+		if code.IsExample(fn) {
 			continue
 		}
-		fn := func(node ast.Node) bool {
+		cb := func(node ast.Node) bool {
 			ifstmt, ok := node.(*ast.IfStmt)
 			if !ok {
 				return true
@@ -3051,18 +3051,18 @@ func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
 			report.PosfFG(pass, ifstmt.Pos(), "empty branch")
 			return true
 		}
-		Inspect(ssafn.Syntax(), fn)
+		Inspect(fn.Syntax(), cb)
 	}
 	return nil, nil
 }
 
 func CheckMapBytesKey(pass *analysis.Pass) (interface{}, error) {
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, b := range fn.Blocks {
 		insLoop:
 			for _, ins := range b.Instrs {
 				// find []byte -> string conversions
-				conv, ok := ins.(*ssa.Convert)
+				conv, ok := ins.(*ir.Convert)
 				if !ok || conv.Type() != types.Universe.Lookup("string").Type() {
 					continue
 				}
@@ -3079,7 +3079,7 @@ func CheckMapBytesKey(pass *analysis.Pass) (interface{}, error) {
 				// skip first reference, that's the conversion itself
 				for _, ref := range (*refs)[1:] {
 					switch ref := ref.(type) {
-					case *ssa.DebugRef:
+					case *ir.DebugRef:
 						if _, ok := ref.Expr.(*ast.Ident); !ok {
 							// the string seems to be used somewhere
 							// unexpected; the default branch should
@@ -3088,7 +3088,7 @@ func CheckMapBytesKey(pass *analysis.Pass) (interface{}, error) {
 						} else {
 							ident = true
 						}
-					case *ssa.MapLookup:
+					case *ir.MapLookup:
 					default:
 						// the string is used somewhere else than a
 						// map lookup
@@ -3174,17 +3174,17 @@ func CheckDuplicateBuildConstraints(pass *analysis.Pass) (interface{}, error) {
 func CheckSillyRegexp(pass *analysis.Pass) (interface{}, error) {
 	// We could use the rule checking engine for this, but the
 	// arguments aren't really invalid.
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, b := range fn.Blocks {
 			for _, ins := range b.Instrs {
-				call, ok := ins.(*ssa.Call)
+				call, ok := ins.(*ir.Call)
 				if !ok {
 					continue
 				}
 				if !code.IsCallToAny(call.Common(), "regexp.MustCompile", "regexp.Compile", "regexp.Match", "regexp.MatchReader", "regexp.MatchString") {
 					continue
 				}
-				c, ok := call.Common().Args[0].(*ssa.Const)
+				c, ok := call.Common().Args[0].(*ir.Const)
 				if !ok {
 					continue
 				}
@@ -3262,10 +3262,10 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 }
 
 func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
-				call, ok := ins.(*ssa.Call)
+				call, ok := ins.(*ir.Call)
 				if !ok {
 					continue
 				}
@@ -3277,7 +3277,7 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				for _, ref := range code.FilterDebug(*refs) {
-					ifstmt, ok := ref.(*ssa.If)
+					ifstmt, ok := ref.(*ir.If)
 					if !ok {
 						continue
 					}
@@ -3292,7 +3292,7 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 							// statements a la "if x || y"
 							continue
 						}
-						ssautil.Walk(succ, func(b *ssa.BasicBlock) bool {
+						irutil.Walk(succ, func(b *ir.BasicBlock) bool {
 							if !succ.Dominates(b) {
 								// We've reached the end of the branch
 								return false
@@ -3305,7 +3305,7 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 								// priority, considering the rarity of
 								// Reset and the tiny likeliness of a
 								// false positive
-								if ins, ok := ins.(*ssa.Recv); ok && code.IsType(ins.Chan.Type(), "<-chan time.Time") {
+								if ins, ok := ins.(*ir.Recv); ok && code.IsType(ins.Chan.Type(), "<-chan time.Time") {
 									found = true
 									return false
 								}
@@ -3563,11 +3563,11 @@ func CheckImpossibleTypeAssertion(pass *analysis.Pass) (interface{}, error) {
 		l, r *types.Func
 	}
 
-	msc := &pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg.Prog.MethodSets
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	msc := &pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg.Prog.MethodSets
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
-				assert, ok := instr.(*ssa.TypeAssert)
+				assert, ok := instr.(*ir.TypeAssert)
 				if !ok {
 					continue
 				}

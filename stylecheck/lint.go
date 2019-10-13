@@ -15,12 +15,12 @@ import (
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/edit"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/report"
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -208,7 +208,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 
 func CheckErrorReturn(pass *analysis.Pass) (interface{}, error) {
 fnLoop:
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		sig := fn.Type().(*types.Signature)
 		rets := sig.Results()
 		if rets == nil || rets.Len() < 2 {
@@ -233,7 +233,7 @@ fnLoop:
 // CheckUnexportedReturn checks that exported functions on exported
 // types do not return unexported types.
 func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
@@ -257,8 +257,8 @@ func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
-	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
-	for _, m := range ssapkg.Members {
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+	for _, m := range irpkg.Members {
 		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
 			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
 			for _, sel := range ms {
@@ -281,8 +281,8 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
-	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
-	for _, m := range ssapkg.Members {
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+	for _, m := range irpkg.Members {
 		names := map[string]int{}
 
 		var firstFn *types.Func
@@ -325,7 +325,7 @@ func CheckContextFirstArg(pass *analysis.Pass) (interface{}, error) {
 	// TODO(dh): this check doesn't apply to test helpers. Example from the stdlib:
 	// 	func helperCommandContext(t *testing.T, ctx context.Context, s ...string) (cmd *exec.Cmd) {
 fnLoop:
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		if fn.Synthetic != "" || fn.Parent() != nil {
 			continue
 		}
@@ -348,19 +348,19 @@ fnLoop:
 }
 
 func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
-	objNames := map[*ssa.Package]map[string]bool{}
-	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
-	objNames[ssapkg] = map[string]bool{}
-	for _, m := range ssapkg.Members {
-		if typ, ok := m.(*ssa.Type); ok {
-			objNames[ssapkg][typ.Name()] = true
+	objNames := map[*ir.Package]map[string]bool{}
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+	objNames[irpkg] = map[string]bool{}
+	for _, m := range irpkg.Members {
+		if typ, ok := m.(*ir.Type); ok {
+			objNames[irpkg][typ.Name()] = true
 		}
 	}
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		objNames[fn.Package()][fn.Name()] = true
 	}
 
-	for _, fn := range pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		if code.IsInTest(pass, fn) {
 			// We don't care about malformed error messages in tests;
 			// they're usually for direct human consumption, not part
@@ -370,7 +370,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 		for _, block := range fn.Blocks {
 		instrLoop:
 			for _, ins := range block.Instrs {
-				call, ok := ins.(*ssa.Call)
+				call, ok := ins.(*ir.Call)
 				if !ok {
 					continue
 				}
@@ -378,7 +378,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				k, ok := call.Common().Args[0].(*ssa.Const)
+				k, ok := call.Common().Args[0].(*ir.Const)
 				if !ok {
 					continue
 				}

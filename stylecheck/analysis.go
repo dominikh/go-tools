@@ -5,7 +5,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/facts"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/lint/lintutil"
 )
 
@@ -23,15 +23,15 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"ST1005": {
 		Run:      CheckErrorStrings,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"ST1006": {
 		Run:      CheckReceiverNames,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Generated},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.Generated},
 	},
 	"ST1008": {
 		Run:      CheckErrorReturn,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"ST1011": {
 		Run:      CheckTimeNames,
@@ -52,7 +52,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"ST1016": {
 		Run:      CheckReceiverNamesIdentical,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer, facts.Generated},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.Generated},
 	},
 	"ST1017": {
 		Run:      CheckYodaConditions,

@@ -6,7 +6,7 @@ import (
 	"go/types"
 	"math/big"
 
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 type Zs []Z
@@ -184,7 +184,7 @@ var NInfinity = Z{infinity: -1}
 var PInfinity = Z{infinity: 1}
 var EmptyIntInterval = IntInterval{true, PInfinity, NInfinity}
 
-func InfinityFor(v ssa.Value) IntInterval {
+func InfinityFor(v ir.Value) IntInterval {
 	if b, ok := v.Type().Underlying().(*types.Basic); ok {
 		if (b.Info() & types.IsUnsigned) != 0 {
 			return NewIntInterval(NewZ(0), PInfinity)
@@ -289,8 +289,8 @@ func (i1 IntInterval) String() string {
 
 type IntArithmeticConstraint struct {
 	aConstraint
-	A  ssa.Value
-	B  ssa.Value
+	A  ir.Value
+	B  ir.Value
 	Op token.Token
 	Fn func(IntInterval, IntInterval) IntInterval
 }
@@ -301,14 +301,14 @@ type IntMulConstraint struct{ *IntArithmeticConstraint }
 
 type IntConversionConstraint struct {
 	aConstraint
-	X ssa.Value
+	X ir.Value
 }
 
 type IntIntersectionConstraint struct {
 	aConstraint
 	ranges   Ranges
-	A        ssa.Value
-	B        ssa.Value
+	A        ir.Value
+	B        ir.Value
 	Op       token.Token
 	I        IntInterval
 	resolved bool
@@ -319,22 +319,22 @@ type IntIntervalConstraint struct {
 	I IntInterval
 }
 
-func NewIntArithmeticConstraint(a, b, y ssa.Value, op token.Token, fn func(IntInterval, IntInterval) IntInterval) *IntArithmeticConstraint {
+func NewIntArithmeticConstraint(a, b, y ir.Value, op token.Token, fn func(IntInterval, IntInterval) IntInterval) *IntArithmeticConstraint {
 	return &IntArithmeticConstraint{NewConstraint(y), a, b, op, fn}
 }
-func NewIntAddConstraint(a, b, y ssa.Value) Constraint {
+func NewIntAddConstraint(a, b, y ir.Value) Constraint {
 	return &IntAddConstraint{NewIntArithmeticConstraint(a, b, y, token.ADD, IntInterval.Add)}
 }
-func NewIntSubConstraint(a, b, y ssa.Value) Constraint {
+func NewIntSubConstraint(a, b, y ir.Value) Constraint {
 	return &IntSubConstraint{NewIntArithmeticConstraint(a, b, y, token.SUB, IntInterval.Sub)}
 }
-func NewIntMulConstraint(a, b, y ssa.Value) Constraint {
+func NewIntMulConstraint(a, b, y ir.Value) Constraint {
 	return &IntMulConstraint{NewIntArithmeticConstraint(a, b, y, token.MUL, IntInterval.Mul)}
 }
-func NewIntConversionConstraint(x, y ssa.Value) Constraint {
+func NewIntConversionConstraint(x, y ir.Value) Constraint {
 	return &IntConversionConstraint{NewConstraint(y), x}
 }
-func NewIntIntersectionConstraint(a, b ssa.Value, op token.Token, ranges Ranges, y ssa.Value) Constraint {
+func NewIntIntersectionConstraint(a, b ir.Value, op token.Token, ranges Ranges, y ir.Value) Constraint {
 	return &IntIntersectionConstraint{
 		aConstraint: NewConstraint(y),
 		ranges:      ranges,
@@ -343,14 +343,14 @@ func NewIntIntersectionConstraint(a, b ssa.Value, op token.Token, ranges Ranges,
 		Op:          op,
 	}
 }
-func NewIntIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
+func NewIntIntervalConstraint(i IntInterval, y ir.Value) Constraint {
 	return &IntIntervalConstraint{NewConstraint(y), i}
 }
 
-func (c *IntArithmeticConstraint) Operands() []ssa.Value   { return []ssa.Value{c.A, c.B} }
-func (c *IntConversionConstraint) Operands() []ssa.Value   { return []ssa.Value{c.X} }
-func (c *IntIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.A} }
-func (s *IntIntervalConstraint) Operands() []ssa.Value     { return nil }
+func (c *IntArithmeticConstraint) Operands() []ir.Value   { return []ir.Value{c.A, c.B} }
+func (c *IntConversionConstraint) Operands() []ir.Value   { return []ir.Value{c.X} }
+func (c *IntIntersectionConstraint) Operands() []ir.Value { return []ir.Value{c.A} }
+func (s *IntIntervalConstraint) Operands() []ir.Value     { return nil }
 
 func (c *IntArithmeticConstraint) String() string {
 	return fmt.Sprintf("%s = %s %s %s", c.Y().Name(), c.A.Name(), c.Op, c.B.Name())
@@ -429,8 +429,8 @@ func (c *IntIntersectionConstraint) Eval(g *Graph) Range {
 }
 func (c *IntIntervalConstraint) Eval(*Graph) Range { return c.I }
 
-func (c *IntIntersectionConstraint) Futures() []ssa.Value {
-	return []ssa.Value{c.B}
+func (c *IntIntersectionConstraint) Futures() []ir.Value {
+	return []ir.Value{c.B}
 }
 
 func (c *IntIntersectionConstraint) Resolve() {

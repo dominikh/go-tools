@@ -38,7 +38,7 @@ func three(i I, j J) {
 func four(i I, j J) {
 	Jf := J.f
 	if unknown {
-		Jf = nil // suppress SSA constant propagation
+		Jf = nil // suppress IR constant propagation
 	}
 	Jf(nil) // calls *D
 }
@@ -46,7 +46,7 @@ func four(i I, j J) {
 func five(i I, j J) {
 	jf := j.f
 	if unknown {
-		jf = nil // suppress SSA constant propagation
+		jf = nil // suppress IR constant propagation
 	}
 	jf() // calls *D
 }

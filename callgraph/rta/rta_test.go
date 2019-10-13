@@ -25,8 +25,8 @@ import (
 	"golang.org/x/tools/go/loader"
 	"honnef.co/go/tools/callgraph"
 	"honnef.co/go/tools/callgraph/rta"
-	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssa/ssautil"
+	"honnef.co/go/tools/ir"
+	"honnef.co/go/tools/ir/irutil"
 )
 
 var inputs = []string{
@@ -83,11 +83,11 @@ func TestRTA(t *testing.T) {
 			continue
 		}
 
-		prog := ssautil.CreateProgram(iprog, 0)
+		prog := irutil.CreateProgram(iprog, 0)
 		mainPkg := prog.Package(iprog.Created[0].Pkg)
 		prog.Build()
 
-		res := rta.Analyze([]*ssa.Function{
+		res := rta.Analyze([]*ir.Function{
 			mainPkg.Func("main"),
 			mainPkg.Func("init"),
 		}, true)

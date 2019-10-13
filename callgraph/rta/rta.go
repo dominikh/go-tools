@@ -52,7 +52,7 @@ import (
 
 	"golang.org/x/tools/go/types/typeutil"
 	"honnef.co/go/tools/callgraph"
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 // A Result holds the results of Rapid Type Analysis, which includes the
@@ -70,7 +70,7 @@ type Result struct {
 	//
 	// (We wrap the bool in a struct to avoid inadvertent use of
 	// "if Reachable[f] {" to test for set membership.)
-	Reachable map[*ssa.Function]struct{ AddrTaken bool }
+	Reachable map[*ir.Function]struct{ AddrTaken bool }
 
 	// RuntimeTypes contains the set of types that are needed at
 	// runtime, for interfaces or reflection.
@@ -88,21 +88,21 @@ type Result struct {
 type rta struct {
 	result *Result
 
-	prog *ssa.Program
+	prog *ir.Program
 
-	worklist []*ssa.Function // list of functions to visit
+	worklist []*ir.Function // list of functions to visit
 
 	// addrTakenFuncsBySig contains all address-taken *Functions, grouped by signature.
-	// Keys are *types.Signature, values are map[*ssa.Function]bool sets.
+	// Keys are *types.Signature, values are map[*ir.Function]bool sets.
 	addrTakenFuncsBySig typeutil.Map
 
 	// dynCallSites contains all dynamic "call"-mode call sites, grouped by signature.
-	// Keys are *types.Signature, values are unordered []ssa.CallInstruction.
+	// Keys are *types.Signature, values are unordered []ir.CallInstruction.
 	dynCallSites typeutil.Map
 
 	// invokeSites contains all "invoke"-mode call sites, grouped by interface.
 	// Keys are *types.Interface (never *types.Named),
-	// Values are unordered []ssa.CallInstruction sets.
+	// Values are unordered []ir.CallInstruction sets.
 	invokeSites typeutil.Map
 
 	// The following two maps together define the subset of the
@@ -122,7 +122,7 @@ type rta struct {
 
 // addReachable marks a function as potentially callable at run-time,
 // and ensures that it gets processed.
-func (r *rta) addReachable(f *ssa.Function, addrTaken bool) {
+func (r *rta) addReachable(f *ir.Function, addrTaken bool) {
 	reachable := r.result.Reachable
 	n := len(reachable)
 	v := reachable[f]
@@ -138,7 +138,7 @@ func (r *rta) addReachable(f *ssa.Function, addrTaken bool) {
 
 // addEdge adds the specified call graph edge, and marks it reachable.
 // addrTaken indicates whether to mark the callee as "address-taken".
-func (r *rta) addEdge(site ssa.CallInstruction, callee *ssa.Function, addrTaken bool) {
+func (r *rta) addEdge(site ir.CallInstruction, callee *ir.Function, addrTaken bool) {
 	r.addReachable(callee, addrTaken)
 
 	if g := r.result.CallGraph; g != nil {
@@ -154,12 +154,12 @@ func (r *rta) addEdge(site ssa.CallInstruction, callee *ssa.Function, addrTaken 
 // ---------- addrTakenFuncs × dynCallSites ----------
 
 // visitAddrTakenFunc is called each time we encounter an address-taken function f.
-func (r *rta) visitAddrTakenFunc(f *ssa.Function) {
+func (r *rta) visitAddrTakenFunc(f *ir.Function) {
 	// Create two-level map (Signature -> Function -> bool).
 	S := f.Signature
-	funcs, _ := r.addrTakenFuncsBySig.At(S).(map[*ssa.Function]bool)
+	funcs, _ := r.addrTakenFuncsBySig.At(S).(map[*ir.Function]bool)
 	if funcs == nil {
-		funcs = make(map[*ssa.Function]bool)
+		funcs = make(map[*ir.Function]bool)
 		r.addrTakenFuncsBySig.Set(S, funcs)
 	}
 	if !funcs[f] {
@@ -168,7 +168,7 @@ func (r *rta) visitAddrTakenFunc(f *ssa.Function) {
 
 		// If we've seen any dyncalls of this type, mark it reachable,
 		// and add call graph edges.
-		sites, _ := r.dynCallSites.At(S).([]ssa.CallInstruction)
+		sites, _ := r.dynCallSites.At(S).([]ir.CallInstruction)
 		for _, site := range sites {
 			r.addEdge(site, f, true)
 		}
@@ -176,16 +176,16 @@ func (r *rta) visitAddrTakenFunc(f *ssa.Function) {
 }
 
 // visitDynCall is called each time we encounter a dynamic "call"-mode call.
-func (r *rta) visitDynCall(site ssa.CallInstruction) {
+func (r *rta) visitDynCall(site ir.CallInstruction) {
 	S := site.Common().Signature()
 
 	// Record the call site.
-	sites, _ := r.dynCallSites.At(S).([]ssa.CallInstruction)
+	sites, _ := r.dynCallSites.At(S).([]ir.CallInstruction)
 	r.dynCallSites.Set(S, append(sites, site))
 
 	// For each function of signature S that we know is address-taken,
 	// mark it reachable.  We'll add the callgraph edges later.
-	funcs, _ := r.addrTakenFuncsBySig.At(S).(map[*ssa.Function]bool)
+	funcs, _ := r.addrTakenFuncsBySig.At(S).(map[*ir.Function]bool)
 	for g := range funcs {
 		r.addEdge(site, g, true)
 	}
@@ -194,7 +194,7 @@ func (r *rta) visitDynCall(site ssa.CallInstruction) {
 // ---------- concrete types × invoke sites ----------
 
 // addInvokeEdge is called for each new pair (site, C) in the matrix.
-func (r *rta) addInvokeEdge(site ssa.CallInstruction, C types.Type) {
+func (r *rta) addInvokeEdge(site ir.CallInstruction, C types.Type) {
 	// Ascertain the concrete method of C to be called.
 	imethod := site.Common().Method
 	cmethod := r.prog.MethodValue(r.prog.MethodSets.MethodSet(C).Lookup(imethod.Pkg(), imethod.Name()))
@@ -202,11 +202,11 @@ func (r *rta) addInvokeEdge(site ssa.CallInstruction, C types.Type) {
 }
 
 // visitInvoke is called each time the algorithm encounters an "invoke"-mode call.
-func (r *rta) visitInvoke(site ssa.CallInstruction) {
+func (r *rta) visitInvoke(site ir.CallInstruction) {
 	I := site.Common().Value.Type().Underlying().(*types.Interface)
 
 	// Record the invoke site.
-	sites, _ := r.invokeSites.At(I).([]ssa.CallInstruction)
+	sites, _ := r.invokeSites.At(I).([]ir.CallInstruction)
 	r.invokeSites.Set(I, append(sites, site))
 
 	// Add callgraph edge for each existing
@@ -219,21 +219,21 @@ func (r *rta) visitInvoke(site ssa.CallInstruction) {
 // ---------- main algorithm ----------
 
 // visitFunc processes function f.
-func (r *rta) visitFunc(f *ssa.Function) {
-	var space [32]*ssa.Value // preallocate space for common case
+func (r *rta) visitFunc(f *ir.Function) {
+	var space [32]*ir.Value // preallocate space for common case
 
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
 			rands := instr.Operands(space[:0])
 
 			switch instr := instr.(type) {
-			case ssa.CallInstruction:
+			case ir.CallInstruction:
 				call := instr.Common()
 				if call.IsInvoke() {
 					r.visitInvoke(instr)
 				} else if g := call.StaticCallee(); g != nil {
 					r.addEdge(instr, g, false)
-				} else if _, ok := call.Value.(*ssa.Builtin); !ok {
+				} else if _, ok := call.Value.(*ir.Builtin); !ok {
 					r.visitDynCall(instr)
 				}
 
@@ -242,13 +242,13 @@ func (r *rta) visitFunc(f *ssa.Function) {
 				// Hack: assume this is rands[0].
 				rands = rands[1:]
 
-			case *ssa.MakeInterface:
+			case *ir.MakeInterface:
 				r.addRuntimeType(instr.X.Type(), false)
 			}
 
 			// Process all address-taken functions.
 			for _, op := range rands {
-				if g, ok := (*op).(*ssa.Function); ok {
+				if g, ok := (*op).(*ir.Function); ok {
 					r.visitAddrTakenFunc(g)
 				}
 			}
@@ -263,13 +263,13 @@ func (r *rta) visitFunc(f *ssa.Function) {
 // graph; otherwise, only the other fields (reachable functions) are
 // populated.
 //
-func Analyze(roots []*ssa.Function, buildCallGraph bool) *Result {
+func Analyze(roots []*ir.Function, buildCallGraph bool) *Result {
 	if len(roots) == 0 {
 		return nil
 	}
 
 	r := &rta{
-		result: &Result{Reachable: make(map[*ssa.Function]struct{ AddrTaken bool })},
+		result: &Result{Reachable: make(map[*ir.Function]struct{ AddrTaken bool })},
 		prog:   roots[0].Prog,
 	}
 
@@ -291,7 +291,7 @@ func Analyze(roots []*ssa.Function, buildCallGraph bool) *Result {
 	// Visit functions, processing their instructions, and adding
 	// new functions to the worklist, until a fixed point is
 	// reached.
-	var shadow []*ssa.Function // for efficiency, we double-buffer the worklist
+	var shadow []*ir.Function // for efficiency, we double-buffer the worklist
 	r.worklist = append(r.worklist, roots...)
 	for len(r.worklist) > 0 {
 		shadow, r.worklist = r.worklist, shadow[:0]
@@ -340,7 +340,7 @@ func (r *rta) implementations(I *types.Interface) []types.Type {
 
 // addRuntimeType is called for each concrete type that can be the
 // dynamic type of some interface or reflect.Value.
-// Adapted from needMethods in go/ssa/builder.go
+// Adapted from needMethods in go/ir/builder.go
 //
 func (r *rta) addRuntimeType(T types.Type, skip bool) {
 	if prev, ok := r.result.RuntimeTypes.At(T).(bool); ok {
@@ -368,7 +368,7 @@ func (r *rta) addRuntimeType(T types.Type, skip bool) {
 		// Add callgraph edge for each existing dynamic
 		// "invoke"-mode call via that interface.
 		for _, I := range r.interfaces(T) {
-			sites, _ := r.invokeSites.At(I).([]ssa.CallInstruction)
+			sites, _ := r.invokeSites.At(I).([]ir.CallInstruction)
 			for _, site := range sites {
 				r.addInvokeEdge(site, T)
 			}

@@ -13,9 +13,9 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/go/types/typeutil"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/lint"
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 // The graph we construct omits nodes along a path that do not
@@ -419,8 +419,8 @@ type pkg struct {
 	Pkg        *types.Package
 	TypesInfo  *types.Info
 	TypesSizes types.Sizes
-	SSA        *ssa.Package
-	SrcFuncs   []*ssa.Function
+	IR        *ir.Package
+	SrcFuncs   []*ir.Function
 }
 
 type Checker struct {
@@ -450,7 +450,7 @@ func (c *Checker) Analyzer() *analysis.Analyzer {
 		Name:     name,
 		Doc:      "Unused code",
 		Run:      c.Run,
-		Requires: []*analysis.Analyzer{buildssa.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	}
 }
 
@@ -477,15 +477,15 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 	c.initialPackages[pass.Pkg] = struct{}{}
 	c.mu.Unlock()
 
-	ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR)
 	pkg := &pkg{
 		Fset:       pass.Fset,
 		Files:      pass.Files,
 		Pkg:        pass.Pkg,
 		TypesInfo:  pass.TypesInfo,
 		TypesSizes: pass.TypesSizes,
-		SSA:        ssapkg.Pkg,
-		SrcFuncs:   ssapkg.SrcFuncs,
+		IR:        irpkg.Pkg,
+		SrcFuncs:   irpkg.SrcFuncs,
 	}
 
 	c.processPkg(c.graph, pkg)
@@ -1067,7 +1067,7 @@ func (g *Graph) entry(pkg *pkg) {
 		ctx.seenTypes = &typeutil.Map{}
 	}
 
-	scopes := map[*types.Scope]*ssa.Function{}
+	scopes := map[*types.Scope]*ir.Function{}
 	for _, fn := range pkg.SrcFuncs {
 		if fn.Object() != nil {
 			scope := fn.Object().(*types.Func).Scope()
@@ -1087,12 +1087,12 @@ func (g *Graph) entry(pkg *pkg) {
 					// (1.8) packages use symbols linked via go:linkname
 					fields := strings.Fields(c.Text)
 					if len(fields) == 3 {
-						if m, ok := pkg.SSA.Members[fields[1]]; ok {
+						if m, ok := pkg.IR.Members[fields[1]]; ok {
 							var obj types.Object
 							switch m := m.(type) {
-							case *ssa.Global:
+							case *ir.Global:
 								obj = m.Object()
-							case *ssa.Function:
+							case *ir.Function:
 								obj = m.Object()
 							default:
 								panic(fmt.Sprintf("unhandled type: %T", m))
@@ -1106,7 +1106,7 @@ func (g *Graph) entry(pkg *pkg) {
 		}
 	}
 
-	surroundingFunc := func(obj types.Object) *ssa.Function {
+	surroundingFunc := func(obj types.Object) *ir.Function {
 		scope := obj.Parent()
 		for scope != nil {
 			if fn := scopes[scope]; fn != nil {
@@ -1117,10 +1117,10 @@ func (g *Graph) entry(pkg *pkg) {
 		return nil
 	}
 
-	// SSA form won't tell us about locally scoped types that aren't
+	// IR form won't tell us about locally scoped types that aren't
 	// being used. Walk the list of Defs to get all named types.
 	//
-	// SSA form also won't tell us about constants; use Defs and Uses
+	// IR form also won't tell us about constants; use Defs and Uses
 	// to determine which constants exist and which are being used.
 	for _, obj := range pkg.TypesInfo.Defs {
 		switch obj := obj.(type) {
@@ -1293,11 +1293,11 @@ func (g *Graph) entry(pkg *pkg) {
 		})
 	}
 
-	for _, m := range pkg.SSA.Members {
+	for _, m := range pkg.IR.Members {
 		switch m := m.(type) {
-		case *ssa.NamedConst:
+		case *ir.NamedConst:
 			// nothing to do, we collect all constants from Defs
-		case *ssa.Global:
+		case *ir.Global:
 			if m.Object() != nil {
 				ctx.see(m.Object())
 				if g.trackExportedIdentifier(ctx, m.Object()) {
@@ -1305,7 +1305,7 @@ func (g *Graph) entry(pkg *pkg) {
 					ctx.use(m.Object(), nil, edgeExportedVariable)
 				}
 			}
-		case *ssa.Function:
+		case *ir.Function:
 			mObj := owningObject(m)
 			if mObj != nil {
 				ctx.see(mObj)
@@ -1343,7 +1343,7 @@ func (g *Graph) entry(pkg *pkg) {
 				}
 			}
 			g.function(ctx, m)
-		case *ssa.Type:
+		case *ir.Type:
 			if m.Object() != nil {
 				ctx.see(m.Object())
 				if g.trackExportedIdentifier(ctx, m.Object()) {
@@ -1383,7 +1383,7 @@ func (g *Graph) entry(pkg *pkg) {
 
 		// (8.0) handle interfaces
 		for _, t := range notIfaces {
-			ms := pkg.SSA.Prog.MethodSets.MethodSet(t)
+			ms := pkg.IR.Prog.MethodSets.MethodSet(t)
 			for _, iface := range ifaces {
 				if sels, ok := g.implements(t, iface, ms); ok {
 					for _, sel := range sels {
@@ -1412,7 +1412,7 @@ func (g *Graph) useMethod(ctx *context, t types.Type, sel *types.Selection, by i
 	ctx.seeAndUse(obj, by, kind)
 }
 
-func owningObject(fn *ssa.Function) types.Object {
+func owningObject(fn *ir.Function) types.Object {
 	if fn.Object() != nil {
 		return fn.Object()
 	}
@@ -1422,8 +1422,8 @@ func owningObject(fn *ssa.Function) types.Object {
 	return nil
 }
 
-func (g *Graph) function(ctx *context, fn *ssa.Function) {
-	if fn.Package() != nil && fn.Package() != ctx.pkg.SSA {
+func (g *Graph) function(ctx *context, fn *ir.Function) {
+	if fn.Package() != nil && fn.Package() != ctx.pkg.IR {
 		return
 	}
 
@@ -1503,7 +1503,7 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 						// the pointer type to get the full method set
 						T = types.NewPointer(T)
 					}
-					ms := ctx.pkg.SSA.Prog.MethodSets.MethodSet(T)
+					ms := ctx.pkg.IR.Prog.MethodSets.MethodSet(T)
 					for j := 0; j < ms.Len(); j++ {
 						if ms.At(j).Obj().Exported() {
 							// (6.4) structs use embedded fields that have exported methods (recursively)
@@ -1565,7 +1565,7 @@ func (g *Graph) typ(ctx *context, t types.Type, parent types.Type) {
 				// (2.1) named types use exported methods
 				ctx.use(t.Method(i), t, edgeExportedMethod)
 			}
-			g.function(ctx, ctx.pkg.SSA.Prog.FuncValue(t.Method(i)))
+			g.function(ctx, ctx.pkg.IR.Prog.FuncValue(t.Method(i)))
 		}
 
 		g.typ(ctx, t.Underlying(), t)
@@ -1646,22 +1646,22 @@ func (g *Graph) signature(ctx *context, sig *types.Signature, fn types.Object) {
 	}
 }
 
-func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
+func (g *Graph) instructions(ctx *context, fn *ir.Function) {
 	fnObj := owningObject(fn)
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			ops := instr.Operands(nil)
 			switch instr.(type) {
-			case *ssa.Store:
+			case *ir.Store:
 				// (9.7) variable _reads_ use variables, writes do not
 				ops = ops[1:]
-			case *ssa.DebugRef:
+			case *ir.DebugRef:
 				ops = nil
 			}
 			for _, arg := range ops {
-				walkPhi(*arg, func(v ssa.Value) {
+				walkPhi(*arg, func(v ir.Value) {
 					switch v := v.(type) {
-					case *ssa.Function:
+					case *ir.Function:
 						// (4.3) functions use closures and bound methods.
 						// (4.5) functions use functions they call
 						// (9.5) instructions use their operands
@@ -1670,11 +1670,11 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 							ctx.seeAndUse(owningObject(v), fnObj, edgeInstructionOperand)
 						}
 						g.function(ctx, v)
-					case *ssa.Const:
+					case *ir.Const:
 						// (9.6) instructions use their operands' types
 						ctx.seeAndUse(v.Type(), fnObj, edgeType)
 						g.typ(ctx, v.Type(), nil)
-					case *ssa.Global:
+					case *ir.Global:
 						if v.Object() != nil {
 							// (9.5) instructions use their operands
 							ctx.seeAndUse(v.Object(), fnObj, edgeInstructionOperand)
@@ -1682,8 +1682,8 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 					}
 				})
 			}
-			if v, ok := instr.(ssa.Value); ok {
-				if _, ok := v.(*ssa.Range); !ok {
+			if v, ok := instr.(ir.Value); ok {
+				if _, ok := v.(*ir.Range); !ok {
 					// See https://github.com/golang/go/issues/19670
 
 					// (4.8) instructions use their types
@@ -1693,19 +1693,19 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 				}
 			}
 			switch instr := instr.(type) {
-			case *ssa.Field:
+			case *ir.Field:
 				st := instr.X.Type().Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
 				ctx.seeAndUse(field, fnObj, edgeFieldAccess)
-			case *ssa.FieldAddr:
+			case *ir.FieldAddr:
 				st := code.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
 				ctx.seeAndUse(field, fnObj, edgeFieldAccess)
-			case *ssa.Store:
+			case *ir.Store:
 				// nothing to do, handled generically by operands
-			case *ssa.Call:
+			case *ir.Call:
 				c := instr.Common()
 				if !c.IsInvoke() {
 					// handled generically as an instruction operand
@@ -1714,7 +1714,7 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 						// (e3) special case known reflection-based method callers
 						switch code.CallName(c) {
 						case "net/rpc.Register", "net/rpc.RegisterName", "(*net/rpc.Server).Register", "(*net/rpc.Server).RegisterName":
-							var arg ssa.Value
+							var arg ir.Value
 							switch code.CallName(c) {
 							case "net/rpc.Register":
 								arg = c.Args[0]
@@ -1725,10 +1725,10 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 							case "(*net/rpc.Server).RegisterName":
 								arg = c.Args[2]
 							}
-							walkPhi(arg, func(v ssa.Value) {
-								if v, ok := v.(*ssa.MakeInterface); ok {
-									walkPhi(v.X, func(vv ssa.Value) {
-										ms := ctx.pkg.SSA.Prog.MethodSets.MethodSet(vv.Type())
+							walkPhi(arg, func(v ir.Value) {
+								if v, ok := v.(*ir.MakeInterface); ok {
+									walkPhi(v.X, func(vv ir.Value) {
+										ms := ctx.pkg.IR.Prog.MethodSets.MethodSet(vv.Type())
 										for i := 0; i < ms.Len(); i++ {
 											if ms.At(i).Obj().Exported() {
 												g.useMethod(ctx, vv.Type(), ms.At(i), fnObj, edgeNetRPCRegister)
@@ -1743,9 +1743,9 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 					// (4.5) functions use functions/interface methods they call
 					ctx.seeAndUse(c.Method, fnObj, edgeInterfaceCall)
 				}
-			case *ssa.Return:
+			case *ir.Return:
 				// nothing to do, handled generically by operands
-			case *ssa.ChangeType:
+			case *ir.ChangeType:
 				// conversion type handled generically
 
 				s1, ok1 := code.Dereference(instr.Type()).Underlying().(*types.Struct)
@@ -1768,13 +1768,13 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 						ctx.seeAndUse(s2.Field(i), s1.Field(i), edgeStructConversion)
 					}
 				}
-			case *ssa.MakeInterface:
+			case *ir.MakeInterface:
 				// nothing to do, handled generically by operands
-			case *ssa.Slice:
+			case *ir.Slice:
 				// nothing to do, handled generically by operands
-			case *ssa.RunDefers:
+			case *ir.RunDefers:
 				// nothing to do, the deferred functions are already marked use by defering them.
-			case *ssa.Convert:
+			case *ir.Convert:
 				// to unsafe.Pointer
 				if typ, ok := instr.Type().(*types.Basic); ok && typ.Kind() == types.UnsafePointer {
 					if ptr, ok := instr.X.Type().Underlying().(*types.Pointer); ok {
@@ -1797,74 +1797,74 @@ func (g *Graph) instructions(ctx *context, fn *ssa.Function) {
 						}
 					}
 				}
-			case *ssa.TypeAssert:
+			case *ir.TypeAssert:
 				// nothing to do, handled generically by instruction
 				// type (possibly a tuple, which contains the asserted
 				// to type). redundantly handled by the type of
-				// ssa.Extract, too
-			case *ssa.MakeClosure:
+				// ir.Extract, too
+			case *ir.MakeClosure:
 				// nothing to do, handled generically by operands
-			case *ssa.Alloc:
+			case *ir.Alloc:
 				// nothing to do
-			case *ssa.UnOp:
+			case *ir.UnOp:
 				// nothing to do
-			case *ssa.BinOp:
+			case *ir.BinOp:
 				// nothing to do
-			case *ssa.If:
+			case *ir.If:
 				// nothing to do
-			case *ssa.Jump:
+			case *ir.Jump:
 				// nothing to do
-			case *ssa.Unreachable:
+			case *ir.Unreachable:
 				// nothing to do
-			case *ssa.IndexAddr:
+			case *ir.IndexAddr:
 				// nothing to do
-			case *ssa.Extract:
+			case *ir.Extract:
 				// nothing to do
-			case *ssa.Panic:
+			case *ir.Panic:
 				// nothing to do
-			case *ssa.DebugRef:
+			case *ir.DebugRef:
 				// nothing to do
-			case *ssa.BlankStore:
+			case *ir.BlankStore:
 				// nothing to do
-			case *ssa.Phi:
+			case *ir.Phi:
 				// nothing to do
-			case *ssa.Sigma:
+			case *ir.Sigma:
 				// nothing to do
-			case *ssa.MakeMap:
+			case *ir.MakeMap:
 				// nothing to do
-			case *ssa.MapUpdate:
+			case *ir.MapUpdate:
 				// nothing to do
-			case *ssa.MapLookup:
+			case *ir.MapLookup:
 				// nothing to do
-			case *ssa.StringLookup:
+			case *ir.StringLookup:
 				// nothing to do
-			case *ssa.MakeSlice:
+			case *ir.MakeSlice:
 				// nothing to do
-			case *ssa.Send:
+			case *ir.Send:
 				// nothing to do
-			case *ssa.MakeChan:
+			case *ir.MakeChan:
 				// nothing to do
-			case *ssa.Range:
+			case *ir.Range:
 				// nothing to do
-			case *ssa.Next:
+			case *ir.Next:
 				// nothing to do
-			case *ssa.Index:
+			case *ir.Index:
 				// nothing to do
-			case *ssa.Select:
+			case *ir.Select:
 				// nothing to do
-			case *ssa.ChangeInterface:
+			case *ir.ChangeInterface:
 				// nothing to do
-			case *ssa.Load:
+			case *ir.Load:
 				// nothing to do
-			case *ssa.Go:
+			case *ir.Go:
 				// nothing to do, handled generically by operands
-			case *ssa.Defer:
+			case *ir.Defer:
 				// nothing to do, handled generically by operands
-			case *ssa.Parameter:
+			case *ir.Parameter:
 				// nothing to do
-			case *ssa.Const:
+			case *ir.Const:
 			// nothing to do
-			case *ssa.Recv:
+			case *ir.Recv:
 				// nothing to do
 			default:
 				panic(fmt.Sprintf("unreachable: %T", instr))
@@ -1906,22 +1906,22 @@ func isNoCopyType(typ types.Type) bool {
 	return true
 }
 
-func walkPhi(v ssa.Value, fn func(v ssa.Value)) {
-	phi, ok := v.(*ssa.Phi)
+func walkPhi(v ir.Value, fn func(v ir.Value)) {
+	phi, ok := v.(*ir.Phi)
 	if !ok {
 		fn(v)
 		return
 	}
 
-	seen := map[ssa.Value]struct{}{}
-	var impl func(v *ssa.Phi)
-	impl = func(v *ssa.Phi) {
+	seen := map[ir.Value]struct{}{}
+	var impl func(v *ir.Phi)
+	impl = func(v *ir.Phi) {
 		if _, ok := seen[v]; ok {
 			return
 		}
 		seen[v] = struct{}{}
 		for _, e := range v.Edges {
-			if ev, ok := e.(*ssa.Phi); ok {
+			if ev, ok := e.(*ir.Phi); ok {
 				impl(ev)
 			} else {
 				fn(e)

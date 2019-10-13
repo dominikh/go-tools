@@ -28,32 +28,32 @@ import (
 
 	"golang.org/x/tools/go/types/typeutil"
 	"honnef.co/go/tools/callgraph"
-	"honnef.co/go/tools/ssa"
-	"honnef.co/go/tools/ssa/ssautil"
+	"honnef.co/go/tools/ir"
+	"honnef.co/go/tools/ir/irutil"
 )
 
 // CallGraph computes the call graph of the specified program using the
 // Class Hierarchy Analysis algorithm.
 //
-func CallGraph(prog *ssa.Program) *callgraph.Graph {
+func CallGraph(prog *ir.Program) *callgraph.Graph {
 	cg := callgraph.New(nil) // TODO(adonovan) eliminate concept of rooted callgraph
 
-	allFuncs := ssautil.AllFunctions(prog)
+	allFuncs := irutil.AllFunctions(prog)
 
 	// funcsBySig contains all functions, keyed by signature.  It is
 	// the effective set of address-taken functions used to resolve
 	// a dynamic call of a particular signature.
-	var funcsBySig typeutil.Map // value is []*ssa.Function
+	var funcsBySig typeutil.Map // value is []*ir.Function
 
 	// methodsByName contains all methods,
 	// grouped by name for efficient lookup.
-	methodsByName := make(map[string][]*ssa.Function)
+	methodsByName := make(map[string][]*ir.Function)
 
 	// methodsMemo records, for every abstract method call call I.f on
 	// interface type I, the set of concrete methods C.f of all
 	// types C that satisfy interface I.
-	methodsMemo := make(map[*types.Func][]*ssa.Function)
-	lookupMethods := func(m *types.Func) []*ssa.Function {
+	methodsMemo := make(map[*types.Func][]*ir.Function)
+	lookupMethods := func(m *types.Func) []*ir.Function {
 		methods, ok := methodsMemo[m]
 		if !ok {
 			I := m.Type().(*types.Signature).Recv().Type().Underlying().(*types.Interface)
@@ -74,7 +74,7 @@ func CallGraph(prog *ssa.Program) *callgraph.Graph {
 			if f.Name() == "init" && f.Synthetic == "package initializer" {
 				continue
 			}
-			funcs, _ := funcsBySig.At(f.Signature).([]*ssa.Function)
+			funcs, _ := funcsBySig.At(f.Signature).([]*ir.Function)
 			funcs = append(funcs, f)
 			funcsBySig.Set(f.Signature, funcs)
 		} else {
@@ -82,12 +82,12 @@ func CallGraph(prog *ssa.Program) *callgraph.Graph {
 		}
 	}
 
-	addEdge := func(fnode *callgraph.Node, site ssa.CallInstruction, g *ssa.Function) {
+	addEdge := func(fnode *callgraph.Node, site ir.CallInstruction, g *ir.Function) {
 		gnode := cg.CreateNode(g)
 		callgraph.AddEdge(fnode, site, gnode)
 	}
 
-	addEdges := func(fnode *callgraph.Node, site ssa.CallInstruction, callees []*ssa.Function) {
+	addEdges := func(fnode *callgraph.Node, site ir.CallInstruction, callees []*ir.Function) {
 		// Because every call to a highly polymorphic and
 		// frequently used abstract method such as
 		// (io.Writer).Write is assumed to call every concrete
@@ -106,14 +106,14 @@ func CallGraph(prog *ssa.Program) *callgraph.Graph {
 		fnode := cg.CreateNode(f)
 		for _, b := range f.Blocks {
 			for _, instr := range b.Instrs {
-				if site, ok := instr.(ssa.CallInstruction); ok {
+				if site, ok := instr.(ir.CallInstruction); ok {
 					call := site.Common()
 					if call.IsInvoke() {
 						addEdges(fnode, site, lookupMethods(call.Method))
 					} else if g := call.StaticCallee(); g != nil {
 						addEdge(fnode, site, g)
-					} else if _, ok := call.Value.(*ssa.Builtin); !ok {
-						callees, _ := funcsBySig.At(call.Signature()).([]*ssa.Function)
+					} else if _, ok := call.Value.(*ir.Builtin); !ok {
+						callees, _ := funcsBySig.At(call.Signature()).([]*ir.Function)
 						addEdges(fnode, site, callees)
 					}
 				}

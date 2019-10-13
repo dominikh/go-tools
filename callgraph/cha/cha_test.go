@@ -25,7 +25,7 @@ import (
 	"golang.org/x/tools/go/loader"
 	"honnef.co/go/tools/callgraph"
 	"honnef.co/go/tools/callgraph/cha"
-	"honnef.co/go/tools/ssa/ssautil"
+	"honnef.co/go/tools/ir/irutil"
 )
 
 var inputs = []string{
@@ -78,7 +78,7 @@ func TestCHA(t *testing.T) {
 			continue
 		}
 
-		prog := ssautil.CreateProgram(iprog, 0)
+		prog := irutil.CreateProgram(iprog, 0)
 		mainPkg := prog.Package(iprog.Created[0].Pkg)
 		prog.Build()
 

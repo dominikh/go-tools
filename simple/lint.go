@@ -18,7 +18,7 @@ import (
 	. "honnef.co/go/tools/arg"
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/edit"
-	"honnef.co/go/tools/internal/passes/buildssa"
+	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
@@ -1379,8 +1379,8 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 		}
 		typ := pass.TypesInfo.TypeOf(arg)
 
-		ssapkg := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).Pkg
-		if types.TypeString(typ, nil) != "reflect.Value" && isStringer(typ, &ssapkg.Prog.MethodSets) {
+		irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+		if types.TypeString(typ, nil) != "reflect.Value" && isStringer(typ, &irpkg.Prog.MethodSets) {
 			replacement := &ast.CallExpr{
 				Fun: &ast.SelectorExpr{
 					X:   arg,

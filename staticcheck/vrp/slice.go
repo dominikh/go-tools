@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"go/types"
 
-	"honnef.co/go/tools/ssa"
+	"honnef.co/go/tools/ir"
 )
 
 type SliceInterval struct {
@@ -34,38 +34,38 @@ func (s SliceInterval) IsKnown() bool  { return s.Length.IsKnown() }
 
 type SliceAppendConstraint struct {
 	aConstraint
-	A ssa.Value
-	B ssa.Value
+	A ir.Value
+	B ir.Value
 }
 
 type SliceSliceConstraint struct {
 	aConstraint
-	X     ssa.Value
-	Lower ssa.Value
-	Upper ssa.Value
+	X     ir.Value
+	Lower ir.Value
+	Upper ir.Value
 }
 
 type ArraySliceConstraint struct {
 	aConstraint
-	X     ssa.Value
-	Lower ssa.Value
-	Upper ssa.Value
+	X     ir.Value
+	Lower ir.Value
+	Upper ir.Value
 }
 
 type SliceIntersectionConstraint struct {
 	aConstraint
-	X ssa.Value
+	X ir.Value
 	I IntInterval
 }
 
 type SliceLengthConstraint struct {
 	aConstraint
-	X ssa.Value
+	X ir.Value
 }
 
 type MakeSliceConstraint struct {
 	aConstraint
-	Size ssa.Value
+	Size ir.Value
 }
 
 type SliceIntervalConstraint struct {
@@ -73,31 +73,31 @@ type SliceIntervalConstraint struct {
 	I IntInterval
 }
 
-func NewSliceAppendConstraint(a, b, y ssa.Value) Constraint {
+func NewSliceAppendConstraint(a, b, y ir.Value) Constraint {
 	return &SliceAppendConstraint{NewConstraint(y), a, b}
 }
-func NewSliceSliceConstraint(x, lower, upper, y ssa.Value) Constraint {
+func NewSliceSliceConstraint(x, lower, upper, y ir.Value) Constraint {
 	return &SliceSliceConstraint{NewConstraint(y), x, lower, upper}
 }
-func NewArraySliceConstraint(x, lower, upper, y ssa.Value) Constraint {
+func NewArraySliceConstraint(x, lower, upper, y ir.Value) Constraint {
 	return &ArraySliceConstraint{NewConstraint(y), x, lower, upper}
 }
-func NewSliceIntersectionConstraint(x ssa.Value, i IntInterval, y ssa.Value) Constraint {
+func NewSliceIntersectionConstraint(x ir.Value, i IntInterval, y ir.Value) Constraint {
 	return &SliceIntersectionConstraint{NewConstraint(y), x, i}
 }
-func NewSliceLengthConstraint(x, y ssa.Value) Constraint {
+func NewSliceLengthConstraint(x, y ir.Value) Constraint {
 	return &SliceLengthConstraint{NewConstraint(y), x}
 }
-func NewMakeSliceConstraint(size, y ssa.Value) Constraint {
+func NewMakeSliceConstraint(size, y ir.Value) Constraint {
 	return &MakeSliceConstraint{NewConstraint(y), size}
 }
-func NewSliceIntervalConstraint(i IntInterval, y ssa.Value) Constraint {
+func NewSliceIntervalConstraint(i IntInterval, y ir.Value) Constraint {
 	return &SliceIntervalConstraint{NewConstraint(y), i}
 }
 
-func (c *SliceAppendConstraint) Operands() []ssa.Value { return []ssa.Value{c.A, c.B} }
-func (c *SliceSliceConstraint) Operands() []ssa.Value {
-	ops := []ssa.Value{c.X}
+func (c *SliceAppendConstraint) Operands() []ir.Value { return []ir.Value{c.A, c.B} }
+func (c *SliceSliceConstraint) Operands() []ir.Value {
+	ops := []ir.Value{c.X}
 	if c.Lower != nil {
 		ops = append(ops, c.Lower)
 	}
@@ -106,8 +106,8 @@ func (c *SliceSliceConstraint) Operands() []ssa.Value {
 	}
 	return ops
 }
-func (c *ArraySliceConstraint) Operands() []ssa.Value {
-	ops := []ssa.Value{c.X}
+func (c *ArraySliceConstraint) Operands() []ir.Value {
+	ops := []ir.Value{c.X}
 	if c.Lower != nil {
 		ops = append(ops, c.Lower)
 	}
@@ -116,10 +116,10 @@ func (c *ArraySliceConstraint) Operands() []ssa.Value {
 	}
 	return ops
 }
-func (c *SliceIntersectionConstraint) Operands() []ssa.Value { return []ssa.Value{c.X} }
-func (c *SliceLengthConstraint) Operands() []ssa.Value       { return []ssa.Value{c.X} }
-func (c *MakeSliceConstraint) Operands() []ssa.Value         { return []ssa.Value{c.Size} }
-func (s *SliceIntervalConstraint) Operands() []ssa.Value     { return nil }
+func (c *SliceIntersectionConstraint) Operands() []ir.Value { return []ir.Value{c.X} }
+func (c *SliceLengthConstraint) Operands() []ir.Value       { return []ir.Value{c.X} }
+func (c *MakeSliceConstraint) Operands() []ir.Value         { return []ir.Value{c.Size} }
+func (s *SliceIntervalConstraint) Operands() []ir.Value     { return nil }
 
 func (c *SliceAppendConstraint) String() string {
 	return fmt.Sprintf("%s = append(%s, %s)", c.Y().Name(), c.A.Name(), c.B.Name())
