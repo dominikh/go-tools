@@ -45,7 +45,6 @@ package ir
 import (
 	"fmt"
 	"go/types"
-	"math/big"
 	"os"
 )
 
@@ -418,31 +417,66 @@ func simplifyPhis(newPhis newPhiMap) {
 	}
 }
 
-type BlockSet struct{ big.Int } // (inherit methods from Int)
+type BlockSet struct {
+	idx    int
+	values []bool
+}
 
-// add adds b to the set and returns true if the set changed.
-func (s *BlockSet) Add(b *BasicBlock) bool {
-	i := b.Index
-	if s.Bit(i) != 0 {
-		return false
-	}
-	s.SetBit(&s.Int, i, 1)
-	return true
+func NewBlockSet(size int) *BlockSet {
+	return &BlockSet{values: make([]bool, size)}
+}
+
+func (s *BlockSet) Set(s2 *BlockSet) {
+	copy(s.values, s2.values)
 }
 
 func (s *BlockSet) Has(b *BasicBlock) bool {
-	return s.Bit(b.Index) == 1
+	if b.Index >= len(s.values) {
+		return false
+	}
+	return s.values[b.Index]
+}
+
+// add adds b to the set and returns true if the set changed.
+func (s *BlockSet) Add(b *BasicBlock) bool {
+	if s.values[b.Index] {
+		return false
+	}
+	s.values[b.Index] = true
+	s.idx = b.Index
+
+	return true
+}
+
+func (s *BlockSet) Clear() {
+	for j := range s.values {
+		s.values[j] = false
+	}
 }
 
 // take removes an arbitrary element from a set s and
 // returns its index, or returns -1 if empty.
 func (s *BlockSet) Take() int {
-	if s.BitLen() == 0 {
-		return -1
+	// [i, end]
+	for i := s.idx; i < len(s.values); i++ {
+		if s.values[i] {
+			s.values[i] = false
+			s.idx = i
+			//              s.entries--
+			return i
+		}
 	}
-	off := int(s.TrailingZeroBits())
-	s.SetBit(&s.Int, off, 0)
-	return off
+
+	// [start, i)
+	for i := 0; i < s.idx; i++ {
+		if s.values[i] {
+			s.values[i] = false
+			s.idx = i
+			return i
+		}
+	}
+
+	return -1
 }
 
 // newPhi is a pair of a newly introduced φ-node and the lifted Alloc
@@ -467,11 +501,13 @@ type newSigmaMap map[*BasicBlock][]newSigma
 // and returns true.
 func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) bool {
 	fn := alloc.Parent()
-	var defblocks BlockSet
-	var useblocks BlockSet
-	var Aphi BlockSet
-	var Asigma BlockSet
-	var W BlockSet
+
+	defblocks := fn.blockset(0)
+	useblocks := fn.blockset(1)
+	Aphi := fn.blockset(2)
+	Asigma := fn.blockset(3)
+	W := fn.blockset(4)
+
 	// Don't lift aggregates into registers, because we don't have
 	// a way to express their zero-constants.
 	switch deref(alloc.Type()).Underlying().(type) {
@@ -538,7 +574,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 		change = false
 		{
 			// Traverse iterated dominance frontier, inserting φ-nodes.
-			W.Set(&defblocks.Int)
+			W.Set(defblocks)
 
 			for i := W.Take(); i != -1; i = W.Take() {
 				n := fn.Blocks[i]
@@ -572,7 +608,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 		}
 
 		{
-			W.Set(&useblocks.Int)
+			W.Set(useblocks)
 			for i := W.Take(); i != -1; i = W.Take() {
 				n := fn.Blocks[i]
 				for _, y := range rdf[n.Index] {

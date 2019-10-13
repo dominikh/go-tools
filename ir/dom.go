@@ -81,7 +81,7 @@ func buildDomTree(fn *Function) {
 	idoms := make([]*BasicBlock, len(fn.Blocks))
 
 	order := make([]*BasicBlock, 0, len(fn.Blocks))
-	var seen BlockSet
+	seen := fn.blockset(0)
 	var dfs func(b *BasicBlock)
 	dfs = func(b *BasicBlock) {
 		if !seen.Add(b) {
@@ -180,7 +180,7 @@ func buildPostDomTree(fn *Function) {
 	idoms := make([]*BasicBlock, len(fn.Blocks))
 
 	order := make([]*BasicBlock, 0, len(fn.Blocks))
-	var seen BlockSet
+	seen := fn.blockset(0)
 	var dfs func(b *BasicBlock)
 	dfs = func(b *BasicBlock) {
 		if !seen.Add(b) {

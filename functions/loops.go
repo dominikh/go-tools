@@ -2,7 +2,7 @@ package functions
 
 import "honnef.co/go/tools/ir"
 
-type Loop struct{ ir.BlockSet }
+type Loop struct{ *ir.BlockSet }
 
 func FindLoops(fn *ir.Function) []Loop {
 	if fn.Blocks == nil {
@@ -18,12 +18,12 @@ func FindLoops(fn *ir.Function) []Loop {
 			// n is a back-edge to h
 			// h is the loop header
 			if n == h {
-				set := Loop{}
+				set := Loop{ir.NewBlockSet(len(fn.Blocks))}
 				set.Add(n)
 				sets = append(sets, set)
 				continue
 			}
-			set := Loop{}
+			set := Loop{ir.NewBlockSet(len(fn.Blocks))}
 			set.Add(h)
 			set.Add(n)
 			for _, b := range allPredsBut(n, h, nil) {

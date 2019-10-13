@@ -361,6 +361,7 @@ type Function struct {
 	consts          []*Const
 	wr              *HTMLWriter
 	fakeExits       BlockSet
+	blocksets       [5]BlockSet
 }
 
 func (fn *Function) results() []*Alloc {

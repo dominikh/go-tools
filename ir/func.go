@@ -244,6 +244,16 @@ func (f *Function) startBody() {
 	f.objects = make(map[types.Object]Value) // needed for some synthetics, e.g. init
 }
 
+func (f *Function) blockset(i int) *BlockSet {
+	bs := &f.blocksets[i]
+	if len(bs.values) < len(f.Blocks) {
+		bs.values = make([]bool, len(f.Blocks))
+	} else {
+		bs.Clear()
+	}
+	return bs
+}
+
 func (f *Function) exitBlock() {
 	old := f.currentBlock
 
@@ -444,8 +454,10 @@ func (f *Function) emitConstsMany() {
 // inclusion in the dominator tree.
 func buildFakeExits(fn *Function) {
 	// Find back-edges via forward DFS
-	var seen BlockSet
-	var backEdges BlockSet
+	fn.fakeExits = BlockSet{values: make([]bool, len(fn.Blocks))}
+	seen := fn.blockset(0)
+	backEdges := fn.blockset(1)
+
 	var dfs func(b *BasicBlock)
 	dfs = func(b *BasicBlock) {
 		if !seen.Add(b) {
@@ -459,7 +471,7 @@ func buildFakeExits(fn *Function) {
 	dfs(fn.Blocks[0])
 buildLoop:
 	for {
-		var seen BlockSet
+		seen := fn.blockset(2)
 		var dfs func(b *BasicBlock)
 		dfs = func(b *BasicBlock) {
 			if !seen.Add(b) {
