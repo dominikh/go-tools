@@ -44,7 +44,6 @@ func TestAll(t *testing.T) {
 		"SA3001": {{Dir: "CheckBenchmarkN"}},
 		"SA4000": {{Dir: "CheckLhsRhsIdentical"}},
 		"SA4001": {{Dir: "CheckIneffectiveCopy"}},
-		// "SA4002": {{Dir: "CheckDiffSizeComparison"}},
 		"SA4003": {{Dir: "CheckExtremeComparison"}},
 		"SA4004": {{Dir: "CheckIneffectiveLoop"}},
 		"SA4006": {{Dir: "CheckUnreadVariableValues"}},

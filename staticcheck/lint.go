@@ -33,7 +33,6 @@ import (
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/printf"
 	"honnef.co/go/tools/report"
-	"honnef.co/go/tools/staticcheck/vrp"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -1485,38 +1484,6 @@ func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func CheckDiffSizeComparison(pass *analysis.Pass) (interface{}, error) {
-	ranges := pass.ResultOf[valueRangesAnalyzer].(map[*ir.Function]vrp.Ranges)
-	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		for _, b := range fn.Blocks {
-			for _, ins := range b.Instrs {
-				binop, ok := ins.(*ir.BinOp)
-				if !ok {
-					continue
-				}
-				if binop.Op != token.EQL && binop.Op != token.NEQ {
-					continue
-				}
-				_, ok1 := binop.X.(*ir.Slice)
-				_, ok2 := binop.Y.(*ir.Slice)
-				if !ok1 && !ok2 {
-					continue
-				}
-				r := ranges[fn]
-				r1, ok1 := r.Get(binop.X).(vrp.StringInterval)
-				r2, ok2 := r.Get(binop.Y).(vrp.StringInterval)
-				if !ok1 || !ok2 {
-					continue
-				}
-				if r1.Length.Intersection(r2.Length).Empty() {
-					report.Report(pass, binop, "comparing strings of different sizes for equality will always return false")
-				}
-			}
-		}
-	}
-	return nil, nil
-}
-
 func CheckCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node, push bool) bool {
 		if !push {
@@ -2888,7 +2855,6 @@ func callChecker(rules map[string]CallCheck) func(pass *analysis.Pass) (interfac
 }
 
 func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, error) {
-	ranges := pass.ResultOf[valueRangesAnalyzer].(map[*ir.Function]vrp.Ranges)
 	cb := func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function) {
 		obj, ok := callee.Object().(*types.Func)
 		if !ok {
@@ -2908,8 +2874,7 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			if iarg, ok := arg.(*ir.MakeInterface); ok {
 				arg = iarg.X
 			}
-			vr := ranges[site.Parent()][arg]
-			args = append(args, &Argument{Value: Value{arg, vr}})
+			args = append(args, &Argument{Value: Value{arg}})
 		}
 		call := &Call{
 			Pass:   pass,

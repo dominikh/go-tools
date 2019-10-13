@@ -16,7 +16,6 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/ir"
-	"honnef.co/go/tools/staticcheck/vrp"
 )
 
 const (
@@ -44,13 +43,12 @@ type Argument struct {
 	invalids []string
 }
 
-func (arg *Argument) Invalid(msg string) {
-	arg.invalids = append(arg.invalids, msg)
-}
-
 type Value struct {
 	Value ir.Value
-	Range vrp.Range
+}
+
+func (arg *Argument) Invalid(msg string) {
+	arg.invalids = append(arg.invalids, msg)
 }
 
 type CallCheck func(call *Call)
@@ -118,20 +116,6 @@ func ValidateURL(v Value) error {
 	return nil
 }
 
-func IntValue(v Value, z vrp.Z) bool {
-	r, ok := v.Range.(vrp.IntInterval)
-	if !ok || !r.IsKnown() {
-		return false
-	}
-	if r.Lower != r.Upper {
-		return false
-	}
-	if r.Lower.Cmp(z) == 0 {
-		return true
-	}
-	return false
-}
-
 func InvalidUTF8(v Value) bool {
 	for _, c := range extractConsts(v.Value) {
 		if c.Value == nil {
@@ -149,13 +133,21 @@ func InvalidUTF8(v Value) bool {
 }
 
 func UnbufferedChannel(v Value) bool {
-	r, ok := v.Range.(vrp.ChannelInterval)
-	if !ok || !r.IsKnown() {
+	// TODO(dh): this check of course misses many cases of unbuffered
+	// channels, such as any in phi or sigma nodes. We'll eventually
+	// replace this function.
+	val := v.Value
+	if ct, ok := val.(*ir.ChangeType); ok {
+		val = ct.X
+	}
+	mk, ok := val.(*ir.MakeChan)
+	if !ok {
 		return false
 	}
-	if r.Size.Lower.Cmp(vrp.NewZ(0)) == 0 &&
-		r.Size.Upper.Cmp(vrp.NewZ(0)) == 0 {
-		return true
+	if k, ok := mk.Size.(*ir.Const); ok && k.Value.Kind() == constant.Int {
+		if v, ok := constant.Int64Val(k.Value); ok && v == 0 {
+			return true
+		}
 	}
 	return false
 }
@@ -232,8 +224,10 @@ func CanBinaryMarshal(pass *analysis.Pass, v Value) bool {
 func RepeatZeroTimes(name string, arg int) CallCheck {
 	return func(call *Call) {
 		arg := call.Args[arg]
-		if IntValue(arg.Value, vrp.NewZ(0)) {
-			arg.Invalid(fmt.Sprintf("calling %s with n == 0 will return no results, did you mean -1?", name))
+		if k, ok := arg.Value.Value.(*ir.Const); ok && k.Value.Kind() == constant.Int {
+			if v, ok := constant.Int64Val(k.Value); ok && v == 0 {
+				arg.Invalid(fmt.Sprintf("calling %s with n == 0 will return no results, did you mean -1?", name))
+			}
 		}
 	}
 }

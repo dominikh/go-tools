@@ -10,7 +10,7 @@ import (
 )
 
 func makeCallCheckerAnalyzer(rules map[string]CallCheck, extraReqs ...*analysis.Analyzer) *analysis.Analyzer {
-	reqs := []*analysis.Analyzer{buildir.Analyzer, valueRangesAnalyzer, facts.TokenFile}
+	reqs := []*analysis.Analyzer{buildir.Analyzer, facts.TokenFile}
 	reqs = append(reqs, extraReqs...)
 	return &analysis.Analyzer{
 		Run:      callChecker(rules),
@@ -118,10 +118,6 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckIneffectiveCopy,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	// "SA4002": {
-	// 	Run:      CheckDiffSizeComparison,
-	// 	Requires: []*analysis.Analyzer{buildir.Analyzer, valueRangesAnalyzer},
-	// },
 	"SA4003": {
 		Run:      CheckExtremeComparison,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
