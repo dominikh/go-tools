@@ -14,8 +14,8 @@ import (
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
-	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/ir"
+	"honnef.co/go/tools/lint"
 )
 
 // The graph we construct omits nodes along a path that do not
@@ -419,7 +419,7 @@ type pkg struct {
 	Pkg        *types.Package
 	TypesInfo  *types.Info
 	TypesSizes types.Sizes
-	IR        *ir.Package
+	IR         *ir.Package
 	SrcFuncs   []*ir.Function
 }
 
@@ -484,7 +484,7 @@ func (c *Checker) Run(pass *analysis.Pass) (interface{}, error) {
 		Pkg:        pass.Pkg,
 		TypesInfo:  pass.TypesInfo,
 		TypesSizes: pass.TypesSizes,
-		IR:        irpkg.Pkg,
+		IR:         irpkg.Pkg,
 		SrcFuncs:   irpkg.SrcFuncs,
 	}
 
@@ -1857,14 +1857,18 @@ func (g *Graph) instructions(ctx *context, fn *ir.Function) {
 			case *ir.Load:
 				// nothing to do
 			case *ir.Go:
-				// nothing to do, handled generically by operands
+				// nothing to do
 			case *ir.Defer:
-				// nothing to do, handled generically by operands
+				// nothing to do
 			case *ir.Parameter:
 				// nothing to do
 			case *ir.Const:
-			// nothing to do
+				// nothing to do
 			case *ir.Recv:
+				// nothing to do
+			case *ir.TypeSwitch:
+				// nothing to do
+			case *ir.ConstantSwitch:
 				// nothing to do
 			default:
 				panic(fmt.Sprintf("unreachable: %T", instr))

@@ -488,7 +488,7 @@ type newPhi struct {
 
 type newSigma struct {
 	alloc  *Alloc
-	sigmas [2]*Sigma
+	sigmas []*Sigma
 }
 
 // newPhiMap records for each basic block, the set of newPhis that
@@ -618,25 +618,20 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 					// information be cheaper than pruning dead sigmas
 					// later?
 					if Asigma.Add(y) {
-						l := &Sigma{
-							From:    y,
-							X:       alloc,
-							Comment: alloc.Comment,
+						sigmas := make([]*Sigma, 0, len(y.Succs))
+						for _, succ := range y.Succs {
+							sigma := &Sigma{
+								From:    y,
+								X:       alloc,
+								Comment: alloc.Comment,
+							}
+							sigma.pos = alloc.Pos()
+							sigma.setType(deref(alloc.Type()))
+							sigma.block = succ
+							sigmas = append(sigmas, sigma)
 						}
-						l.pos = alloc.Pos()
-						l.setType(deref(alloc.Type()))
-						l.block = y.Succs[0]
 
-						r := &Sigma{
-							From:    y,
-							X:       alloc,
-							Comment: alloc.Comment,
-						}
-						r.pos = alloc.Pos()
-						r.setType(deref(alloc.Type()))
-						r.block = y.Succs[1]
-
-						newSigmas[y.Index] = append(newSigmas[y.Index], newSigma{alloc, [2]*Sigma{l, r}})
+						newSigmas[y.Index] = append(newSigmas[y.Index], newSigma{alloc, sigmas})
 						for _, s := range y.Succs {
 							defblocks.Add(s)
 						}

@@ -151,6 +151,10 @@ func buildDomTree(fn *Function) {
 
 	for i, b := range idoms {
 		fn.Blocks[i].dom.idom = b
+		if b == nil {
+			// malformed CFG
+			continue
+		}
 		if i == b.Index {
 			continue
 		}
@@ -250,6 +254,10 @@ func buildPostDomTree(fn *Function) {
 
 	for i, b := range idoms {
 		fn.Blocks[i].pdom.idom = b
+		if b == nil {
+			// malformed CFG
+			continue
+		}
 		if i == b.Index {
 			continue
 		}

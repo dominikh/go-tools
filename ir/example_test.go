@@ -15,8 +15,8 @@ import (
 	"os"
 
 	"golang.org/x/tools/go/packages"
-	"honnef.co/go/tools/ir/irutil"
 	"honnef.co/go/tools/ir"
+	"honnef.co/go/tools/ir/irutil"
 )
 
 const hello = `
@@ -89,15 +89,15 @@ func Example_buildPackage() {
 	// # Package: hello
 	// # Synthetic: package initializer
 	// func init():
-	// b0:
+	// b0: # entry
 	// 	t1 = Const <bool> {true}
 	// 	t2 = Load <bool> init$guard
 	// 	If t2 → b1 b2
 	//
-	// b1: ← b0 b2
+	// b1: ← b0 b2 # exit
 	// 	Return
 	//
-	// b2: ← b0
+	// b2: ← b0 # init.start
 	// 	Store {bool} init$guard t1
 	// 	t6 = Call <()> fmt.init
 	// 	Jump → b1
@@ -106,7 +106,7 @@ func Example_buildPackage() {
 	// # Package: hello
 	// # Location: hello.go:8:6
 	// func main():
-	// b0:
+	// b0: # entry
 	// 	t1 = Const <string> {"Hello, World!"}
 	// 	t2 = Const <int> {0}
 	// 	t3 = HeapAlloc <*[1]interface{}> (varargs)
@@ -117,7 +117,7 @@ func Example_buildPackage() {
 	// 	t8 = Call <(n int, err error)> fmt.Println t7
 	// 	Jump → b1
 	//
-	// b1: ← b0
+	// b1: ← b0 # exit
 	// 	Return
 }
 

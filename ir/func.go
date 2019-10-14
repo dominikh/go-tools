@@ -848,6 +848,9 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 				fmt.Fprintf(buf, " b%d", pred.Index)
 			}
 		}
+		if b.Comment != "" {
+			fmt.Fprintf(buf, " # %s", b.Comment)
+		}
 		buf.WriteByte('\n')
 
 		if false { // CFG debugging

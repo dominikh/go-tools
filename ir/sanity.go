@@ -89,7 +89,7 @@ func findDuplicate(blocks []*BasicBlock) *BasicBlock {
 
 func (s *sanity) checkInstr(idx int, instr Instruction) {
 	switch instr := instr.(type) {
-	case *If, *Jump, *Return, *Panic, *Unreachable:
+	case *If, *Jump, *Return, *Panic, *Unreachable, *ConstantSwitch:
 		s.errorf("control flow instruction not at end of block")
 	case *Sigma:
 		if idx > 0 {
@@ -189,6 +189,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Parameter:
 	case *Const:
 	case *Recv:
+	case *TypeSwitch:
 	default:
 		panic(fmt.Sprintf("Unknown instruction type: %T", instr))
 	}
@@ -263,6 +264,8 @@ func (s *sanity) checkFinalInstr(instr Instruction) {
 			s.errorf("Unreachable-terminated block has %d successors; expected one", nsuccs)
 			return
 		}
+
+	case *ConstantSwitch:
 
 	default:
 		s.errorf("non-control flow instruction at end of block")

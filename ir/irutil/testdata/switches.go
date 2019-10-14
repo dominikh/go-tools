@@ -12,30 +12,6 @@ package main
 
 // -------- Value switches --------
 
-func SimpleSwitch(x, y int) {
-	// switch t8 {
-	// case t1: Call <()> print t1
-	// case t2: Call <()> print t4
-	// case t3: Call <()> print t4
-	// case t5: Call <()> print t3
-	// default: BinOp <bool> {==} t34 t33
-	// }
-	switch x {
-	case 1:
-		print(1)
-	case 2, 3:
-		print(23)
-		fallthrough
-	case 4:
-		print(3)
-	default:
-		print(4)
-	case y:
-		print(5)
-	}
-	print(6)
-}
-
 func four() int { return 4 }
 
 // A non-constant case makes a switch "impure", but its pure
@@ -137,11 +113,11 @@ L2:
 end:
 }
 
-func SwitchInAForLoop(x int) {
-	// switch t8 {
+func SwitchInAForLoop(x, y int) {
+	// switch t11 {
 	// case t2: Call <()> print t2
 	// case t3: Call <()> print t3
-	// default: BinOp <bool> {==} t8 t2
+	// default: BinOp <bool> {==} t29 t28
 	// }
 loop:
 	for {
@@ -152,6 +128,9 @@ loop:
 			break loop
 		case 2:
 			print(2)
+			break loop
+		case y:
+			print(3)
 			break loop
 		}
 	}
@@ -260,85 +239,7 @@ func ZeroInitializedVarsAreConstants(x int) {
 	print("end")
 }
 
-// -------- Select --------
-
-// NB, potentially fragile reliance on register number.
-func SelectDesugarsToSwitch(ch chan int) {
-	// switch t7 {
-	// case t2: Call <()> println t11
-	// case t1: Call <()> println t2
-	// case t3: Call <()> println t1
-	// default: Call <()> println t4
-	// }
-	select {
-	case x := <-ch:
-		println(x)
-	case <-ch:
-		println(0)
-	case ch <- 1:
-		println(1)
-	default:
-		println("default")
-	}
-}
-
-// NB, potentially fragile reliance on register number.
-func NonblockingSelectDefaultCasePanics(ch chan int) {
-	// switch t7 {
-	// case t2: Call <()> println t11
-	// case t1: Call <()> println t2
-	// case t3: Call <()> println t1
-	// default: MakeInterface <interface{}> t4
-	// }
-	select {
-	case x := <-ch:
-		println(x)
-	case <-ch:
-		println(0)
-	case ch <- 1:
-		println(1)
-	}
-}
-
 // -------- Type switches --------
-
-// NB, reliance on fragile register numbering.
-func SimpleTypeSwitch(x interface{}) {
-	// switch t2.(type) {
-	// case t9 int: Call <()> println t2
-	// case t15 bool: Call <()> println t2
-	// case t19 string: Call <()> println t19
-	// default: Call <()> println t2
-	// }
-	switch y := x.(type) {
-	case nil:
-		println(y)
-	case int, bool:
-		println(y)
-	case string:
-		println(y)
-	default:
-		println(y)
-	}
-}
-
-// NB, potentially fragile reliance on register number.
-func DuplicateTypesAreNotEliminated(x interface{}) {
-	// switch t3.(type) {
-	// case t5 string: Call <()> println t1
-	// case t12 interface{}: Call <()> println t12
-	// case t18 int: Call <()> println t2
-	// default: Return
-	// }
-	switch y := x.(type) {
-	case string:
-		println(1)
-	case interface{}:
-		println(y)
-	case int:
-		println(3) // unreachable!
-	}
-}
 
 // NB, potentially fragile reliance on register number.
 func AdHocTypeSwitch(x interface{}) {

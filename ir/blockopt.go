@@ -21,9 +21,9 @@ const debugBlockOpt = false
 
 // markReachable sets Index=-1 for all blocks reachable from b.
 func markReachable(b *BasicBlock) {
-	b.Index = -1
+	b.gaps = -1
 	for _, succ := range b.Succs {
-		if succ.Index == 0 {
+		if succ.gaps == 0 {
 			markReachable(succ)
 		}
 	}
@@ -34,9 +34,9 @@ func markReachable(b *BasicBlock) {
 //
 func deleteUnreachableBlocks(f *Function) {
 	const white, black = 0, -1
-	// We borrow b.Index temporarily as the mark bit.
+	// We borrow b.gaps temporarily as the mark bit.
 	for _, b := range f.Blocks {
-		b.Index = white
+		b.gaps = white
 	}
 	markReachable(f.Blocks[0])
 	// In SSI form, we need the exit to be reachable for correct
@@ -46,9 +46,9 @@ func deleteUnreachableBlocks(f *Function) {
 	// dominance information.
 	markReachable(f.Exit)
 	for i, b := range f.Blocks {
-		if b.Index == white {
+		if b.gaps == white {
 			for _, c := range b.Succs {
-				if c.Index == black {
+				if c.gaps == black {
 					c.removePred(b) // delete white->black edge
 				}
 			}
@@ -71,6 +71,13 @@ func jumpThreading(f *Function, b *BasicBlock) bool {
 	}
 	if b.Instrs == nil {
 		return false
+	}
+	for _, pred := range b.Preds {
+		switch pred.Control().(type) {
+		case *ConstantSwitch:
+			// don't optimize away the head blocks of switch statements
+			return false
+		}
 	}
 	if _, ok := b.Instrs[0].(*Jump); !ok {
 		return false // not just a jump
@@ -162,6 +169,11 @@ func fuseBlocks(f *Function, a *BasicBlock) bool {
 // threading.
 //
 func optimizeBlocks(f *Function) {
+	if debugBlockOpt {
+		f.WriteTo(os.Stderr)
+		mustSanityCheck(f, nil)
+	}
+
 	deleteUnreachableBlocks(f)
 
 	// Loop until no further progress.

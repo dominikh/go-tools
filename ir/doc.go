@@ -21,11 +21,6 @@
 // the source language to facilitate construction of source analysis
 // tools.  It is not intended for machine code generation.
 //
-// All looping, branching and switching constructs are replaced with
-// unstructured control flow.  Higher-level control flow constructs
-// such as multi-way branch can be reconstructed as needed; see
-// irutil.Switches() for an example.
-//
 // The simplest way to create the IR of a package is
 // to load typed syntax trees using golang.org/x/tools/go/packages, then
 // invoke the irutil.Packages helper function. See ExampleLoadPackages

@@ -1217,10 +1217,113 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 	}
 }
 
+func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
+	if s.Tag == nil {
+		b.switchStmtDynamic(fn, s, label)
+		return
+	}
+	dynamic := false
+	for _, iclause := range s.Body.List {
+		clause := iclause.(*ast.CaseClause)
+		for _, cond := range clause.List {
+			if fn.Pkg.info.Types[unparen(cond)].Value == nil {
+				dynamic = true
+				break
+			}
+		}
+	}
+
+	if dynamic {
+		b.switchStmtDynamic(fn, s, label)
+		return
+	}
+
+	if s.Init != nil {
+		b.stmt(fn, s.Init)
+	}
+
+	entry := fn.currentBlock
+	tag := b.expr(fn, s.Tag)
+
+	heads := make([]*BasicBlock, 0, len(s.Body.List))
+	bodies := make([]*BasicBlock, len(s.Body.List))
+	conds := make([]Value, 0, len(s.Body.List))
+
+	hasDefault := false
+	done := fn.newBasicBlock(fmt.Sprintf("switch.done"))
+	if label != nil {
+		label._break = done
+	}
+	for i, stmt := range s.Body.List {
+		body := fn.newBasicBlock(fmt.Sprintf("switch.body.%d", i))
+		bodies[i] = body
+		if stmt.(*ast.CaseClause).List == nil {
+			// default branch
+			hasDefault = true
+			head := fn.newBasicBlock(fmt.Sprintf("switch.head.%d", i))
+			conds = append(conds, nil)
+			heads = append(heads, head)
+			fn.currentBlock = head
+			emitJump(fn, body)
+		}
+		for j, cond := range stmt.(*ast.CaseClause).List {
+			fn.currentBlock = entry
+			head := fn.newBasicBlock(fmt.Sprintf("switch.head.%d.%d", i, j))
+			conds = append(conds, b.expr(fn, cond))
+			heads = append(heads, head)
+			fn.currentBlock = head
+			emitJump(fn, body)
+		}
+	}
+
+	for i, stmt := range s.Body.List {
+		clause := stmt.(*ast.CaseClause)
+		body := bodies[i]
+		fn.currentBlock = body
+		fallthru := done
+		if i+1 < len(bodies) {
+			fallthru = bodies[i+1]
+		}
+		fn.targets = &targets{
+			tail:         fn.targets,
+			_break:       done,
+			_fallthrough: fallthru,
+		}
+		b.stmtList(fn, clause.Body)
+		fn.targets = fn.targets.tail
+		emitJump(fn, done)
+	}
+
+	if !hasDefault {
+		head := fn.newBasicBlock(fmt.Sprintf("switch.head.implicit-default"))
+		body := fn.newBasicBlock("switch.body.implicit-default")
+		fn.currentBlock = head
+		emitJump(fn, body)
+		fn.currentBlock = body
+		emitJump(fn, done)
+		heads = append(heads, head)
+		bodies = append(bodies, body)
+		conds = append(conds, nil)
+	}
+
+	if len(heads) != len(conds) {
+		panic(fmt.Sprintf("internal error: %d heads for %d conds", len(heads), len(conds)))
+	}
+	for _, head := range heads {
+		addEdge(entry, head)
+	}
+	fn.currentBlock = entry
+	entry.emit(&ConstantSwitch{
+		Tag:   tag,
+		Conds: conds,
+	})
+	fn.currentBlock = done
+}
+
 // switchStmt emits to fn code for the switch statement s, optionally
 // labelled by label.
 //
-func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
+func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	// We treat SwitchStmt like a sequential if-else chain.
 	// Multiway dispatch can be recovered later by irutil.Switches()
 	// to those cases that are free of side effects.
@@ -1324,137 +1427,168 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	fn.currentBlock = done
 }
 
-// typeSwitchStmt emits to fn code for the type switch statement s, optionally
-// labelled by label.
-//
 func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lblock) {
-	// TODO(dh): update typeSwitchStmt to generate distinct loads, so
-	// that we generate correct SSI
-
-	// We treat TypeSwitchStmt like a sequential if-else chain.
-	// Multiway dispatch can be recovered later by irutil.Switches().
-
-	// Typeswitch lowering:
-	//
-	// var x X
-	// switch y := x.(type) {
-	// case T1, T2: S1                  // >1 	(y := x)
-	// case nil:    SN                  // nil 	(y := x)
-	// default:     SD                  // 0 types 	(y := x)
-	// case T3:     S3                  // 1 type 	(y := x.(T3))
-	// }
-	//
-	//      ...s.Init...
-	// 	x := eval x
-	// .caseT1:
-	// 	t1, ok1 := typeswitch,ok x <T1>
-	// 	if ok1 then goto S1 else goto .caseT2
-	// .caseT2:
-	// 	t2, ok2 := typeswitch,ok x <T2>
-	// 	if ok2 then goto S1 else goto .caseNil
-	// .S1:
-	//      y := x
-	// 	...S1...
-	// 	goto done
-	// .caseNil:
-	// 	if t2, ok2 := typeswitch,ok x <T2>
-	// 	if x == nil then goto SN else goto .caseT3
-	// .SN:
-	//      y := x
-	// 	...SN...
-	// 	goto done
-	// .caseT3:
-	// 	t3, ok3 := typeswitch,ok x <T3>
-	// 	if ok3 then goto S3 else goto default
-	// .S3:
-	//      y := t3
-	// 	...S3...
-	// 	goto done
-	// .default:
-	//      y := x
-	// 	...SD...
-	// 	goto done
-	// .done:
-
 	if s.Init != nil {
 		b.stmt(fn, s.Init)
 	}
 
-	var x Value
-	switch ass := s.Assign.(type) {
+	var tag Value
+	switch e := s.Assign.(type) {
 	case *ast.ExprStmt: // x.(type)
-		x = b.expr(fn, unparen(ass.X).(*ast.TypeAssertExpr).X)
+		tag = b.expr(fn, unparen(e.X).(*ast.TypeAssertExpr).X)
 	case *ast.AssignStmt: // y := x.(type)
-		x = b.expr(fn, unparen(ass.Rhs[0]).(*ast.TypeAssertExpr).X)
+		tag = b.expr(fn, unparen(e.Rhs[0]).(*ast.TypeAssertExpr).X)
+	default:
+		panic("unreachable")
+	}
+	tagPtr := fn.addLocal(tag.Type(), tag.Pos())
+	emitStore(fn, tagPtr, tag, tag.Pos())
+
+	// +1 in case there's no explicit default case
+	heads := make([]*BasicBlock, 0, len(s.Body.List)+1)
+
+	entry := fn.currentBlock
+	done := fn.newBasicBlock("done")
+
+	// set up type switch and constant switch, populate their conditions
+	tswtch := &TypeSwitch{
+		Tag:   emitLoad(fn, tagPtr),
+		Conds: make([]types.Type, 0, len(s.Body.List)+1),
+	}
+	cswtch := &ConstantSwitch{
+		Conds: make([]Value, 0, len(s.Body.List)+1),
 	}
 
-	done := fn.newBasicBlock("typeswitch.done")
-	if label != nil {
-		label._break = done
-	}
+	rets := make([]types.Type, 0, len(s.Body.List)+1)
+	index := 0
 	var default_ *ast.CaseClause
 	for _, clause := range s.Body.List {
 		cc := clause.(*ast.CaseClause)
+		if obj := fn.Pkg.info.Implicits[cc]; obj != nil {
+			fn.addNamedLocal(obj)
+		}
 		if cc.List == nil {
+			// default case
 			default_ = cc
+		} else {
+			for _, expr := range cc.List {
+				tswtch.Conds = append(tswtch.Conds, fn.Pkg.typeOf(expr))
+				cswtch.Conds = append(cswtch.Conds, emitConst(fn, intConst(int64(index))))
+				index++
+			}
+			if len(cc.List) == 1 {
+				rets = append(rets, fn.Pkg.typeOf(cc.List[0]))
+			} else {
+				for range cc.List {
+					rets = append(rets, tag.Type())
+				}
+			}
+		}
+	}
+
+	// default branch
+	rets = append(rets, tag.Type())
+
+	var vars []*types.Var
+	vars = append(vars, varIndex)
+	for _, typ := range rets {
+		vars = append(vars, anonVar(typ))
+	}
+	tswtch.setType(types.NewTuple(vars...))
+	// default branch
+	fn.currentBlock = entry
+	fn.emit(tswtch)
+	cswtch.Conds = append(cswtch.Conds, emitConst(fn, intConst(int64(-1))))
+	// in theory we should add a local and stores/loads for tswtch, to
+	// generate sigma nodes in the branches. however, there isn't any
+	// useful information we could possibly attach to it.
+	cswtch.Tag = emitExtract(fn, tswtch, 0)
+	fn.emit(cswtch)
+
+	// build heads and bodies
+	index = 0
+	for _, clause := range s.Body.List {
+		cc := clause.(*ast.CaseClause)
+		if cc.List == nil {
 			continue
 		}
+
 		body := fn.newBasicBlock("typeswitch.body")
-		var next *BasicBlock
-		var casetype types.Type
-		var ti Value // ti, ok := typeassert,ok x <Ti>
-		for _, cond := range cc.List {
-			next = fn.newBasicBlock("typeswitch.next")
-			casetype = fn.Pkg.typeOf(cond)
-			var condv Value
-			if casetype == tUntypedNil {
-				condv = emitCompare(fn, token.EQL, x, emitConst(fn, nilConst(x.Type())), token.NoPos)
-				ti = x
-			} else {
-				yok := emitTypeTest(fn, x, casetype, cc.Case)
-				ti = emitExtract(fn, yok, 0)
-				condv = emitExtract(fn, yok, 1)
+		for range cc.List {
+			head := fn.newBasicBlock("typeswitch.head")
+			heads = append(heads, head)
+			fn.currentBlock = head
+
+			if obj := fn.Pkg.info.Implicits[cc]; obj != nil {
+				// In a switch y := x.(type), each case clause
+				// implicitly declares a distinct object y.
+				// In a single-type case, y has that type.
+				// In multi-type cases, 'case nil' and default,
+				// y has the same type as the interface operand.
+
+				l := fn.objects[obj]
+				if rets[index] == tUntypedNil {
+					emitStore(fn, l, emitConst(fn, nilConst(tswtch.Tag.Type())), obj.Pos())
+				} else {
+					x := emitExtract(fn, tswtch, index+1)
+					emitStore(fn, l, x, obj.Pos())
+				}
 			}
-			emitIf(fn, condv, body, next)
-			fn.currentBlock = next
-		}
-		if len(cc.List) != 1 {
-			ti = x
+
+			emitJump(fn, body)
+			index++
 		}
 		fn.currentBlock = body
-		b.typeCaseBody(fn, cc, ti, done)
-		fn.currentBlock = next
-	}
-	if default_ != nil {
-		b.typeCaseBody(fn, default_, x, done)
-	} else {
+		fn.targets = &targets{
+			tail:   fn.targets,
+			_break: done,
+		}
+		b.stmtList(fn, cc.Body)
+		fn.targets = fn.targets.tail
 		emitJump(fn, done)
 	}
-	fn.currentBlock = done
-}
 
-func (b *builder) typeCaseBody(fn *Function, cc *ast.CaseClause, x Value, done *BasicBlock) {
-	if obj := fn.Pkg.info.Implicits[cc]; obj != nil {
-		// In a switch y := x.(type), each case clause
-		// implicitly declares a distinct object y.
-		// In a single-type case, y has that type.
-		// In multi-type cases, 'case nil' and default,
-		// y has the same type as the interface operand.
-		emitStore(fn, fn.addNamedLocal(obj), x, obj.Pos())
+	if default_ == nil {
+		// implicit default
+		heads = append(heads, done)
+	} else {
+		body := fn.newBasicBlock("typeswitch.default")
+		heads = append(heads, body)
+		fn.currentBlock = body
+		fn.targets = &targets{
+			tail:   fn.targets,
+			_break: done,
+		}
+		if obj := fn.Pkg.info.Implicits[default_]; obj != nil {
+			l := fn.objects[obj]
+			x := emitExtract(fn, tswtch, index+1)
+			emitStore(fn, l, x, obj.Pos())
+		}
+		b.stmtList(fn, default_.Body)
+		fn.targets = fn.targets.tail
+		emitJump(fn, done)
 	}
-	fn.targets = &targets{
-		tail:   fn.targets,
-		_break: done,
+
+	fn.currentBlock = entry
+	for _, head := range heads {
+		addEdge(entry, head)
 	}
-	b.stmtList(fn, cc.Body)
-	fn.targets = fn.targets.tail
-	emitJump(fn, done)
+	fn.currentBlock = done
 }
 
 // selectStmt emits to fn code for the select statement s, optionally
 // labelled by label.
 //
-func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
+func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (noreturn bool) {
+	if len(s.Body.List) == 0 {
+		instr := &Select{Blocking: true}
+		instr.setType(types.NewTuple(varIndex, varOk))
+		fn.emit(instr)
+		fn.emit(new(Unreachable))
+		addEdge(fn.currentBlock, fn.Exit)
+		return true
+	}
+
 	// A blocking select of a single case degenerates to a
 	// simple send or receive.
 	// TODO(adonovan): opt: is this optimization worth its weight?
@@ -1474,7 +1608,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 			fn.targets = fn.targets.tail
 			emitJump(fn, done)
 			fn.currentBlock = done
-			return
+			return false
 		}
 	}
 
@@ -1529,17 +1663,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 	}
 
 	// We dispatch on the (fair) result of Select using a
-	// sequential if-else chain, in effect:
-	//
-	// idx, recvOk, r0...r_n-1 := select(...)
-	// if idx == 0 {  // receive on channel 0  (first receive => r0)
-	//     x, ok := r0, recvOk
-	//     ...state0...
-	// } else if v == 1 {   // send on channel 1
-	//     ...state1...
-	// } else {
-	//     ...default...
-	// }
+	// switch on the returned index.
 	sel := &Select{
 		States:   states,
 		Blocking: blocking,
@@ -1562,19 +1686,37 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		label._break = done
 	}
 
-	var defaultBody *[]ast.Stmt
+	entry := fn.currentBlock
+	swtch := &ConstantSwitch{
+		Tag: idx,
+		// one condition per case
+		Conds: make([]Value, 0, len(s.Body.List)+1),
+	}
+	// note that we don't need heads; a select case can only have a single condition
+	var bodies []*BasicBlock
+
 	state := 0
 	r := 2 // index in 'sel' tuple of value; increments if st.Dir==RECV
 	for _, cc := range s.Body.List {
 		clause := cc.(*ast.CommClause)
 		if clause.Comm == nil {
-			defaultBody = &clause.Body
+			body := fn.newBasicBlock("select.default")
+			fn.currentBlock = body
+			bodies = append(bodies, body)
+			fn.targets = &targets{
+				tail:   fn.targets,
+				_break: done,
+			}
+			b.stmtList(fn, clause.Body)
+			emitJump(fn, done)
+			fn.targets = fn.targets.tail
+			swtch.Conds = append(swtch.Conds, emitConst(fn, intConst(-1)))
 			continue
 		}
+		swtch.Conds = append(swtch.Conds, emitConst(fn, intConst(int64(state))))
 		body := fn.newBasicBlock("select.body")
-		next := fn.newBasicBlock("select.next")
-		emitIf(fn, emitCompare(fn, token.EQL, idx, emitConst(fn, intConst(int64(state))), token.NoPos), body, next)
 		fn.currentBlock = body
+		bodies = append(bodies, body)
 		fn.targets = &targets{
 			tail:   fn.targets,
 			_break: done,
@@ -1610,27 +1752,15 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		b.stmtList(fn, clause.Body)
 		fn.targets = fn.targets.tail
 		emitJump(fn, done)
-		fn.currentBlock = next
 		state++
 	}
-	if defaultBody != nil {
-		fn.targets = &targets{
-			tail:   fn.targets,
-			_break: done,
-		}
-		b.stmtList(fn, *defaultBody)
-		fn.targets = fn.targets.tail
-	} else {
-		// A blocking select must match some case.
-		// (This should really be a runtime.errorString, not a string.)
-		fn.emit(&Panic{
-			X: emitConv(fn, emitConst(fn, stringConst("blocking select matched no case")), tEface),
-		})
-		addEdge(fn.currentBlock, fn.Exit)
-		fn.currentBlock = fn.newBasicBlock("unreachable")
+	fn.currentBlock = entry
+	fn.emit(swtch)
+	for _, body := range bodies {
+		addEdge(entry, body)
 	}
-	emitJump(fn, done)
 	fn.currentBlock = done
+	return false
 }
 
 // forStmt emits to fn code for the for statement s, optionally
@@ -2081,7 +2211,8 @@ start:
 		case token.GOTO:
 			block = fn.labelledBlock(s.Label)._goto
 		}
-		emitJump(fn, block)
+		j := emitJump(fn, block)
+		j.Comment = s.Tok.String()
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 
 	case *ast.BlockStmt:
@@ -2118,7 +2249,10 @@ start:
 		b.typeSwitchStmt(fn, s, label)
 
 	case *ast.SelectStmt:
-		b.selectStmt(fn, s, label)
+		if b.selectStmt(fn, s, label) {
+			// the select has no cases, it blocks forever
+			fn.currentBlock = fn.newBasicBlock("unreachable")
+		}
 
 	case *ast.ForStmt:
 		b.forStmt(fn, s, label)

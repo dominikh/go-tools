@@ -283,7 +283,11 @@ func (s *Jump) String() string {
 	if s.block != nil && len(s.block.Succs) == 1 {
 		block = s.block.Succs[0].Index
 	}
-	return fmt.Sprintf("Jump → b%d", block)
+	str := fmt.Sprintf("Jump → b%d", block)
+	if s.Comment != "" {
+		str = fmt.Sprintf("%s # %s", str, s.Comment)
+	}
+	return str
 }
 
 func (s *Unreachable) String() string {
@@ -303,6 +307,29 @@ func (s *If) String() string {
 		fblock = s.block.Succs[1].Index
 	}
 	return fmt.Sprintf("If %s → b%d b%d", relName(s.Cond, s), tblock, fblock)
+}
+
+func (s *ConstantSwitch) String() string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "ConstantSwitch %s", relName(s.Tag, s))
+	for _, cond := range s.Conds {
+		fmt.Fprintf(&b, " %s", relName(cond, s))
+	}
+	fmt.Fprint(&b, " →")
+	for _, succ := range s.block.Succs {
+		fmt.Fprintf(&b, " b%d", succ.Index)
+	}
+	return b.String()
+}
+
+func (s *TypeSwitch) String() string {
+	from := s.Parent().pkg()
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "TypeSwitch <%s> %s", relType(s.typ, from), relName(s.Tag, s))
+	for _, cond := range s.Conds {
+		fmt.Fprintf(&b, " %q", relType(cond, s.block.parent.pkg()))
+	}
+	return b.String()
 }
 
 func (s *Go) String() string {

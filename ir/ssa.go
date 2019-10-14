@@ -1127,6 +1127,7 @@ type Extract struct {
 //
 type Jump struct {
 	anInstruction
+	Comment string
 }
 
 // The Unreachable pseudo-instruction signals that execution cannot
@@ -1162,6 +1163,22 @@ type If struct {
 	anInstruction
 	Cond Value
 	pos  token.Pos
+}
+
+type ConstantSwitch struct {
+	anInstruction
+	Tag Value
+	// Constant branch conditions. A nil Value denotes the (implicit
+	// or explicit) default branch.
+	Conds []Value
+	pos   token.Pos
+}
+
+type TypeSwitch struct {
+	register
+	Tag   Value
+	Conds []types.Type
+	pos   token.Pos
 }
 
 // The Return instruction returns values and control back to the calling
@@ -1651,20 +1668,22 @@ func (p *Package) Type(name string) (t *Type) {
 	return
 }
 
-func (v *Call) Pos() token.Pos        { return v.Call.pos }
-func (s *Defer) Pos() token.Pos       { return s.pos }
-func (s *Go) Pos() token.Pos          { return s.pos }
-func (s *MapUpdate) Pos() token.Pos   { return s.pos }
-func (s *Panic) Pos() token.Pos       { return s.pos }
-func (s *Return) Pos() token.Pos      { return s.pos }
-func (s *Send) Pos() token.Pos        { return s.pos }
-func (s *Store) Pos() token.Pos       { return s.pos }
-func (s *BlankStore) Pos() token.Pos  { return token.NoPos }
-func (s *If) Pos() token.Pos          { return s.pos }
-func (s *Jump) Pos() token.Pos        { return token.NoPos }
-func (s *Unreachable) Pos() token.Pos { return token.NoPos }
-func (s *RunDefers) Pos() token.Pos   { return token.NoPos }
-func (s *DebugRef) Pos() token.Pos    { return s.Expr.Pos() }
+func (v *Call) Pos() token.Pos           { return v.Call.pos }
+func (s *Defer) Pos() token.Pos          { return s.pos }
+func (s *Go) Pos() token.Pos             { return s.pos }
+func (s *MapUpdate) Pos() token.Pos      { return s.pos }
+func (s *Panic) Pos() token.Pos          { return s.pos }
+func (s *Return) Pos() token.Pos         { return s.pos }
+func (s *Send) Pos() token.Pos           { return s.pos }
+func (s *Store) Pos() token.Pos          { return s.pos }
+func (s *BlankStore) Pos() token.Pos     { return token.NoPos }
+func (s *If) Pos() token.Pos             { return s.pos }
+func (s *Jump) Pos() token.Pos           { return token.NoPos }
+func (s *Unreachable) Pos() token.Pos    { return token.NoPos }
+func (s *RunDefers) Pos() token.Pos      { return token.NoPos }
+func (s *DebugRef) Pos() token.Pos       { return s.Expr.Pos() }
+func (s *ConstantSwitch) Pos() token.Pos { return s.pos }
+func (s *TypeSwitch) Pos() token.Pos     { return s.pos }
 
 // Operands.
 
@@ -1726,6 +1745,19 @@ func (v *FieldAddr) Operands(rands []*Value) []*Value {
 
 func (s *If) Operands(rands []*Value) []*Value {
 	return append(rands, &s.Cond)
+}
+
+func (s *ConstantSwitch) Operands(rands []*Value) []*Value {
+	rands = append(rands, &s.Tag)
+	for i := range s.Conds {
+		rands = append(rands, &s.Conds[i])
+	}
+	return rands
+}
+
+func (s *TypeSwitch) Operands(rands []*Value) []*Value {
+	rands = append(rands, &s.Tag)
+	return rands
 }
 
 func (v *Index) Operands(rands []*Value) []*Value {

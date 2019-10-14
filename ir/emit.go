@@ -272,11 +272,13 @@ func emitStore(f *Function, addr, val Value, pos token.Pos) *Store {
 // emitJump emits to f a jump to target, and updates the control-flow graph.
 // Postcondition: f.currentBlock is nil.
 //
-func emitJump(f *Function, target *BasicBlock) {
+func emitJump(f *Function, target *BasicBlock) *Jump {
 	b := f.currentBlock
-	b.emit(new(Jump))
+	j := new(Jump)
+	b.emit(j)
 	addEdge(b, target)
 	f.currentBlock = nil
+	return j
 }
 
 // emitIf emits to f a conditional jump to tblock or fblock based on
