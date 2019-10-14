@@ -1228,10 +1228,20 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 		b.stmt(fn, s.Init)
 	}
 	kTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool))
-	var tag Value = kTrue
+
+	var tagv Value = kTrue
+	var pos token.Pos
 	if s.Tag != nil {
-		tag = b.expr(fn, s.Tag)
+		tagv = b.expr(fn, s.Tag)
+		pos = s.Tag.Pos()
 	}
+	// lifting only considers loads and stores, but we want different
+	// sigma nodes for the different comparisons. use a temporary and
+	// load it in every branch.
+	tag := fn.addLocal(tagv.Type(), pos)
+	tag.Comment = "switch.tag"
+	emitStore(fn, tag, tagv, pos)
+
 	done := fn.newBasicBlock("switch.done")
 	if label != nil {
 		label._break = done
@@ -1269,7 +1279,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 		var nextCond *BasicBlock
 		for _, cond := range cc.List {
 			nextCond = fn.newBasicBlock("switch.next")
-			if tag == kTrue {
+			if tagv == kTrue {
 				// emit a proper if/else chain instead of a comparison
 				// of a value against true.
 				//
@@ -1282,7 +1292,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 				// invalid.
 				b.cond(fn, cond, body, nextCond)
 			} else {
-				cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), cond.Pos())
+				cond := emitCompare(fn, token.EQL, emitLoad(fn, tag), b.expr(fn, cond), cond.Pos())
 				emitIf(fn, cond, body, nextCond)
 			}
 
@@ -1318,6 +1328,9 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 // labelled by label.
 //
 func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lblock) {
+	// TODO(dh): update typeSwitchStmt to generate distinct loads, so
+	// that we generate correct SSI
+
 	// We treat TypeSwitchStmt like a sequential if-else chain.
 	// Multiway dispatch can be recovered later by irutil.Switches().
 

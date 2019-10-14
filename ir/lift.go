@@ -706,28 +706,6 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 		renaming[alloc.index] = phi
 	}
 
-	var rands []*Value
-	updateOperands := func(instr Instruction) {
-		for _, op := range instr.Operands(rands[:0]) {
-			if load, ok := (*op).(*Load); ok {
-				if alloc, ok := load.X.(*Alloc); ok && alloc.index >= 0 {
-					newval := renamed(u.Parent(), renaming, alloc)
-					if debugLifting {
-						fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
-							load.Name(), load, newval.Name())
-					}
-					if refs := (*op).Referrers(); refs != nil {
-						*refs = removeInstr(*refs, instr)
-					}
-					*op = newval
-					if refs := newval.Referrers(); refs != nil {
-						*refs = append(*refs, instr)
-					}
-				}
-			}
-		}
-	}
-
 	// Rename loads and stores of allocs.
 	for i, instr := range u.Instrs {
 		switch instr := instr.(type) {
@@ -744,9 +722,6 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 			}
 
 		case *Store:
-			// First update the operands of the Store, same as we do in the default case.
-			updateOperands(instr)
-
 			if alloc, ok := instr.Addr.(*Alloc); ok && alloc.index >= 0 { // store to Alloc cell
 				// Replace dominated loads by the stored value.
 				renaming[alloc.index] = instr.Val
@@ -766,28 +741,34 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 			}
 
 		case *Load:
-			// First update the operands of the Store, same as we do in the default case.
-			updateOperands(instr)
-
 			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
+				// In theory, we wouldn't be able to replace loads
+				// directly, because a loaded value could be used in
+				// different branches, in which case it should be
+				// replaced with different sigma nodes. But we can't
+				// simply defer replacement, either, because then
+				// later stores might incorrectly affect this load.
+				//
+				// To avoid doing renaming on _all_ values (instead of
+				// just loads and stores like we're doing), we make
+				// sure during code generation that each load is only
+				// used in one block. For example, in constant switch
+				// statements, where the tag is only evaluated once,
+				// we store it in a temporary and load it for each
+				// comparison, so that we have individual loads to
+				// replace.
+				newval := renamed(u.Parent(), renaming, alloc)
 				if debugLifting {
-					fmt.Fprintf(os.Stderr, "\tkill load %s = %s\n",
-						instr.Name(), instr)
+					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
+						instr.Name(), instr, newval)
 				}
-				// Delete the Load. All of its uses will be replaced
-				// later. We cannot replace them all in one go,
-				// because multiple blocks may refer to the same load
-				// and thus be dominated by different σ-nodes.
+				replaceAll(instr, newval)
 				u.Instrs[i] = nil
 				u.gaps++
 			}
 
 		case *DebugRef:
-			switch x := instr.X.(type) {
-			case *Alloc:
-				if x.index < 0 {
-					continue
-				}
+			if x, ok := instr.X.(*Alloc); ok && x.index >= 0 {
 				if instr.IsAddr {
 					instr.X = renamed(u.Parent(), renaming, x)
 					instr.IsAddr = false
@@ -805,16 +786,11 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 					u.Instrs[i] = nil
 					u.gaps++
 				}
-			case *Load:
-				updateOperands(instr)
 			}
-
-		default:
-			// Replace all loads with the dominating stored value.
-			updateOperands(instr)
 		}
 	}
 
+	// update all outgoing sigma nodes with the dominating store
 	for _, sigmas := range newSigmas[u.Index] {
 		for _, sigma := range sigmas.sigmas {
 			sigma.X = renamed(u.Parent(), renaming, sigmas.alloc)
@@ -859,6 +835,8 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 	for _, v := range u.dom.children {
 		// XXX add debugging
 		copy(r, renaming)
+
+		// on entry to a block, the incoming sigma nodes become the new values for their alloc
 		if idx := u.succIndex(v); idx != -1 {
 			for _, sigma := range newSigmas[u.Index] {
 				r[sigma.alloc.index] = sigma.sigmas[idx]

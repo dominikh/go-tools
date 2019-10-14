@@ -18,7 +18,7 @@ func SimpleSwitch(x, y int) {
 	// case t2: Call <()> print t4
 	// case t3: Call <()> print t4
 	// case t5: Call <()> print t3
-	// default: BinOp <bool> {==} t33 t34
+	// default: BinOp <bool> {==} t34 t33
 	// }
 	switch x {
 	case 1:
@@ -304,11 +304,11 @@ func NonblockingSelectDefaultCasePanics(ch chan int) {
 
 // NB, reliance on fragile register numbering.
 func SimpleTypeSwitch(x interface{}) {
-	// switch t9.(type) {
-	// case t11 int: Call <()> println t16
-	// case t21 bool: Call <()> println t16
-	// case t26 string: Call <()> println t26
-	// default: Call <()> println t31
+	// switch t2.(type) {
+	// case t9 int: Call <()> println t2
+	// case t15 bool: Call <()> println t2
+	// case t19 string: Call <()> println t19
+	// default: Call <()> println t2
 	// }
 	switch y := x.(type) {
 	case nil:
@@ -326,8 +326,8 @@ func SimpleTypeSwitch(x interface{}) {
 func DuplicateTypesAreNotEliminated(x interface{}) {
 	// switch t3.(type) {
 	// case t5 string: Call <()> println t1
-	// case t13 interface{}: Call <()> println t13
-	// case t20 int: Call <()> println t2
+	// case t12 interface{}: Call <()> println t12
+	// case t18 int: Call <()> println t2
 	// default: Return
 	// }
 	switch y := x.(type) {
