@@ -587,6 +587,36 @@ either. `,
 		Since: "Unreleased",
 	},
 
+	"SA5011": &lint.Documentation{
+		Title: `Possible nil pointer dereference`,
+
+		Text: `A pointer is being dereferenced unconditionally, while
+also being checked against nil in another place. This suggests that
+the pointer may be nil and dereferencing it may panic. This is
+commonly a result of improperly ordered code or missing return
+statements. Consider the following examples:
+
+	func fn(x *int) {
+		fmt.Println(*x)
+
+		// This nil check is equally important for the previous dereference
+		if x != nil {
+			foo(*x)
+		}
+	}
+
+	func TestFoo(t *testing.T) {
+		x := compute()
+		if x == nil {
+			t.Errorf("nil pointer received")
+		}
+
+		// t.Errorf does not abort the test, so if x is nil, the next line will panic.
+		foo(*x)
+	}`,
+		Since: "Unreleased",
+	},
+
 	"SA6000": &lint.Documentation{
 		Title: `Using regexp.Match or related in a loop, should use regexp.Compile`,
 		Since: "2017.1",

@@ -221,6 +221,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckImpossibleTypeAssertion,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.TokenFile},
 	},
+	"SA5011": {
+		Run:      CheckMaybeNil,
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
+	},
 
 	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),
 	"SA6001": {

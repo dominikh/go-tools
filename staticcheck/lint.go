@@ -3587,3 +3587,111 @@ func checkWithValueKey(call *Call) {
 		arg.Invalid(fmt.Sprintf("keys used with context.WithValue must be comparable, but type %s is not comparable", T))
 	}
 }
+
+func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
+	// This is an extremely trivial check that doesn't try to reason
+	// about control flow. That is, phis and sigmas do not propagate
+	// any information. As such, we can flag this:
+	//
+	// 	_ = *x
+	// 	if x == nil { return }
+	//
+	// but we cannot flag this:
+	//
+	// 	if x == nil { println(x) }
+	// 	_ = *x
+	//
+	// nor many other variations of conditional uses of or assignments to x.
+	//
+	// However, even this trivial implementation finds plenty of
+	// real-world bugs, such as dereference before nil pointer check,
+	// or using t.Error instead of t.Fatal when encountering nil
+	// pointers.
+	//
+	// On the flip side, our naive implementation avoids false positives in branches, such as
+	//
+	// 	if x != nil { _ = *x }
+	//
+	// due to the same lack of propagating information through sigma
+	// nodes. x inside the branch will be independent of the x in the
+	// nil pointer check.
+	//
+	//
+	// We could implement a more powerful check, but then we'd be
+	// getting false positives instead of false negatives because
+	// we're incapable of deducing relationships between variables.
+	// For example, a function might return a pointer and an error,
+	// and the error being nil guarantees that the pointer is not nil.
+	// Depending on the surrounding code, the pointer may still end up
+	// being checked against nil in one place, and guarded by a check
+	// on the error in another, which would lead to us marking some
+	// loads as unsafe.
+	//
+	// Unfortunately, simply hard-coding the relationship between
+	// return values wouldn't eliminate all false positives, either.
+	// Many other more subtle relationships exist. An abridged example
+	// from real code:
+	//
+	// if a == nil && b == nil { return }
+	// c := fn(a)
+	// if c != "" { _ = *a }
+	//
+	// where `fn` is guaranteed to return a non-empty string if a
+	// isn't nil.
+	//
+	// We choose to err on the side of false negatives.
+
+	isNilConst := func(v ir.Value) bool {
+		if code.IsPointerLike(v.Type()) {
+			if k, ok := v.(*ir.Const); ok {
+				return k.IsNil()
+			}
+		}
+		return false
+	}
+
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		maybeNil := map[ir.Value]struct{}{}
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				if instr, ok := instr.(*ir.BinOp); ok {
+					var ptr ir.Value
+					if isNilConst(instr.X) {
+						ptr = instr.Y
+					} else if isNilConst(instr.Y) {
+						ptr = instr.X
+					}
+					maybeNil[ptr] = struct{}{}
+				}
+			}
+		}
+
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				var ptr ir.Value
+				switch instr := instr.(type) {
+				case *ir.Load:
+					ptr = instr.X
+				case *ir.Store:
+					ptr = instr.Addr
+				case *ir.IndexAddr:
+					ptr = instr.X
+				case *ir.FieldAddr:
+					ptr = instr.X
+				}
+				if ptr != nil {
+					switch ptr.(type) {
+					case *ir.Alloc, *ir.FieldAddr, *ir.IndexAddr:
+						// these cannot be nil
+						continue
+					}
+					if _, ok := maybeNil[ptr]; ok {
+						report.Report(pass, instr, "possible nil pointer dereference")
+					}
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
