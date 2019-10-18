@@ -12,8 +12,6 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/types/typeutil"
 	. "honnef.co/go/tools/arg"
 	"honnef.co/go/tools/code"
@@ -51,7 +49,7 @@ func CheckSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.SelectStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.SelectStmt)(nil))
 	return nil, nil
 }
 
@@ -98,7 +96,7 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "should use copy() instead of a loop", report.FilterGenerated())
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))
 	return nil, nil
 }
 
@@ -144,7 +142,7 @@ func CheckIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("simplify bool comparison", edit.ReplaceWithString(pass.Fset, expr, r))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -175,7 +173,7 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 		}
 
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -260,7 +258,7 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix(fmt.Sprintf("simplify use of %s", report.Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -294,7 +292,7 @@ func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, node, fmt.Sprintf("should use %sbytes.Equal(%s) instead", prefix, args), report.FilterGenerated(), report.Fixes(fix))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -309,7 +307,7 @@ func CheckForTrue(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, loop, "should use for {} instead of for true {}", report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }
 
@@ -362,7 +360,7 @@ func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 
 		report.Report(pass, call, fmt.Sprintf("should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name), report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -428,7 +426,7 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 				report.Render(pass, cond), report.Render(pass, ret1), report.Render(pass, ret2)),
 			report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
 	return nil, nil
 }
 
@@ -589,7 +587,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType), report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -605,7 +603,7 @@ func CheckSlicing(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("simplify slice expression", edit.Delete(expr.High))))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.SliceExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.SliceExpr)(nil))
 	return nil, nil
 }
 
@@ -671,7 +669,7 @@ func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))
 	return nil, nil
 }
 
@@ -688,7 +686,7 @@ func CheckTimeSince(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("replace with call to time.Since", edits...)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -713,7 +711,7 @@ func CheckTimeUntil(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -771,9 +769,9 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn1)
+	code.Preorder(pass, fn1, (*ast.AssignStmt)(nil))
 	if code.IsGoVersion(pass, 4) {
-		pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn3)
+		code.Preorder(pass, fn3, (*ast.RangeStmt)(nil))
 	}
 	return nil, nil
 }
@@ -904,7 +902,7 @@ func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil))
 	return nil, nil
 }
 
@@ -1110,7 +1108,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, ifstmt, fmt.Sprintf("should replace this if statement with an unconditional %s.%s", pkg, replacement), report.FilterGenerated())
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 
@@ -1151,7 +1149,7 @@ func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("use copy() instead of loop", edits...)))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }
 
@@ -1179,7 +1177,7 @@ func CheckMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 				report.FilterGenerated())
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -1226,8 +1224,8 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 		assignIdent := m.State["ok"].(types.Object)
 		report.Report(pass, ifstmt, fmt.Sprintf("when %s is true, %s can't be nil", assignIdent.Name(), lhs.Name()), report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn1)
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn2)
+	code.Preorder(pass, fn1, (*ast.IfStmt)(nil))
+	code.Preorder(pass, fn2, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 
@@ -1311,7 +1309,7 @@ func CheckDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("merge declaration with assignment", edit.ReplaceWithNode(pass.Fset, edit.Range{decl.Pos(), assign.End()}, r))))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
 	return nil, nil
 }
 
@@ -1354,8 +1352,8 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 		// checked x.Type.Results to be nil.
 		report.Report(pass, rst, "redundant return statement", report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CaseClause)(nil)}, fn1)
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn2)
+	code.Preorder(pass, fn1, (*ast.CaseClause)(nil))
+	code.Preorder(pass, fn2, (*ast.FuncDecl)(nil), (*ast.FuncLit)(nil))
 	return nil, nil
 }
 
@@ -1428,7 +1426,7 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -1446,7 +1444,7 @@ func CheckErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("use fmt.Errorf", edits...)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -1473,7 +1471,7 @@ func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 
@@ -1553,7 +1551,7 @@ func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 		}
 		allErrors = append(allErrors, errors...)
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncLit)(nil), (*ast.FuncDecl)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.FuncLit)(nil), (*ast.FuncDecl)(nil))
 	sort.Slice(allErrors, func(i, j int) bool {
 		return allErrors[i].node.Pos() < allErrors[j].node.Pos()
 	})
@@ -1588,7 +1586,7 @@ func CheckGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 
@@ -1676,7 +1674,7 @@ func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.TypeSwitchStmt)(nil))
 	return nil, nil
 }
 
@@ -1699,7 +1697,7 @@ func CheckRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) 
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, call.Args[0], call.Args[0].(*ast.CallExpr).Args[0]))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -1731,7 +1729,7 @@ func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 
@@ -1754,6 +1752,6 @@ func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.SelectStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.SelectStmt)(nil))
 	return nil, nil
 }

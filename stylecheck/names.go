@@ -11,8 +11,6 @@ import (
 	"unicode"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/inspector"
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/report"
@@ -188,7 +186,7 @@ func CheckNames(pass *analysis.Pass) (interface{}, error) {
 		(*ast.StructType)(nil),
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(needle, fn)
+	code.Preorder(pass, fn, needle...)
 	return nil, nil
 }
 

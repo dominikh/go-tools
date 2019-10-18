@@ -852,7 +852,7 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -894,7 +894,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -929,7 +929,7 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 				edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit}, lit)),
 				edit.Fix("use seconds", edit.ReplaceWithPattern(pass, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}, lit))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -947,7 +947,7 @@ func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, call, fmt.Sprintf("should call %s before starting the goroutine to avoid a race", report.Render(pass, call)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.GoStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.GoStmt)(nil))
 	return nil, nil
 }
 
@@ -991,7 +991,7 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, loop, "this loop will spin, using 100%% CPU")
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }
 
@@ -1033,7 +1033,7 @@ func CheckDeferInInfiniteLoop(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, stmt, "defers in this infinite loop will never run")
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }
 
@@ -1057,7 +1057,7 @@ func CheckDubiousDeferInChannelRangeLoop(pass *analysis.Pass) (interface{}, erro
 		}
 		ast.Inspect(loop.Body, fn2)
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))
 	return nil, nil
 }
 
@@ -1153,7 +1153,7 @@ func CheckExec(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, call.Args[Arg("os/exec.Command.name")],
 			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -1179,7 +1179,7 @@ func CheckLoopEmptyDefault(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }
 
@@ -1229,7 +1229,7 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, op, fmt.Sprintf("identical expressions on the left and right side of the '%s' operator", op.Op))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -1288,7 +1288,7 @@ func CheckScopedBreak(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ForStmt)(nil), (*ast.RangeStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.RangeStmt)(nil))
 	return nil, nil
 }
 
@@ -1320,7 +1320,7 @@ func CheckUnsafePrintf(pass *analysis.Pass) (interface{}, error) {
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
 			report.Fixes(edit.Fix(fmt.Sprintf("use %s instead of %s", alt, name), edit.ReplaceWithString(pass.Fset, call.Fun, alt))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -1389,7 +1389,7 @@ func CheckEarlyDefer(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, def, fmt.Sprintf("should check returned error before deferring %s", report.Render(pass, def.Call)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
 	return nil, nil
 }
 
@@ -1458,7 +1458,7 @@ func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BlockStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
 	return nil, nil
 }
 
@@ -1480,7 +1480,7 @@ func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "*&x will be simplified to x. It will not copy x.")
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil), (*ast.StarExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil), (*ast.StarExpr)(nil))
 	return nil, nil
 }
 
@@ -1561,7 +1561,7 @@ func CheckBenchmarkN(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, assign, fmt.Sprintf("should not assign to %s", report.Render(pass, sel)))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
 }
 
@@ -1801,7 +1801,7 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 		}
 
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -2087,7 +2087,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 			return true
 		})
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncDecl)(nil), (*ast.FuncLit)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.FuncDecl)(nil), (*ast.FuncLit)(nil))
 	return nil, nil
 }
 
@@ -2127,7 +2127,7 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 				edit.Fix("use context.TODO", edit.ReplaceWithNode(pass.Fset, call.Args[0], todo)),
 				edit.Fix("use context.Background", edit.ReplaceWithNode(pass.Fset, call.Args[0], bg))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -2143,7 +2143,7 @@ func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("swap arguments", edits...)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -2508,7 +2508,7 @@ func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
 				edit.Fix("remove double negation", edit.ReplaceWithNode(pass.Fset, node, m.State["x"].(ast.Node)))))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.UnaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil))
 	return nil, nil
 }
 
@@ -2558,7 +2558,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.IfStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 
@@ -2668,7 +2668,7 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -2716,7 +2716,7 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -2844,7 +2844,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes(nil, fn)
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ImportSpec)(nil)}, fn2)
+	code.Preorder(pass, fn2, (*ast.ImportSpec)(nil))
 	return nil, nil
 }
 
@@ -3092,7 +3092,7 @@ func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
 }
 
@@ -3219,7 +3219,7 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 			report.Report(pass, group[0], "only the first constant in this group has an explicit type", report.Fixes(edit.Fix("add type to all constants in group", edits...)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.GenDecl)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.GenDecl)(nil))
 	return nil, nil
 }
 
@@ -3312,7 +3312,7 @@ func CheckToLowerToUpperComparison(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, node, "should use strings.EqualFold instead", report.Fixes(edit.Fix("replace with strings.EqualFold", edit.ReplaceWithNode(pass.Fset, node, rn))))
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -3380,7 +3380,7 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.TypeSwitchStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.TypeSwitchStmt)(nil))
 	return nil, nil
 }
 
@@ -3394,7 +3394,7 @@ func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, node, "x = append(y) is equivalent to x = y", report.FilterGenerated())
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -3442,7 +3442,7 @@ func CheckStructTags(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.StructType)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.StructType)(nil))
 	return nil, nil
 }
 

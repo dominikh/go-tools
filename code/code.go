@@ -11,7 +11,9 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/ast/inspector"
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/lint"
@@ -441,4 +443,8 @@ func MayHaveSideEffects(expr ast.Expr) bool {
 func IsGoVersion(pass *analysis.Pass, minor int) bool {
 	version := pass.Analyzer.Flags.Lookup("go").Value.(flag.Getter).Get().(int)
 	return version >= minor
+}
+
+func Preorder(pass *analysis.Pass, fn func(ast.Node), types ...ast.Node) {
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(types, fn)
 }

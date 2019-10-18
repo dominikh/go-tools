@@ -202,7 +202,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 
 		report.Report(pass, assign, fmt.Sprintf("should replace %s with %s%s", report.Render(pass, assign), report.Render(pass, assign.Lhs[0]), suffix))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
 }
 
@@ -478,7 +478,7 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.ValueSpec)(nil), (*ast.FieldList)(nil), (*ast.AssignStmt)(nil)}, fn2)
+	code.Preorder(pass, fn2, (*ast.ValueSpec)(nil), (*ast.FieldList)(nil), (*ast.AssignStmt)(nil))
 	return nil, nil
 }
 
@@ -618,7 +618,7 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(pass.Fset, lit, "http."+s))))
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
@@ -633,7 +633,7 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.SwitchStmt)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.SwitchStmt)(nil))
 	return nil, nil
 }
 
@@ -650,7 +650,7 @@ func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
 				report.Fixes(edit.Fix("un-Yoda-fy", edits...)))
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BinaryExpr)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
 
@@ -668,7 +668,7 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.BasicLit)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.BasicLit)(nil))
 	return nil, nil
 }
 
@@ -707,7 +707,7 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.FuncDecl)(nil)}, fn)
+	code.Preorder(pass, fn, (*ast.FuncDecl)(nil))
 	return nil, nil
 }
 
