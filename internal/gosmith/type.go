@@ -53,21 +53,21 @@ type Type struct {
 
 func (smith *Smith) initTypes() {
 	smith.predefinedTypes = []*Type{
-		&Type{id: "string", class: ClassString, literal: func() string { return "\"foo\"" }},
-		&Type{id: "bool", class: ClassBoolean, literal: func() string { return "false" }},
-		&Type{id: "int", class: ClassNumeric, literal: func() string { return "1" }},
-		&Type{id: "byte", class: ClassNumeric, literal: func() string { return "byte(0)" }},
-		&Type{id: "interface{}", class: ClassInterface, literal: func() string { return "interface{}(nil)" }},
-		&Type{id: "rune", class: ClassNumeric, literal: func() string { return "rune(0)" }},
-		&Type{id: "float32", class: ClassNumeric, literal: func() string { return "float32(1.0)" }},
-		&Type{id: "float64", class: ClassNumeric, literal: func() string { return "1.0" }},
-		&Type{id: "complex64", class: ClassComplex, literal: func() string { return "complex64(1i)" }},
-		&Type{id: "complex128", class: ClassComplex, literal: func() string { return "1i" }},
+		{id: "string", class: ClassString, literal: func() string { return "\"foo\"" }},
+		{id: "bool", class: ClassBoolean, literal: func() string { return "false" }},
+		{id: "int", class: ClassNumeric, literal: func() string { return "1" }},
+		{id: "byte", class: ClassNumeric, literal: func() string { return "byte(0)" }},
+		{id: "interface{}", class: ClassInterface, literal: func() string { return "interface{}(nil)" }},
+		{id: "rune", class: ClassNumeric, literal: func() string { return "rune(0)" }},
+		{id: "float32", class: ClassNumeric, literal: func() string { return "float32(1.0)" }},
+		{id: "float64", class: ClassNumeric, literal: func() string { return "1.0" }},
+		{id: "complex64", class: ClassComplex, literal: func() string { return "complex64(1i)" }},
+		{id: "complex128", class: ClassComplex, literal: func() string { return "1i" }},
 
-		&Type{id: "uint", class: ClassNumeric, literal: func() string { return "uint(1)" }},
-		&Type{id: "uintptr", class: ClassNumeric, literal: func() string { return "uintptr(0)" }},
-		&Type{id: "int16", class: ClassNumeric, literal: func() string { return "int16(1)" }},
-		&Type{id: "error", class: ClassInterface, literal: func() string { return "error(nil)" }},
+		{id: "uint", class: ClassNumeric, literal: func() string { return "uint(1)" }},
+		{id: "uintptr", class: ClassNumeric, literal: func() string { return "uintptr(0)" }},
+		{id: "int16", class: ClassNumeric, literal: func() string { return "int16(1)" }},
+		{id: "error", class: ClassInterface, literal: func() string { return "error(nil)" }},
 	}
 	for _, t := range smith.predefinedTypes {
 		t.utyp = t
