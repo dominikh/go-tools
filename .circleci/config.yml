@@ -25,7 +25,7 @@ gofmt: &gofmt
         at: "/go/"
     - run:
         name: "gofmt"
-        command: "[ -z \"$(gofmt -l .)\" ] || exit $?"
+        command: "[ -z \"$(gofmt -l $(find . -iname '*.go' -not -path '*broken*'))\" ] || exit $?"
 
 test: &test
   steps:
