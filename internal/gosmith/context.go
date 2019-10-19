@@ -125,9 +125,9 @@ func (smith *Smith) writeProgram(dir string) {
 func (smith *Smith) initProgram() {
 	smith.packages[0] = smith.newPackage("main")
 	smith.packages[0].undefFuncs = []*Func{
-		&Func{name: "init", args: []*Type{}, rets: []*Type{}},
-		&Func{name: "init", args: []*Type{}, rets: []*Type{}},
-		&Func{name: "main", args: []*Type{}, rets: []*Type{}},
+		{name: "init", args: []*Type{}, rets: []*Type{}},
+		{name: "init", args: []*Type{}, rets: []*Type{}},
+		{name: "main", args: []*Type{}, rets: []*Type{}},
 	}
 	if !*singlepkg {
 		smith.packages[1] = smith.newPackage("a")
