@@ -492,6 +492,12 @@ and therefore doSomething()'s return value implements both.`,
 		Since: "2019.2",
 	},
 
+	"SA4022": &lint.Documentation{
+		Title: `Comparing the address of a variable against nil`,
+		Text:  `Code such as 'if &x == nil' is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
+		Since: "Unreleased",
+	},
+
 	"SA5000": &lint.Documentation{
 		Title: `Assignment to nil map`,
 		Since: "2017.1",

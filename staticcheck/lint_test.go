@@ -61,6 +61,7 @@ func TestAll(t *testing.T) {
 		"SA4019": {{Dir: "CheckDuplicateBuildConstraints"}},
 		"SA4020": {{Dir: "CheckUnreachableTypeCases"}},
 		"SA4021": {{Dir: "CheckSingleArgAppend"}},
+		"SA4022": {{Dir: "CheckAddressIsNil"}},
 		"SA5000": {{Dir: "CheckNilMaps"}},
 		"SA5001": {{Dir: "CheckEarlyDefer"}},
 		"SA5002": {{Dir: "CheckInfiniteEmptyLoop"}},

@@ -3695,3 +3695,21 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 
 	return nil, nil
 }
+
+var checkAddressIsNilQ = pattern.MustParse(
+	`(BinaryExpr
+		(UnaryExpr "&" _)
+		(Or "==" "!=")
+		(Builtin "nil"))`)
+
+func CheckAddressIsNil(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		_, ok := Match(pass, checkAddressIsNilQ, node)
+		if !ok {
+			return
+		}
+		report.Report(pass, node, "the address of a variable cannot be nil")
+	}
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+	return nil, nil
+}

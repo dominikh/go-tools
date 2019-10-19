@@ -259,4 +259,9 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	// Filtering generated code because it may include empty structs generated from data models.
 	"SA9005": makeCallCheckerAnalyzer(checkNoopMarshal, facts.Generated),
+
+	"SA4022": {
+		Run:      CheckAddressIsNil,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })
