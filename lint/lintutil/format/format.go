@@ -39,7 +39,7 @@ func relativePositionString(pos token.Position) string {
 }
 
 type Statter interface {
-	Stats(total, errors, warnings int)
+	Stats(total, errors, warnings, ignored int)
 }
 
 type Formatter interface {
@@ -125,11 +125,11 @@ func (o *Stylish) Format(p lint.Problem) {
 	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Check, p.Message)
 }
 
-func (o *Stylish) Stats(total, errors, warnings int) {
+func (o *Stylish) Stats(total, errors, warnings, ignored int) {
 	if o.tw != nil {
 		o.tw.Flush()
 		fmt.Fprintln(o.W)
 	}
-	fmt.Fprintf(o.W, " ✖ %d problems (%d errors, %d warnings)\n",
-		total, errors, warnings)
+	fmt.Fprintf(o.W, " ✖ %d problems (%d errors, %d warnings, %d ignored)\n",
+		total, errors, warnings, ignored)
 }

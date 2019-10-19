@@ -269,6 +269,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 		total    int
 		errors   int
 		warnings int
+		ignored  int
 	)
 
 	fail := *fs.Lookup("fail").Value.(*list)
@@ -286,6 +287,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 			continue
 		}
 		if p.Severity == lint.Ignored && !showIgnored {
+			ignored++
 			continue
 		}
 		if shouldExit[p.Check] {
@@ -297,7 +299,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 		f.Format(p)
 	}
 	if f, ok := f.(format.Statter); ok {
-		f.Stats(total, errors, warnings)
+		f.Stats(total, errors, warnings, ignored)
 	}
 	if errors > 0 {
 		exit(1)
