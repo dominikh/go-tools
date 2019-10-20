@@ -7,8 +7,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/code"
 	"honnef.co/go/tools/internal/passes/buildir"
-	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/ir"
+	. "honnef.co/go/tools/lint/lintdsl"
 )
 
 func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
