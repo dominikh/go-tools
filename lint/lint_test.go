@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -53,6 +54,9 @@ func TestErrors(t *testing.T) {
 	})
 
 	t.Run("type error", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("don't deal with Windows line endings or absolute file names")
+		}
 		ps := lintPackage(t, "broken_typeerror")
 		if len(ps) != 1 {
 			t.Fatalf("got %d problems, want 1", len(ps))
@@ -79,6 +83,9 @@ func TestErrors(t *testing.T) {
 	})
 
 	t.Run("parse error", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("don't deal with Windows line endings or absolute file names")
+		}
 		ps := lintPackage(t, "broken_parse")
 		if len(ps) != 1 {
 			t.Fatalf("got %d problems, want 1", len(ps))
