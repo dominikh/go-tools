@@ -92,6 +92,14 @@ func removeAll(path string) error {
 
 // isEphemeralError returns true if err may be resolved by waiting.
 func isEphemeralError(err error) bool {
+	switch werr := err.(type) {
+	case *os.PathError:
+		err = werr.Err
+	case *os.LinkError:
+		err = werr.Err
+	case *os.SyscallError:
+		err = werr.Err
+	}
 	if errno, ok := err.(syscall.Errno); ok {
 		switch errno {
 		case syscall.ERROR_ACCESS_DENIED,
