@@ -331,6 +331,7 @@ func stringify(n Node) string {
 	var parts []string
 	parts = append(parts, v.Type().Name())
 	for i := 0; i < v.NumField(); i++ {
+		//lint:ignore S1025 false positive in staticcheck 2019.2.3
 		parts = append(parts, fmt.Sprintf("%s", v.Field(i)))
 	}
 	return "(" + strings.Join(parts, " ") + ")"
