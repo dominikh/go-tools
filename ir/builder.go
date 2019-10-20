@@ -1302,7 +1302,6 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 		fn.currentBlock = body
 		emitJump(fn, done)
 		heads = append(heads, head)
-		bodies = append(bodies, body)
 		conds = append(conds, nil)
 	}
 
