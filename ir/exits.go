@@ -1,6 +1,5 @@
 package ir
 
-// XXX rename this function, it doesn't build anything
 func (b *builder) buildExits(fn *Function) {
 	if fn.Package().Pkg.Path() == "runtime" {
 		switch fn.Name() {
@@ -80,7 +79,7 @@ func (b *builder) buildExits(fn *Function) {
 		}
 	}
 
-	// XXX don't check that any specific call dominates the exit
+	// TODO(dh): don't check that any specific call dominates the exit
 	// block. instead, check that all calls combined cover every
 	// possible path through the function.
 	for _, u := range fn.Blocks {
@@ -119,7 +118,6 @@ func (b *builder) buildExits(fn *Function) {
 	}
 }
 
-// XXX rename this function, it does not just add unreachables
 func addUnreachables(fn *Function) {
 	for _, b := range fn.Blocks {
 		for i, instr := range b.Instrs {
