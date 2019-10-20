@@ -1184,6 +1184,26 @@ func CheckLoopEmptyDefault(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
+	var isFloat func(T types.Type) bool
+	isFloat = func(T types.Type) bool {
+		switch T := T.Underlying().(type) {
+		case *types.Basic:
+			kind := T.Kind()
+			return kind == types.Float32 || kind == types.Float64
+		case *types.Array:
+			return isFloat(T.Elem())
+		case *types.Struct:
+			for i := 0; i < T.NumFields(); i++ {
+				if !isFloat(T.Field(i).Type()) {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+
 	// TODO(dh): this check ignores the existence of side-effects and
 	// happily flags fn() == fn() – so far, we've had nobody complain
 	// about a false positive, and it's caught several bugs in real
@@ -1192,11 +1212,9 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 		op := node.(*ast.BinaryExpr)
 		switch op.Op {
 		case token.EQL, token.NEQ:
-			if basic, ok := pass.TypesInfo.TypeOf(op.X).Underlying().(*types.Basic); ok {
-				if kind := basic.Kind(); kind == types.Float32 || kind == types.Float64 {
-					// f == f and f != f might be used to check for NaN
-					return
-				}
+			if isFloat(pass.TypesInfo.TypeOf(op.X)) {
+				// f == f and f != f might be used to check for NaN
+				return
 			}
 		case token.SUB, token.QUO, token.AND, token.REM, token.OR, token.XOR, token.AND_NOT,
 			token.LAND, token.LOR, token.LSS, token.GTR, token.LEQ, token.GEQ:
