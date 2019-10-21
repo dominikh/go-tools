@@ -602,24 +602,24 @@ the pointer may be nil and dereferencing it may panic. This is
 commonly a result of improperly ordered code or missing return
 statements. Consider the following examples:
 
-	func fn(x *int) {
-		fmt.Println(*x)
+    func fn(x *int) {
+        fmt.Println(*x)
 
-		// This nil check is equally important for the previous dereference
-		if x != nil {
-			foo(*x)
-		}
-	}
+        // This nil check is equally important for the previous dereference
+        if x != nil {
+            foo(*x)
+        }
+    }
 
-	func TestFoo(t *testing.T) {
-		x := compute()
-		if x == nil {
-			t.Errorf("nil pointer received")
-		}
+    func TestFoo(t *testing.T) {
+        x := compute()
+        if x == nil {
+            t.Errorf("nil pointer received")
+        }
 
-		// t.Errorf does not abort the test, so if x is nil, the next line will panic.
-		foo(*x)
-	}`,
+        // t.Errorf does not abort the test, so if x is nil, the next line will panic.
+        foo(*x)
+    }`,
 		Since: "Unreleased",
 	},
 

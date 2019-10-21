@@ -438,27 +438,27 @@ receives a zero value. Often, the zero value is a suitable value, for example wh
 
 The following
 
-	if _, ok := m["foo"]; ok {
-		m["foo"] = append(m["foo"], "bar")
-	} else {
-		m["foo"] = []string{"bar"}
-	}
+    if _, ok := m["foo"]; ok {
+        m["foo"] = append(m["foo"], "bar")
+    } else {
+        m["foo"] = []string{"bar"}
+    }
 
 can be simplified to
 
-	m["foo"] = append(m["foo"], "bar")
+    m["foo"] = append(m["foo"], "bar")
 
 and
 
-	if _, ok := m2["k"]; ok {
-		m2["k"] += 4
-	} else {
-		m2["k"] = 4
-	}
+    if _, ok := m2["k"]; ok {
+        m2["k"] += 4
+    } else {
+        m2["k"] = 4
+    }
 
 can be simplified to
 
-	m["k"] += 4
+    m["k"] += 4
 `,
 		Since: "Unreleased",
 	},
