@@ -180,7 +180,7 @@ the pattern
 	(Builtin "true")
 
 will match exactly once, on the first use of 'true' in the function.
-Subsequent occurences of 'true' no longer refer to the pre-declared identifier.
+Subsequent occurrences of 'true' no longer refer to the pre-declared identifier.
 
 (Object name) matches an identifier by name, but yields the
 types.Object it refers to.

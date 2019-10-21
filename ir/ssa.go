@@ -1131,7 +1131,7 @@ type Jump struct {
 }
 
 // The Unreachable pseudo-instruction signals that execution cannot
-// continue after the preceeding function call because it terminates
+// continue after the preceding function call because it terminates
 // the process.
 //
 // The instruction acts as a control instruction, jumping to the exit
