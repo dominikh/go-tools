@@ -2340,6 +2340,7 @@ func (b *builder) buildFunction(fn *Function) {
 	optimizeBlocks(fn)
 	buildFakeExits(fn)
 	b.buildExits(fn)
+	b.addUnreachables(fn)
 	fn.finishBody()
 	b.blocksets = fn.blocksets
 }

@@ -118,9 +118,9 @@ func (b *builder) buildExits(fn *Function) {
 	}
 }
 
-func addUnreachables(fn *Function) {
-	for _, b := range fn.Blocks {
-		for i, instr := range b.Instrs {
+func (b *builder) addUnreachables(fn *Function) {
+	for _, bb := range fn.Blocks {
+		for i, instr := range bb.Instrs {
 			if instr, ok := instr.(*Call); ok {
 				var call *Function
 				switch v := instr.Common().Value.(type) {
@@ -132,18 +132,22 @@ func addUnreachables(fn *Function) {
 				if call == nil {
 					continue
 				}
+				if call.Package() == fn.Package() {
+					// make sure we have information on all functions in this package
+					b.buildFunction(call)
+				}
 				if call.WillExit {
 					// This call will cause the process to terminate.
 					// Remove remaining instructions in the block and
 					// replace any control flow with Unreachable.
-					for _, succ := range b.Succs {
-						succ.removePred(b)
+					for _, succ := range bb.Succs {
+						succ.removePred(bb)
 					}
-					b.Succs = b.Succs[:0]
+					bb.Succs = bb.Succs[:0]
 
-					b.Instrs = b.Instrs[:i+1]
-					b.emit(new(Unreachable))
-					addEdge(b, fn.Exit)
+					bb.Instrs = bb.Instrs[:i+1]
+					bb.emit(new(Unreachable))
+					addEdge(bb, fn.Exit)
 					break
 				} else if call.WillUnwind {
 					// This call will cause the goroutine to terminate
@@ -151,14 +155,14 @@ func addUnreachables(fn *Function) {
 					// runtime.Goexit). Remove remaining instructions
 					// in the block and replace any control flow with
 					// an unconditional jump to the exit block.
-					for _, succ := range b.Succs {
-						succ.removePred(b)
+					for _, succ := range bb.Succs {
+						succ.removePred(bb)
 					}
-					b.Succs = b.Succs[:0]
+					bb.Succs = bb.Succs[:0]
 
-					b.Instrs = b.Instrs[:i+1]
-					b.emit(new(Jump))
-					addEdge(b, fn.Exit)
+					bb.Instrs = bb.Instrs[:i+1]
+					bb.emit(new(Jump))
+					addEdge(bb, fn.Exit)
 					break
 				}
 			}

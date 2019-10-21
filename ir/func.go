@@ -556,7 +556,6 @@ func (f *Function) finishBody() {
 	}
 	f.Locals = f.Locals[:j]
 
-	addUnreachables(f)
 	optimizeBlocks(f)
 	buildReferrers(f)
 	buildDomTree(f)
