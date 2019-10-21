@@ -1448,6 +1448,9 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 
 	entry := fn.currentBlock
 	done := fn.newBasicBlock("done")
+	if label != nil {
+		label._break = done
+	}
 
 	// set up type switch and constant switch, populate their conditions
 	tswtch := &TypeSwitch{
