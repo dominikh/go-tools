@@ -82,6 +82,8 @@ func (b *builder) buildExits(fn *Function) {
 	// TODO(dh): don't check that any specific call dominates the exit
 	// block. instead, check that all calls combined cover every
 	// possible path through the function.
+	exits := NewBlockSet(len(fn.Blocks))
+	unwinds := NewBlockSet(len(fn.Blocks))
 	for _, u := range fn.Blocks {
 		for _, instr := range u.Instrs {
 			if instr, ok := instr.(CallInstruction); ok {
@@ -113,19 +115,57 @@ func (b *builder) buildExits(fn *Function) {
 				if call.Package() == fn.Package() {
 					b.buildFunction(call)
 				}
-				if call.WillExit && u.Dominates(fn.Exit) {
-					// the called function terminates the process, and
-					// every path through the function has to go
-					// through here.
-					fn.WillExit = true
-					return
-				} else if call.WillUnwind && u.Dominates(fn.Exit) {
-					// the called function unwinds, and every path
-					// through the function has to go through here.
-					fn.WillUnwind = true
-					return
+				dom := u.Dominates(fn.Exit)
+				if call.WillExit {
+					if dom {
+						fn.WillExit = true
+						return
+					}
+					exits.Add(u)
+				} else if call.WillUnwind {
+					if dom {
+						fn.WillUnwind = true
+						return
+					}
+					unwinds.Add(u)
 				}
 			}
+		}
+	}
+
+	// depth-first search trying to find a path to the exit block that
+	// doesn't cross any of the blacklisted blocks
+	seen := NewBlockSet(len(fn.Blocks))
+	var findPath func(root *BasicBlock, bl *BlockSet) bool
+	findPath = func(root *BasicBlock, bl *BlockSet) bool {
+		if root == fn.Exit {
+			return true
+		}
+		if seen.Has(root) {
+			return false
+		}
+		if bl.Has(root) {
+			return false
+		}
+		seen.Add(root)
+		for _, succ := range root.Succs {
+			if findPath(succ, bl) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if exits.Num() > 0 {
+		if !findPath(fn.Blocks[0], exits) {
+			fn.WillExit = true
+			return
+		}
+	}
+	if unwinds.Num() > 0 {
+		if !findPath(fn.Blocks[0], unwinds) {
+			fn.WillUnwind = true
+			return
 		}
 	}
 }

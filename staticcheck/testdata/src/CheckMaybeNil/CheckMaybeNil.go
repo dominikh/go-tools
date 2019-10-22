@@ -1,5 +1,7 @@
 package pkg
 
+import "os"
+
 func fn1(x *int) {
 	_ = *x // want `possible nil pointer dereference`
 	if x != nil {
@@ -73,3 +75,34 @@ func fn9(x *int) {
 }
 
 func gen() *int { return nil }
+
+func die1(b bool) {
+	if b {
+		println("yay")
+		os.Exit(0)
+	} else {
+		println("nay")
+		os.Exit(1)
+	}
+}
+
+func die2(b bool) {
+	if b {
+		println("yay")
+		os.Exit(0)
+	}
+}
+
+func fn10(x *int) {
+	if x == nil {
+		die1(true)
+	}
+	_ = *x
+}
+
+func fn11(x *int) {
+	if x == nil {
+		die2(true)
+	}
+	_ = *x // want `possible nil pointer dereference`
+}

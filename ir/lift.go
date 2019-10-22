@@ -420,6 +420,7 @@ func simplifyPhis(newPhis newPhiMap) {
 type BlockSet struct {
 	idx    int
 	values []bool
+	count  int
 }
 
 func NewBlockSet(size int) *BlockSet {
@@ -428,6 +429,16 @@ func NewBlockSet(size int) *BlockSet {
 
 func (s *BlockSet) Set(s2 *BlockSet) {
 	copy(s.values, s2.values)
+	s.count = 0
+	for _, v := range s.values {
+		if v {
+			s.count++
+		}
+	}
+}
+
+func (s *BlockSet) Num() int {
+	return s.count
 }
 
 func (s *BlockSet) Has(b *BasicBlock) bool {
@@ -442,6 +453,7 @@ func (s *BlockSet) Add(b *BasicBlock) bool {
 	if s.values[b.Index] {
 		return false
 	}
+	s.count++
 	s.values[b.Index] = true
 	s.idx = b.Index
 
@@ -452,6 +464,7 @@ func (s *BlockSet) Clear() {
 	for j := range s.values {
 		s.values[j] = false
 	}
+	s.count = 0
 }
 
 // take removes an arbitrary element from a set s and
@@ -462,7 +475,7 @@ func (s *BlockSet) Take() int {
 		if s.values[i] {
 			s.values[i] = false
 			s.idx = i
-			//              s.entries--
+			s.count--
 			return i
 		}
 	}
@@ -472,6 +485,7 @@ func (s *BlockSet) Take() int {
 		if s.values[i] {
 			s.values[i] = false
 			s.idx = i
+			s.count--
 			return i
 		}
 	}
