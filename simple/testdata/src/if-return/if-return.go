@@ -86,3 +86,10 @@ func fn12() bool {
 	}
 	return true
 }
+
+func fn13(a, b int) bool {
+	if a != b { // want `should use 'return a == b' instead of 'if a != b`
+		return false
+	}
+	return true
+}

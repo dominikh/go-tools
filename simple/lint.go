@@ -416,13 +416,14 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		cond := m1.State["cond"].(ast.Expr)
+		origCond := cond
 		if ret1.Name == "false" {
 			cond = negate(cond)
 		}
 		report.Report(pass, n1,
 			fmt.Sprintf("should use 'return %s' instead of 'if %s { return %s }; return %s'",
 				report.Render(pass, cond),
-				report.Render(pass, cond), report.Render(pass, ret1), report.Render(pass, ret2)),
+				report.Render(pass, origCond), report.Render(pass, ret1), report.Render(pass, ret2)),
 			report.FilterGenerated())
 	}
 	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
