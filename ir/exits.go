@@ -90,9 +90,21 @@ func (b *builder) buildExits(fn *Function) {
 				default:
 					continue
 				}
-				call := instr.Common().StaticCallee()
-				if call == nil {
-					// not a static call, give up
+				if instr.Common().IsInvoke() {
+					// give up
+					return
+				}
+				var call *Function
+				switch instr.Common().Value.(type) {
+				case *Function, *MakeClosure:
+					call = instr.Common().StaticCallee()
+				case *Builtin:
+					// the only builtins that affect control flow are
+					// panic and recover, and we've already handled
+					// those
+					continue
+				default:
+					// dynamic dispatch
 					return
 				}
 				// buildFunction is idempotent. if we're part of a
