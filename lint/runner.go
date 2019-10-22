@@ -315,6 +315,13 @@ func (ac *analysisAction) report(pass *analysis.Pass, d analysis.Diagnostic) {
 		Message: d.Message,
 		Check:   pass.Analyzer.Name,
 	}
+	for _, r := range d.Related {
+		p.Related = append(p.Related, Related{
+			Pos:     DisplayPosition(pass.Fset, r.Pos),
+			End:     DisplayPosition(pass.Fset, r.End),
+			Message: r.Message,
+		})
+	}
 	ac.problems = append(ac.problems, p)
 }
 

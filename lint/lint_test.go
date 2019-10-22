@@ -73,7 +73,7 @@ func TestErrors(t *testing.T) {
 			Check:    "compile",
 			Severity: 0,
 		}
-		if ps[0] != want {
+		if !ps[0].Equal(want) {
 			t.Errorf("got %#v, want %#v", ps[0], want)
 		}
 	})
@@ -103,7 +103,7 @@ func TestErrors(t *testing.T) {
 			Check:    "compile",
 			Severity: 0,
 		}
-		if ps[0] != want {
+		if !ps[0].Equal(want) {
 			t.Errorf("got %#v, want %#v", ps[0], want)
 		}
 	})

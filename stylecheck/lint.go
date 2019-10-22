@@ -17,7 +17,6 @@ import (
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/ir"
-	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/report"
@@ -104,12 +103,12 @@ func CheckDuplicatedImports(pass *analysis.Pass) (interface{}, error) {
 			}
 			// If there's more than one import per path, we flag that
 			if len(value) > 1 {
-				s := fmt.Sprintf("duplicate import %s", path)
+				s := fmt.Sprintf("package %s is being imported more than once", path)
+				opts := []report.Option{report.FilterGenerated()}
 				for _, imp := range value[1:] {
-					pos := lint.DisplayPosition(pass.Fset, imp.Pos())
-					s += "\n\t" + "also imported at " + pos.String()
+					opts = append(opts, report.Related(imp, fmt.Sprintf("other import of %s", path)))
 				}
-				report.Report(pass, value[0], s, report.FilterGenerated())
+				report.Report(pass, value[0], s, opts...)
 			}
 		}
 	}

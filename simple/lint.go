@@ -18,7 +18,6 @@ import (
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
-	"honnef.co/go/tools/lint"
 	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/report"
@@ -1652,25 +1651,24 @@ func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 			canSuggestFix = canSuggestFix && !hasUnrelatedAssertion
 		}
 		if len(allOffenders) != 0 {
-			at := ""
+			var opts []report.Option
 			for _, offender := range allOffenders {
-				pos := lint.DisplayPosition(pass.Fset, offender.Pos())
-				at += "\n\t" + pos.String()
+				opts = append(opts, report.Related(offender, "could eliminate this type assertion"))
 			}
+			opts = append(opts, report.FilterGenerated())
 
-			msg := fmt.Sprintf("assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate the following type assertions:%s",
-				report.Render(pass, ident), report.Render(pass, ident), at)
+			msg := fmt.Sprintf("assigning the result of this type assertion to a variable (switch %s := %s.(type)) could eliminate type assertions in switch cases",
+				report.Render(pass, ident), report.Render(pass, ident))
 			if canSuggestFix {
 				var edits []analysis.TextEdit
 				edits = append(edits, edit.ReplaceWithPattern(pass, checkSimplifyTypeSwitchR, m.State, expr))
 				for _, offender := range allOffenders {
 					edits = append(edits, edit.ReplaceWithNode(pass.Fset, offender, offender.X))
 				}
-				report.Report(pass, expr, msg,
-					report.FilterGenerated(),
-					report.Fixes(edit.Fix("simplify type switch", edits...)))
+				opts = append(opts, report.Fixes(edit.Fix("simplify type switch", edits...)))
+				report.Report(pass, expr, msg, opts...)
 			} else {
-				report.Report(pass, expr, msg, report.FilterGenerated())
+				report.Report(pass, expr, msg, opts...)
 			}
 		}
 	}

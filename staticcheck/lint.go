@@ -3669,7 +3669,7 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		maybeNil := map[ir.Value]struct{}{}
+		maybeNil := map[ir.Value]ir.Instruction{}
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				if instr, ok := instr.(*ir.BinOp); ok {
@@ -3679,7 +3679,7 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 					} else if isNilConst(instr.Y) {
 						ptr = instr.X
 					}
-					maybeNil[ptr] = struct{}{}
+					maybeNil[ptr] = instr
 				}
 			}
 		}
@@ -3703,8 +3703,9 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 						// these cannot be nil
 						continue
 					}
-					if _, ok := maybeNil[ptr]; ok {
-						report.Report(pass, instr, "possible nil pointer dereference")
+					if r, ok := maybeNil[ptr]; ok {
+						report.Report(pass, instr, "possible nil pointer dereference",
+							report.Related(r, "check suggesting this pointer can be nil"))
 					}
 				}
 			}

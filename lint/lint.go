@@ -121,6 +121,21 @@ type Problem struct {
 	Message  string
 	Check    string
 	Severity Severity
+	Related  []Related
+}
+
+type Related struct {
+	Pos     token.Position
+	End     token.Position
+	Message string
+}
+
+func (p Problem) Equal(o Problem) bool {
+	return p.Pos == o.Pos &&
+		p.End == o.End &&
+		p.Message == o.Message &&
+		p.Check == o.Check &&
+		p.Severity == o.Severity
 }
 
 func (p *Problem) String() string {
@@ -393,7 +408,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	for i, p := range problems[1:] {
 		// We may encounter duplicate problems because one file
 		// can be part of many packages.
-		if problems[i] != p {
+		if !problems[i].Equal(p) {
 			out = append(out, p)
 		}
 	}

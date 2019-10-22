@@ -2,13 +2,13 @@
 package pkg
 
 import (
-	"fmt" // want `duplicate import "fmt"`
+	"fmt" // want `package "fmt" is being imported more than once`
 	fmt1 "fmt"
 	fmt2 "fmt"
 
 	fine "net/http"
 
-	"os" // want `duplicate import "os"`
+	"os" // want `package "os" is being imported more than once`
 	os1 "os"
 
 	"C"
