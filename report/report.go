@@ -18,6 +18,7 @@ type Options struct {
 	ShortRange      bool
 	FilterGenerated bool
 	Fixes           []analysis.SuggestedFix
+	Related         []analysis.RelatedInformation
 }
 
 type fullPositioner interface {
@@ -45,8 +46,19 @@ func Fixes(fixes ...analysis.SuggestedFix) Option {
 	}
 }
 
-func Report(pass *analysis.Pass, node lint.Positioner, message string, opts ...Option) {
-	var start, end token.Pos
+func Related(node lint.Positioner, message string) Option {
+	return func(opts *Options) {
+		start, end := nodeRange(node)
+		r := analysis.RelatedInformation{
+			Pos:     start,
+			End:     end,
+			Message: message,
+		}
+		opts.Related = append(opts.Related, r)
+	}
+}
+
+func nodeRange(node lint.Positioner) (start, end token.Pos) {
 	if irnode, ok := node.(ir.Node); ok {
 		if refs := irnode.Referrers(); refs != nil {
 			for _, ref := range *refs {
@@ -65,7 +77,11 @@ func Report(pass *analysis.Pass, node lint.Positioner, message string, opts ...O
 		start = node.Pos()
 		end = token.NoPos
 	}
+	return start, end
+}
 
+func Report(pass *analysis.Pass, node lint.Positioner, message string, opts ...Option) {
+	start, end := nodeRange(node)
 	cfg := &Options{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -95,6 +111,7 @@ func Report(pass *analysis.Pass, node lint.Positioner, message string, opts ...O
 		End:            end,
 		Message:        message,
 		SuggestedFixes: cfg.Fixes,
+		Related:        cfg.Related,
 	}
 	pass.Report(d)
 }
