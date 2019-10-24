@@ -1421,6 +1421,11 @@ func selectorX(sel *ast.SelectorExpr) ast.Node {
 }
 
 func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
+	if pass.Pkg.Path() == "sync_test" {
+		// exception for the sync package's tests
+		return nil, nil
+	}
+
 	// Initially it might seem like this check would be easier to
 	// implement using IR. After all, we're only checking for two
 	// consecutive method calls. In reality, however, there may be any
@@ -2780,6 +2785,10 @@ fnLoop:
 					continue
 				}
 				if _, ok := pure[callee.Object().(*types.Func)]; ok {
+					if pass.Pkg.Path() == "fmt_test" && callee.Object().(*types.Func).FullName() == "fmt.Sprintf" {
+						// special case for benchmarks in the fmt package
+						continue
+					}
 					report.Report(pass, ins, fmt.Sprintf("%s is a pure function but its return value is ignored", callee.Name()))
 				}
 			}
@@ -3465,6 +3474,12 @@ func CheckStructTags(pass *analysis.Pass) (interface{}, error) {
 }
 
 func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
+	if pass.Pkg.Path() == "encoding/json" || pass.Pkg.Path() == "encoding/json_test" {
+		// don't flag malformed JSON tags in the encoding/json
+		// package; it knows what it is doing, and it is testing
+		// itself.
+		return
+	}
 	//lint:ignore SA9003 TODO(dh): should we flag empty tags?
 	if len(tag) == 0 {
 	}

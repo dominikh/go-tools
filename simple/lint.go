@@ -7,6 +7,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -152,6 +153,10 @@ var (
 )
 
 func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
+	if pass.Pkg.Path() == "bytes" || pass.Pkg.Path() == "bytes_test" {
+		// The bytes package can use itself however it wants
+		return nil, nil
+	}
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, checkBytesBufferConversionsQ, node)
 		if !ok {
@@ -268,6 +273,10 @@ var (
 )
 
 func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
+	if pass.Pkg.Path() == "bytes" || pass.Pkg.Path() == "bytes_test" {
+		// the bytes package is free to use bytes.Compare as it sees fit
+		return nil, nil
+	}
 	fn := func(node ast.Node) {
 		m, ok := Match(pass, checkBytesCompareQ, node)
 		if !ok {
@@ -1160,6 +1169,10 @@ var (
 
 func CheckMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
+		if pass.Pkg.Path() == "runtime_test" && filepath.Base(pass.Fset.Position(node.Pos()).Filename) == "map_test.go" {
+			// special case of runtime tests testing map creation
+			return
+		}
 		if m, ok := Match(pass, checkMakeLenCapQ1, node); ok {
 			T := m.State["typ"].(ast.Expr)
 			size := m.State["size"].(ast.Node)

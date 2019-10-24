@@ -500,6 +500,11 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 						continue
 					}
 
+					if pass.Pkg.Path() == "net/http" && strings.HasPrefix(name.Name, "http2err") {
+						// special case for internal variable names of
+						// bundled HTTP 2 code in net/http
+						continue
+					}
 					prefix := "err"
 					if name.IsExported() {
 						prefix = "Err"
