@@ -3098,6 +3098,31 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
+	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
+
+	pureCall := func(e ast.Expr) bool {
+		call, ok := e.(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		if id, ok := call.Fun.(*ast.Ident); ok {
+			if fn, ok := pass.TypesInfo.ObjectOf(id).(*types.Func); ok {
+				_, ok = pure[fn]
+				return ok
+			}
+		}
+		return false
+	}
+	impureIndexing := func(e ast.Expr) bool {
+		idx, ok := e.(*ast.IndexExpr)
+		if !ok {
+			return false
+		}
+		if pureCall(idx.Index) {
+			return false
+		}
+		return code.MayHaveSideEffects(idx)
+	}
 	fn := func(node ast.Node) {
 		assign := node.(*ast.AssignStmt)
 		if assign.Tok != token.ASSIGN || len(assign.Lhs) != len(assign.Rhs) {
@@ -3108,6 +3133,10 @@ func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
 			if reflect.TypeOf(lhs) != reflect.TypeOf(rhs) {
 				continue
 			}
+			if impureIndexing(lhs) || impureIndexing(rhs) {
+				continue
+			}
+
 			rlh := report.Render(pass, lhs)
 			rrh := report.Render(pass, rhs)
 			if rlh == rrh {

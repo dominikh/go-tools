@@ -15,3 +15,22 @@ func fn(x int) {
 		println(x)
 	}()
 }
+
+func fn1() {
+	var (
+		x  []byte
+		ch chan int
+	)
+	x[pure()] = x[pure()] // want `self-assignment`
+	x[impure()] = x[impure()]
+	x[<-ch] = x[<-ch]
+}
+
+func pure() int {
+	return 0
+}
+
+func impure() int {
+	println()
+	return 0
+}
