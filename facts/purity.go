@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/functions"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/ir"
 )
@@ -84,10 +83,6 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 			}
 		}()
 
-		if functions.IsStub(fn) {
-			return false
-		}
-
 		if _, ok := pureStdlib[fn.Object().(*types.Func).FullName()]; ok {
 			return true
 		}
@@ -105,6 +100,7 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
+		// Don't consider external functions pure.
 		if fn.Blocks == nil {
 			return false
 		}

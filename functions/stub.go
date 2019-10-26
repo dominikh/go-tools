@@ -8,6 +8,10 @@ import (
 // considered a stub if it has no instructions or if all it does is
 // return a constant value.
 func IsStub(fn *ir.Function) bool {
+	// Don't consider external functions stubs.
+	if fn.Blocks == nil {
+		return false
+	}
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr.(type) {

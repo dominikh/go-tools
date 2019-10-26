@@ -2779,6 +2779,11 @@ fnLoop:
 					// TODO(dh): support anonymous functions
 					continue
 				}
+				// Ignore functions that we think aren't implemented yet or may
+				// be guarded by build tags. Avoids correct but useless reports.
+				if functions.IsStub(callee) {
+					continue
+				}
 				if _, ok := pure[callee.Object().(*types.Func)]; ok {
 					report.Report(pass, ins, fmt.Sprintf("%s is a pure function but its return value is ignored", callee.Name()))
 				}

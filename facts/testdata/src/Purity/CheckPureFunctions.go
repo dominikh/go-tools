@@ -7,8 +7,8 @@ func bar(a, b int) int {
 }
 
 func empty()            {}
-func stubPointer() *int { return nil }
-func stubInt() int      { return 0 }
+func stubPointer() *int { return nil } // want stubPointer:"is pure"
+func stubInt() int      { return 0 }   // want stubInt:"is pure"
 
 func fn3() {
 	empty()
