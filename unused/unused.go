@@ -1143,7 +1143,7 @@ func (g *Graph) entry(pkg *pkg) {
 		if fn.Object() != nil {
 			ctx.see(fn.Object())
 		}
-		node := fn.Syntax()
+		node := fn.Source()
 		if node == nil {
 			continue
 		}
@@ -1331,8 +1331,8 @@ func (g *Graph) entry(pkg *pkg) {
 				// (9.8) runtime functions that may be called from user code via the compiler
 				ctx.use(mObj, nil, edgeRuntimeFunction)
 			}
-			if m.Syntax() != nil {
-				doc := m.Syntax().(*ast.FuncDecl).Doc
+			if m.Source() != nil {
+				doc := m.Source().(*ast.FuncDecl).Doc
 				if doc != nil {
 					for _, cmt := range doc.List {
 						if strings.HasPrefix(cmt.Text, "//go:cgo_export_") {

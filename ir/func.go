@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/format"
 	"go/token"
 	"go/types"
 	"io"
@@ -60,7 +61,8 @@ func (b *BasicBlock) String() string {
 // emit appends an instruction to the current basic block.
 // If the instruction defines a Value, it is returned.
 //
-func (b *BasicBlock) emit(i Instruction) Value {
+func (b *BasicBlock) emit(i Instruction, source ast.Node) Value {
+	i.setSource(source)
 	i.setBlock(b)
 	b.Instrs = append(b.Instrs, i)
 	v, _ := i.(Value)
@@ -203,7 +205,7 @@ func (f *Function) labelledBlock(label *ast.Ident) *lblock {
 // addParam adds a (non-escaping) parameter to f.Params of the
 // specified name, type and source position.
 //
-func (f *Function) addParam(name string, typ types.Type, pos token.Pos) *Parameter {
+func (f *Function) addParam(name string, typ types.Type, source ast.Node) *Parameter {
 	var b *BasicBlock
 	if len(f.Blocks) > 0 {
 		b = f.Blocks[0]
@@ -213,7 +215,7 @@ func (f *Function) addParam(name string, typ types.Type, pos token.Pos) *Paramet
 	}
 	v.setBlock(b)
 	v.setType(typ)
-	v.setPos(pos)
+	v.setSource(source)
 	f.Params = append(f.Params, v)
 	if b != nil {
 		// There may be no blocks if this function has no body. We
@@ -224,12 +226,12 @@ func (f *Function) addParam(name string, typ types.Type, pos token.Pos) *Paramet
 	return v
 }
 
-func (f *Function) addParamObj(obj types.Object) *Parameter {
+func (f *Function) addParamObj(obj types.Object, source ast.Node) *Parameter {
 	name := obj.Name()
 	if name == "" {
 		name = fmt.Sprintf("arg%d", len(f.Params))
 	}
-	param := f.addParam(name, obj.Type(), obj.Pos())
+	param := f.addParam(name, obj.Type(), source)
 	param.object = obj
 	return param
 }
@@ -238,15 +240,15 @@ func (f *Function) addParamObj(obj types.Object) *Parameter {
 // stack; the function body will load/store the spilled location.
 // Subsequent lifting will eliminate spills where possible.
 //
-func (f *Function) addSpilledParam(obj types.Object) {
-	param := f.addParamObj(obj)
+func (f *Function) addSpilledParam(obj types.Object, source ast.Node) {
+	param := f.addParamObj(obj, source)
 	spill := &Alloc{Comment: obj.Name()}
 	spill.setType(types.NewPointer(obj.Type()))
-	spill.setPos(obj.Pos())
+	spill.source = source
 	f.objects[obj] = spill
 	f.Locals = append(f.Locals, spill)
-	f.emit(spill)
-	emitStore(f, spill, param, 0)
+	f.emit(spill, source)
+	emitStore(f, spill, param, source)
 	// f.emit(&Store{Addr: spill, Val: param})
 }
 
@@ -284,12 +286,12 @@ func (f *Function) exitBlock() {
 	results := make([]Value, len(ret))
 	// Run function calls deferred in this
 	// function when explicitly returning from it.
-	f.emit(new(RunDefers))
+	f.emit(new(RunDefers), nil)
 	for i, r := range ret {
-		results[i] = emitLoad(f, r)
+		results[i] = emitLoad(f, r, nil)
 	}
 
-	f.emit(&Return{Results: results})
+	f.emit(&Return{Results: results}, nil)
 	f.currentBlock = old
 }
 
@@ -307,11 +309,11 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 	if recv != nil {
 		for _, field := range recv.List {
 			for _, n := range field.Names {
-				f.addSpilledParam(f.Pkg.info.Defs[n])
+				f.addSpilledParam(f.Pkg.info.Defs[n], n)
 			}
 			// Anonymous receiver?  No need to spill.
 			if field.Names == nil {
-				f.addParamObj(f.Signature.Recv())
+				f.addParamObj(f.Signature.Recv(), field)
 			}
 		}
 	}
@@ -321,11 +323,11 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 		n := len(f.Params) // 1 if has recv, 0 otherwise
 		for _, field := range functype.Params.List {
 			for _, n := range field.Names {
-				f.addSpilledParam(f.Pkg.info.Defs[n])
+				f.addSpilledParam(f.Pkg.info.Defs[n], n)
 			}
 			// Anonymous parameter?  No need to spill.
 			if field.Names == nil {
-				f.addParamObj(f.Signature.Params().At(len(f.Params) - n))
+				f.addParamObj(f.Signature.Params().At(len(f.Params)-n), field)
 			}
 		}
 	}
@@ -342,7 +344,8 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 		if len(f.namedResults) == 0 {
 			sig := f.Signature.Results()
 			for i := 0; i < sig.Len(); i++ {
-				v := f.addLocal(sig.At(i).Type(), sig.At(i).Pos())
+				// XXX position information
+				v := f.addLocal(sig.At(i).Type(), nil)
 				v.Comment = fmt.Sprintf("ret.%d", i)
 				f.implicitResults = append(f.implicitResults, v)
 			}
@@ -537,11 +540,6 @@ func (f *Function) finishBody() {
 	f.currentBlock = nil
 	f.lblocks = nil
 
-	// Don't pin the AST in memory (except in debug mode).
-	if n := f.syntax; n != nil && !f.debugInfo() {
-		f.syntax = extentNode{n.Pos(), n.End()}
-	}
-
 	// Remove from f.Locals any Allocs that escape to the heap.
 	j := 0
 	for _, l := range f.Locals {
@@ -652,26 +650,25 @@ func (f *Function) debugInfo() bool {
 // returns it.  Its name and type are taken from obj.  Subsequent
 // calls to f.lookup(obj) will return the same local.
 //
-func (f *Function) addNamedLocal(obj types.Object) *Alloc {
-	l := f.addLocal(obj.Type(), obj.Pos())
+func (f *Function) addNamedLocal(obj types.Object, source ast.Node) *Alloc {
+	l := f.addLocal(obj.Type(), source)
 	l.Comment = obj.Name()
 	f.objects[obj] = l
 	return l
 }
 
 func (f *Function) addLocalForIdent(id *ast.Ident) *Alloc {
-	return f.addNamedLocal(f.Pkg.info.Defs[id])
+	return f.addNamedLocal(f.Pkg.info.Defs[id], id)
 }
 
 // addLocal creates an anonymous local variable of type typ, adds it
 // to function f and returns it.  pos is the optional source location.
 //
-func (f *Function) addLocal(typ types.Type, pos token.Pos) *Alloc {
+func (f *Function) addLocal(typ types.Type, source ast.Node) *Alloc {
 	v := &Alloc{}
 	v.setType(types.NewPointer(typ))
-	v.setPos(pos)
 	f.Locals = append(f.Locals, v)
-	f.emit(v)
+	f.emit(v, source)
 	return v
 }
 
@@ -697,7 +694,6 @@ func (f *Function) lookup(obj types.Object, escaping bool) Value {
 	v := &FreeVar{
 		name:   obj.Name(),
 		typ:    outer.Type(),
-		pos:    outer.Pos(),
 		outer:  outer,
 		parent: f,
 	}
@@ -707,8 +703,8 @@ func (f *Function) lookup(obj types.Object, escaping bool) Value {
 }
 
 // emit emits the specified instruction to function f.
-func (f *Function) emit(instr Instruction) Value {
-	return f.currentBlock.emit(instr)
+func (f *Function) emit(instr Instruction, source ast.Node) Value {
+	return f.currentBlock.emit(instr, source)
 }
 
 // RelString returns the full name of this function, qualified by
@@ -870,6 +866,8 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 		if false { // CFG debugging
 			fmt.Fprintf(buf, "\t# CFG: %s --> %s --> %s\n", b.Preds, b, b.Succs)
 		}
+
+		buf2 := &bytes.Buffer{}
 		for _, instr := range b.Instrs {
 			buf.WriteString("\t")
 			switch v := instr.(type) {
@@ -886,6 +884,27 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 				buf.WriteString(instr.String())
 			}
 			buf.WriteString("\n")
+
+			if f.Prog.mode&PrintSource != 0 {
+				if s := instr.Source(); s != nil {
+					buf2.Reset()
+					format.Node(buf2, f.Prog.Fset, s)
+					for {
+						line, err := buf2.ReadString('\n')
+						if len(line) == 0 {
+							break
+						}
+						buf.WriteString("\t\t> ")
+						buf.WriteString(line)
+						if line[len(line)-1] != '\n' {
+							buf.WriteString("\n")
+						}
+						if err != nil {
+							break
+						}
+					}
+				}
+			}
 		}
 		buf.WriteString("\n")
 	}
@@ -925,21 +944,11 @@ func (prog *Program) NewFunction(name string, sig *types.Signature, provenance s
 	return &Function{Prog: prog, name: name, Signature: sig, Synthetic: provenance}
 }
 
+//lint:ignore U1000 we may make use of this for functions loaded from export data
 type extentNode [2]token.Pos
 
 func (n extentNode) Pos() token.Pos { return n[0] }
 func (n extentNode) End() token.Pos { return n[1] }
-
-// Syntax returns an ast.Node whose Pos/End methods provide the
-// lexical extent of the function if it was defined by Go source code
-// (f.Synthetic==""), or nil otherwise.
-//
-// If f was built with debug information (see Package.SetDebugRef),
-// the result is the *ast.FuncDecl or *ast.FuncLit that declared the
-// function.  Otherwise, it is an opaque Node providing only position
-// information; this avoids pinning the AST in memory.
-//
-func (f *Function) Syntax() ast.Node { return f.syntax }
 
 func (f *Function) initHTML(name string) {
 	if name == "" {

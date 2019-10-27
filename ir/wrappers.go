@@ -22,7 +22,6 @@ package ir
 import (
 	"fmt"
 
-	"go/token"
 	"go/types"
 )
 
@@ -72,18 +71,17 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 		Signature: sig,
 		Synthetic: description,
 		Prog:      prog,
-		pos:       obj.Pos(),
 	}
 	fn.initHTML(prog.PrintFunc)
 	fn.startBody()
-	fn.addSpilledParam(recv)
+	fn.addSpilledParam(recv, nil)
 	createParams(fn, start)
 
 	indices := sel.Index()
 
 	var v Value = fn.Locals[0] // spilled receiver
 	if isPointer(sel.Recv()) {
-		v = emitLoad(fn, v)
+		v = emitLoad(fn, v, nil)
 
 		// For simple indirection wrappers, perform an informative nil-check:
 		// "value method (T).f called using nil *T pointer"
@@ -101,7 +99,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 				emitConst(fn, stringConst(sel.Obj().Name())),
 			}
 			c.setType(v.Type())
-			v = fn.emit(&c)
+			v = fn.emit(&c, nil)
 		}
 	}
 
@@ -113,7 +111,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 	// Load) in preference to value extraction (Field possibly
 	// preceded by Load).
 
-	v = emitImplicitSelections(fn, v, indices[:len(indices)-1], token.NoPos)
+	v = emitImplicitSelections(fn, v, indices[:len(indices)-1], nil)
 
 	// Invariant: v is a pointer, either
 	//   value of implicit *C field, or
@@ -122,18 +120,18 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 	var c Call
 	if r := recvType(obj); !isInterface(r) { // concrete method
 		if !isPointer(r) {
-			v = emitLoad(fn, v)
+			v = emitLoad(fn, v, nil)
 		}
 		c.Call.Value = prog.declaredFunc(obj)
 		c.Call.Args = append(c.Call.Args, v)
 	} else {
 		c.Call.Method = obj
-		c.Call.Value = emitLoad(fn, v)
+		c.Call.Value = emitLoad(fn, v, nil)
 	}
 	for _, arg := range fn.Params[1:] {
 		c.Call.Args = append(c.Call.Args, arg)
 	}
-	emitTailCall(fn, &c)
+	emitTailCall(fn, &c, nil)
 	fn.finishBody()
 	return fn
 }
@@ -145,7 +143,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 func createParams(fn *Function, start int) {
 	tparams := fn.Signature.Params()
 	for i, n := start, tparams.Len(); i < n; i++ {
-		fn.addParamObj(tparams.At(i))
+		fn.addParamObj(tparams.At(i), nil)
 	}
 }
 
@@ -191,7 +189,6 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 			Signature: changeRecv(obj.Type().(*types.Signature), nil), // drop receiver
 			Synthetic: description,
 			Prog:      prog,
-			pos:       obj.Pos(),
 		}
 		fn.initHTML(prog.PrintFunc)
 
@@ -211,7 +208,7 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 		for _, arg := range fn.Params {
 			c.Call.Args = append(c.Call.Args, arg)
 		}
-		emitTailCall(fn, &c)
+		emitTailCall(fn, &c, nil)
 		fn.finishBody()
 
 		prog.bounds[obj] = fn

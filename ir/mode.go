@@ -23,6 +23,7 @@ type BuilderMode uint
 const (
 	PrintPackages        BuilderMode = 1 << iota // Print package inventory to stdout
 	PrintFunctions                               // Print function IR code to stdout
+	PrintSource                                  // Print source code when printing function IR
 	LogSource                                    // Log source locations as IR builder progresses
 	SanityCheckFunctions                         // Perform sanity checking of function bodies
 	NaiveForm                                    // Build naïve IR form: don't replace local loads/stores with registers
@@ -35,6 +36,7 @@ C	perform sanity [C]hecking of the IR form.
 D	include [D]ebug info for every function.
 P	print [P]ackage inventory.
 F	print [F]unction IR code.
+A	print [A]ST nodes responsible for IR instructions
 S	log [S]ource locations as IR builder progresses.
 N	build [N]aive IR form: don't replace local loads/stores with registers.
 `
@@ -49,6 +51,9 @@ func (m BuilderMode) String() string {
 	}
 	if m&PrintFunctions != 0 {
 		buf.WriteByte('F')
+	}
+	if m&PrintSource != 0 {
+		buf.WriteByte('A')
 	}
 	if m&LogSource != 0 {
 		buf.WriteByte('S')
@@ -73,6 +78,8 @@ func (m *BuilderMode) Set(s string) error {
 			mode |= PrintPackages
 		case 'F':
 			mode |= PrintFunctions
+		case 'A':
+			mode |= PrintSource
 		case 'S':
 			mode |= LogSource
 		case 'C':

@@ -601,7 +601,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 							Comment: alloc.Comment,
 						}
 
-						phi.pos = alloc.Pos()
+						phi.source = alloc.source
 						phi.setType(deref(alloc.Type()))
 						phi.block = y
 						if debugLifting {
@@ -639,7 +639,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 								X:       alloc,
 								Comment: alloc.Comment,
 							}
-							sigma.pos = alloc.Pos()
+							sigma.source = alloc.source
 							sigma.setType(deref(alloc.Type()))
 							sigma.block = succ
 							sigmas = append(sigmas, sigma)

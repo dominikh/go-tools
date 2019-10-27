@@ -73,7 +73,6 @@ type Member interface {
 	String() string                  // package-qualified name of the package member
 	RelString(*types.Package) string // like String, but relative refs are unqualified
 	Object() types.Object            // typechecker's object for this member, if any
-	Pos() token.Pos                  // position of member's declaration, if known
 	Type() types.Type                // type of the package member
 	Token() token.Token              // token.{VAR,FUNC,CONST,TYPE}
 	Package() *Package               // the containing package
@@ -159,23 +158,19 @@ type Value interface {
 	// Instruction.Operands contains the inverse of this relation.
 	Referrers() *[]Instruction
 
-	// Pos returns the location of the AST token most closely
-	// associated with the operation that gave rise to this value,
-	// or token.NoPos if it was not explicit in the source.
-	//
-	// For each ast.Node type, a particular token is designated as
-	// the closest location for the expression, e.g. the Lparen
-	// for an *ast.CallExpr.  This permits a compact but
-	// approximate mapping from Values to source positions for use
-	// in diagnostic messages, for example.
-	//
-	// (Do not use this position to determine which Value
-	// corresponds to an ast.Expr; use Function.ValueForExpr
-	// instead.  NB: it requires that the function was built with
-	// debug information.)
-	Pos() token.Pos
-
 	Operands(rands []*Value) []*Value // nil for non-Instructions
+
+	// Source returns the AST node responsible for creating this
+	// value. A single AST node may be responsible for more than one
+	// value, and not all values have an associated AST node.
+	//
+	// Do not use this method to find a Value given an ast.Expr; use
+	// ValueForExpr instead.
+	Source() ast.Node
+
+	// Pos returns Source().Pos() if Source is not nil, else it
+	// returns token.NoPos.
+	Pos() token.Pos
 }
 
 // An Instruction is an IR instruction that computes a new Value or
@@ -186,6 +181,7 @@ type Value interface {
 // does not.
 //
 type Instruction interface {
+	setSource(ast.Node)
 	setID(ID)
 
 	// String returns the disassembled form of this value.
@@ -244,25 +240,17 @@ type Instruction interface {
 	// Values.)
 	Operands(rands []*Value) []*Value
 
-	// Pos returns the location of the AST token most closely
-	// associated with the operation that gave rise to this
-	// instruction, or token.NoPos if it was not explicit in the
-	// source.
-	//
-	// For each ast.Node type, a particular token is designated as
-	// the closest location for the expression, e.g. the Go token
-	// for an *ast.GoStmt.  This permits a compact but approximate
-	// mapping from Instructions to source positions for use in
-	// diagnostic messages, for example.
-	//
-	// (Do not use this position to determine which Instruction
-	// corresponds to an ast.Expr; see the notes for Value.Pos.
-	// This position may be used to determine which non-Value
-	// Instruction corresponds to some ast.Stmts, but not all:
-	// Jump instructions have no Pos(), for example.)
-	Pos() token.Pos
-
 	Referrers() *[]Instruction // nil for non-Values
+
+	// Source returns the AST node responsible for creating this
+	// instruction. A single AST node may be responsible for more than
+	// one instruction, and not all instructions have an associated
+	// AST node.
+	Source() ast.Node
+
+	// Pos returns Source().Pos() if Source is not nil, else it
+	// returns token.NoPos.
+	Pos() token.Pos
 }
 
 // A Node is a node in the IR value graph.  Every concrete type that
@@ -282,6 +270,7 @@ type Node interface {
 	// Common methods:
 	ID() ID
 	String() string
+	Source() ast.Node
 	Pos() token.Pos
 	Parent() *Function
 
@@ -332,10 +321,8 @@ type Function struct {
 	object    types.Object     // a declared *types.Func or one of its wrappers
 	method    *types.Selection // info about provenance of synthetic methods
 	Signature *types.Signature
-	pos       token.Pos
 
 	Synthetic  string        // provenance of synthetic function; "" for true source functions
-	syntax     ast.Node      // *ast.Func{Decl,Lit}; replaced with simple ast.Node after build, unless debug mode
 	parent     *Function     // enclosing function if anon; nil if global
 	Pkg        *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
 	Prog       *Program      // enclosing program
@@ -428,7 +415,6 @@ type FreeVar struct {
 
 	name      string
 	typ       types.Type
-	pos       token.Pos
 	parent    *Function
 	referrers []Instruction
 
@@ -484,7 +470,6 @@ type Global struct {
 	name   string
 	object types.Object // a *types.Var; may be nil for synthetics e.g. init$guard
 	typ    types.Type
-	pos    token.Pos
 
 	Pkg *Package
 }
@@ -1162,7 +1147,6 @@ type Unreachable struct {
 type If struct {
 	anInstruction
 	Cond Value
-	pos  token.Pos
 }
 
 type ConstantSwitch struct {
@@ -1171,14 +1155,12 @@ type ConstantSwitch struct {
 	// Constant branch conditions. A nil Value denotes the (implicit
 	// or explicit) default branch.
 	Conds []Value
-	pos   token.Pos
 }
 
 type TypeSwitch struct {
 	register
 	Tag   Value
 	Conds []types.Type
-	pos   token.Pos
 }
 
 // The Return instruction returns values and control back to the calling
@@ -1206,7 +1188,6 @@ type TypeSwitch struct {
 type Return struct {
 	anInstruction
 	Results []Value
-	pos     token.Pos
 }
 
 // The RunDefers instruction pops and invokes the entire stack of
@@ -1241,8 +1222,7 @@ type RunDefers struct {
 //
 type Panic struct {
 	anInstruction
-	X   Value // an interface{}
-	pos token.Pos
+	X Value // an interface{}
 }
 
 // The Go instruction creates a new goroutine and calls the specified
@@ -1260,7 +1240,6 @@ type Panic struct {
 type Go struct {
 	anInstruction
 	Call CallCommon
-	pos  token.Pos
 }
 
 // The Defer instruction pushes the specified call onto a stack of
@@ -1278,7 +1257,6 @@ type Go struct {
 type Defer struct {
 	anInstruction
 	Call CallCommon
-	pos  token.Pos
 }
 
 // The Send instruction sends X on channel Chan.
@@ -1291,7 +1269,6 @@ type Defer struct {
 type Send struct {
 	anInstruction
 	Chan, X Value
-	pos     token.Pos
 }
 
 // The Recv instruction receives from channel Chan.
@@ -1328,7 +1305,6 @@ type Store struct {
 	anInstruction
 	Addr Value
 	Val  Value
-	pos  token.Pos
 }
 
 // The BlankStore instruction is emitted for assignments to the blank
@@ -1360,7 +1336,6 @@ type MapUpdate struct {
 	Map   Value
 	Key   Value
 	Value Value
-	pos   token.Pos
 }
 
 // A DebugRef instruction maps a source-level expression Expr to the
@@ -1412,16 +1387,26 @@ type DebugRef struct {
 type register struct {
 	anInstruction
 	typ       types.Type // type of virtual register
-	pos       token.Pos  // position of source expression, or NoPos
 	referrers []Instruction
 }
 
 type node struct {
-	id ID
+	source ast.Node
+	id     ID
 }
 
 func (n *node) setID(id ID) { n.id = id }
 func (n node) ID() ID       { return n.id }
+
+func (n *node) setSource(source ast.Node) { n.source = source }
+func (n *node) Source() ast.Node          { return n.source }
+
+func (n *node) Pos() token.Pos {
+	if n.source != nil {
+		return n.source.Pos()
+	}
+	return token.NoPos
+}
 
 // anInstruction is a mix-in embedded by all Instructions.
 // It provides the implementations of the Block and setBlock methods.
@@ -1486,15 +1471,12 @@ type CallCommon struct {
 	Method  *types.Func // abstract method (invoke mode)
 	Args    []Value     // actual parameters (in static method call, includes receiver)
 	Results Value
-	pos     token.Pos // position of CallExpr.Lparen, iff explicit in source
 }
 
 // IsInvoke returns true if this call has "invoke" (not "call") mode.
 func (c *CallCommon) IsInvoke() bool {
 	return c.Method != nil
 }
-
-func (c *CallCommon) Pos() token.Pos { return c.pos }
 
 // Signature returns the signature of the called function.
 //
@@ -1571,13 +1553,11 @@ func (v *Builtin) Parent() *Function       { return nil }
 func (v *FreeVar) Type() types.Type          { return v.typ }
 func (v *FreeVar) Name() string              { return v.name }
 func (v *FreeVar) Referrers() *[]Instruction { return &v.referrers }
-func (v *FreeVar) Pos() token.Pos            { return v.pos }
 func (v *FreeVar) Parent() *Function         { return v.parent }
 
 func (v *Global) Type() types.Type                     { return v.typ }
 func (v *Global) Name() string                         { return v.name }
 func (v *Global) Parent() *Function                    { return nil }
-func (v *Global) Pos() token.Pos                       { return v.pos }
 func (v *Global) Referrers() *[]Instruction            { return nil }
 func (v *Global) Token() token.Token                   { return token.VAR }
 func (v *Global) Object() types.Object                 { return v.object }
@@ -1587,7 +1567,6 @@ func (v *Global) RelString(from *types.Package) string { return relString(v, fro
 
 func (v *Function) Name() string         { return v.name }
 func (v *Function) Type() types.Type     { return v.Signature }
-func (v *Function) Pos() token.Pos       { return v.pos }
 func (v *Function) Token() token.Token   { return token.FUNC }
 func (v *Function) Object() types.Object { return v.object }
 func (v *Function) String() string       { return v.RelString(nil) }
@@ -1604,14 +1583,11 @@ func (v *Parameter) Object() types.Object { return v.object }
 
 func (v *Alloc) Type() types.Type          { return v.typ }
 func (v *Alloc) Referrers() *[]Instruction { return &v.referrers }
-func (v *Alloc) Pos() token.Pos            { return v.pos }
 
 func (v *register) Type() types.Type          { return v.typ }
 func (v *register) setType(typ types.Type)    { v.typ = typ }
 func (v *register) Name() string              { return fmt.Sprintf("t%d", v.id) }
 func (v *register) Referrers() *[]Instruction { return &v.referrers }
-func (v *register) Pos() token.Pos            { return v.pos }
-func (v *register) setPos(pos token.Pos)      { v.pos = pos }
 
 func (v *anInstruction) Parent() *Function          { return v.block.parent }
 func (v *anInstruction) Block() *BasicBlock         { return v.block }
@@ -1668,22 +1644,7 @@ func (p *Package) Type(name string) (t *Type) {
 	return
 }
 
-func (v *Call) Pos() token.Pos           { return v.Call.pos }
-func (s *Defer) Pos() token.Pos          { return s.pos }
-func (s *Go) Pos() token.Pos             { return s.pos }
-func (s *MapUpdate) Pos() token.Pos      { return s.pos }
-func (s *Panic) Pos() token.Pos          { return s.pos }
-func (s *Return) Pos() token.Pos         { return s.pos }
-func (s *Send) Pos() token.Pos           { return s.pos }
-func (s *Store) Pos() token.Pos          { return s.pos }
-func (s *BlankStore) Pos() token.Pos     { return token.NoPos }
-func (s *If) Pos() token.Pos             { return s.pos }
-func (s *Jump) Pos() token.Pos           { return token.NoPos }
-func (s *Unreachable) Pos() token.Pos    { return token.NoPos }
-func (s *RunDefers) Pos() token.Pos      { return token.NoPos }
-func (s *DebugRef) Pos() token.Pos       { return s.Expr.Pos() }
-func (s *ConstantSwitch) Pos() token.Pos { return s.pos }
-func (s *TypeSwitch) Pos() token.Pos     { return s.pos }
+func (s *DebugRef) Pos() token.Pos { return s.Expr.Pos() }
 
 // Operands.
 

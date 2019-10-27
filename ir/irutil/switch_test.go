@@ -48,7 +48,7 @@ func TestSwitches(t *testing.T) {
 			// of a ConstSwitch.
 			var wantSwitches []string
 			for _, c := range f.Comments {
-				if fn.Syntax().Pos() <= c.Pos() && c.Pos() < fn.Syntax().End() {
+				if fn.Source().Pos() <= c.Pos() && c.Pos() < fn.Source().End() {
 					text := strings.TrimSpace(c.Text())
 					if strings.HasPrefix(text, "switch ") {
 						wantSwitches = append(wantSwitches, text)

@@ -19,6 +19,10 @@ import (
 	"honnef.co/go/tools/lint"
 )
 
+type Positioner interface {
+	Pos() token.Pos
+}
+
 func CallName(call *ir.CallCommon) string {
 	if call.IsInvoke() {
 		return ""
@@ -107,7 +111,7 @@ func IsOfType(pass *analysis.Pass, expr ast.Expr, name string) bool {
 	return IsType(pass.TypesInfo.TypeOf(expr), name)
 }
 
-func IsInTest(pass *analysis.Pass, node lint.Positioner) bool {
+func IsInTest(pass *analysis.Pass, node Positioner) bool {
 	// FIXME(dh): this doesn't work for global variables with
 	// initializers
 	f := pass.Fset.File(node.Pos())
@@ -358,8 +362,7 @@ func flattenFields(T *types.Struct, path []int, seen map[types.Type]bool) []Fiel
 	return out
 }
 
-func File(pass *analysis.Pass, node lint.Positioner) *ast.File {
-	pass.Fset.PositionFor(node.Pos(), true)
+func File(pass *analysis.Pass, node Positioner) *ast.File {
 	m := pass.ResultOf[facts.TokenFile].(map[*token.File]*ast.File)
 	return m[pass.Fset.File(node.Pos())]
 }

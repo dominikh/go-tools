@@ -65,7 +65,7 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 
 			return true
 		}
-		Inspect(fn.Syntax(), cb)
+		Inspect(fn.Source(), cb)
 	}
 	return nil, nil
 }

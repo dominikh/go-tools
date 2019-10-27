@@ -83,23 +83,14 @@ func findEnclosingPackageLevelFunction(pkg *Package, path []ast.Node) *Function 
 			}
 
 		case *ast.FuncDecl:
-			if decl.Recv == nil && decl.Name.Name == "init" {
-				// Explicit init() function.
-				for _, b := range pkg.init.Blocks {
-					for _, instr := range b.Instrs {
-						if instr, ok := instr.(*Call); ok {
-							if callee, ok := instr.Call.Value.(*Function); ok && callee.Pkg == pkg && callee.Pos() == decl.Name.NamePos {
-								return callee
-							}
-						}
-					}
-				}
+			// Declared function/method.
+			fn := findNamedFunc(pkg, decl.Pos())
+			if fn == nil && decl.Recv == nil && decl.Name.Name == "init" {
 				// Hack: return non-nil when IR is not yet
 				// built so that HasEnclosingFunction works.
 				return pkg.init
 			}
-			// Declared function/method.
-			return findNamedFunc(pkg, decl.Name.NamePos)
+			return fn
 		}
 	}
 	return nil // not in any function
@@ -109,23 +100,9 @@ func findEnclosingPackageLevelFunction(pkg *Package, path []ast.Node) *Function 
 // position pos.
 //
 func findNamedFunc(pkg *Package, pos token.Pos) *Function {
-	// Look at all package members and method sets of named types.
-	// Not very efficient.
-	for _, mem := range pkg.Members {
-		switch mem := mem.(type) {
-		case *Function:
-			if mem.Pos() == pos {
-				return mem
-			}
-		case *Type:
-			mset := pkg.Prog.MethodSets.MethodSet(types.NewPointer(mem.Type()))
-			for i, n := 0, mset.Len(); i < n; i++ {
-				// Don't call Program.Method: avoid creating wrappers.
-				obj := mset.At(i).Obj().(*types.Func)
-				if obj.Pos() == pos {
-					return pkg.values[obj].(*Function)
-				}
-			}
+	for _, fn := range pkg.Functions {
+		if fn.Pos() == pos {
+			return fn
 		}
 	}
 	return nil

@@ -104,7 +104,7 @@ func Example_buildPackage() {
 	//
 	// # Name: hello.main
 	// # Package: hello
-	// # Location: hello.go:8:6
+	// # Location: hello.go:8:1
 	// func main():
 	// b0: # entry
 	// 	t1 = Const <string> {"Hello, World!"}

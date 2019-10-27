@@ -100,7 +100,7 @@ func (b *builder) cond(fn *Function, e ast.Expr, t, f *BasicBlock) *If {
 	// The value of a constant condition may be platform-specific,
 	// and may cause blocks that are reachable in some configuration
 	// to be hidden from subsequent analyses such as bug-finding tools.
-	return emitIf(fn, b.expr(fn, e), t, f)
+	return emitIf(fn, b.expr(fn, e), t, f, e)
 }
 
 // logicalBinop emits code to fn to evaluate e, a &&- or
@@ -150,13 +150,12 @@ func (b *builder) logicalBinop(fn *Function, e *ast.BinaryExpr) Value {
 	// The edge from e.Y to done carries the value of e.Y.
 	fn.currentBlock = rhs
 	edges = append(edges, b.expr(fn, e.Y))
-	emitJump(fn, done)
+	emitJump(fn, done, e)
 	fn.currentBlock = done
 
 	phi := &Phi{Edges: edges, Comment: e.Op.String()}
-	phi.pos = e.OpPos
 	phi.typ = t
-	return done.emit(phi)
+	return done.emit(phi, e)
 }
 
 // exprN lowers a multi-result expression e to IR form, emitting code
@@ -180,24 +179,23 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		var c Call
 		b.setCall(fn, e, &c.Call)
 		c.typ = typ
-		return fn.emit(&c)
+		return fn.emit(&c, e)
 
 	case *ast.IndexExpr:
 		mapt := fn.Pkg.typeOf(e.X).Underlying().(*types.Map)
 		lookup := &MapLookup{
 			X:       b.expr(fn, e.X),
-			Index:   emitConv(fn, b.expr(fn, e.Index), mapt.Key()),
+			Index:   emitConv(fn, b.expr(fn, e.Index), mapt.Key(), e),
 			CommaOk: true,
 		}
 		lookup.setType(typ)
-		lookup.setPos(e.Lbrack)
-		return fn.emit(lookup)
+		return fn.emit(lookup, e)
 
 	case *ast.TypeAssertExpr:
-		return emitTypeTest(fn, b.expr(fn, e.X), typ.At(0).Type(), e.Lparen)
+		return emitTypeTest(fn, b.expr(fn, e.X), typ.At(0).Type(), e)
 
 	case *ast.UnaryExpr: // must be receive <-
-		return emitRecv(fn, b.expr(fn, e.X), true, typ, e.OpPos)
+		return emitRecv(fn, b.expr(fn, e.X), true, typ, e)
 	}
 	panic(fmt.Sprintf("exprN(%T) in %s", e, fn))
 }
@@ -210,7 +208,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 // the caller should treat this like an ordinary library function
 // call.
 //
-func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ types.Type, pos token.Pos) Value {
+func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ types.Type, source ast.Node) Value {
 	switch obj.Name() {
 	case "make":
 		switch typ.Underlying().(type) {
@@ -224,23 +222,21 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 				// treat make([]T, n, m) as new([m]T)[:n]
 				cap := m.Int64()
 				at := types.NewArray(typ.Underlying().(*types.Slice).Elem(), cap)
-				alloc := emitNew(fn, at, pos)
+				alloc := emitNew(fn, at, source)
 				alloc.Comment = "makeslice"
 				v := &Slice{
 					X:    alloc,
 					High: n,
 				}
-				v.setPos(pos)
 				v.setType(typ)
-				return fn.emit(v)
+				return fn.emit(v, source)
 			}
 			v := &MakeSlice{
 				Len: n,
 				Cap: m,
 			}
-			v.setPos(pos)
 			v.setType(typ)
-			return fn.emit(v)
+			return fn.emit(v, source)
 
 		case *types.Map:
 			var res Value
@@ -248,9 +244,8 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 				res = b.expr(fn, args[1])
 			}
 			v := &MakeMap{Reserve: res}
-			v.setPos(pos)
 			v.setType(typ)
-			return fn.emit(v)
+			return fn.emit(v, source)
 
 		case *types.Chan:
 			var sz Value = emitConst(fn, intConst(0))
@@ -258,13 +253,12 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 				sz = b.expr(fn, args[1])
 			}
 			v := &MakeChan{Size: sz}
-			v.setPos(pos)
 			v.setType(typ)
-			return fn.emit(v)
+			return fn.emit(v, source)
 		}
 
 	case "new":
-		alloc := emitNew(fn, deref(typ), pos)
+		alloc := emitNew(fn, deref(typ), source)
 		alloc.Comment = "new"
 		return alloc
 
@@ -283,9 +277,8 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 
 	case "panic":
 		fn.emit(&Panic{
-			X:   emitConv(fn, b.expr(fn, args[0]), tEface),
-			pos: pos,
-		})
+			X: emitConv(fn, b.expr(fn, args[0]), tEface, source),
+		}, source)
 		addEdge(fn.currentBlock, fn.Exit)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 		return emitConst(fn, NewConst(constant.MakeBool(true), tBool)) // any non-nil Value will do
@@ -327,21 +320,21 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) lvalue {
 		if v == nil {
 			v = fn.lookup(obj, escaping)
 		}
-		return &address{addr: v, pos: e.Pos(), expr: e}
+		return &address{addr: v, expr: e}
 
 	case *ast.CompositeLit:
 		t := deref(fn.Pkg.typeOf(e))
 		var v *Alloc
 		if escaping {
-			v = emitNew(fn, t, e.Lbrace)
+			v = emitNew(fn, t, e)
 		} else {
-			v = fn.addLocal(t, e.Lbrace)
+			v = fn.addLocal(t, e)
 		}
 		v.Comment = "complit"
 		var sb storebuf
 		b.compLit(fn, v, e, true, &sb)
 		sb.emit(fn)
-		return &address{addr: v, pos: e.Lbrace, expr: e}
+		return &address{addr: v, expr: e}
 
 	case *ast.ParenExpr:
 		return b.addr(fn, e.X, escaping)
@@ -356,11 +349,10 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) lvalue {
 			panic(sel)
 		}
 		wantAddr := true
-		v := b.receiver(fn, e.X, wantAddr, escaping, sel)
+		v := b.receiver(fn, e.X, wantAddr, escaping, sel, e)
 		last := len(sel.Index()) - 1
 		return &address{
 			addr: emitFieldSelection(fn, v, sel.Index()[last], true, e.Sel),
-			pos:  e.Sel.Pos(),
 			expr: e.Sel,
 		}
 
@@ -379,43 +371,42 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) lvalue {
 			et = types.NewPointer(t.Elem())
 		case *types.Map:
 			return &element{
-				m:   b.expr(fn, e.X),
-				k:   emitConv(fn, b.expr(fn, e.Index), t.Key()),
-				t:   t.Elem(),
-				pos: e.Lbrack,
+				m: b.expr(fn, e.X),
+				k: emitConv(fn, b.expr(fn, e.Index), t.Key(), e.Index),
+				t: t.Elem(),
 			}
 		default:
 			panic("unexpected container type in IndexExpr: " + t.String())
 		}
 		v := &IndexAddr{
 			X:     x,
-			Index: emitConv(fn, b.expr(fn, e.Index), tInt),
+			Index: emitConv(fn, b.expr(fn, e.Index), tInt, e.Index),
 		}
-		v.setPos(e.Lbrack)
 		v.setType(et)
-		return &address{addr: fn.emit(v), pos: e.Lbrack, expr: e}
+		return &address{addr: fn.emit(v, e), expr: e}
 
 	case *ast.StarExpr:
-		return &address{addr: b.expr(fn, e.X), pos: e.Star, expr: e}
+		return &address{addr: b.expr(fn, e.X), expr: e}
 	}
 
 	panic(fmt.Sprintf("unexpected address expression: %T", e))
 }
 
 type store struct {
-	lhs lvalue
-	rhs Value
+	lhs    lvalue
+	rhs    Value
+	source ast.Node
 }
 
 type storebuf struct{ stores []store }
 
-func (sb *storebuf) store(lhs lvalue, rhs Value) {
-	sb.stores = append(sb.stores, store{lhs, rhs})
+func (sb *storebuf) store(lhs lvalue, rhs Value, source ast.Node) {
+	sb.stores = append(sb.stores, store{lhs, rhs, source})
 }
 
 func (sb *storebuf) emit(fn *Function) {
 	for _, s := range sb.stores {
-		s.lhs.store(fn, s.rhs)
+		s.lhs.store(fn, s.rhs, s.source)
 	}
 }
 
@@ -433,7 +424,7 @@ func (sb *storebuf) emit(fn *Function) {
 // in-place update of existing variables when the RHS is a composite
 // literal that may reference parts of the LHS.
 //
-func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *storebuf) {
+func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *storebuf, source ast.Node) {
 	// Can we initialize it in place?
 	if e, ok := unparen(e).(*ast.CompositeLit); ok {
 		// A CompositeLit never evaluates to a pointer,
@@ -444,9 +435,9 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 				ptr := b.addr(fn, e, true).address(fn)
 				// copy address
 				if sb != nil {
-					sb.store(loc, ptr)
+					sb.store(loc, ptr, source)
 				} else {
-					loc.store(fn, ptr)
+					loc.store(fn, ptr, source)
 				}
 				return
 			}
@@ -483,9 +474,9 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 	// simple case: just copy
 	rhs := b.expr(fn, e)
 	if sb != nil {
-		sb.store(loc, rhs)
+		sb.store(loc, rhs, source)
 	} else {
-		loc.store(fn, rhs)
+		loc.store(fn, rhs, source)
 	}
 }
 
@@ -507,7 +498,7 @@ func (b *builder) expr(fn *Function, e ast.Expr) Value {
 		// Prefer pointer arithmetic ({Index,Field}Addr) followed
 		// by Load over subelement extraction (e.g. Index, Field),
 		// to avoid large copies.
-		v = b.addr(fn, e, false).load(fn)
+		v = b.addr(fn, e, false).load(fn, e)
 	} else {
 		v = b.expr0(fn, e, tv)
 	}
@@ -526,12 +517,11 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		fn2 := &Function{
 			name:      fmt.Sprintf("%s$%d", fn.Name(), 1+len(fn.AnonFuncs)),
 			Signature: fn.Pkg.typeOf(e.Type).Underlying().(*types.Signature),
-			pos:       e.Type.Func,
 			parent:    fn,
 			Pkg:       fn.Pkg,
 			Prog:      fn.Prog,
-			syntax:    e,
 		}
+		fn2.source = e
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
 		fn2.initHTML(b.printFunc)
 		b.buildFunction(fn2)
@@ -544,32 +534,22 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			v.Bindings = append(v.Bindings, fv.outer)
 			fv.outer = nil
 		}
-		return fn.emit(v)
+		return fn.emit(v, e)
 
 	case *ast.TypeAssertExpr: // single-result form only
-		return emitTypeAssert(fn, b.expr(fn, e.X), tv.Type, e.Lparen)
+		return emitTypeAssert(fn, b.expr(fn, e.X), tv.Type, e)
 
 	case *ast.CallExpr:
 		if fn.Pkg.info.Types[e.Fun].IsType() {
 			// Explicit type conversion, e.g. string(x) or big.Int(x)
 			x := b.expr(fn, e.Args[0])
-			y := emitConv(fn, x, tv.Type)
-			if y != x {
-				switch y := y.(type) {
-				case *Convert:
-					y.pos = e.Lparen
-				case *ChangeType:
-					y.pos = e.Lparen
-				case *MakeInterface:
-					y.pos = e.Lparen
-				}
-			}
+			y := emitConv(fn, x, tv.Type, e)
 			return y
 		}
 		// Call to "intrinsic" built-ins, e.g. new, make, panic.
 		if id, ok := unparen(e.Fun).(*ast.Ident); ok {
 			if obj, ok := fn.Pkg.info.Uses[id].(*types.Builtin); ok {
-				if v := b.builtin(fn, obj, e.Args, tv.Type, e.Lparen); v != nil {
+				if v := b.builtin(fn, obj, e.Args, tv.Type, e); v != nil {
 					return v
 				}
 			}
@@ -578,7 +558,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		var v Call
 		b.setCall(fn, e, &v.Call)
 		v.setType(tv.Type)
-		return fn.emit(&v)
+		return fn.emit(&v, e)
 
 	case *ast.UnaryExpr:
 		switch e.Op {
@@ -589,7 +569,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 				// For simplicity, we'll just (suboptimally) rely
 				// on the side effects of a load.
 				// TODO(adonovan): emit dedicated nilcheck.
-				addr.load(fn)
+				addr.load(fn, e)
 			}
 			return addr.address(fn)
 		case token.ADD:
@@ -599,11 +579,10 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 				Op: e.Op,
 				X:  b.expr(fn, e.X),
 			}
-			v.setPos(e.OpPos)
 			v.setType(tv.Type)
-			return fn.emit(v)
+			return fn.emit(v, e)
 		case token.ARROW:
-			return emitRecv(fn, b.expr(fn, e.X), false, tv.Type, e.OpPos)
+			return emitRecv(fn, b.expr(fn, e.X), false, tv.Type, e)
 		default:
 			panic(e.Op)
 		}
@@ -615,12 +594,12 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		case token.SHL, token.SHR:
 			fallthrough
 		case token.ADD, token.SUB, token.MUL, token.QUO, token.REM, token.AND, token.OR, token.XOR, token.AND_NOT:
-			return emitArith(fn, e.Op, b.expr(fn, e.X), b.expr(fn, e.Y), tv.Type, e.OpPos)
+			return emitArith(fn, e.Op, b.expr(fn, e.X), b.expr(fn, e.Y), tv.Type, e)
 
 		case token.EQL, token.NEQ, token.GTR, token.LSS, token.LEQ, token.GEQ:
-			cmp := emitCompare(fn, e.Op, b.expr(fn, e.X), b.expr(fn, e.Y), e.OpPos)
+			cmp := emitCompare(fn, e.Op, b.expr(fn, e.X), b.expr(fn, e.Y), e)
 			// The type of x==y may be UntypedBool.
-			return emitConv(fn, cmp, types.Default(tv.Type))
+			return emitConv(fn, cmp, types.Default(tv.Type), e)
 		default:
 			panic("illegal op in BinaryExpr: " + e.Op.String())
 		}
@@ -652,9 +631,8 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			High: high,
 			Max:  max,
 		}
-		v.setPos(e.Lbrack)
 		v.setType(tv.Type)
-		return fn.emit(v)
+		return fn.emit(v, e)
 
 	case *ast.Ident:
 		obj := fn.Pkg.info.Uses[e]
@@ -668,12 +646,12 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		// Package-level func or var?
 		if v := fn.Prog.packageLevelValue(obj); v != nil {
 			if _, ok := obj.(*types.Var); ok {
-				return emitLoad(fn, v) // var (address)
+				return emitLoad(fn, v, e) // var (address)
 			}
 			return v // (func)
 		}
 		// Local var.
-		return emitLoad(fn, fn.lookup(obj, false)) // var (address)
+		return emitLoad(fn, fn.lookup(obj, false), e) // var (address)
 
 	case *ast.SelectorExpr:
 		sel, ok := fn.Pkg.info.Selections[e]
@@ -685,7 +663,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		case types.MethodExpr:
 			// (*T).f or T.f, the method f from the method-set of type T.
 			// The result is a "thunk".
-			return emitConv(fn, makeThunk(fn.Prog, sel), tv.Type)
+			return emitConv(fn, makeThunk(fn.Prog, sel), tv.Type, e)
 
 		case types.MethodVal:
 			// e.f where e is an expression and f is a method.
@@ -694,26 +672,26 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			rt := recvType(obj)
 			wantAddr := isPointer(rt)
 			escaping := true
-			v := b.receiver(fn, e.X, wantAddr, escaping, sel)
+			v := b.receiver(fn, e.X, wantAddr, escaping, sel, e)
 			if isInterface(rt) {
 				// If v has interface type I,
 				// we must emit a check that v is non-nil.
 				// We use: typeassert v.(I).
-				emitTypeAssert(fn, v, rt, token.NoPos)
+				emitTypeAssert(fn, v, rt, e)
 			}
 			c := &MakeClosure{
 				Fn:       makeBound(fn.Prog, obj),
 				Bindings: []Value{v},
 			}
-			c.setPos(e.Sel.Pos())
+			c.source = e.Sel
 			c.setType(tv.Type)
-			return fn.emit(c)
+			return fn.emit(c, e)
 
 		case types.FieldVal:
 			indices := sel.Index()
 			last := len(indices) - 1
 			v := b.expr(fn, e.X)
-			v = emitImplicitSelections(fn, v, indices[:last], e.Pos())
+			v = emitImplicitSelections(fn, v, indices[:last], e)
 			v = emitFieldSelection(fn, v, indices[last], false, e.Sel)
 			return v
 		}
@@ -726,22 +704,20 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			// Non-addressable array (in a register).
 			v := &Index{
 				X:     b.expr(fn, e.X),
-				Index: emitConv(fn, b.expr(fn, e.Index), tInt),
+				Index: emitConv(fn, b.expr(fn, e.Index), tInt, e.Index),
 			}
-			v.setPos(e.Lbrack)
 			v.setType(t.Elem())
-			return fn.emit(v)
+			return fn.emit(v, e)
 
 		case *types.Map:
 			// Maps are not addressable.
 			mapt := fn.Pkg.typeOf(e.X).Underlying().(*types.Map)
 			v := &MapLookup{
 				X:     b.expr(fn, e.X),
-				Index: emitConv(fn, b.expr(fn, e.Index), mapt.Key()),
+				Index: emitConv(fn, b.expr(fn, e.Index), mapt.Key(), e.Index),
 			}
-			v.setPos(e.Lbrack)
 			v.setType(mapt.Elem())
-			return fn.emit(v)
+			return fn.emit(v, e)
 
 		case *types.Basic: // => string
 			// Strings are not addressable.
@@ -749,13 +725,12 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 				X:     b.expr(fn, e.X),
 				Index: b.expr(fn, e.Index),
 			}
-			v.setPos(e.Lbrack)
 			v.setType(tByte)
-			return fn.emit(v)
+			return fn.emit(v, e)
 
 		case *types.Slice, *types.Pointer: // *array
 			// Addressable slice/array; use IndexAddr and Load.
-			return b.addr(fn, e, false).load(fn)
+			return b.addr(fn, e, false).load(fn, e)
 
 		default:
 			panic("unexpected container type in IndexExpr: " + t.String())
@@ -763,7 +738,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 
 	case *ast.CompositeLit, *ast.StarExpr:
 		// Addressable types (lvalues)
-		return b.addr(fn, e, false).load(fn)
+		return b.addr(fn, e, false).load(fn, e)
 	}
 
 	panic(fmt.Sprintf("unexpected expr: %T", e))
@@ -787,7 +762,7 @@ func (b *builder) stmtList(fn *Function, list []ast.Stmt) {
 //
 // escaping is defined as per builder.addr().
 //
-func (b *builder) receiver(fn *Function, e ast.Expr, wantAddr, escaping bool, sel *types.Selection) Value {
+func (b *builder) receiver(fn *Function, e ast.Expr, wantAddr, escaping bool, sel *types.Selection, source ast.Node) Value {
 	var v Value
 	if wantAddr && !sel.Indirect() && !isPointer(fn.Pkg.typeOf(e)) {
 		v = b.addr(fn, e, escaping).address(fn)
@@ -796,9 +771,9 @@ func (b *builder) receiver(fn *Function, e ast.Expr, wantAddr, escaping bool, se
 	}
 
 	last := len(sel.Index()) - 1
-	v = emitImplicitSelections(fn, v, sel.Index()[:last], e.Pos())
+	v = emitImplicitSelections(fn, v, sel.Index()[:last], source)
 	if !wantAddr && isPointer(v.Type()) {
-		v = emitLoad(fn, v)
+		v = emitLoad(fn, v, e)
 	}
 	return v
 }
@@ -808,8 +783,6 @@ func (b *builder) receiver(fn *Function, e ast.Expr, wantAddr, escaping bool, se
 // occurring in e.
 //
 func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
-	c.pos = e.Lparen
-
 	// Is this a method call?
 	if selector, ok := unparen(e.Fun).(*ast.SelectorExpr); ok {
 		sel, ok := fn.Pkg.info.Selections[selector]
@@ -818,7 +791,7 @@ func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
 			recv := recvType(obj)
 			wantAddr := isPointer(recv)
 			escaping := true
-			v := b.receiver(fn, selector.X, wantAddr, escaping, sel)
+			v := b.receiver(fn, selector.X, wantAddr, escaping, sel, selector)
 			if isInterface(recv) {
 				// Invoke-mode call.
 				c.Value = v
@@ -874,7 +847,7 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 	// f(x, y, z...): pass slice z straight through.
 	if e.Ellipsis != 0 {
 		for i, arg := range e.Args {
-			v := emitConv(fn, b.expr(fn, arg), sig.Params().At(i).Type())
+			v := emitConv(fn, b.expr(fn, arg), sig.Params().At(i).Type(), arg)
 			args = append(args, v)
 		}
 		return args
@@ -891,7 +864,7 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 		v := b.expr(fn, arg)
 		if ttuple, ok := v.Type().(*types.Tuple); ok { // MRV chain
 			for i, n := 0, ttuple.Len(); i < n; i++ {
-				args = append(args, emitExtract(fn, v, i))
+				args = append(args, emitExtract(fn, v, i, arg))
 			}
 		} else {
 			args = append(args, v)
@@ -904,7 +877,7 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 		np--
 	}
 	for i := 0; i < np; i++ {
-		args[offset+i] = emitConv(fn, args[offset+i], sig.Params().At(i).Type())
+		args[offset+i] = emitConv(fn, args[offset+i], sig.Params().At(i).Type(), args[offset+i].Source())
 	}
 
 	// Actual->formal assignability conversions for variadic parameter,
@@ -918,8 +891,8 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 		} else {
 			// Replace a suffix of args with a slice containing it.
 			at := types.NewArray(vt, int64(len(varargs)))
-			a := emitNew(fn, at, token.NoPos)
-			a.setPos(e.Rparen)
+			a := emitNew(fn, at, e)
+			a.source = e
 			a.Comment = "varargs"
 			for i, arg := range varargs {
 				iaddr := &IndexAddr{
@@ -927,12 +900,12 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 					Index: emitConst(fn, intConst(int64(i))),
 				}
 				iaddr.setType(types.NewPointer(vt))
-				fn.emit(iaddr)
-				emitStore(fn, iaddr, arg, arg.Pos())
+				fn.emit(iaddr, e)
+				emitStore(fn, iaddr, arg, arg.Source())
 			}
 			s := &Slice{X: a}
 			s.setType(st)
-			args[offset+np] = fn.emit(s)
+			args[offset+np] = fn.emit(s, args[offset+np].Source())
 			args = args[:offset+np+1]
 		}
 	}
@@ -955,9 +928,9 @@ func (b *builder) setCall(fn *Function, e *ast.CallExpr, c *CallCommon) {
 }
 
 // assignOp emits to fn code to perform loc <op>= val.
-func (b *builder) assignOp(fn *Function, loc lvalue, val Value, op token.Token, pos token.Pos) {
-	oldv := loc.load(fn)
-	loc.store(fn, emitArith(fn, op, oldv, emitConv(fn, val, oldv.Type()), loc.typ(), pos))
+func (b *builder) assignOp(fn *Function, loc lvalue, val Value, op token.Token, source ast.Node) {
+	oldv := loc.load(fn, source)
+	loc.store(fn, emitArith(fn, op, oldv, emitConv(fn, val, oldv.Type(), source), loc.typ(), source), source)
 }
 
 // localValueSpec emits to fn code to define all of the vars in the
@@ -973,7 +946,7 @@ func (b *builder) localValueSpec(fn *Function, spec *ast.ValueSpec) {
 				fn.addLocalForIdent(id)
 			}
 			lval := b.addr(fn, id, false) // non-escaping
-			b.assign(fn, lval, spec.Values[i], true, nil)
+			b.assign(fn, lval, spec.Values[i], true, nil, spec)
 		}
 
 	case len(spec.Values) == 0:
@@ -995,7 +968,7 @@ func (b *builder) localValueSpec(fn *Function, spec *ast.ValueSpec) {
 			if !isBlankIdent(id) {
 				fn.addLocalForIdent(id)
 				lhs := b.addr(fn, id, false) // non-escaping
-				lhs.store(fn, emitExtract(fn, tuple, i))
+				lhs.store(fn, emitExtract(fn, tuple, i, id), id)
 			}
 		}
 	}
@@ -1006,7 +979,7 @@ func (b *builder) localValueSpec(fn *Function, spec *ast.ValueSpec) {
 //
 // Note the similarity with localValueSpec.
 //
-func (b *builder) assignStmt(fn *Function, lhss, rhss []ast.Expr, isDef bool) {
+func (b *builder) assignStmt(fn *Function, lhss, rhss []ast.Expr, isDef bool, source ast.Node) {
 	// Side effects of all LHSs and RHSs must occur in left-to-right order.
 	lvals := make([]lvalue, len(lhss))
 	isZero := make([]bool, len(lhss))
@@ -1015,7 +988,7 @@ func (b *builder) assignStmt(fn *Function, lhss, rhss []ast.Expr, isDef bool) {
 		if !isBlankIdent(lhs) {
 			if isDef {
 				if obj := fn.Pkg.info.Defs[lhs.(*ast.Ident)]; obj != nil {
-					fn.addNamedLocal(obj)
+					fn.addNamedLocal(obj, lhs)
 					isZero[i] = true
 				}
 			}
@@ -1032,7 +1005,7 @@ func (b *builder) assignStmt(fn *Function, lhss, rhss []ast.Expr, isDef bool) {
 		// so we need a storebuf.
 		var sb storebuf
 		for i := range rhss {
-			b.assign(fn, lvals[i], rhss[i], isZero[i], &sb)
+			b.assign(fn, lvals[i], rhss[i], isZero[i], &sb, source)
 		}
 		sb.emit(fn)
 	} else {
@@ -1040,7 +1013,7 @@ func (b *builder) assignStmt(fn *Function, lhss, rhss []ast.Expr, isDef bool) {
 		tuple := b.exprN(fn, rhss[0])
 		emitDebugRef(fn, rhss[0], tuple, false)
 		for i, lval := range lvals {
-			lval.store(fn, emitExtract(fn, tuple, i))
+			lval.store(fn, emitExtract(fn, tuple, i, source), source)
 		}
 	}
 }
@@ -1087,20 +1060,17 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 	case *types.Struct:
 		if !isZero && len(e.Elts) != t.NumFields() {
 			// memclear
-			sb.store(&address{addr, e.Lbrace, nil},
-				zeroValue(fn, deref(addr.Type())))
+			sb.store(&address{addr, nil}, zeroValue(fn, deref(addr.Type()), e), e)
 			isZero = true
 		}
 		for i, e := range e.Elts {
 			fieldIndex := i
-			pos := e.Pos()
 			if kv, ok := e.(*ast.KeyValueExpr); ok {
 				fname := kv.Key.(*ast.Ident).Name
 				for i, n := 0, t.NumFields(); i < n; i++ {
 					sf := t.Field(i)
 					if sf.Name() == fname {
 						fieldIndex = i
-						pos = kv.Colon
 						e = kv.Value
 						break
 					}
@@ -1112,8 +1082,8 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 				Field: fieldIndex,
 			}
 			faddr.setType(types.NewPointer(sf.Type()))
-			fn.emit(faddr)
-			b.assign(fn, &address{addr: faddr, pos: pos, expr: e}, e, isZero, sb)
+			fn.emit(faddr, e)
+			b.assign(fn, &address{addr: faddr, expr: e}, e, isZero, sb, e)
 		}
 
 	case *types.Array, *types.Slice:
@@ -1122,7 +1092,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 		switch t := t.(type) {
 		case *types.Slice:
 			at = types.NewArray(t.Elem(), b.arrayLen(fn, e.Elts))
-			alloc := emitNew(fn, at, e.Lbrace)
+			alloc := emitNew(fn, at, e)
 			alloc.Comment = "slicelit"
 			array = alloc
 		case *types.Array:
@@ -1131,17 +1101,14 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 
 			if !isZero && int64(len(e.Elts)) != at.Len() {
 				// memclear
-				sb.store(&address{array, e.Lbrace, nil},
-					zeroValue(fn, deref(array.Type())))
+				sb.store(&address{array, nil}, zeroValue(fn, deref(array.Type()), e), e)
 			}
 		}
 
 		var idx *Const
 		for _, e := range e.Elts {
-			pos := e.Pos()
 			if kv, ok := e.(*ast.KeyValueExpr); ok {
 				idx = b.expr(fn, kv.Key).(*Const)
-				pos = kv.Colon
 				e = kv.Value
 			} else {
 				var idxval int64
@@ -1155,27 +1122,25 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 				Index: idx,
 			}
 			iaddr.setType(types.NewPointer(at.Elem()))
-			fn.emit(iaddr)
+			fn.emit(iaddr, e)
 			if t != at { // slice
 				// backing array is unaliased => storebuf not needed.
-				b.assign(fn, &address{addr: iaddr, pos: pos, expr: e}, e, true, nil)
+				b.assign(fn, &address{addr: iaddr, expr: e}, e, true, nil, e)
 			} else {
-				b.assign(fn, &address{addr: iaddr, pos: pos, expr: e}, e, true, sb)
+				b.assign(fn, &address{addr: iaddr, expr: e}, e, true, sb, e)
 			}
 		}
 
 		if t != at { // slice
 			s := &Slice{X: array}
-			s.setPos(e.Lbrace)
 			s.setType(typ)
-			sb.store(&address{addr: addr, pos: e.Lbrace, expr: e}, fn.emit(s))
+			sb.store(&address{addr: addr, expr: e}, fn.emit(s, e), e)
 		}
 
 	case *types.Map:
 		m := &MakeMap{Reserve: emitConst(fn, intConst(int64(len(e.Elts))))}
-		m.setPos(e.Lbrace)
 		m.setType(typ)
-		fn.emit(m)
+		fn.emit(m, e)
 		for _, e := range e.Elts {
 			e := e.(*ast.KeyValueExpr)
 
@@ -1196,10 +1161,9 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 			}
 
 			loc := element{
-				m:   m,
-				k:   emitConv(fn, key, t.Key()),
-				t:   t.Elem(),
-				pos: e.Colon,
+				m: m,
+				k: emitConv(fn, key, t.Key(), e),
+				t: t.Elem(),
 			}
 
 			// We call assign() only because it takes care
@@ -1208,9 +1172,9 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 			// map[int]*struct{}{0: {}} implies &struct{}{}.
 			// In-place update is of course impossible,
 			// and no storebuf is needed.
-			b.assign(fn, &loc, e.Value, true, nil)
+			b.assign(fn, &loc, e.Value, true, nil, e)
 		}
-		sb.store(&address{addr: addr, pos: e.Lbrace, expr: e}, m)
+		sb.store(&address{addr: addr, expr: e}, m, e)
 
 	default:
 		panic("unexpected CompositeLit type: " + t.String())
@@ -1257,14 +1221,15 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	for i, stmt := range s.Body.List {
 		body := fn.newBasicBlock(fmt.Sprintf("switch.body.%d", i))
 		bodies[i] = body
-		if stmt.(*ast.CaseClause).List == nil {
+		cas := stmt.(*ast.CaseClause)
+		if cas.List == nil {
 			// default branch
 			hasDefault = true
 			head := fn.newBasicBlock(fmt.Sprintf("switch.head.%d", i))
 			conds = append(conds, nil)
 			heads = append(heads, head)
 			fn.currentBlock = head
-			emitJump(fn, body)
+			emitJump(fn, body, cas)
 		}
 		for j, cond := range stmt.(*ast.CaseClause).List {
 			fn.currentBlock = entry
@@ -1272,7 +1237,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 			conds = append(conds, b.expr(fn, cond))
 			heads = append(heads, head)
 			fn.currentBlock = head
-			emitJump(fn, body)
+			emitJump(fn, body, cond)
 		}
 	}
 
@@ -1291,16 +1256,16 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 		}
 		b.stmtList(fn, clause.Body)
 		fn.targets = fn.targets.tail
-		emitJump(fn, done)
+		emitJump(fn, done, stmt)
 	}
 
 	if !hasDefault {
 		head := fn.newBasicBlock(fmt.Sprintf("switch.head.implicit-default"))
 		body := fn.newBasicBlock("switch.body.implicit-default")
 		fn.currentBlock = head
-		emitJump(fn, body)
+		emitJump(fn, body, s)
 		fn.currentBlock = body
-		emitJump(fn, done)
+		emitJump(fn, done, s)
 		heads = append(heads, head)
 		conds = append(conds, nil)
 	}
@@ -1315,7 +1280,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	entry.emit(&ConstantSwitch{
 		Tag:   tag,
 		Conds: conds,
-	})
+	}, s)
 	fn.currentBlock = done
 }
 
@@ -1332,17 +1297,17 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 	kTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool))
 
 	var tagv Value = kTrue
-	var pos token.Pos
+	var tagSource ast.Node = s
 	if s.Tag != nil {
 		tagv = b.expr(fn, s.Tag)
-		pos = s.Tag.Pos()
+		tagSource = s.Tag
 	}
 	// lifting only considers loads and stores, but we want different
 	// sigma nodes for the different comparisons. use a temporary and
 	// load it in every branch.
-	tag := fn.addLocal(tagv.Type(), pos)
+	tag := fn.addLocal(tagv.Type(), tagSource)
 	tag.Comment = "switch.tag"
-	emitStore(fn, tag, tagv, pos)
+	emitStore(fn, tag, tagv, tagSource)
 
 	done := fn.newBasicBlock("switch.done")
 	if label != nil {
@@ -1394,8 +1359,8 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 				// invalid.
 				b.cond(fn, cond, body, nextCond)
 			} else {
-				cond := emitCompare(fn, token.EQL, emitLoad(fn, tag), b.expr(fn, cond), cond.Pos())
-				emitIf(fn, cond, body, nextCond)
+				cond := emitCompare(fn, token.EQL, emitLoad(fn, tag, cond), b.expr(fn, cond), cond)
+				emitIf(fn, cond, body, nextCond, cond.Source())
 			}
 
 			fn.currentBlock = nextCond
@@ -1408,11 +1373,14 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 		}
 		b.stmtList(fn, cc.Body)
 		fn.targets = fn.targets.tail
-		emitJump(fn, done)
+		emitJump(fn, done, s)
 		fn.currentBlock = nextCond
 	}
 	if dfltBlock != nil {
-		emitJump(fn, dfltBlock)
+		// The lack of a Source for the jump doesn't matter, block
+		// fusing will get rid of the jump later.
+
+		emitJump(fn, dfltBlock, s)
 		fn.currentBlock = dfltBlock
 		fn.targets = &targets{
 			tail:         fn.targets,
@@ -1422,7 +1390,7 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 		b.stmtList(fn, *dfltBody)
 		fn.targets = fn.targets.tail
 	}
-	emitJump(fn, done)
+	emitJump(fn, done, s)
 	fn.currentBlock = done
 }
 
@@ -1440,8 +1408,8 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	default:
 		panic("unreachable")
 	}
-	tagPtr := fn.addLocal(tag.Type(), tag.Pos())
-	emitStore(fn, tagPtr, tag, tag.Pos())
+	tagPtr := fn.addLocal(tag.Type(), tag.Source())
+	emitStore(fn, tagPtr, tag, tag.Source())
 
 	// +1 in case there's no explicit default case
 	heads := make([]*BasicBlock, 0, len(s.Body.List)+1)
@@ -1454,7 +1422,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 
 	// set up type switch and constant switch, populate their conditions
 	tswtch := &TypeSwitch{
-		Tag:   emitLoad(fn, tagPtr),
+		Tag:   emitLoad(fn, tagPtr, tag.Source()),
 		Conds: make([]types.Type, 0, len(s.Body.List)+1),
 	}
 	cswtch := &ConstantSwitch{
@@ -1467,7 +1435,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	for _, clause := range s.Body.List {
 		cc := clause.(*ast.CaseClause)
 		if obj := fn.Pkg.info.Implicits[cc]; obj != nil {
-			fn.addNamedLocal(obj)
+			fn.addNamedLocal(obj, cc)
 		}
 		if cc.List == nil {
 			// default case
@@ -1499,13 +1467,13 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	tswtch.setType(types.NewTuple(vars...))
 	// default branch
 	fn.currentBlock = entry
-	fn.emit(tswtch)
+	fn.emit(tswtch, s)
 	cswtch.Conds = append(cswtch.Conds, emitConst(fn, intConst(int64(-1))))
 	// in theory we should add a local and stores/loads for tswtch, to
 	// generate sigma nodes in the branches. however, there isn't any
 	// useful information we could possibly attach to it.
-	cswtch.Tag = emitExtract(fn, tswtch, 0)
-	fn.emit(cswtch)
+	cswtch.Tag = emitExtract(fn, tswtch, 0, s)
+	fn.emit(cswtch, s)
 
 	// build heads and bodies
 	index = 0
@@ -1516,7 +1484,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 		}
 
 		body := fn.newBasicBlock("typeswitch.body")
-		for range cc.List {
+		for _, expr := range cc.List {
 			head := fn.newBasicBlock("typeswitch.head")
 			heads = append(heads, head)
 			fn.currentBlock = head
@@ -1530,14 +1498,14 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 
 				l := fn.objects[obj]
 				if rets[index] == tUntypedNil {
-					emitStore(fn, l, emitConst(fn, nilConst(tswtch.Tag.Type())), obj.Pos())
+					emitStore(fn, l, emitConst(fn, nilConst(tswtch.Tag.Type())), s.Assign)
 				} else {
-					x := emitExtract(fn, tswtch, index+1)
-					emitStore(fn, l, x, obj.Pos())
+					x := emitExtract(fn, tswtch, index+1, s.Assign)
+					emitStore(fn, l, x, nil)
 				}
 			}
 
-			emitJump(fn, body)
+			emitJump(fn, body, expr)
 			index++
 		}
 		fn.currentBlock = body
@@ -1547,7 +1515,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 		}
 		b.stmtList(fn, cc.Body)
 		fn.targets = fn.targets.tail
-		emitJump(fn, done)
+		emitJump(fn, done, clause)
 	}
 
 	if default_ == nil {
@@ -1563,12 +1531,12 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 		}
 		if obj := fn.Pkg.info.Implicits[default_]; obj != nil {
 			l := fn.objects[obj]
-			x := emitExtract(fn, tswtch, index+1)
-			emitStore(fn, l, x, obj.Pos())
+			x := emitExtract(fn, tswtch, index+1, s.Assign)
+			emitStore(fn, l, x, s)
 		}
 		b.stmtList(fn, default_.Body)
 		fn.targets = fn.targets.tail
-		emitJump(fn, done)
+		emitJump(fn, done, s)
 	}
 
 	fn.currentBlock = entry
@@ -1585,8 +1553,8 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 	if len(s.Body.List) == 0 {
 		instr := &Select{Blocking: true}
 		instr.setType(types.NewTuple(varIndex, varOk))
-		fn.emit(instr)
-		fn.emit(new(Unreachable))
+		fn.emit(instr, s)
+		fn.emit(new(Unreachable), s)
 		addEdge(fn.currentBlock, fn.Exit)
 		return true
 	}
@@ -1608,7 +1576,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 			}
 			b.stmtList(fn, clause.Body)
 			fn.targets = fn.targets.tail
-			emitJump(fn, done)
+			emitJump(fn, done, clause)
 			fn.currentBlock = done
 			return false
 		}
@@ -1632,7 +1600,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 				Dir:  types.SendOnly,
 				Chan: ch,
 				Send: emitConv(fn, b.expr(fn, comm.Value),
-					ch.Type().Underlying().(*types.Chan).Elem()),
+					ch.Type().Underlying().(*types.Chan).Elem(), comm),
 				Pos: comm.Arrow,
 			}
 			if debugInfo {
@@ -1670,7 +1638,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 		States:   states,
 		Blocking: blocking,
 	}
-	sel.setPos(s.Select)
+	sel.source = s
 	var vars []*types.Var
 	vars = append(vars, varIndex, varOk)
 	for _, st := range states {
@@ -1680,8 +1648,8 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 		}
 	}
 	sel.setType(types.NewTuple(vars...))
-	fn.emit(sel)
-	idx := emitExtract(fn, sel, 0)
+	fn.emit(sel, s)
+	idx := emitExtract(fn, sel, 0, s)
 
 	done := fn.newBasicBlock("select.done")
 	if label != nil {
@@ -1710,7 +1678,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 				_break: done,
 			}
 			b.stmtList(fn, clause.Body)
-			emitJump(fn, done)
+			emitJump(fn, done, s)
 			fn.targets = fn.targets.tail
 			swtch.Conds = append(swtch.Conds, emitConst(fn, intConst(-1)))
 			continue
@@ -1726,7 +1694,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 		switch comm := clause.Comm.(type) {
 		case *ast.ExprStmt: // <-ch
 			if debugInfo {
-				v := emitExtract(fn, sel, r)
+				v := emitExtract(fn, sel, r, comm)
 				emitDebugRef(fn, states[state].DebugNode.(ast.Expr), v, false)
 			}
 			r++
@@ -1736,28 +1704,28 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 				fn.addLocalForIdent(comm.Lhs[0].(*ast.Ident))
 			}
 			x := b.addr(fn, comm.Lhs[0], false) // non-escaping
-			v := emitExtract(fn, sel, r)
+			v := emitExtract(fn, sel, r, comm)
 			if debugInfo {
 				emitDebugRef(fn, states[state].DebugNode.(ast.Expr), v, false)
 			}
-			x.store(fn, v)
+			x.store(fn, v, comm)
 
 			if len(comm.Lhs) == 2 { // x, ok := ...
 				if comm.Tok == token.DEFINE {
 					fn.addLocalForIdent(comm.Lhs[1].(*ast.Ident))
 				}
 				ok := b.addr(fn, comm.Lhs[1], false) // non-escaping
-				ok.store(fn, emitExtract(fn, sel, 1))
+				ok.store(fn, emitExtract(fn, sel, 1, comm), comm)
 			}
 			r++
 		}
 		b.stmtList(fn, clause.Body)
 		fn.targets = fn.targets.tail
-		emitJump(fn, done)
+		emitJump(fn, done, s)
 		state++
 	}
 	fn.currentBlock = entry
-	fn.emit(swtch)
+	fn.emit(swtch, s)
 	for _, body := range bodies {
 		addEdge(entry, body)
 	}
@@ -1797,7 +1765,7 @@ func (b *builder) forStmt(fn *Function, s *ast.ForStmt, label *lblock) {
 		label._break = done
 		label._continue = cont
 	}
-	emitJump(fn, loop)
+	emitJump(fn, loop, s)
 	fn.currentBlock = loop
 	if loop != body {
 		b.cond(fn, s.Cond, body, done)
@@ -1810,12 +1778,12 @@ func (b *builder) forStmt(fn *Function, s *ast.ForStmt, label *lblock) {
 	}
 	b.stmt(fn, s.Body)
 	fn.targets = fn.targets.tail
-	emitJump(fn, cont)
+	emitJump(fn, cont, s)
 
 	if s.Post != nil {
 		fn.currentBlock = cont
 		b.stmt(fn, s.Post)
-		emitJump(fn, loop) // back-edge
+		emitJump(fn, loop, s) // back-edge
 	}
 	fn.currentBlock = done
 }
@@ -1825,7 +1793,7 @@ func (b *builder) forStmt(fn *Function, s *ast.ForStmt, label *lblock) {
 // The v result is defined only if tv is non-nil.
 // forPos is the position of the "for" token.
 //
-func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, pos token.Pos) (k, v Value, loop, done *BasicBlock) {
+func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.Node) (k, v Value, loop, done *BasicBlock) {
 	//
 	//      length = len(x)
 	//      index = -1
@@ -1855,30 +1823,30 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, pos token.P
 		c.Call.Value = makeLen(x.Type())
 		c.Call.Args = []Value{x}
 		c.setType(tInt)
-		length = fn.emit(&c)
+		length = fn.emit(&c, source)
 	}
 
-	index := fn.addLocal(tInt, token.NoPos)
-	emitStore(fn, index, emitConst(fn, intConst(-1)), pos)
+	index := fn.addLocal(tInt, source)
+	emitStore(fn, index, emitConst(fn, intConst(-1)), source)
 
 	loop = fn.newBasicBlock("rangeindex.loop")
-	emitJump(fn, loop)
+	emitJump(fn, loop, source)
 	fn.currentBlock = loop
 
 	incr := &BinOp{
 		Op: token.ADD,
-		X:  emitLoad(fn, index),
+		X:  emitLoad(fn, index, source),
 		Y:  emitConst(fn, intConst(1)),
 	}
 	incr.setType(tInt)
-	emitStore(fn, index, fn.emit(incr), pos)
+	emitStore(fn, index, fn.emit(incr, source), source)
 
 	body := fn.newBasicBlock("rangeindex.body")
 	done = fn.newBasicBlock("rangeindex.done")
-	emitIf(fn, emitCompare(fn, token.LSS, incr, length, token.NoPos), body, done)
+	emitIf(fn, emitCompare(fn, token.LSS, incr, length, source), body, done, source)
 	fn.currentBlock = body
 
-	k = emitLoad(fn, index)
+	k = emitLoad(fn, index, source)
 	if tv != nil {
 		switch t := x.Type().Underlying().(type) {
 		case *types.Array:
@@ -1887,7 +1855,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, pos token.P
 				Index: k,
 			}
 			instr.setType(t.Elem())
-			v = fn.emit(instr)
+			v = fn.emit(instr, source)
 
 		case *types.Pointer: // *array
 			instr := &IndexAddr{
@@ -1895,7 +1863,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, pos token.P
 				Index: k,
 			}
 			instr.setType(types.NewPointer(t.Elem().Underlying().(*types.Array).Elem()))
-			v = emitLoad(fn, fn.emit(instr))
+			v = emitLoad(fn, fn.emit(instr, source), source)
 
 		case *types.Slice:
 			instr := &IndexAddr{
@@ -1903,7 +1871,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, pos token.P
 				Index: k,
 			}
 			instr.setType(types.NewPointer(t.Elem()))
-			v = emitLoad(fn, fn.emit(instr))
+			v = emitLoad(fn, fn.emit(instr, source), source)
 
 		default:
 			panic("rangeIndexed x:" + t.String())
@@ -1917,7 +1885,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, pos token.P
 // tk and tv are the types of the key/value results k and v, or nil
 // if the respective component is not wanted.
 //
-func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, pos token.Pos) (k, v Value, loop, done *BasicBlock) {
+func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, source ast.Node) (k, v Value, loop, done *BasicBlock) {
 	//
 	//	it = range x
 	// loop:                                   (target of continue)
@@ -1940,12 +1908,11 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, pos token.
 	}
 
 	rng := &Range{X: x}
-	rng.setPos(pos)
 	rng.setType(tRangeIter)
-	it := fn.emit(rng)
+	it := fn.emit(rng, source)
 
 	loop = fn.newBasicBlock("rangeiter.loop")
-	emitJump(fn, loop)
+	emitJump(fn, loop, source)
 	fn.currentBlock = loop
 
 	_, isString := x.Type().Underlying().(*types.Basic)
@@ -1959,18 +1926,18 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, pos token.
 		newVar("k", tk),
 		newVar("v", tv),
 	))
-	fn.emit(okv)
+	fn.emit(okv, source)
 
 	body := fn.newBasicBlock("rangeiter.body")
 	done = fn.newBasicBlock("rangeiter.done")
-	emitIf(fn, emitExtract(fn, okv, 0), body, done)
+	emitIf(fn, emitExtract(fn, okv, 0, source), body, done, source)
 	fn.currentBlock = body
 
 	if tk != tInvalid {
-		k = emitExtract(fn, okv, 1)
+		k = emitExtract(fn, okv, 1, source)
 	}
 	if tv != tInvalid {
-		v = emitExtract(fn, okv, 2)
+		v = emitExtract(fn, okv, 2, source)
 	}
 	return
 }
@@ -1981,7 +1948,7 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, pos token.
 // not wanted
 // pos is the position of the '=' or ':=' token.
 //
-func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, pos token.Pos) (k Value, loop, done *BasicBlock) {
+func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, source ast.Node) (k Value, loop, done *BasicBlock) {
 	//
 	// loop:                                   (target of continue)
 	//      ko = <-x                           (key, ok)
@@ -1994,15 +1961,15 @@ func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, pos token.Pos)
 	// done:                                   (target of break)
 
 	loop = fn.newBasicBlock("rangechan.loop")
-	emitJump(fn, loop)
+	emitJump(fn, loop, source)
 	fn.currentBlock = loop
-	retv := emitRecv(fn, x, true, types.NewTuple(newVar("k", x.Type().Underlying().(*types.Chan).Elem()), varOk), pos)
+	retv := emitRecv(fn, x, true, types.NewTuple(newVar("k", x.Type().Underlying().(*types.Chan).Elem()), varOk), source)
 	body := fn.newBasicBlock("rangechan.body")
 	done = fn.newBasicBlock("rangechan.done")
-	emitIf(fn, emitExtract(fn, retv, 1), body, done)
+	emitIf(fn, emitExtract(fn, retv, 1, source), body, done, source)
 	fn.currentBlock = body
 	if tk != nil {
-		k = emitExtract(fn, retv, 0)
+		k = emitExtract(fn, retv, 0, source)
 	}
 	return
 }
@@ -2010,7 +1977,7 @@ func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, pos token.Pos)
 // rangeStmt emits to fn code for the range statement s, optionally
 // labelled by label.
 //
-func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock) {
+func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, source ast.Node) {
 	var tk, tv types.Type
 	if s.Key != nil && !isBlankIdent(s.Key) {
 		tk = fn.Pkg.typeOf(s.Key)
@@ -2040,13 +2007,13 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock) {
 	var loop, done *BasicBlock
 	switch rt := x.Type().Underlying().(type) {
 	case *types.Slice, *types.Array, *types.Pointer: // *array
-		k, v, loop, done = b.rangeIndexed(fn, x, tv, s.For)
+		k, v, loop, done = b.rangeIndexed(fn, x, tv, source)
 
 	case *types.Chan:
-		k, loop, done = b.rangeChan(fn, x, tk, s.For)
+		k, loop, done = b.rangeChan(fn, x, tk, source)
 
 	case *types.Map, *types.Basic: // string
-		k, v, loop, done = b.rangeIter(fn, x, tk, tv, s.For)
+		k, v, loop, done = b.rangeIter(fn, x, tk, tv, source)
 
 	default:
 		panic("Cannot range over: " + rt.String())
@@ -2061,10 +2028,10 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock) {
 		vl = b.addr(fn, s.Value, false) // non-escaping
 	}
 	if tk != nil {
-		kl.store(fn, k)
+		kl.store(fn, k, s)
 	}
 	if tv != nil {
-		vl.store(fn, v)
+		vl.store(fn, v, s)
 	}
 
 	if label != nil {
@@ -2079,7 +2046,7 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock) {
 	}
 	b.stmt(fn, s.Body)
 	fn.targets = fn.targets.tail
-	emitJump(fn, loop) // back-edge
+	emitJump(fn, loop, source) // back-edge
 	fn.currentBlock = done
 }
 
@@ -2107,7 +2074,7 @@ start:
 
 	case *ast.LabeledStmt:
 		label = fn.labelledBlock(s.Label)
-		emitJump(fn, label._goto)
+		emitJump(fn, label._goto, s)
 		fn.currentBlock = label._goto
 		_s = s.Stmt
 		goto start // effectively: tailcall stmt(fn, s.Stmt, label)
@@ -2119,10 +2086,9 @@ start:
 		instr := &Send{
 			Chan: b.expr(fn, s.Chan),
 			X: emitConv(fn, b.expr(fn, s.Value),
-				fn.Pkg.typeOf(s.Chan).Underlying().(*types.Chan).Elem()),
-			pos: s.Arrow,
+				fn.Pkg.typeOf(s.Chan).Underlying().(*types.Chan).Elem(), s),
 		}
-		fn.emit(instr)
+		fn.emit(instr, s)
 
 	case *ast.IncDecStmt:
 		op := token.ADD
@@ -2130,34 +2096,37 @@ start:
 			op = token.SUB
 		}
 		loc := b.addr(fn, s.X, false)
-		b.assignOp(fn, loc, emitConst(fn, NewConst(constant.MakeInt64(1), loc.typ())), op, s.Pos())
+		b.assignOp(fn, loc, emitConst(fn, NewConst(constant.MakeInt64(1), loc.typ())), op, s)
 
 	case *ast.AssignStmt:
 		switch s.Tok {
 		case token.ASSIGN, token.DEFINE:
-			b.assignStmt(fn, s.Lhs, s.Rhs, s.Tok == token.DEFINE)
+			b.assignStmt(fn, s.Lhs, s.Rhs, s.Tok == token.DEFINE, _s)
 
 		default: // +=, etc.
 			op := s.Tok + token.ADD - token.ADD_ASSIGN
-			b.assignOp(fn, b.addr(fn, s.Lhs[0], false), b.expr(fn, s.Rhs[0]), op, s.Pos())
+			b.assignOp(fn, b.addr(fn, s.Lhs[0], false), b.expr(fn, s.Rhs[0]), op, s)
 		}
 
 	case *ast.GoStmt:
 		// The "intrinsics" new/make/len/cap are forbidden here.
 		// panic is treated like an ordinary function call.
-		v := Go{pos: s.Go}
+		v := Go{}
 		b.setCall(fn, s.Call, &v.Call)
-		fn.emit(&v)
+		fn.emit(&v, s)
 
 	case *ast.DeferStmt:
 		// The "intrinsics" new/make/len/cap are forbidden here.
 		// panic is treated like an ordinary function call.
-		v := Defer{pos: s.Defer}
+		v := Defer{}
 		b.setCall(fn, s.Call, &v.Call)
 		fn.hasDefer = true
-		fn.emit(&v)
+		fn.emit(&v, s)
 
 	case *ast.ReturnStmt:
+		// TODO(dh): we could emit tigher position information by
+		// using the ith returned expression
+
 		var results []Value
 		if len(s.Results) == 1 && fn.Signature.Results().Len() > 1 {
 			// Return of one expression in a multi-valued function.
@@ -2165,23 +2134,23 @@ start:
 			ttuple := tuple.Type().(*types.Tuple)
 			for i, n := 0, ttuple.Len(); i < n; i++ {
 				results = append(results,
-					emitConv(fn, emitExtract(fn, tuple, i),
-						fn.Signature.Results().At(i).Type()))
+					emitConv(fn, emitExtract(fn, tuple, i, s),
+						fn.Signature.Results().At(i).Type(), s))
 			}
 		} else {
 			// 1:1 return, or no-arg return in non-void function.
 			for i, r := range s.Results {
-				v := emitConv(fn, b.expr(fn, r), fn.Signature.Results().At(i).Type())
+				v := emitConv(fn, b.expr(fn, r), fn.Signature.Results().At(i).Type(), s)
 				results = append(results, v)
 			}
 		}
 
 		ret := fn.results()
 		for i, r := range results {
-			emitStore(fn, ret[i], r, s.Return)
+			emitStore(fn, ret[i], r, s)
 		}
 
-		emitJump(fn, fn.Exit)
+		emitJump(fn, fn.Exit, s)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 
 	case *ast.BranchStmt:
@@ -2213,7 +2182,7 @@ start:
 		case token.GOTO:
 			block = fn.labelledBlock(s.Label)._goto
 		}
-		j := emitJump(fn, block)
+		j := emitJump(fn, block, s)
 		j.Comment = s.Tok.String()
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 
@@ -2231,15 +2200,15 @@ start:
 			els = fn.newBasicBlock("if.else")
 		}
 		instr := b.cond(fn, s.Cond, then, els)
-		instr.pos = s.Pos()
+		instr.source = s
 		fn.currentBlock = then
 		b.stmt(fn, s.Body)
-		emitJump(fn, done)
+		emitJump(fn, done, s)
 
 		if s.Else != nil {
 			fn.currentBlock = els
 			b.stmt(fn, s.Else)
-			emitJump(fn, done)
+			emitJump(fn, done, s)
 		}
 
 		fn.currentBlock = done
@@ -2260,7 +2229,7 @@ start:
 		b.forStmt(fn, s, label)
 
 	case *ast.RangeStmt:
-		b.rangeStmt(fn, s, label)
+		b.rangeStmt(fn, s, label, s)
 
 	default:
 		panic(fmt.Sprintf("unexpected statement kind: %T", s))
@@ -2276,7 +2245,7 @@ func (b *builder) buildFunction(fn *Function) {
 	var recvField *ast.FieldList
 	var body *ast.BlockStmt
 	var functype *ast.FuncType
-	switch n := fn.syntax.(type) {
+	switch n := fn.source.(type) {
 	case nil:
 		return // not a Go source function.  (Synthetic, or from object file.)
 	case *ast.FuncDecl:
@@ -2311,17 +2280,19 @@ func (b *builder) buildFunction(fn *Function) {
 			// We set Function.Params even though there is no body
 			// code to reference them.  This simplifies clients.
 			if recv := fn.Signature.Recv(); recv != nil {
-				fn.addParamObj(recv)
+				// XXX synthesize an ast.Node
+				fn.addParamObj(recv, nil)
 			}
 			params := fn.Signature.Params()
 			for i, n := 0, params.Len(); i < n; i++ {
-				fn.addParamObj(params.At(i))
+				// XXX synthesize an ast.Node
+				fn.addParamObj(params.At(i), nil)
 			}
 		}
 		return
 	}
 	if fn.Prog.mode&LogSource != 0 {
-		defer logStack("build function %s @ %s", fn, fn.Prog.Fset.Position(fn.pos))()
+		defer logStack("build function %s @ %s", fn, fn.Prog.Fset.Position(fn.Pos()))()
 	}
 	fn.blocksets = b.blocksets
 	fn.startBody()
@@ -2338,7 +2309,7 @@ func (b *builder) buildFunction(fn *Function) {
 		// unreachable.  The sanity checker checks this.
 		// fn.emit(new(RunDefers))
 		// fn.emit(new(Return))
-		emitJump(fn, fn.Exit)
+		emitJump(fn, fn.Exit, nil)
 	}
 	optimizeBlocks(fn)
 	buildFakeExits(fn)
@@ -2361,8 +2332,9 @@ func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 		var v Call
 		v.Call.Value = fn
 		v.setType(types.NewTuple())
-		pkg.init.emit(&v)
+		pkg.init.emit(&v, decl)
 	}
+	fn.source = decl
 	b.buildFunction(fn)
 }
 
@@ -2415,9 +2387,9 @@ func (p *Package) build() {
 	initguard := p.Var("init$guard")
 	doinit := init.newBasicBlock("init.start")
 	done = init.Exit
-	emitIf(init, emitLoad(init, initguard), done, doinit)
+	emitIf(init, emitLoad(init, initguard, nil), done, doinit, nil)
 	init.currentBlock = doinit
-	emitStore(init, initguard, emitConst(init, NewConst(constant.MakeBool(true), tBool)), token.NoPos)
+	emitStore(init, initguard, emitConst(init, NewConst(constant.MakeBool(true), tBool)), nil)
 
 	// Call the init() function of each package we import.
 	for _, pkg := range p.Pkg.Imports() {
@@ -2427,9 +2399,8 @@ func (p *Package) build() {
 		}
 		var v Call
 		v.Call.Value = prereq.init
-		v.Call.pos = init.pos
 		v.setType(types.NewTuple())
-		init.emit(&v)
+		init.emit(&v, nil)
 	}
 
 	b := builder{
@@ -2446,11 +2417,12 @@ func (p *Package) build() {
 			// 1:1 initialization: var x, y = a(), b()
 			var lval lvalue
 			if v := varinit.Lhs[0]; v.Name() != "_" {
-				lval = &address{addr: p.values[v].(*Global), pos: v.Pos()}
+				lval = &address{addr: p.values[v].(*Global)}
 			} else {
 				lval = blank{}
 			}
-			b.assign(init, lval, varinit.Rhs, true, nil)
+			// TODO(dh): do emit position information
+			b.assign(init, lval, varinit.Rhs, true, nil, nil)
 		} else {
 			// n:1 initialization: var x, y :=  f()
 			tuple := b.exprN(init, varinit.Rhs)
@@ -2458,7 +2430,7 @@ func (p *Package) build() {
 				if v.Name() == "_" {
 					continue
 				}
-				emitStore(init, p.values[v].(*Global), emitExtract(init, tuple, i), v.Pos())
+				emitStore(init, p.values[v].(*Global), emitExtract(init, tuple, i, nil), nil)
 			}
 		}
 	}
@@ -2475,7 +2447,7 @@ func (p *Package) build() {
 	}
 
 	// Finish up init().
-	emitJump(init, done)
+	emitJump(init, done, nil)
 	init.finishBody()
 
 	p.info = nil // We no longer need ASTs or go/types deductions.

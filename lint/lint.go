@@ -458,10 +458,6 @@ func FilterChecks(allChecks []*analysis.Analyzer, checks []string) map[string]bo
 	return allowedChecks
 }
 
-type Positioner interface {
-	Pos() token.Pos
-}
-
 func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
 	if p == token.NoPos {
 		return token.Position{}

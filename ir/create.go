@@ -75,7 +75,6 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 			name:   name,
 			object: obj,
 			typ:    types.NewPointer(obj.Type()), // address
-			pos:    obj.Pos(),
 		}
 		pkg.values[obj] = g
 		pkg.Members[name] = g
@@ -90,11 +89,10 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 			name:      name,
 			object:    obj,
 			Signature: sig,
-			syntax:    syntax,
-			pos:       obj.Pos(),
 			Pkg:       pkg,
 			Prog:      pkg.Prog,
 		}
+		fn.source = syntax
 		fn.initHTML(pkg.printFunc)
 		if syntax == nil {
 			fn.Synthetic = "loaded from gc object file"

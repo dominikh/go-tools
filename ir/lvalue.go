@@ -9,7 +9,6 @@ package ir
 
 import (
 	"go/ast"
-	"go/token"
 	"go/types"
 )
 
@@ -18,27 +17,24 @@ import (
 // pointer to permit updates to elements of maps.
 //
 type lvalue interface {
-	store(fn *Function, v Value) // stores v into the location
-	load(fn *Function) Value     // loads the contents of the location
-	address(fn *Function) Value  // address of the location
-	typ() types.Type             // returns the type of the location
+	store(fn *Function, v Value, source ast.Node) // stores v into the location
+	load(fn *Function, source ast.Node) Value     // loads the contents of the location
+	address(fn *Function) Value                   // address of the location
+	typ() types.Type                              // returns the type of the location
 }
 
 // An address is an lvalue represented by a true pointer.
 type address struct {
 	addr Value
-	pos  token.Pos // source position
-	expr ast.Expr  // source syntax of the value (not address) [debug mode]
+	expr ast.Expr // source syntax of the value (not address) [debug mode]
 }
 
-func (a *address) load(fn *Function) Value {
-	load := emitLoad(fn, a.addr)
-	load.pos = a.pos
-	return load
+func (a *address) load(fn *Function, source ast.Node) Value {
+	return emitLoad(fn, a.addr, source)
 }
 
-func (a *address) store(fn *Function, v Value) {
-	store := emitStore(fn, a.addr, v, a.pos)
+func (a *address) store(fn *Function, v Value, source ast.Node) {
+	store := emitStore(fn, a.addr, v, source)
 	if a.expr != nil {
 		// store.Val is v, converted for assignability.
 		emitDebugRef(fn, a.expr, store.Val, false)
@@ -57,38 +53,35 @@ func (a *address) typ() types.Type {
 }
 
 // An element is an lvalue represented by m[k], the location of an
-// element of a map or string.  These locations are not addressable
+// element of a map.  These locations are not addressable
 // since pointers cannot be formed from them, but they do support
-// load(), and in the case of maps, store().
+// load() and store().
 //
 type element struct {
-	m, k Value      // map or string
-	t    types.Type // map element type or string byte type
-	pos  token.Pos  // source position of colon ({k:v}) or lbrack (m[k]=v)
+	m, k Value      // map
+	t    types.Type // map element type
 }
 
-func (e *element) load(fn *Function) Value {
+func (e *element) load(fn *Function, source ast.Node) Value {
 	l := &MapLookup{
 		X:     e.m,
 		Index: e.k,
 	}
-	l.setPos(e.pos)
 	l.setType(e.t)
-	return fn.emit(l)
+	return fn.emit(l, source)
 }
 
-func (e *element) store(fn *Function, v Value) {
+func (e *element) store(fn *Function, v Value, source ast.Node) {
 	up := &MapUpdate{
 		Map:   e.m,
 		Key:   e.k,
-		Value: emitConv(fn, v, e.t),
+		Value: emitConv(fn, v, e.t, source),
 	}
-	up.pos = e.pos
-	fn.emit(up)
+	fn.emit(up, source)
 }
 
 func (e *element) address(fn *Function) Value {
-	panic("map/string elements are not addressable")
+	panic("map elements are not addressable")
 }
 
 func (e *element) typ() types.Type {
@@ -100,15 +93,15 @@ func (e *element) typ() types.Type {
 //
 type blank struct{}
 
-func (bl blank) load(fn *Function) Value {
+func (bl blank) load(fn *Function, source ast.Node) Value {
 	panic("blank.load is illegal")
 }
 
-func (bl blank) store(fn *Function, v Value) {
+func (bl blank) store(fn *Function, v Value, source ast.Node) {
 	s := &BlankStore{
 		Val: v,
 	}
-	fn.emit(s)
+	fn.emit(s, source)
 }
 
 func (bl blank) address(fn *Function) Value {

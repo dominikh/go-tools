@@ -198,7 +198,7 @@ func (b *builder) addUnreachables(fn *Function) {
 					bb.Succs = bb.Succs[:0]
 
 					bb.Instrs = bb.Instrs[:i+1]
-					bb.emit(new(Unreachable))
+					bb.emit(new(Unreachable), instr.Source())
 					addEdge(bb, fn.Exit)
 					break
 				} else if call.WillUnwind {
@@ -213,7 +213,7 @@ func (b *builder) addUnreachables(fn *Function) {
 					bb.Succs = bb.Succs[:0]
 
 					bb.Instrs = bb.Instrs[:i+1]
-					bb.emit(new(Jump))
+					bb.emit(new(Jump), instr.Source())
 					addEdge(bb, fn.Exit)
 					break
 				}

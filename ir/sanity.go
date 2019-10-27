@@ -452,7 +452,7 @@ func (s *sanity) checkFunction(fn *Function) bool {
 			s.errorf("nil Pkg")
 		}
 	}
-	if src, syn := fn.Synthetic == "", fn.Syntax() != nil; src != syn {
+	if src, syn := fn.Synthetic == "", fn.source != nil; src != syn {
 		s.errorf("got fromSource=%t, hasSyntax=%t; want same values", src, syn)
 	}
 	for i, l := range fn.Locals {
@@ -550,9 +550,6 @@ func sanityCheckPackage(pkg *Package) {
 				panic(fmt.Sprintf("%s: %T.Object().Name() = %s, want %s",
 					pkg.Pkg.Path(), mem, obj.Name(), name))
 			}
-		}
-		if obj.Pos() != mem.Pos() {
-			panic(fmt.Sprintf("%s Pos=%d obj.Pos=%d", mem, mem.Pos(), obj.Pos()))
 		}
 	}
 }

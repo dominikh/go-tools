@@ -1593,7 +1593,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 		if code.IsExample(fn) {
 			continue
 		}
-		node := fn.Syntax()
+		node := fn.Source()
 		if node == nil {
 			continue
 		}
@@ -1930,7 +1930,7 @@ func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
 
 			return true
 		}
-		Inspect(fn.Syntax(), cb)
+		Inspect(fn.Source(), cb)
 	}
 	return nil, nil
 }
@@ -2000,7 +2000,7 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 			}
 			return true
 		}
-		Inspect(fn.Syntax(), cb)
+		Inspect(fn.Source(), cb)
 	}
 	return nil, nil
 }
@@ -2912,8 +2912,11 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 		r(call)
 		path, _ := astutil.PathEnclosingInterval(code.File(pass, site), site.Pos(), site.Pos())
 		var astcall *ast.CallExpr
-		if len(path) > 1 {
-			astcall, _ = path[0].(*ast.CallExpr)
+		for _, el := range path {
+			if expr, ok := el.(*ast.CallExpr); ok {
+				astcall = expr
+				break
+			}
 		}
 		for idx, arg := range call.Args {
 			for _, e := range arg.invalids {
@@ -2925,7 +2928,7 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			}
 		}
 		for _, e := range call.invalids {
-			report.Report(pass, call.Instr.Common(), e)
+			report.Report(pass, call.Instr, e)
 		}
 	}
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
@@ -3016,7 +3019,7 @@ func loopedRegexp(name string) CallCheck {
 
 func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		if fn.Syntax() == nil {
+		if fn.Source() == nil {
 			continue
 		}
 		if code.IsExample(fn) {
@@ -3040,7 +3043,7 @@ func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, ifstmt.Body, "empty branch", report.FilterGenerated())
 			return true
 		}
-		Inspect(fn.Syntax(), cb)
+		Inspect(fn.Source(), cb)
 	}
 	return nil, nil
 }
