@@ -391,6 +391,9 @@ func (f *Function) emitConsts() {
 		return
 	}
 
+	// TODO(dh): our deduplication only works on booleans and
+	// integers. other constants are represented as pointers to
+	// things.
 	if len(f.consts) == 0 {
 		return
 	} else if len(f.consts) <= 32 {

@@ -35,7 +35,7 @@ func live(f *Function) []bool {
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr.(type) {
-			case *Store, *Call, *Go, *Defer, *Return, *BlankStore, *Jump, *If, *Panic, *RunDefers:
+			case *BlankStore, *Call, *ConstantSwitch, *Defer, *Go, *If, *Jump, *MapUpdate, *Next, *Panic, *Recv, *Return, *RunDefers, *Send, *Store, *Unreachable:
 				out[instr.ID()] = true
 				q = append(q, instr)
 			}
