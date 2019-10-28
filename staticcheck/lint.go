@@ -1975,8 +1975,11 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 						continue
 					}
 
-					assigned := false
+					var assignment ast.Node
 					ast.Inspect(body, func(node ast.Node) bool {
+						if assignment != nil {
+							return false
+						}
 						assign, ok := node.(*ast.AssignStmt)
 						if !ok {
 							return true
@@ -1987,14 +1990,15 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 								continue
 							}
 							if pass.TypesInfo.ObjectOf(ident) == obj {
-								assigned = true
+								assignment = assign
 								return false
 							}
 						}
 						return true
 					})
-					if assigned {
-						report.Report(pass, arg, fmt.Sprintf("argument %s is overwritten before first use", arg))
+					if assignment != nil {
+						report.Report(pass, arg, fmt.Sprintf("argument %s is overwritten before first use", arg),
+							report.Related(assignment, fmt.Sprintf("assignment to %s", arg)))
 					}
 				}
 			}
@@ -2289,7 +2293,11 @@ func CheckConcurrentTesting(pass *analysis.Pass) (interface{}, error) {
 						default:
 							continue
 						}
-						report.Report(pass, gostmt, fmt.Sprintf("the goroutine calls T.%s, which must be called in the same goroutine as the test", name))
+						// TODO(dh): don't report multiple diagnostics
+						// for multiple calls to T.Fatal, but do
+						// collect all of them as related information
+						report.Report(pass, gostmt, fmt.Sprintf("the goroutine calls T.%s, which must be called in the same goroutine as the test", name),
+							report.Related(call, fmt.Sprintf("call to T.%s", name)))
 					}
 				}
 			}
@@ -3724,7 +3732,7 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 					}
 					if r, ok := maybeNil[ptr]; ok {
 						report.Report(pass, instr, "possible nil pointer dereference",
-							report.Related(r, "check suggesting this pointer can be nil"))
+							report.Related(r, "this check suggests that the pointer can be nil"))
 					}
 				}
 			}
