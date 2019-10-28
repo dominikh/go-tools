@@ -45,7 +45,9 @@ func CheckSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "should use for range instead of for { select {} }", report.FilterGenerated())
 		} else if _, ok := Match(pass, checkSingleCaseSelectQ2, node); ok {
 			if _, ok := seen[node]; !ok {
-				report.Report(pass, node, "should use a simple channel send/receive instead of select with a single case", report.FilterGenerated())
+				report.Report(pass, node, "should use a simple channel send/receive instead of select with a single case",
+					report.ShortRange(),
+					report.FilterGenerated())
 			}
 		}
 	}
@@ -90,6 +92,7 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 		if err == nil && tv.IsBuiltin() {
 			report.Report(pass, node,
 				"should use copy() instead of a loop",
+				report.ShortRange(),
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("replace loop with call to copy()", edits...)))
 		} else {
@@ -313,7 +316,9 @@ func CheckForTrue(pass *analysis.Pass) (interface{}, error) {
 		if !code.IsBoolConst(pass, loop.Cond) || !code.BoolConst(pass, loop.Cond) {
 			return
 		}
-		report.Report(pass, loop, "should use for {} instead of for true {}", report.FilterGenerated())
+		report.Report(pass, loop, "should use for {} instead of for true {}",
+			report.ShortRange(),
+			report.FilterGenerated())
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
@@ -675,6 +680,7 @@ func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		report.Report(pass, node, fmt.Sprintf("should replace loop with %s", report.Render(pass, r)),
+			report.ShortRange(),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
@@ -1114,7 +1120,9 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 			case "HasSuffix":
 				replacement = "TrimSuffix"
 			}
-			report.Report(pass, ifstmt, fmt.Sprintf("should replace this if statement with an unconditional %s.%s", pkg, replacement), report.FilterGenerated())
+			report.Report(pass, ifstmt, fmt.Sprintf("should replace this if statement with an unconditional %s.%s", pkg, replacement),
+				report.ShortRange(),
+				report.FilterGenerated())
 		}
 	}
 	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
@@ -1155,6 +1163,7 @@ func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		report.Report(pass, loop, "should use copy() instead of loop for sliding slice elements",
+			report.ShortRange(),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("use copy() instead of loop", edits...)))
 	}
@@ -1225,7 +1234,9 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 		}
 		assert := m.State["assert"].(types.Object)
 		assign := m.State["ok"].(types.Object)
-		report.Report(pass, node, fmt.Sprintf("when %s is true, %s can't be nil", assign.Name(), assert.Name()), report.FilterGenerated())
+		report.Report(pass, node, fmt.Sprintf("when %s is true, %s can't be nil", assign.Name(), assert.Name()),
+			report.ShortRange(),
+			report.FilterGenerated())
 	}
 	fn2 := func(node ast.Node) {
 		m, ok := Match(pass, checkAssertNotNilFn2Q, node)
@@ -1235,7 +1246,9 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 		ifstmt := m.State["ifstmt"].(*ast.IfStmt)
 		lhs := m.State["lhs"].(types.Object)
 		assignIdent := m.State["ok"].(types.Object)
-		report.Report(pass, ifstmt, fmt.Sprintf("when %s is true, %s can't be nil", assignIdent.Name(), lhs.Name()), report.FilterGenerated())
+		report.Report(pass, ifstmt, fmt.Sprintf("when %s is true, %s can't be nil", assignIdent.Name(), lhs.Name()),
+			report.ShortRange(),
+			report.FilterGenerated())
 	}
 	code.Preorder(pass, fn1, (*ast.IfStmt)(nil))
 	code.Preorder(pass, fn2, (*ast.IfStmt)(nil))
@@ -1480,7 +1493,9 @@ func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 		}
 		switch m.State["x"].(types.Object).Type().Underlying().(type) {
 		case *types.Slice, *types.Map:
-			report.Report(pass, node, "unnecessary nil check around range", report.FilterGenerated())
+			report.Report(pass, node, "unnecessary nil check around range",
+				report.ShortRange(),
+				report.FilterGenerated())
 
 		}
 	}
@@ -1738,6 +1753,7 @@ func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 			report.Report(pass, node, "unnecessary guard around map access",
+				report.ShortRange(),
 				report.Fixes(edit.Fix("simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
 		}
 	}
@@ -1755,12 +1771,15 @@ func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 		if m, ok := Match(pass, checkElaborateSleepQ, node); ok {
 			if body, ok := m.State["body"].([]ast.Stmt); ok && len(body) == 0 {
 				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
+					report.ShortRange(),
 					report.FilterGenerated(),
 					report.Fixes(edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass, checkElaborateSleepR, m.State, node))))
 			} else {
 				// TODO(dh): we could make a suggested fix if the body
 				// doesn't declare or shadow any identifiers
-				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping", report.FilterGenerated())
+				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
+					report.ShortRange(),
+					report.FilterGenerated())
 			}
 		}
 	}

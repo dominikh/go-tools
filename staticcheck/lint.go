@@ -989,7 +989,7 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 			}
 			report.Report(pass, loop, "loop condition never changes or has a race condition")
 		}
-		report.Report(pass, loop, "this loop will spin, using 100%% CPU")
+		report.Report(pass, loop, "this loop will spin, using 100%% CPU", report.ShortRange())
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
@@ -1654,7 +1654,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 						if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
 							continue
 						}
-						report.Report(pass, lhs, fmt.Sprintf("this value of %s is never used", lhs))
+						report.Report(pass, assign, fmt.Sprintf("this value of %s is never used", lhs))
 					}
 				}
 				return true
@@ -1670,7 +1670,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				if !hasUse(val) {
-					report.Report(pass, lhs, fmt.Sprintf("this value of %s is never used", lhs))
+					report.Report(pass, assign, fmt.Sprintf("this value of %s is never used", lhs))
 				}
 			}
 			return true
@@ -3035,12 +3035,12 @@ func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
 				if !ok || len(b.List) != 0 {
 					return true
 				}
-				report.Report(pass, ifstmt.Else, "empty branch", report.FilterGenerated())
+				report.Report(pass, ifstmt.Else, "empty branch", report.FilterGenerated(), report.ShortRange())
 			}
 			if len(ifstmt.Body.List) != 0 {
 				return true
 			}
-			report.Report(pass, ifstmt.Body, "empty branch", report.FilterGenerated())
+			report.Report(pass, ifstmt, "empty branch", report.FilterGenerated(), report.ShortRange())
 			return true
 		}
 		Inspect(fn.Source(), cb)
@@ -3404,7 +3404,8 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 		for i, cc := range ccs[:len(ccs)-1] {
 			for _, next := range ccs[i+1:] {
 				if T, V, yes := subsumesAny(cc.types, next.types); yes {
-					report.Report(pass, next.cc, fmt.Sprintf("unreachable case clause: %s will always match before %s", T.String(), V.String()))
+					report.Report(pass, next.cc, fmt.Sprintf("unreachable case clause: %s will always match before %s", T.String(), V.String()),
+						report.ShortRange())
 				}
 			}
 		}

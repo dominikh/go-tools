@@ -59,7 +59,7 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			if code.IsInTest(pass, f) {
 				continue
 			}
-			report.Report(pass, f, "at least one file in a package should have a package comment")
+			report.Report(pass, f, "at least one file in a package should have a package comment", report.ShortRange())
 		}
 	}
 	return nil, nil
@@ -221,7 +221,7 @@ fnLoop:
 		}
 		for i := rets.Len() - 2; i >= 0; i-- {
 			if rets.At(i).Type() == types.Universe.Lookup("error").Type() {
-				report.Report(pass, rets.At(i), "error should be returned as the last argument")
+				report.Report(pass, rets.At(i), "error should be returned as the last argument", report.ShortRange())
 				continue fnLoop
 			}
 		}
@@ -338,7 +338,7 @@ fnLoop:
 		for i := 1; i < params.Len(); i++ {
 			param := params.At(i)
 			if types.TypeString(param.Type(), nil) == "context.Context" {
-				report.Report(pass, param, "context.Context should be the first argument of a function")
+				report.Report(pass, param, "context.Context should be the first argument of a function", report.ShortRange())
 				continue fnLoop
 			}
 		}
