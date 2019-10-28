@@ -275,10 +275,11 @@ var (
 
 	// TODO(dh): detect printf wrappers
 	checkPrintfRules = map[string]CallCheck{
-		"fmt.Errorf":  func(call *Call) { checkPrintfCall(call, 0, 1) },
-		"fmt.Printf":  func(call *Call) { checkPrintfCall(call, 0, 1) },
-		"fmt.Sprintf": func(call *Call) { checkPrintfCall(call, 0, 1) },
-		"fmt.Fprintf": func(call *Call) { checkPrintfCall(call, 1, 2) },
+		"fmt.Errorf":                  func(call *Call) { checkPrintfCall(call, 0, 1) },
+		"fmt.Printf":                  func(call *Call) { checkPrintfCall(call, 0, 1) },
+		"fmt.Sprintf":                 func(call *Call) { checkPrintfCall(call, 0, 1) },
+		"fmt.Fprintf":                 func(call *Call) { checkPrintfCall(call, 1, 2) },
+		"golang.org/x/xerrors.Errorf": func(call *Call) { checkPrintfCall(call, 0, 1) },
 	}
 
 	checkSortSliceRules = map[string]CallCheck{
