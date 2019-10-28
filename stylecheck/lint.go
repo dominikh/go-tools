@@ -664,12 +664,95 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 		if lit.Kind != token.STRING {
 			return
 		}
-		for _, r := range lit.Value {
+
+		type invalid struct {
+			r   rune
+			off int
+		}
+		var invalids []invalid
+		hasFormat := false
+		hasControl := false
+		for off, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
-				report.Report(pass, lit, fmt.Sprintf("string literal contains the Unicode format character %U, consider using the %q escape sequence", r, r))
+				invalids = append(invalids, invalid{r, off})
+				hasFormat = true
 			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
-				report.Report(pass, lit, fmt.Sprintf("string literal contains the Unicode control character %U, consider using the %q escape sequence", r, r))
+				invalids = append(invalids, invalid{r, off})
+				hasControl = true
 			}
+		}
+
+		switch len(invalids) {
+		case 0:
+			return
+		case 1:
+			var kind string
+			if hasFormat {
+				kind = "format"
+			} else if hasControl {
+				kind = "control"
+			} else {
+				panic("unreachable")
+			}
+
+			r := invalids[0]
+			msg := fmt.Sprintf("string literal contains the Unicode %s character %U, consider using the %q escape sequence instead", kind, r.r, r.r)
+
+			replacement := strconv.QuoteRune(r.r)
+			replacement = replacement[1 : len(replacement)-1]
+			edit := analysis.SuggestedFix{
+				Message: fmt.Sprintf("replace %s character %U with %q", kind, r.r, r.r),
+				TextEdits: []analysis.TextEdit{{
+					Pos:     lit.Pos() + token.Pos(r.off),
+					End:     lit.Pos() + token.Pos(r.off) + token.Pos(utf8.RuneLen(r.r)),
+					NewText: []byte(replacement),
+				}},
+			}
+			delete := analysis.SuggestedFix{
+				Message: fmt.Sprintf("delete %s character %U", kind, r),
+				TextEdits: []analysis.TextEdit{{
+					Pos: lit.Pos() + token.Pos(r.off),
+					End: lit.Pos() + token.Pos(r.off) + token.Pos(utf8.RuneLen(r.r)),
+				}},
+			}
+			report.Report(pass, lit, msg, report.Fixes(edit, delete))
+		default:
+			var kind string
+			if hasFormat && hasControl {
+				kind = "format and control"
+			} else if hasFormat {
+				kind = "format"
+			} else if hasControl {
+				kind = "control"
+			} else {
+				panic("unreachable")
+			}
+
+			msg := fmt.Sprintf("string literal contains Unicode %s characters, consider using escape sequences instead", kind)
+			var edits []analysis.TextEdit
+			var deletions []analysis.TextEdit
+			for _, r := range invalids {
+				replacement := strconv.QuoteRune(r.r)
+				replacement = replacement[1 : len(replacement)-1]
+				edits = append(edits, analysis.TextEdit{
+					Pos:     lit.Pos() + token.Pos(r.off),
+					End:     lit.Pos() + token.Pos(r.off) + token.Pos(utf8.RuneLen(r.r)),
+					NewText: []byte(replacement),
+				})
+				deletions = append(deletions, analysis.TextEdit{
+					Pos: lit.Pos() + token.Pos(r.off),
+					End: lit.Pos() + token.Pos(r.off) + token.Pos(utf8.RuneLen(r.r)),
+				})
+			}
+			edit := analysis.SuggestedFix{
+				Message:   fmt.Sprintf("replace all %s characters with escape sequences", kind),
+				TextEdits: edits,
+			}
+			delete := analysis.SuggestedFix{
+				Message:   fmt.Sprintf("delete all %s characters", kind),
+				TextEdits: deletions,
+			}
+			report.Report(pass, lit, msg, report.Fixes(edit, delete))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.BasicLit)(nil))
