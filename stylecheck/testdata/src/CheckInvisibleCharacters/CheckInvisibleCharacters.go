@@ -3,7 +3,7 @@ package pkg
 
 var (
 	a = ""  // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control character U\+0007` `Unicode control character U\+001A`
+	b = "" // want `Unicode control characters`
 	c = "Test	test"
 	d = `T
 est`
