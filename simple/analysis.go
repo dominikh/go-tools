@@ -101,10 +101,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckErrorsNewSprintf,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
-	// "S1029": {
-	// 	Run:      CheckRangeStringRunes,
-	// 	Requires: []*analysis.Analyzer{buildir.Analyzer},
-	// },
+	"S1029": {
+		Run:      CheckRangeStringRunes,
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
+	},
 	"S1030": {
 		Run:      CheckBytesBufferConversions,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},

@@ -76,7 +76,7 @@ func TestAll(t *testing.T) {
 		"SA6000": {{Dir: "CheckRegexpMatchLoop"}},
 		"SA6001": {{Dir: "CheckMapBytesKey"}},
 		"SA6002": {{Dir: "CheckSyncPoolValue"}},
-		// "SA6003": {{Dir: "CheckRangeStringRunes"}},
+		"SA6003": {{Dir: "CheckRangeStringRunes"}},
 		"SA6005": {{Dir: "CheckToLowerToUpperComparison"}},
 		"SA9001": {{Dir: "CheckDubiousDeferInChannelRangeLoop"}},
 		"SA9002": {{Dir: "CheckNonOctalFileMode"}},

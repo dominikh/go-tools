@@ -232,10 +232,10 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA6002": makeCallCheckerAnalyzer(checkSyncPoolValueRules),
-	// "SA6003": {
-	// 	Run:      CheckRangeStringRunes,
-	// 	Requires: []*analysis.Analyzer{buildir.Analyzer},
-	// },
+	"SA6003": {
+		Run:      CheckRangeStringRunes,
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
+	},
 	"SA6005": {
 		Run:      CheckToLowerToUpperComparison,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
