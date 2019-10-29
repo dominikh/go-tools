@@ -1786,3 +1786,83 @@ func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.SelectStmt)(nil))
 	return nil, nil
 }
+
+var checkPrintSprintQ = pattern.MustParse(`
+	(Or
+		(CallExpr
+			fn@(Or
+				(Function "fmt.Print")
+				(Function "fmt.Sprint")
+				(Function "fmt.Println")
+				(Function "fmt.Sprintln"))
+			[(CallExpr (Function "fmt.Sprintf") f:_)])
+		(CallExpr
+			fn@(Or
+				(Function "fmt.Fprint")
+				(Function "fmt.Fprintln"))
+			[_ (CallExpr (Function "fmt.Sprintf") f:_)]))`)
+
+func CheckPrintSprintf(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		m, ok := Match(pass, checkPrintSprintQ, node)
+		if !ok {
+			return
+		}
+
+		name := m.State["fn"].(*types.Func).Name()
+		var msg string
+		switch name {
+		case "Print", "Fprint", "Sprint":
+			newname := name + "f"
+			msg = fmt.Sprintf("should use fmt.%s instead of fmt.%s(fmt.Sprintf(...))", newname, name)
+		case "Println", "Fprintln", "Sprintln":
+			if _, ok := m.State["f"].(*ast.BasicLit); !ok {
+				// This may be an instance of
+				// fmt.Println(fmt.Sprintf(arg, ...)) where arg is an
+				// externally provided format string and the caller
+				// cannot guarantee that the format string ends with a
+				// newline.
+				return
+			}
+			newname := name[:len(name)-2] + "f"
+			msg = fmt.Sprintf("should use fmt.%s instead of fmt.%s(fmt.Sprintf(...)) (but don't forget the newline)", newname, name)
+		}
+		report.Report(pass, node, msg,
+			report.FilterGenerated())
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}
+
+var checkSprintLiteralQ = pattern.MustParse(`
+	(CallExpr
+		fn@(Or
+			(Function "fmt.Sprint")
+			(Function "fmt.Sprintf"))
+		[lit@(BasicLit "STRING" _)])`)
+
+func CheckSprintLiteral(pass *analysis.Pass) (interface{}, error) {
+	// We only flag calls with string literals, not expressions of
+	// type string, because some people use fmt.Sprint(s) as a pattern
+	// for copying strings, which may be useful when extracing a small
+	// substring from a large string.
+	fn := func(node ast.Node) {
+		m, ok := Match(pass, checkSprintLiteralQ, node)
+		if !ok {
+			return
+		}
+		callee := m.State["fn"].(*types.Func)
+		lit := m.State["lit"].(*ast.BasicLit)
+		if callee.Name() == "Sprintf" {
+			if strings.ContainsRune(lit.Value, '%') {
+				// This might be a format string
+				return
+			}
+		}
+		report.Report(pass, node, fmt.Sprintf("unnecessary use of fmt.%s", callee.Name()),
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("Replace with string literal", edit.ReplaceWithNode(pass.Fset, node, lit))))
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}

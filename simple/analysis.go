@@ -137,4 +137,12 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 		Run:      CheckElaborateSleep,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
+	"S1038": {
+		Run:      CheckPrintSprintf,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+	},
+	"S1039": {
+		Run:      CheckSprintLiteral,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+	},
 })

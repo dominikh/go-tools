@@ -470,4 +470,14 @@ from the result of time.After is a very elaborate way of sleeping that
 can much simpler be expressed with a simple call to time.Sleep.`,
 		Since: "Unreleased",
 	},
+
+	"S1038": {
+		Title: "Unnecessarily complex way of printing formatted string",
+		Since: "Unreleased",
+	},
+
+	"S1039": {
+		Title: "Unnecessary use of fmt.Sprint",
+		Since: "Unreleased",
+	},
 }
