@@ -3100,18 +3100,33 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
 	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
 
-	pureCall := func(e ast.Expr) bool {
+	var pureCall func(ast.Expr) bool
+	pureCall = func(e ast.Expr) bool {
 		call, ok := e.(*ast.CallExpr)
 		if !ok {
 			return false
 		}
-		if id, ok := call.Fun.(*ast.Ident); ok {
-			if fn, ok := pass.TypesInfo.ObjectOf(id).(*types.Func); ok {
-				_, ok = pure[fn]
-				return ok
+		id, ok := call.Fun.(*ast.Ident)
+		if !ok {
+			return false
+		}
+		fn, ok := pass.TypesInfo.ObjectOf(id).(*types.Func)
+		if !ok {
+			return false
+		}
+		if _, ok := pure[fn]; !ok {
+			return false
+		}
+
+		for _, arg := range call.Args {
+			if !pureCall(arg) && code.MayHaveSideEffects(arg) {
+				// The function that's being called is pure but its arguments aren't.
+				return false
 			}
 		}
-		return false
+
+		// The function and its arguments are pure.
+		return true
 	}
 	impureIndexing := func(e ast.Expr) bool {
 		idx, ok := e.(*ast.IndexExpr)

@@ -21,16 +21,22 @@ func fn1() {
 		x  []byte
 		ch chan int
 	)
-	x[pure()] = x[pure()] // want `self-assignment`
-	x[impure()] = x[impure()]
+	x[42] = x[42]                         // want `self-assignment`
+	x[pure(42)] = x[pure(42)]             // want `self-assignment`
+	x[pure(pure(42))] = x[pure(pure(42))] // want `self-assignment`
+	x[impure(42)] = x[impure(42)]
+	x[impure(pure(42))] = x[impure(pure(42))]
+	x[pure(impure(42))] = x[pure(impure(42))]
+	x[pure(<-ch)] = x[pure(<-ch)]
+	x[pure(pure(<-ch))] = x[pure(pure(<-ch))]
 	x[<-ch] = x[<-ch]
 }
 
-func pure() int {
-	return 0
+func pure(n int) int {
+	return n
 }
 
-func impure() int {
-	println()
-	return 0
+func impure(n int) int {
+	println(n)
+	return n
 }
