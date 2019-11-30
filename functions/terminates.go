@@ -22,37 +22,45 @@ func Terminates(fn *ir.Function) bool {
 				return true
 			}
 			for _, pred := range block.Preds {
-				// Receiving from a time.Tick channel won't ever
-				// return !ok, so a range loop over it won't
-				// terminate.
-				iff, ok := pred.Control().(*ir.If)
-				if !ok {
-					return true
-				}
-				ex, ok := iff.Cond.(*ir.Extract)
-				if !ok {
-					return true
-				}
-				if ex.Index != 1 {
-					return true
-				}
-				recv, ok := ex.Tuple.(*ir.Recv)
-				if !ok {
-					return true
-				}
-				call, ok := recv.Chan.(*ir.Call)
-				if !ok {
-					return true
-				}
-				fn, ok := call.Common().Value.(*ir.Function)
-				if !ok {
-					return true
-				}
-				fn2, ok := fn.Object().(*types.Func)
-				if !ok {
-					return true
-				}
-				if fn2.FullName() != "time.Tick" {
+				switch ctrl := pred.Control().(type) {
+				case *ir.Panic:
+					// explicit panics do not count as terminating
+				case *ir.If:
+					// Check if we got here by receiving from a closed
+					// time.Tick channel – this cannot happen at
+					// runtime and thus doesn't constitute termination
+					iff := ctrl
+					if !ok {
+						return true
+					}
+					ex, ok := iff.Cond.(*ir.Extract)
+					if !ok {
+						return true
+					}
+					if ex.Index != 1 {
+						return true
+					}
+					recv, ok := ex.Tuple.(*ir.Recv)
+					if !ok {
+						return true
+					}
+					call, ok := recv.Chan.(*ir.Call)
+					if !ok {
+						return true
+					}
+					fn, ok := call.Common().Value.(*ir.Function)
+					if !ok {
+						return true
+					}
+					fn2, ok := fn.Object().(*types.Func)
+					if !ok {
+						return true
+					}
+					if fn2.FullName() != "time.Tick" {
+						return true
+					}
+				default:
+					// we've reached the exit block
 					return true
 				}
 			}

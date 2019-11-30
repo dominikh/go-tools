@@ -34,6 +34,16 @@ func fn4() {
 	}()
 }
 
+func fn5() {
+	if false {
+		panic("foo")
+	}
+	for range time.Tick(0) {
+		println("")
+	}
+}
+
+
 type T struct{}
 
 func (t *T) foo() {
