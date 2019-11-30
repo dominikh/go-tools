@@ -210,6 +210,7 @@ func (b *builder) buildExits(fn *Function) {
 		}
 	}
 	if unwinds.Num() > 0 {
+		seen.Clear()
 		if !findPath(fn.Blocks[0], unwinds) {
 			fn.WillUnwind = true
 			return
