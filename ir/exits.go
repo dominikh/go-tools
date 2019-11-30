@@ -1,19 +1,66 @@
 package ir
 
+import (
+	"go/types"
+)
+
 func (b *builder) buildExits(fn *Function) {
-	if fn.Package().Pkg.Path() == "runtime" {
-		switch fn.Name() {
-		case "exit":
-			fn.WillExit = true
-			return
-		case "throw":
-			fn.WillExit = true
-			return
-		case "Goexit":
-			fn.WillUnwind = true
-			return
+	if obj := fn.Object(); obj != nil {
+		switch obj.Pkg().Path() {
+		case "runtime":
+			switch obj.Name() {
+			case "exit":
+				fn.WillExit = true
+				return
+			case "throw":
+				fn.WillExit = true
+				return
+			case "Goexit":
+				fn.WillUnwind = true
+				return
+			}
+		case "github.com/sirupsen/logrus":
+			switch obj.(*types.Func).FullName() {
+			case "(*github.com/sirupsen/logrus.Logger).Exit":
+				// Technically, this method does not unconditionally exit
+				// the process. It dynamically calls a function stored in
+				// the logger. If the function is nil, it defaults to
+				// os.Exit.
+				//
+				// The main intent of this method is to terminate the
+				// process, and that's what the vast majority of people
+				// will use it for. We'll happily accept some false
+				// negatives to avoid a lot of false positives.
+				fn.WillExit = true
+				return
+			case "(*github.com/sirupsen/logrus.Logger).Panic",
+				"(*github.com/sirupsen/logrus.Logger).Panicf",
+				"(*github.com/sirupsen/logrus.Logger).Panicln":
+
+				// These methods will always panic, but that's not
+				// statically known from the code alone, because they
+				// take a detour through the generic Log methods.
+				fn.WillUnwind = true
+				return
+			case "(*github.com/sirupsen/logrus.Entry).Panicf",
+				"(*github.com/sirupsen/logrus.Entry).Panicln":
+
+				// Entry.Panic has an explicit panic, but Panicf and
+				// Panicln do not, relying fully on the generic Log
+				// method.
+				fn.WillUnwind = true
+				return
+			case "(*github.com/sirupsen/logrus.Logger).Log",
+				"(*github.com/sirupsen/logrus.Logger).Logf",
+				"(*github.com/sirupsen/logrus.Logger).Logln":
+				// TODO(dh): we cannot handle these case. Whether they
+				// exit or unwind depends on the level, which is set
+				// via the first argument. We don't currently support
+				// call-site-specific exit information.
+			}
 		}
 	}
+
 	buildDomTree(fn)
 
 	isRecoverCall := func(instr Instruction) bool {
