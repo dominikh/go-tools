@@ -33,11 +33,15 @@ func Graph(cfg packages.Config, patterns ...string) ([]*packages.Package, error)
 
 	n := 0
 	for _, pkg := range pkgs {
-		if len(pkg.CompiledGoFiles) == 0 && pkg.PkgPath != "unsafe" {
+		if len(pkg.CompiledGoFiles) == 0 && len(pkg.Errors) == 0 && pkg.PkgPath != "unsafe" {
 			// If a package consists only of test files, then
 			// go/packages incorrectly(?) returns an empty package for
 			// the non-test variant. Get rid of those packages. See
 			// #646.
+			//
+			// Do not, however, skip packages that have errors. Those,
+			// too, may have no files, but we want to print the
+			// errors.
 			continue
 		}
 		pkgs[n] = pkg
