@@ -30,7 +30,20 @@ func Graph(cfg packages.Config, patterns ...string) ([]*packages.Package, error)
 	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
 		pkg.Fset = fset
 	})
-	return pkgs, nil
+
+	n := 0
+	for _, pkg := range pkgs {
+		if len(pkg.CompiledGoFiles) == 0 && pkg.PkgPath != "unsafe" {
+			// If a package consists only of test files, then
+			// go/packages incorrectly(?) returns an empty package for
+			// the non-test variant. Get rid of those packages. See
+			// #646.
+			continue
+		}
+		pkgs[n] = pkg
+		n++
+	}
+	return pkgs[:n], nil
 }
 
 // LoadFromExport loads a package from export data. All of its
