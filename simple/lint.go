@@ -1749,7 +1749,7 @@ var checkUnnecessaryGuardQ = pattern.MustParse(`
 func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if m, ok := Match(pass, checkUnnecessaryGuardQ, node); ok {
-			if code.MayHaveSideEffects(m.State["indexexpr"].(ast.Expr)) {
+			if code.MayHaveSideEffects(pass, m.State["indexexpr"].(ast.Expr), nil) {
 				return
 			}
 			report.Report(pass, node, "unnecessary guard around map access",

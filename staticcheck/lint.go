@@ -977,7 +977,7 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 		// channel receives.
 
 		if loop.Cond != nil {
-			if code.MayHaveSideEffects(loop.Cond) {
+			if code.MayHaveSideEffects(pass, loop.Cond, nil) {
 				return
 			}
 			if ident, ok := loop.Cond.(*ast.Ident); ok {
@@ -2554,7 +2554,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 		if ifstmt.Init != nil {
 			return nil, false
 		}
-		if code.MayHaveSideEffects(ifstmt.Cond) {
+		if code.MayHaveSideEffects(pass, ifstmt.Cond, nil) {
 			return nil, false
 		}
 

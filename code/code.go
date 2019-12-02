@@ -15,6 +15,7 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
 	"honnef.co/go/tools/facts"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/ir"
 	"honnef.co/go/tools/lint"
 )
@@ -383,12 +384,17 @@ func Generator(pass *analysis.Pass, pos token.Pos) (facts.Generator, bool) {
 	return g, ok
 }
 
-func MayHaveSideEffects(expr ast.Expr) bool {
+// MayHaveSideEffects reports whether expr may have side effects. If
+// the purity argument is nil, this function implements a purely
+// syntactic check, meaning that any function call may have side
+// effects, regardless of the called function's body. Otherwise,
+// purity will be consulted to determine the purity of function calls.
+func MayHaveSideEffects(pass *analysis.Pass, expr ast.Expr, purity facts.PurityResult) bool {
 	switch expr := expr.(type) {
 	case *ast.BadExpr:
 		return true
 	case *ast.Ellipsis:
-		return MayHaveSideEffects(expr.Elt)
+		return MayHaveSideEffects(pass, expr.Elt, purity)
 	case *ast.FuncLit:
 		// the literal itself cannot have side ffects, only calling it
 		// might, which is handled by CallExpr.
@@ -399,15 +405,37 @@ func MayHaveSideEffects(expr ast.Expr) bool {
 	case *ast.BasicLit:
 		return false
 	case *ast.BinaryExpr:
-		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Y)
+		return MayHaveSideEffects(pass, expr.X, purity) || MayHaveSideEffects(pass, expr.Y, purity)
 	case *ast.CallExpr:
-		return true
+		if purity == nil {
+			return true
+		}
+		switch obj := typeutil.Callee(pass.TypesInfo, expr).(type) {
+		case *types.Func:
+			if _, ok := purity[obj]; !ok {
+				return true
+			}
+		case *types.Builtin:
+			switch obj.Name() {
+			case "len", "cap":
+			default:
+				return true
+			}
+		default:
+			return true
+		}
+		for _, arg := range expr.Args {
+			if MayHaveSideEffects(pass, arg, purity) {
+				return true
+			}
+		}
+		return false
 	case *ast.CompositeLit:
-		if MayHaveSideEffects(expr.Type) {
+		if MayHaveSideEffects(pass, expr.Type, purity) {
 			return true
 		}
 		for _, elt := range expr.Elts {
-			if MayHaveSideEffects(elt) {
+			if MayHaveSideEffects(pass, elt, purity) {
 				return true
 			}
 		}
@@ -415,27 +443,27 @@ func MayHaveSideEffects(expr ast.Expr) bool {
 	case *ast.Ident:
 		return false
 	case *ast.IndexExpr:
-		return MayHaveSideEffects(expr.X) || MayHaveSideEffects(expr.Index)
+		return MayHaveSideEffects(pass, expr.X, purity) || MayHaveSideEffects(pass, expr.Index, purity)
 	case *ast.KeyValueExpr:
-		return MayHaveSideEffects(expr.Key) || MayHaveSideEffects(expr.Value)
+		return MayHaveSideEffects(pass, expr.Key, purity) || MayHaveSideEffects(pass, expr.Value, purity)
 	case *ast.SelectorExpr:
-		return MayHaveSideEffects(expr.X)
+		return MayHaveSideEffects(pass, expr.X, purity)
 	case *ast.SliceExpr:
-		return MayHaveSideEffects(expr.X) ||
-			MayHaveSideEffects(expr.Low) ||
-			MayHaveSideEffects(expr.High) ||
-			MayHaveSideEffects(expr.Max)
+		return MayHaveSideEffects(pass, expr.X, purity) ||
+			MayHaveSideEffects(pass, expr.Low, purity) ||
+			MayHaveSideEffects(pass, expr.High, purity) ||
+			MayHaveSideEffects(pass, expr.Max, purity)
 	case *ast.StarExpr:
-		return MayHaveSideEffects(expr.X)
+		return MayHaveSideEffects(pass, expr.X, purity)
 	case *ast.TypeAssertExpr:
-		return MayHaveSideEffects(expr.X)
+		return MayHaveSideEffects(pass, expr.X, purity)
 	case *ast.UnaryExpr:
-		if MayHaveSideEffects(expr.X) {
+		if MayHaveSideEffects(pass, expr.X, purity) {
 			return true
 		}
 		return expr.Op == token.ARROW
 	case *ast.ParenExpr:
-		return MayHaveSideEffects(expr.X)
+		return MayHaveSideEffects(pass, expr.X, purity)
 	case nil:
 		return false
 	default:
