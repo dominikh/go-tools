@@ -1,7 +1,6 @@
 package facts
 
 import (
-	"go/token"
 	"go/types"
 	"reflect"
 
@@ -100,11 +99,14 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		for _, param := range fn.Params {
+			// TODO(dh): this may not be strictly correct. pure code
+			// can, to an extent, operate on non-basic types.
 			if _, ok := param.Type().Underlying().(*types.Basic); !ok {
 				return false
 			}
 		}
 
+		// Don't consider external functions pure.
 		if fn.Blocks == nil {
 			return false
 		}
@@ -124,7 +126,7 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 				}
 			} else {
 				switch builtin.Name() {
-				case "len", "cap", "make", "new":
+				case "len", "cap":
 				default:
 					return false
 				}
@@ -154,10 +156,10 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 					return false
 				case *ir.FieldAddr:
 					return false
-				case *ir.UnOp:
-					if ins.Op == token.MUL || ins.Op == token.AND {
-						return false
-					}
+				case *ir.Alloc:
+					return false
+				case *ir.Load:
+					return false
 				}
 			}
 		}

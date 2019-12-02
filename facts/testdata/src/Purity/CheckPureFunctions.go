@@ -15,3 +15,12 @@ func fn3() {
 	stubPointer()
 	stubInt()
 }
+
+func ptr1() *int { return new(int) }
+func ptr2() *int { var x int; return &x }
+func lit() []int { return []int{} }
+
+var X int
+
+func load() int        { _ = X; return 0 }
+func assign(x int) int { _ = x; return 0 } // want assign:"is pure"
