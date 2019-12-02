@@ -169,7 +169,7 @@ var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer
 	},
 	"SA4018": {
 		Run:      CheckSelfAssignment,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile, facts.Purity},
 	},
 	"SA4019": {
 		Run:      CheckDuplicateBuildConstraints,

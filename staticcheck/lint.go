@@ -3114,6 +3114,8 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
+	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
+
 	fn := func(node ast.Node) {
 		assign := node.(*ast.AssignStmt)
 		if assign.Tok != token.ASSIGN || len(assign.Lhs) != len(assign.Rhs) {
@@ -3124,6 +3126,10 @@ func CheckSelfAssignment(pass *analysis.Pass) (interface{}, error) {
 			if reflect.TypeOf(lhs) != reflect.TypeOf(rhs) {
 				continue
 			}
+			if code.MayHaveSideEffects(pass, lhs, pure) || code.MayHaveSideEffects(pass, rhs, pure) {
+				continue
+			}
+
 			rlh := report.Render(pass, lhs)
 			rrh := report.Render(pass, rhs)
 			if rlh == rrh {
