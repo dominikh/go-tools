@@ -66,28 +66,29 @@ func fn() {
 	fmt.Printf("%g", 1+2i)
 	fmt.Printf("%#e %#E %#f %#F %#g %#G", 1.2, 1.2, 1.2, 1.2, 1.2, 1.2) // OK since Go 1.9
 	// Some bad format/argTypes
-	fmt.Printf("%b", "hi")                      // want `Printf format %b has arg #1 of wrong type string`
-	_ = fmt.Sprintf("%b", "hi")                 // want `Printf format %b has arg #1 of wrong type string`
-	fmt.Fprintf(os.Stdout, "%b", "hi")          // want `Printf format %b has arg #1 of wrong type string`
-	fmt.Printf("%t", c)                         // want `Printf format %t has arg #1 of wrong type complex64`
-	fmt.Printf("%t", 1+2i)                      // want `Printf format %t has arg #1 of wrong type complex128`
-	fmt.Printf("%c", 2.3)                       // want `Printf format %c has arg #1 of wrong type float64`
-	fmt.Printf("%d", 2.3)                       // want `Printf format %d has arg #1 of wrong type float64`
-	fmt.Printf("%e", "hi")                      // want `Printf format %e has arg #1 of wrong type string`
-	fmt.Printf("%E", true)                      // want `Printf format %E has arg #1 of wrong type bool`
-	fmt.Printf("%f", "hi")                      // want `Printf format %f has arg #1 of wrong type string`
-	fmt.Printf("%F", 'x')                       // want `Printf format %F has arg #1 of wrong type rune`
-	fmt.Printf("%g", "hi")                      // want `Printf format %g has arg #1 of wrong type string`
-	fmt.Printf("%g", imap)                      // want `Printf format %g has arg #1 of wrong type map\[int\]int`
-	fmt.Printf("%G", i)                         // want `Printf format %G has arg #1 of wrong type int`
-	fmt.Printf("%o", x)                         // want `Printf format %o has arg #1 of wrong type float64`
-	fmt.Printf("%p", 23)                        // want `Printf format %p has arg #1 of wrong type int`
-	fmt.Printf("%q", x)                         // want `Printf format %q has arg #1 of wrong type float64`
-	fmt.Printf("%s", b)                         // want `Printf format %s has arg #1 of wrong type bool`
-	fmt.Printf("%s", byte(65))                  // want `Printf format %s has arg #1 of wrong type byte`
-	fmt.Printf("%t", 23)                        // want `Printf format %t has arg #1 of wrong type int`
-	fmt.Printf("%U", x)                         // want `Printf format %U has arg #1 of wrong type float64`
-	fmt.Printf("%X", 2.3)                       // want `Printf format %X has arg #1 of wrong type float64`
+	fmt.Printf("%b", "hi")             // want `Printf format %b has arg #1 of wrong type string`
+	_ = fmt.Sprintf("%b", "hi")        // want `Printf format %b has arg #1 of wrong type string`
+	fmt.Fprintf(os.Stdout, "%b", "hi") // want `Printf format %b has arg #1 of wrong type string`
+	fmt.Printf("%t", c)                // want `Printf format %t has arg #1 of wrong type complex64`
+	fmt.Printf("%t", 1+2i)             // want `Printf format %t has arg #1 of wrong type complex128`
+	fmt.Printf("%c", 2.3)              // want `Printf format %c has arg #1 of wrong type float64`
+	fmt.Printf("%d", 2.3)              // want `Printf format %d has arg #1 of wrong type float64`
+	fmt.Printf("%e", "hi")             // want `Printf format %e has arg #1 of wrong type string`
+	fmt.Printf("%E", true)             // want `Printf format %E has arg #1 of wrong type bool`
+	fmt.Printf("%f", "hi")             // want `Printf format %f has arg #1 of wrong type string`
+	fmt.Printf("%F", 'x')              // want `Printf format %F has arg #1 of wrong type rune`
+	fmt.Printf("%g", "hi")             // want `Printf format %g has arg #1 of wrong type string`
+	fmt.Printf("%g", imap)             // want `Printf format %g has arg #1 of wrong type map\[int\]int`
+	fmt.Printf("%G", i)                // want `Printf format %G has arg #1 of wrong type int`
+	fmt.Printf("%o", x)                // want `Printf format %o has arg #1 of wrong type float64`
+	fmt.Printf("%p", 23)               // want `Printf format %p has arg #1 of wrong type int`
+	fmt.Printf("%q", x)                // want `Printf format %q has arg #1 of wrong type float64`
+	fmt.Printf("%s", b)                // want `Printf format %s has arg #1 of wrong type bool`
+	fmt.Printf("%s", byte(65))         // want `Printf format %s has arg #1 of wrong type byte`
+	fmt.Printf("%t", 23)               // want `Printf format %t has arg #1 of wrong type int`
+	fmt.Printf("%U", x)                // want `Printf format %U has arg #1 of wrong type float64`
+	fmt.Printf("%X", 2.3)
+	fmt.Printf("%X", 2+3i)
 	fmt.Printf("%s", stringerv)                 // want `Printf format %s has arg #1 of wrong type CheckPrintf\.ptrStringer`
 	fmt.Printf("%t", stringerv)                 // want `Printf format %t has arg #1 of wrong type CheckPrintf\.ptrStringer`
 	fmt.Printf("%s", embeddedStringerv)         // want `Printf format %s has arg #1 of wrong type CheckPrintf\.embeddedStringer`

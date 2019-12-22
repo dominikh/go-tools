@@ -348,8 +348,8 @@ var verbs = [...]verbFlag{
 	'T': isAny,
 	'U': isInt,
 	'v': isAny,
-	'X': isPseudoPointer | isInt | isString,
-	'x': isPseudoPointer | isInt | isString,
+	'X': isPseudoPointer | isInt | isFP | isString,
+	'x': isPseudoPointer | isInt | isFP | isString,
 }
 
 func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
