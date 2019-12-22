@@ -341,6 +341,7 @@ var verbs = [...]verbFlag{
 	'g': isFP,
 	'G': isFP,
 	'o': isPseudoPointer | isInt,
+	'O': isPseudoPointer | isInt,
 	'p': isSlice | isPointer | noRecurse,
 	'q': isInt | isString,
 	's': isString,
