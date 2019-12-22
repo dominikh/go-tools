@@ -321,6 +321,9 @@ const (
 	isFP
 	isString
 	isPointer
+	// Verbs that accept "pseudo pointers" will sometimes dereference
+	// non-nil pointers. For example, %x on a non-nil *struct will print the
+	// individual fields, but on a nil pointer it will print the address.
 	isPseudoPointer
 	isSlice
 	isAny
@@ -539,10 +542,29 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 				}
 
 				if _, ok := U.Elem().Underlying().(*types.Struct); !ok {
+					// TODO(dh): can this condition ever be false? For
+					// *T, if T is a struct, we'll already have
+					// dereferenced it, meaning the *types.Pointer
+					// branch couldn't have been taken. For T that
+					// aren't structs, this condition will always
+					// evaluate to true.
 					return true
 				}
 			case *types.Chan, *types.Signature:
+				// Channels and functions are always treated as
+				// pointers and never recursed into.
 				return true
+			case *types.Basic:
+				if U.Kind() == types.UnsafePointer {
+					return true
+				}
+			case *types.Interface:
+				// we will already have bailed if the type is an
+				// interface.
+				panic("unreachable")
+			default:
+				// other pointer-like types, such as maps or slices,
+				// will be printed element-wise.
 			}
 		}
 

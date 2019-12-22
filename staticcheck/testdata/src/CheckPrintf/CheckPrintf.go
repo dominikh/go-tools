@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"unsafe"
 )
 
 type Error int
@@ -201,7 +202,9 @@ func fn() {
 		fmt.Printf("%s", ue)
 	}
 
+	// staticcheck's own checks, based on our own bugs
 	fmt.Printf("%s", Error(0))
+	fmt.Printf("%x", unsafe.Pointer(uintptr(0)))
 }
 
 func someString() string { return "X" }
