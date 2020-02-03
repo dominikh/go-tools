@@ -65,12 +65,13 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 		defer logStack("make %s to (%s)", description, recv.Type())()
 	}
 	fn := &Function{
-		name:      name,
-		method:    sel,
-		object:    obj,
-		Signature: sig,
-		Synthetic: description,
-		Prog:      prog,
+		name:         name,
+		method:       sel,
+		object:       obj,
+		Signature:    sig,
+		Synthetic:    description,
+		Prog:         prog,
+		functionBody: new(functionBody),
 	}
 	fn.initHTML(prog.PrintFunc)
 	fn.startBody()
@@ -184,11 +185,12 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 			defer logStack("%s", description)()
 		}
 		fn = &Function{
-			name:      obj.Name() + "$bound",
-			object:    obj,
-			Signature: changeRecv(obj.Type().(*types.Signature), nil), // drop receiver
-			Synthetic: description,
-			Prog:      prog,
+			name:         obj.Name() + "$bound",
+			object:       obj,
+			Signature:    changeRecv(obj.Type().(*types.Signature), nil), // drop receiver
+			Synthetic:    description,
+			Prog:         prog,
+			functionBody: new(functionBody),
 		}
 		fn.initHTML(prog.PrintFunc)
 

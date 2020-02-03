@@ -333,10 +333,13 @@ type Function struct {
 	Exit       *BasicBlock   // The function's exit block
 	AnonFuncs  []*Function   // anonymous functions directly beneath this one
 	referrers  []Instruction // referring instructions (iff Parent() != nil)
-	hasDefer   bool
-	WillExit   bool // Calling this function will always terminate the process
-	WillUnwind bool // Calling this function will always unwind (it will call runtime.Goexit or panic)
+	WillExit   bool          // Calling this function will always terminate the process
+	WillUnwind bool          // Calling this function will always unwind (it will call runtime.Goexit or panic)
 
+	*functionBody
+}
+
+type functionBody struct {
 	// The following fields are set transiently during building,
 	// then cleared.
 	currentBlock    *BasicBlock             // where to emit code
@@ -349,6 +352,7 @@ type Function struct {
 	wr              *HTMLWriter
 	fakeExits       BlockSet
 	blocksets       [5]BlockSet
+	hasDefer        bool
 }
 
 func (fn *Function) results() []*Alloc {

@@ -92,10 +92,13 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 			Pkg:       pkg,
 			Prog:      pkg.Prog,
 		}
+
 		fn.source = syntax
 		fn.initHTML(pkg.printFunc)
 		if syntax == nil {
 			fn.Synthetic = "loaded from gc object file"
+		} else {
+			fn.functionBody = new(functionBody)
 		}
 
 		pkg.values[obj] = fn
@@ -175,11 +178,12 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 
 	// Add init() function.
 	p.init = &Function{
-		name:      "init",
-		Signature: new(types.Signature),
-		Synthetic: "package initializer",
-		Pkg:       p,
-		Prog:      prog,
+		name:         "init",
+		Signature:    new(types.Signature),
+		Synthetic:    "package initializer",
+		Pkg:          p,
+		Prog:         prog,
+		functionBody: new(functionBody),
 	}
 	p.init.initHTML(prog.PrintFunc)
 	p.Members[p.init.name] = p.init

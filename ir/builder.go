@@ -512,11 +512,12 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 
 	case *ast.FuncLit:
 		fn2 := &Function{
-			name:      fmt.Sprintf("%s$%d", fn.Name(), 1+len(fn.AnonFuncs)),
-			Signature: fn.Pkg.typeOf(e.Type).Underlying().(*types.Signature),
-			parent:    fn,
-			Pkg:       fn.Pkg,
-			Prog:      fn.Prog,
+			name:         fmt.Sprintf("%s$%d", fn.Name(), 1+len(fn.AnonFuncs)),
+			Signature:    fn.Pkg.typeOf(e.Type).Underlying().(*types.Signature),
+			parent:       fn,
+			Pkg:          fn.Pkg,
+			Prog:         fn.Prog,
+			functionBody: new(functionBody),
 		}
 		fn2.source = e
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
@@ -2311,6 +2312,7 @@ func (b *builder) buildFunction(fn *Function) {
 	b.addUnreachables(fn)
 	fn.finishBody()
 	b.blocksets = fn.blocksets
+	fn.functionBody = nil
 }
 
 // buildFuncDecl builds IR code for the function or method declared
