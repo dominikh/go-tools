@@ -50,7 +50,7 @@ type Package struct {
 	Prog      *Program               // the owning program
 	Pkg       *types.Package         // the corresponding go/types.Package
 	Members   map[string]Member      // all package members keyed by name (incl. init and init#%d)
-	Functions []*Function            // all functions, including anonymous ones
+	Functions []*Function            // all functions, excluding anonymous ones
 	values    map[types.Object]Value // package members (incl. types and methods), keyed by object
 	init      *Function              // Func("init"); the package's init function
 	debug     bool                   // include full debug info in this package
