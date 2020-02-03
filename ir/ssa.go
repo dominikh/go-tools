@@ -18,7 +18,7 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-type ID int32
+type ID int
 
 // A Program is a partial or complete Go program converted to IR form.
 type Program struct {

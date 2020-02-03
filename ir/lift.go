@@ -138,6 +138,12 @@ func removeInstr(refs []Instruction, instr Instruction) []Instruction {
 	return refs[:i]
 }
 
+func clearInstrs(instrs []Instruction) {
+	for i := range instrs {
+		instrs[i] = nil
+	}
+}
+
 // lift replaces local and new Allocs accessed only with
 // load/store by IR registers, inserting φ- and σ-nodes where necessary.
 // The result is a program in pruned SSI form.
@@ -166,24 +172,11 @@ func lift(fn *Function) {
 	//   Unclear.
 	//
 	// But we will start with the simplest correct code.
-	df := buildDomFrontier(fn)
-	rdf := buildPostDomFrontier(fn)
-
-	if debugLifting {
-		title := false
-		for i, blocks := range df {
-			if blocks != nil {
-				if !title {
-					fmt.Fprintf(os.Stderr, "Dominance frontier of %s:\n", fn)
-					title = true
-				}
-				fmt.Fprintf(os.Stderr, "\t%s: %s\n", fn.Blocks[i], blocks)
-			}
-		}
-	}
-
-	newPhis := make(newPhiMap, len(fn.Blocks))
-	newSigmas := make(newSigmaMap, len(fn.Blocks))
+	var df domFrontier
+	var rdf postDomFrontier
+	var closure *closure
+	var newPhis newPhiMap
+	var newSigmas newSigmaMap
 
 	// During this pass we will replace some BasicBlock.Instrs
 	// (allocs, loads and stores) with nil, keeping a count in
@@ -205,8 +198,34 @@ func lift(fn *Function) {
 		for _, instr := range b.Instrs {
 			switch instr := instr.(type) {
 			case *Alloc:
+				if !liftable(instr) {
+					instr.index = -1
+					continue
+				}
 				index := -1
-				if liftAlloc(df, rdf, instr, newPhis, newSigmas) {
+				if numAllocs == 0 {
+					df = buildDomFrontier(fn)
+					rdf = buildPostDomFrontier(fn)
+					if len(fn.Blocks) > 2 {
+						closure = transitiveClosure(fn)
+					}
+					newPhis = make(newPhiMap, len(fn.Blocks))
+					newSigmas = make(newSigmaMap, len(fn.Blocks))
+
+					if debugLifting {
+						title := false
+						for i, blocks := range df {
+							if blocks != nil {
+								if !title {
+									fmt.Fprintf(os.Stderr, "Dominance frontier of %s:\n", fn)
+									title = true
+								}
+								fmt.Fprintf(os.Stderr, "\t%s: %s\n", fn.Blocks[i], blocks)
+							}
+						}
+					}
+				}
+				if liftAlloc(closure, df, rdf, instr, newPhis, newSigmas) {
 					index = numAllocs
 					numAllocs++
 				}
@@ -217,6 +236,10 @@ func lift(fn *Function) {
 				b.rundefers++
 			}
 		}
+	}
+
+	if numAllocs == 0 {
+		return
 	}
 
 	// renaming maps an alloc (keyed by index) to its replacement
@@ -242,7 +265,7 @@ func lift(fn *Function) {
 			nss := newSigmas[pred.Index]
 			idx := pred.succIndex(b)
 			for _, newSigma := range nss {
-				if sigma := newSigma.sigmas[idx]; sigma.live {
+				if sigma := newSigma.sigmas[idx]; sigma != nil && sigma.live {
 					head = append(head, sigma)
 
 					// we didn't populate referrers before, as most
@@ -250,7 +273,7 @@ func lift(fn *Function) {
 					if refs := sigma.X.Referrers(); refs != nil {
 						*refs = append(*refs, sigma)
 					}
-				} else {
+				} else if sigma != nil {
 					sigma.block = nil
 				}
 			}
@@ -278,22 +301,60 @@ func lift(fn *Function) {
 			continue // fast path: no new phis or gaps
 		}
 
-		// Compact nps + non-nil Instrs into a new slice.
-		dst := make([]Instruction, len(b.Instrs)+j-b.gaps-rundefersToKill)
-		copy(dst, head)
-		for _, instr := range b.Instrs {
-			if instr == nil {
-				continue
-			}
-			if !usesDefer {
-				if _, ok := instr.(*RunDefers); ok {
+		// We could do straight copies instead of element-wise copies
+		// when both b.gaps and rundefersToKill are zero. However,
+		// that seems to only be the case ~1% of the time, which
+		// doesn't seem worth the extra branch.
+
+		// Remove dead instructions, add phis and sigmas
+		ns := len(b.Instrs) + j - b.gaps - rundefersToKill
+		if ns <= cap(b.Instrs) {
+			// b.Instrs has enough capacity to store all instructions
+
+			// OPT(dh): check cap vs the actually required space; if
+			// there is a big enough difference, it may be worth
+			// allocating a new slice, to avoid pinning memory.
+			dst := b.Instrs[:cap(b.Instrs)]
+			i := len(dst) - 1
+			for n := len(b.Instrs) - 1; n >= 0; n-- {
+				instr := dst[n]
+				if instr == nil {
 					continue
 				}
+				if !usesDefer {
+					if _, ok := instr.(*RunDefers); ok {
+						continue
+					}
+				}
+				dst[i] = instr
+				i--
 			}
-			dst[j] = instr
-			j++
+			off := i + 1 - len(head)
+			// aid GC
+			clearInstrs(dst[:off])
+			dst = dst[off:]
+			copy(dst, head)
+			b.Instrs = dst
+		} else {
+			// not enough space, so allocate a new slice and copy
+			// over.
+			dst := make([]Instruction, ns)
+			copy(dst, head)
+
+			for _, instr := range b.Instrs {
+				if instr == nil {
+					continue
+				}
+				if !usesDefer {
+					if _, ok := instr.(*RunDefers); ok {
+						continue
+					}
+				}
+				dst[j] = instr
+				j++
+			}
+			b.Instrs = dst
 		}
-		b.Instrs = dst
 	}
 
 	// Remove any fn.Locals that were lifted.
@@ -338,7 +399,7 @@ func markLiveNodes(blocks []*BasicBlock, newPhis newPhiMap, newSigmas newSigmaMa
 	for _, npList := range newSigmas {
 		for _, np := range npList {
 			for _, sigma := range np.sigmas {
-				if !sigma.live && hasDirectReferrer(sigma) {
+				if sigma != nil && !sigma.live && hasDirectReferrer(sigma) {
 					markLiveSigma(sigma)
 				}
 			}
@@ -493,6 +554,107 @@ func (s *BlockSet) Take() int {
 	return -1
 }
 
+type closure struct {
+	span       []uint32
+	reachables []interval
+}
+
+type interval uint32
+
+const (
+	flagMask   = 1 << 31
+	numBits    = 20
+	lengthBits = 32 - numBits - 1
+	lengthMask = (1<<lengthBits - 1) << numBits
+	numMask    = 1<<numBits - 1
+)
+
+func (c closure) has(s, v *BasicBlock) bool {
+	idx := uint32(v.Index)
+	if idx == 1 || s.Dominates(v) {
+		return true
+	}
+	r := c.reachable(s.Index)
+	for i := 0; i < len(r); i++ {
+		inv := r[i]
+		var start, end uint32
+		if inv&flagMask == 0 {
+			// small interval
+			start = uint32(inv & numMask)
+			end = start + uint32(inv&lengthMask)>>numBits
+		} else {
+			// large interval
+			i++
+			start = uint32(inv & numMask)
+			end = uint32(r[i])
+		}
+		if idx >= start && idx <= end {
+			return true
+		}
+	}
+	return false
+}
+
+func (c closure) reachable(id int) []interval {
+	return c.reachables[c.span[id]:c.span[id+1]]
+}
+
+func (c closure) walk(current *BasicBlock, b *BasicBlock, visited []bool) {
+	visited[b.Index] = true
+	for _, succ := range b.Succs {
+		if visited[succ.Index] {
+			continue
+		}
+		visited[succ.Index] = true
+		c.walk(current, succ, visited)
+	}
+}
+
+func transitiveClosure(fn *Function) *closure {
+	reachable := make([]bool, len(fn.Blocks))
+	c := &closure{}
+	c.span = make([]uint32, len(fn.Blocks)+1)
+
+	addInterval := func(start, end int) {
+		if l := end - start; l <= 1<<lengthBits-1 {
+			n := interval(l<<numBits | start)
+			c.reachables = append(c.reachables, n)
+		} else {
+			n1 := interval(1<<31 | start)
+			n2 := interval(end)
+			c.reachables = append(c.reachables, n1, n2)
+		}
+	}
+
+	for i, b := range fn.Blocks[1:] {
+		for i := range reachable {
+			reachable[i] = false
+		}
+
+		c.walk(b, b, reachable)
+		start := -1
+		for id, isReachable := range reachable {
+			if !isReachable {
+				if start != -1 {
+					end := id - 1
+					addInterval(start, end)
+					start = -1
+				}
+				continue
+			} else if start == -1 {
+				start = id
+			}
+		}
+		if start != -1 {
+			addInterval(start, len(reachable)-1)
+		}
+
+		c.span[i+2] = uint32(len(c.reachables))
+	}
+
+	return c
+}
+
 // newPhi is a pair of a newly introduced φ-node and the lifted Alloc
 // it replaces.
 type newPhi struct {
@@ -510,18 +672,7 @@ type newSigma struct {
 type newPhiMap [][]newPhi
 type newSigmaMap [][]newSigma
 
-// liftAlloc determines whether alloc can be lifted into registers,
-// and if so, it populates newPhis with all the φ-nodes it may require
-// and returns true.
-func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) bool {
-	fn := alloc.Parent()
-
-	defblocks := fn.blockset(0)
-	useblocks := fn.blockset(1)
-	Aphi := fn.blockset(2)
-	Asigma := fn.blockset(3)
-	W := fn.blockset(4)
-
+func liftable(alloc *Alloc) bool {
 	// Don't lift aggregates into registers, because we don't have
 	// a way to express their zero-constants.
 	switch deref(alloc.Type()).Underlying().(type) {
@@ -529,6 +680,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 		return false
 	}
 
+	fn := alloc.Parent()
 	// Don't lift named return values in functions that defer
 	// calls that may recover from panic.
 	if fn.hasDefer {
@@ -539,12 +691,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 		}
 	}
 
-	// Compute defblocks, the set of blocks containing a
-	// definition of the alloc cell.
 	for _, instr := range *alloc.Referrers() {
-		// Bail out if we discover the alloc is not liftable;
-		// the only operations permitted to use the alloc are
-		// loads/stores into the cell, and DebugRef.
 		switch instr := instr.(type) {
 		case *Store:
 			if instr.Val == alloc {
@@ -553,19 +700,47 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 			if instr.Addr != alloc {
 				panic("Alloc.Referrers is inconsistent")
 			}
-			defblocks.Add(instr.Block())
 		case *Load:
 			if instr.X != alloc {
 				panic("Alloc.Referrers is inconsistent")
 			}
+
+		case *DebugRef:
+			// ok
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
+// liftAlloc determines whether alloc can be lifted into registers,
+// and if so, it populates newPhis with all the φ-nodes it may require
+// and returns true.
+func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) bool {
+	fn := alloc.Parent()
+
+	defblocks := fn.blockset(0)
+	useblocks := fn.blockset(1)
+	Aphi := fn.blockset(2)
+	Asigma := fn.blockset(3)
+	W := fn.blockset(4)
+
+	// Compute defblocks, the set of blocks containing a
+	// definition of the alloc cell.
+	for _, instr := range *alloc.Referrers() {
+		// Bail out if we discover the alloc is not liftable;
+		// the only operations permitted to use the alloc are
+		// loads/stores into the cell, and DebugRef.
+		switch instr := instr.(type) {
+		case *Store:
+			defblocks.Add(instr.Block())
+		case *Load:
 			useblocks.Add(instr.Block())
 			for _, ref := range *instr.Referrers() {
 				useblocks.Add(ref.Block())
 			}
-		case *DebugRef:
-			// ok
-		default:
-			return false // some other instruction
 		}
 	}
 	// The Alloc itself counts as a (zero) definition of the cell.
@@ -594,6 +769,17 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 				n := fn.Blocks[i]
 				for _, y := range df[n.Index] {
 					if Aphi.Add(y) {
+						live := false
+						for _, ref := range *alloc.Referrers() {
+							if closure == nil || closure.has(y, ref.Block()) {
+								live = true
+								break
+							}
+						}
+						if !live {
+							continue
+						}
+
 						// Create φ-node.
 						// It will be prepended to v.Instrs later, if needed.
 						phi := &Phi{
@@ -625,31 +811,41 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 			for i := W.Take(); i != -1; i = W.Take() {
 				n := fn.Blocks[i]
 				for _, y := range rdf[n.Index] {
-					// OPT(dh): if we had liveness information, we
-					// could avoid adding sigma nodes for already dead
-					// variables. but would calculating liveness
-					// information be cheaper than pruning dead sigmas
-					// later?
 					if Asigma.Add(y) {
 						sigmas := make([]*Sigma, 0, len(y.Succs))
+						anyLive := false
 						for _, succ := range y.Succs {
-							sigma := &Sigma{
-								From:    y,
-								X:       alloc,
+							live := false
+							for _, ref := range *alloc.Referrers() {
+								if closure == nil || closure.has(succ, ref.Block()) {
+									live = true
+									anyLive = true
+									break
+								}
 							}
-							sigma.source = alloc.source
-							sigma.setType(deref(alloc.Type()))
-							sigma.block = succ
-							sigmas = append(sigmas, sigma)
+							if live {
+								sigma := &Sigma{
+									From: y,
+									X:    alloc,
+								}
+								sigma.source = alloc.source
+								sigma.setType(deref(alloc.Type()))
+								sigma.block = succ
+								sigmas = append(sigmas, sigma)
+							} else {
+								sigmas = append(sigmas, nil)
+							}
 						}
 
-						newSigmas[y.Index] = append(newSigmas[y.Index], newSigma{alloc, sigmas})
-						for _, s := range y.Succs {
-							defblocks.Add(s)
-						}
-						change = true
-						if useblocks.Add(y) {
-							W.Add(y)
+						if anyLive {
+							newSigmas[y.Index] = append(newSigmas[y.Index], newSigma{alloc, sigmas})
+							for _, s := range y.Succs {
+								defblocks.Add(s)
+							}
+							change = true
+							if useblocks.Add(y) {
+								W.Add(y)
+							}
 						}
 					}
 				}
@@ -800,6 +996,9 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 	// update all outgoing sigma nodes with the dominating store
 	for _, sigmas := range newSigmas[u.Index] {
 		for _, sigma := range sigmas.sigmas {
+			if sigma == nil {
+				continue
+			}
 			sigma.X = renamed(u.Parent(), renaming, sigmas.alloc)
 		}
 	}
@@ -817,7 +1016,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 			// if there's a sigma node, use it, else use the dominating value
 			var newval Value
 			for _, sigmas := range newSigmas[u.Index] {
-				if sigmas.alloc == alloc {
+				if sigmas.alloc == alloc && sigmas.sigmas[succi] != nil {
 					newval = sigmas.sigmas[succi]
 					break
 				}
@@ -846,7 +1045,9 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 		// on entry to a block, the incoming sigma nodes become the new values for their alloc
 		if idx := u.succIndex(v); idx != -1 {
 			for _, sigma := range newSigmas[u.Index] {
-				r[sigma.alloc.index] = sigma.sigmas[idx]
+				if sigma.sigmas[idx] != nil {
+					r[sigma.alloc.index] = sigma.sigmas[idx]
+				}
 			}
 		}
 		rename(v, r, newPhis, newSigmas)
