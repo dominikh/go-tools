@@ -597,8 +597,7 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 						// Create φ-node.
 						// It will be prepended to v.Instrs later, if needed.
 						phi := &Phi{
-							Edges:   make([]Value, len(y.Preds)),
-							Comment: alloc.Comment,
+							Edges: make([]Value, len(y.Preds)),
 						}
 
 						phi.source = alloc.source
@@ -637,7 +636,6 @@ func liftAlloc(df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhi
 							sigma := &Sigma{
 								From:    y,
 								X:       alloc,
-								Comment: alloc.Comment,
 							}
 							sigma.source = alloc.source
 							sigma.setType(deref(alloc.Type()))

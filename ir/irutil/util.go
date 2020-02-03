@@ -43,16 +43,28 @@ func Walk(b *ir.BasicBlock, fn func(*ir.BasicBlock) bool) {
 func Vararg(x *ir.Slice) ([]ir.Value, bool) {
 	var out []ir.Value
 	slice, ok := x.X.(*ir.Alloc)
-	if !ok || slice.Comment != "varargs" {
+	if !ok {
 		return nil, false
 	}
 	for _, ref := range *slice.Referrers() {
-		idx, ok := ref.(*ir.IndexAddr)
-		if !ok {
+		if ref == x {
 			continue
 		}
-		v := (*idx.Referrers())[0].(*ir.Store).Val
-		out = append(out, v)
+		if ref.Block() != x.Block() {
+			return nil, false
+		}
+		idx, ok := ref.(*ir.IndexAddr)
+		if !ok {
+			return nil, false
+		}
+		if len(*idx.Referrers()) != 1 {
+			return nil, false
+		}
+		store, ok := (*idx.Referrers())[0].(*ir.Store)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, store.Val)
 	}
 	return out, true
 }

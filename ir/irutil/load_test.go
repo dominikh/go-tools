@@ -81,7 +81,7 @@ func TestPackages(t *testing.T) {
 func NewBuffer(buf []byte) *Buffer:
 b0: # entry
 	t1 = Parameter <[]byte> {buf}
-	t2 = HeapAlloc <*Buffer> (complit)
+	t2 = HeapAlloc <*Buffer>
 	t3 = FieldAddr <*[]byte> [0] (buf) t2
 	Store {[]byte} t3 t1
 	Jump → b1

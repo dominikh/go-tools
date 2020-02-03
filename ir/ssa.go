@@ -534,9 +534,8 @@ type Builtin struct {
 //
 type Alloc struct {
 	register
-	Comment string
-	Heap    bool
-	index   int // dense numbering; for lifting
+	Heap  bool
+	index int // dense numbering; for lifting
 }
 
 var _ Instruction = (*Sigma)(nil)
@@ -558,9 +557,8 @@ var _ Value = (*Sigma)(nil)
 //
 type Sigma struct {
 	register
-	From    *BasicBlock
-	X       Value
-	Comment string
+	From *BasicBlock
+	X    Value
 
 	live bool // used during lifting
 }
@@ -579,8 +577,7 @@ type Sigma struct {
 //
 type Phi struct {
 	register
-	Comment string  // a hint as to its purpose
-	Edges   []Value // Edges[i] is value for Block().Preds[i]
+	Edges []Value // Edges[i] is value for Block().Preds[i]
 
 	live bool // used during lifting
 }

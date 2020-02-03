@@ -79,15 +79,12 @@ func (v *Alloc) String() string {
 	if v.Heap {
 		storage = "Heap"
 	}
-	return fmt.Sprintf("%sAlloc <%s> (%s)", storage, relType(v.Type(), from), v.Comment)
+	return fmt.Sprintf("%sAlloc <%s>", storage, relType(v.Type(), from))
 }
 
 func (v *Sigma) String() string {
 	from := v.Parent().pkg()
 	s := fmt.Sprintf("Sigma <%s> [b%d] %s", relType(v.Type(), from), v.From.Index, v.X.Name())
-	if v.Comment != "" {
-		s += fmt.Sprintf(" (%s)", v.Comment)
-	}
 	return s
 }
 
@@ -111,9 +108,6 @@ func (v *Phi) String() string {
 			edgeVal = relName(edge, v)
 		}
 		b.WriteString(edgeVal)
-	}
-	if v.Comment != "" {
-		fmt.Fprintf(&b, " (%s)", v.Comment)
 	}
 	return b.String()
 }

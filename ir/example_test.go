@@ -109,7 +109,7 @@ func Example_buildPackage() {
 	// b0: # entry
 	// 	t1 = Const <string> {"Hello, World!"}
 	// 	t2 = Const <int> {0}
-	// 	t3 = HeapAlloc <*[1]interface{}> (varargs)
+	// 	t3 = HeapAlloc <*[1]interface{}>
 	// 	t4 = IndexAddr <*interface{}> t3 t2
 	// 	t5 = MakeInterface <interface{}> t1
 	// 	Store {interface{}} t4 t5

@@ -118,7 +118,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		} else {
 			for i, e := range instr.Edges {
 				if e == nil {
-					s.errorf("phi node '%s' has no value for edge #%d from %s", instr.Comment, i, s.block.Preds[i])
+					s.errorf("phi node '%v' has no value for edge #%d from %s", instr, i, s.block.Preds[i])
 				}
 			}
 		}
