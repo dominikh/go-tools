@@ -225,10 +225,9 @@ func lift(fn *Function) {
 						}
 					}
 				}
-				if liftAlloc(closure, df, rdf, instr, newPhis, newSigmas) {
-					index = numAllocs
-					numAllocs++
-				}
+				liftAlloc(closure, df, rdf, instr, newPhis, newSigmas)
+				index = numAllocs
+				numAllocs++
 				instr.index = index
 			case *Defer:
 				usesDefer = true
@@ -238,70 +237,71 @@ func lift(fn *Function) {
 		}
 	}
 
-	if numAllocs == 0 {
-		return
+	if numAllocs > 0 {
+		// renaming maps an alloc (keyed by index) to its replacement
+		// value.  Initially the renaming contains nil, signifying the
+		// zero constant of the appropriate type; we construct the
+		// Const lazily at most once on each path through the domtree.
+		// TODO(adonovan): opt: cache per-function not per subtree.
+		renaming := make([]Value, numAllocs)
+
+		// Renaming.
+		rename(fn.Blocks[0], renaming, newPhis, newSigmas)
+
+		simplifyPhis(newPhis)
+
+		// Eliminate dead φ- and σ-nodes.
+		markLiveNodes(fn.Blocks, newPhis, newSigmas)
 	}
-
-	// renaming maps an alloc (keyed by index) to its replacement
-	// value.  Initially the renaming contains nil, signifying the
-	// zero constant of the appropriate type; we construct the
-	// Const lazily at most once on each path through the domtree.
-	// TODO(adonovan): opt: cache per-function not per subtree.
-	renaming := make([]Value, numAllocs)
-
-	// Renaming.
-	rename(fn.Blocks[0], renaming, newPhis, newSigmas)
-
-	simplifyPhis(newPhis)
-
-	// Eliminate dead φ- and σ-nodes.
-	markLiveNodes(fn.Blocks, newPhis, newSigmas)
 
 	// Prepend remaining live φ-nodes to each block and possibly kill rundefers.
 	for _, b := range fn.Blocks {
-		for i, instr := range b.Instrs {
-			if instr, ok := instr.(*DebugRef); ok {
-				if sigma, ok := instr.X.(*Sigma); ok && !sigma.live {
-					// delete DebugRefs referring to dead sigma nodes
-					b.gaps++
-					b.Instrs[i] = nil
-				} else if phi, ok := instr.X.(*Phi); ok && !phi.live {
-					// delete DebugRefs referring to dead phi nodes
-					b.gaps++
-					b.Instrs[i] = nil
-				}
-			}
-		}
-
-		nps := newPhis[b.Index]
-		head := make([]Instruction, 0, len(nps))
-		for _, pred := range b.Preds {
-			nss := newSigmas[pred.Index]
-			idx := pred.succIndex(b)
-			for _, newSigma := range nss {
-				if sigma := newSigma.sigmas[idx]; sigma != nil && sigma.live {
-					head = append(head, sigma)
-
-					// we didn't populate referrers before, as most
-					// sigma nodes will be killed
-					if refs := sigma.X.Referrers(); refs != nil {
-						*refs = append(*refs, sigma)
-					}
-				} else if sigma != nil {
-					sigma.block = nil
-				}
-			}
-		}
-		for _, np := range nps {
-			if np.phi.live {
-				head = append(head, np.phi)
-			} else {
-				for _, edge := range np.phi.Edges {
-					if refs := edge.Referrers(); refs != nil {
-						*refs = removeInstr(*refs, np.phi)
+		var head []Instruction
+		if numAllocs > 0 {
+			for i, instr := range b.Instrs {
+				if instr, ok := instr.(*DebugRef); ok {
+					if sigma, ok := instr.X.(*Sigma); ok && !sigma.live {
+						// delete DebugRefs referring to dead sigma nodes
+						b.gaps++
+						b.Instrs[i] = nil
+					} else if phi, ok := instr.X.(*Phi); ok && !phi.live {
+						// delete DebugRefs referring to dead phi nodes
+						b.gaps++
+						b.Instrs[i] = nil
 					}
 				}
-				np.phi.block = nil
+			}
+
+			nps := newPhis[b.Index]
+			head = make([]Instruction, 0, len(nps))
+			for _, pred := range b.Preds {
+				nss := newSigmas[pred.Index]
+				idx := pred.succIndex(b)
+				for _, newSigma := range nss {
+					if sigma := newSigma.sigmas[idx]; sigma != nil && sigma.live {
+						head = append(head, sigma)
+
+						// we didn't populate referrers before, as most
+						// sigma nodes will be killed
+						if refs := sigma.X.Referrers(); refs != nil {
+							*refs = append(*refs, sigma)
+						}
+					} else if sigma != nil {
+						sigma.block = nil
+					}
+				}
+			}
+			for _, np := range nps {
+				if np.phi.live {
+					head = append(head, np.phi)
+				} else {
+					for _, edge := range np.phi.Edges {
+						if refs := edge.Referrers(); refs != nil {
+							*refs = removeInstr(*refs, np.phi)
+						}
+					}
+					np.phi.block = nil
+				}
 			}
 		}
 
@@ -732,7 +732,7 @@ func liftable(alloc *Alloc) bool {
 // liftAlloc determines whether alloc can be lifted into registers,
 // and if so, it populates newPhis with all the φ-nodes it may require
 // and returns true.
-func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) bool {
+func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) {
 	fn := alloc.Parent()
 
 	defblocks := fn.blockset(0)
@@ -866,8 +866,6 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 			}
 		}
 	}
-
-	return true
 }
 
 // replaceAll replaces all intraprocedural uses of x with y,
