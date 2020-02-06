@@ -783,11 +783,20 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 				n := fn.Blocks[i]
 				for _, y := range df[n.Index] {
 					if Aphi.Add(y) {
+						if len(*alloc.Referrers()) == 0 {
+							continue
+						}
 						live := false
-						for _, ref := range *alloc.Referrers() {
-							if closure == nil || closure.has(y, ref.Block()) {
-								live = true
-								break
+						if closure == nil {
+							live = true
+						} else {
+							for _, ref := range *alloc.Referrers() {
+								if _, ok := ref.(*Load); ok {
+									if closure.has(y, ref.Block()) {
+										live = true
+										break
+									}
+								}
 							}
 						}
 						if !live {
