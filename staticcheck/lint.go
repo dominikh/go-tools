@@ -1639,7 +1639,12 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 			return true
 		})
 
-		hasUse := func(v ir.Value) bool {
+		// OPT(dh): don't use a map, possibly use a bitset
+		var hasUse func(v ir.Value, seen map[ir.Value]struct{}) bool
+		hasUse = func(v ir.Value, seen map[ir.Value]struct{}) bool {
+			if _, ok := seen[v]; ok {
+				return false
+			}
 			if _, ok := switchTags[v]; ok {
 				return true
 			}
@@ -1648,7 +1653,30 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 				// TODO investigate why refs can be nil
 				return true
 			}
-			return len(code.FilterDebug(*refs)) > 0
+			for _, ref := range *refs {
+				switch ref := ref.(type) {
+				case *ir.DebugRef:
+				case *ir.Sigma:
+					if seen == nil {
+						seen = map[ir.Value]struct{}{}
+					}
+					seen[v] = struct{}{}
+					if hasUse(ref, seen) {
+						return true
+					}
+				case *ir.Phi:
+					if seen == nil {
+						seen = map[ir.Value]struct{}{}
+					}
+					seen[v] = struct{}{}
+					if hasUse(ref, seen) {
+						return true
+					}
+				default:
+					return true
+				}
+			}
+			return false
 		}
 
 		ast.Inspect(node, func(node ast.Node) bool {
@@ -1673,7 +1701,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					if !ok {
 						continue
 					}
-					if !hasUse(ex) {
+					if !hasUse(ex, nil) {
 						lhs := assign.Lhs[ex.Index]
 						if ident, ok := lhs.(*ast.Ident); !ok || ok && ident.Name == "_" {
 							continue
@@ -1693,7 +1721,7 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				if !hasUse(val) {
+				if !hasUse(val, nil) {
 					report.Report(pass, assign, fmt.Sprintf("this value of %s is never used", lhs))
 				}
 			}
