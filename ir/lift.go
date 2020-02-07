@@ -258,20 +258,6 @@ func lift(fn *Function) {
 	for _, b := range fn.Blocks {
 		var head []Instruction
 		if numAllocs > 0 {
-			for i, instr := range b.Instrs {
-				if instr, ok := instr.(*DebugRef); ok {
-					if sigma, ok := instr.X.(*Sigma); ok && !sigma.live {
-						// delete DebugRefs referring to dead sigma nodes
-						b.gaps++
-						b.Instrs[i] = nil
-					} else if phi, ok := instr.X.(*Phi); ok && !phi.live {
-						// delete DebugRefs referring to dead phi nodes
-						b.gaps++
-						b.Instrs[i] = nil
-					}
-				}
-			}
-
 			nps := newPhis[b.Index]
 			head = make([]Instruction, 0, len(nps))
 			for _, pred := range b.Preds {
@@ -389,7 +375,7 @@ func lift(fn *Function) {
 func hasDirectReferrer(instr Instruction) bool {
 	for _, instr := range *instr.Referrers() {
 		switch instr.(type) {
-		case *Phi, *Sigma, *DebugRef:
+		case *Phi, *Sigma:
 			// ignore
 		default:
 			return true
