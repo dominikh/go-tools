@@ -839,4 +839,27 @@ marshaling behavior, e.g. via MarshalJSON methods. It will also not
 flag empty structs.`,
 		Since: "2019.2",
 	},
+
+	"SA9006": {
+		Title: `Dubious bit shifting of a fixed size integer value`,
+		Text: `Bit shifting an value past its size will always clear the value.
+
+For instance:
+
+	v := int8(42)
+	v >>= 8
+
+will always result in 0.
+
+This check flags bit shifiting operations on fixed size integer values only.
+That is, int, uint and uintptr are never flagged to avoid potential false
+positives in somewhat exotic but valid bit twiddling tricks:
+
+	// Clear any value above 32 bits if integers are more than 32 bits.
+	func f(i int) int {
+		v := i >> 32
+		v = v << 32
+		return i-v
+	}`,
+	},
 }

@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"regexp"
 	"regexp/syntax"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/functions"
+	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/ir"
@@ -3815,5 +3817,60 @@ func CheckAddressIsNil(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, node, "the address of a variable cannot be nil")
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+	return nil, nil
+}
+
+var (
+	checkFixedLengthTypeShiftQ = pattern.MustParse(`
+		(Or
+			(AssignStmt _ (Or ">>=" "<<=") _)
+			(BinaryExpr _ (Or ">>" "<<") _))
+	`)
+	wordSize = gcsizes.ForArch(runtime.GOARCH).WordSize
+)
+
+func CheckStaticBitShift(pass *analysis.Pass) (interface{}, error) {
+	isDubiousShift := func(x, y ast.Expr) (int64, int64, bool) {
+		typ, ok := pass.TypesInfo.TypeOf(x).(*types.Basic)
+		if !ok {
+			return 0, 0, false
+		}
+		switch typ.Kind() {
+		case types.Int8, types.Int16, types.Int32, types.Int64,
+			types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+			// We're only interested in fixed–size types.
+		default:
+			return 0, 0, false
+		}
+		typeSize := pass.TypesSizes.Sizeof(typ) * wordSize
+
+		shiftLength, ok := code.ExprToInt(pass, y)
+		if !ok {
+			return 0, 0, false
+		}
+
+		return typeSize, shiftLength, shiftLength >= typeSize
+	}
+
+	fn := func(node ast.Node) {
+		if _, ok := Match(pass, checkFixedLengthTypeShiftQ, node); !ok {
+			return
+		}
+
+		switch e := node.(type) {
+		case *ast.AssignStmt:
+			for i := range e.Lhs {
+				if size, shift, yes := isDubiousShift(e.Lhs[i], e.Rhs[i]); yes {
+					report.Report(pass, e, fmt.Sprintf("shifting %d bits value by %d will always clear it", size, shift))
+				}
+			}
+		case *ast.BinaryExpr:
+			if size, shift, yes := isDubiousShift(e.X, e.Y); yes {
+				report.Report(pass, e, fmt.Sprintf("shifting %d bits value by %d will always clear it", size, shift))
+			}
+		}
+	}
+	code.Preorder(pass, fn, (*ast.AssignStmt)(nil), (*ast.BinaryExpr)(nil))
+
 	return nil, nil
 }
