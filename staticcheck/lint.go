@@ -3858,3 +3858,57 @@ func CheckAddressIsNil(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
+
+var (
+	checkFixedLengthTypeShiftQ = pattern.MustParse(`
+		(Or
+			(AssignStmt _ (Or ">>=" "<<=") _)
+			(BinaryExpr _ (Or ">>" "<<") _))
+	`)
+)
+
+func CheckStaticBitShift(pass *analysis.Pass) (interface{}, error) {
+	isDubiousShift := func(x, y ast.Expr) (int64, int64, bool) {
+		typ, ok := pass.TypesInfo.TypeOf(x).(*types.Basic)
+		if !ok {
+			return 0, 0, false
+		}
+		switch typ.Kind() {
+		case types.Int8, types.Int16, types.Int32, types.Int64,
+			types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+			// We're only interested in fixed–size types.
+		default:
+			return 0, 0, false
+		}
+
+		const bitsInByte = 8
+		typeBits := pass.TypesSizes.Sizeof(typ) * bitsInByte
+
+		shiftLength, ok := code.ExprToInt(pass, y)
+		if !ok {
+			return 0, 0, false
+		}
+
+		return typeBits, shiftLength, shiftLength >= typeBits
+	}
+
+	fn := func(node ast.Node) {
+		if _, ok := code.Match(pass, checkFixedLengthTypeShiftQ, node); !ok {
+			return
+		}
+
+		switch e := node.(type) {
+		case *ast.AssignStmt:
+			if size, shift, yes := isDubiousShift(e.Lhs[0], e.Rhs[0]); yes {
+				report.Report(pass, e, fmt.Sprintf("shifting %d-bit value by %d bits will always clear it", size, shift))
+			}
+		case *ast.BinaryExpr:
+			if size, shift, yes := isDubiousShift(e.X, e.Y); yes {
+				report.Report(pass, e, fmt.Sprintf("shifting %d-bit value by %d bits will always clear it", size, shift))
+			}
+		}
+	}
+	code.Preorder(pass, fn, (*ast.AssignStmt)(nil), (*ast.BinaryExpr)(nil))
+
+	return nil, nil
+}
