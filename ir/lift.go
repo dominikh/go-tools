@@ -615,7 +615,7 @@ func transitiveClosure(fn *Function) *closure {
 	c := &closure{}
 	c.span = make([]uint32, len(fn.Blocks)+1)
 
-	addInterval := func(start, end int) {
+	addInterval := func(start, end uint32) {
 		if l := end - start; l <= 1<<lengthBits-1 {
 			n := interval(l<<numBits | start)
 			c.reachables = append(c.reachables, n)
@@ -632,21 +632,21 @@ func transitiveClosure(fn *Function) *closure {
 		}
 
 		c.walk(b, b, reachable)
-		start := -1
+		start := ^uint32(0)
 		for id, isReachable := range reachable {
 			if !isReachable {
-				if start != -1 {
-					end := id - 1
+				if start != ^uint32(0) {
+					end := uint32(id) - 1
 					addInterval(start, end)
-					start = -1
+					start = ^uint32(0)
 				}
 				continue
-			} else if start == -1 {
-				start = id
+			} else if start == ^uint32(0) {
+				start = uint32(id)
 			}
 		}
-		if start != -1 {
-			addInterval(start, len(reachable)-1)
+		if start != ^uint32(0) {
+			addInterval(start, uint32(len(reachable))-1)
 		}
 
 		c.span[i+2] = uint32(len(c.reachables))
