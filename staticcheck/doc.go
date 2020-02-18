@@ -248,7 +248,7 @@ in a struct.`,
 	"SA1028": {
 		Title: `sort.Slice can only be used on slices`,
 		Text:  `The first argument of sort.Slice must be a slice.`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"SA1029": {
@@ -262,7 +262,7 @@ To avoid allocating when assigning to an interface{},
 context keys often have concrete type struct{}. Alternatively,
 exported context key variables' static type should be a pointer or
 interface.`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"SA2000": {
@@ -495,7 +495,7 @@ and therefore doSomething()'s return value implements both.`,
 	"SA4022": {
 		Title: `Comparing the address of a variable against nil`,
 		Text:  `Code such as 'if &x == nil' is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"SA5000": {
@@ -590,7 +590,7 @@ another. If both interface types contain the same method but with
 different signatures, then the type assertion can never succeed,
 either. `,
 
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"SA5011": {
@@ -620,7 +620,7 @@ statements. Consider the following examples:
         // t.Errorf does not abort the test, so if x is nil, the next line will panic.
         foo(*x)
     }`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"SA6000": {

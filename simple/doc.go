@@ -427,7 +427,7 @@ After:
 		Title: `Redundant call to net/http.CanonicalHeaderKey in method call on net/http.Header`,
 		Text: `The methods on net/http.Header, namely Add, Del, Get and Set, already
 canonicalize the given header name.`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"S1036": {
@@ -460,7 +460,7 @@ can be simplified to
 
     m["k"] += 4
 `,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"S1037": {
@@ -468,16 +468,16 @@ can be simplified to
 		Text: `Using a select statement with a single case receiving
 from the result of time.After is a very elaborate way of sleeping that
 can much simpler be expressed with a simple call to time.Sleep.`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"S1038": {
 		Title: "Unnecessarily complex way of printing formatted string",
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"S1039": {
 		Title: "Unnecessary use of fmt.Sprint",
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 }

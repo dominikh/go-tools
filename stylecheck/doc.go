@@ -154,7 +154,7 @@ bug, we prefer the more idiomatic 'if x == 42'.`,
 
 	"ST1019": {
 		Title: `Importing the same package multiple times`,
-		Since: "Unreleased",
+		Since: "2020.1",
 	},
 
 	"ST1020": {
@@ -170,7 +170,7 @@ through grep.
 
 See https://golang.org/doc/effective_go.html#commentary for more
 information on how to write good documentation.`,
-		Since:      "Unreleased",
+		Since:      "2020.1",
 		NonDefault: true,
 	},
 
@@ -187,7 +187,7 @@ through grep.
 
 See https://golang.org/doc/effective_go.html#commentary for more
 information on how to write good documentation.`,
-		Since:      "Unreleased",
+		Since:      "2020.1",
 		NonDefault: true,
 	},
 
@@ -204,7 +204,7 @@ through grep.
 
 See https://golang.org/doc/effective_go.html#commentary for more
 information on how to write good documentation.`,
-		Since:      "Unreleased",
+		Since:      "2020.1",
 		NonDefault: true,
 	},
 }
