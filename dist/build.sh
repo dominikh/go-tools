@@ -33,7 +33,7 @@ for os in ${SYSTEMS[@]}; do
         rm -rf "$d/staticcheck"
         mkdir "$d/staticcheck"
         cp "$ROOT/LICENSE" "$ROOT/LICENSE-THIRD-PARTY" "$d/staticcheck"
-        CGO_ENABLED=0 GOOS=$os GOARCH=$arch GO111MODULE=on go build -o "$d/staticcheck/$exe" honnef.co/go/tools/cmd/staticcheck
+        CGO_ENABLED=0 GOOS=$os GOARCH=$arch GO111MODULE=on go build -trimpath -o "$d/staticcheck/$exe" honnef.co/go/tools/cmd/staticcheck
         (
             cd "$d"
             tar -czf "$target.tar.gz" staticcheck
