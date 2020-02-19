@@ -473,11 +473,13 @@ can much simpler be expressed with a simple call to time.Sleep.`,
 
 	"S1038": {
 		Title: "Unnecessarily complex way of printing formatted string",
+		Text:  `Instead of using fmt.Print(fmt.Sprintf(...)), one can use fmt.Printf(...).`,
 		Since: "2020.1",
 	},
 
 	"S1039": {
 		Title: "Unnecessary use of fmt.Sprint",
+		Text:  `Calling fmt.Sprint with a single string argument is unnecessary and identical to using the string directly.`,
 		Since: "2020.1",
 	},
 }
