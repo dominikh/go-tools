@@ -21,12 +21,12 @@
 
 <p>
   We've improved the output of the <code>staticcheck</code> command as well as
-  Staticcheck's integration with <em>gopls</em> to make it easier to understand
+  Staticcheck's integration with <a href="https://github.com/golang/tools/tree/master/gopls">gopls</a> to make it easier to understand
   the problems that are being reported.
 </p>
 
 <p>
-  Related information describe the source of a problem, or why
+  Related information describes the source of a problem, or why
   Staticcheck believes that there is a problem. Take the following
   piece of code for example:
 </p>
@@ -131,7 +131,7 @@
   <li>{{ check "S1036" }} detects more kinds of unnecessary guards around map accesses.</li>
   <li>{{ check "S1008" }} reports more easily understood diagnostics.</li>
   <li>{{ check "S1025" }} no longer suggests using <code>v.String()</code> instead of <code>fmt.Sprintf("%s", v)</code> when <code>v</code> is a <code>reflect.Value</code>. <code>fmt</code> gives special treatment to <code>reflect.Value</code> and the two results differ.</li>
-  <li>{{ check "SA1015" }} no longer flags uses of <code>time.Tick</code> in packages that implement Cobra commands.</li>
+  <li>{{ check "SA1015" }} no longer flags uses of <code>time.Tick</code> in packages that implement <a href="https://github.com/spf13/cobra">Cobra</a> commands.</li>
   <li>{{ check "SA1019" }} no longer misses references to deprecated packages when said packages have been vendored.</li>
   <li>{{ check "SA4000" }} no longer flags comparisons of the kind <code>x == x</code> and <code>x != x</code> when `x` has a compound type involving floats.</li>
   <li>{{ check "SA4003" }} no longer flags comparisons of the kind <code>x &lt;= 0</code> when <code>x</code> is an unsigned integer. While it is true that <code>x &lt;= 0</code> can be written more specifically as <code>x == 0</code>, this is not a helpful suggestion in reality. A lot of people use <code>x &lt;= 0</code> as a defensive measure, in case <code>x</code> ever becomes signed. Also, unlike all the other warnings made in the check, <code>x &lt;= 0</code> is neither a tautology nor a contradiction, it is merely less precise than it could be.</li>
