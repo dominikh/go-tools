@@ -41,7 +41,7 @@ large durations. These can be combined with arithmetic to express
 arbitrary durations, for example '5 * time.Second' for 5 seconds.
 
 If you truly meant to sleep for a tiny amount of time, use
-'n * time.Nanosecond' to signal to staticcheck that you did mean to sleep
+'n * time.Nanosecond' to signal to Staticcheck that you did mean to sleep
 for some amount of nanoseconds.`,
 		Since: "2017.1",
 	},
