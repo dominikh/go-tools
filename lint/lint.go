@@ -64,7 +64,7 @@ type LineIgnore struct {
 	Line    int
 	Checks  []string
 	Matched bool
-	Pos     token.Pos
+	Pos     token.Position
 }
 
 func (li *LineIgnore) Match(p Problem) bool {
@@ -374,7 +374,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 				continue
 			}
 			p := Problem{
-				Pos:     DisplayPosition(pkg.Fset, ig.Pos),
+				Pos:     ig.Pos,
 				Message: "this linter directive didn't match anything; should it be removed?",
 				Check:   "",
 			}
