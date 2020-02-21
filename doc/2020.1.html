@@ -55,7 +55,7 @@
 
 <p>
   When using the <a href="/docs/formatters#text"><code>text</code></a> or <a href="/docs/formatters#stylish"><code>stylish</code></a> formatters, related information will
-  appear as indented lines. The <code>json</code> formatter adds a new field
+  appear as indented lines. The <a href="/docs/formatters@json"><code>json</code></a> formatter adds a new field
   <code>related</code> to problems, containing position information as well as the
   message. Editors that use gopls will also display the related
   information.
@@ -68,7 +68,7 @@
 
 <p>
   Integration with gopls has seen some other improvements as well¹. We
-  now emit better position information that more accurately reflect the
+  now emit better position information that more accurately reflects the
   true source of a problem. The most obvious example is that a missing
   package comment will no longer underline the entire file. Similarly,
   invalid function arguments will be highlighted individually, instead
@@ -138,9 +138,9 @@
   <li>{{ check "SA4016" }} now detects silly bitwise ops of the form <code>x & k</code> where <code>k</code> is defined as <code>const k = iota</code>.</li>
   <li>{{ check "SA4018" }} no longer flags self-assignments involving side effects; for example, it won't flag <code>x[fn()] = x[fn()]</code> if <code>fn</code> isn't pure.</li>
   <li>{{ check "SA5008" }} now permits duplicate instances of various struct tags used by <code>github.com/jessevdk/go-flags</code>.</li>
-  <li>{{ check "SA5009" }} now correctly recognizes that unsafe.Pointer is a pointer type that can be used with verbs such as <code>%p</code>. Furthermore, it validates calls to <code>golang.org/x/xerrors.Errorf</code>.</li>
+  <li>{{ check "SA5009" }} now correctly recognizes that <code>unsafe.Pointer</code> is a pointer type that can be used with verbs such as <code>%p</code>. Furthermore, it validates calls to <code>golang.org/x/xerrors.Errorf</code>.</li>
   <li>{{ check "SA5009" }} now understands <code>fmt.Printf</code> verbs that were changed and added in Go 1.13. Specifically, it now recognizes the new <code>%O</code> verb, and allows the use of <code>%x</code> and <code>%X</code> on floats and complex numbers.</li>
-  <li>{{ check "ST1003" }}  has learned about several new initialisms.</li>
+  <li>{{ check "ST1003" }} has learned about several new initialisms.</li>
   <li>{{ check "ST1011" }} no longer misses variable declarations with inferred types.</li>
   <li>{{ check "ST1016" }} now ignores the names of method receivers of methods declared in generated files.</li>
   <li>{{ check "ST1020" }}, {{ check "ST1021" }}, and {{ check "ST1022" }} no longer enforce comment style in generated code.</li>
