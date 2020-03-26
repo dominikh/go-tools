@@ -25,7 +25,7 @@ var (
 	// used by cgo before Go 1.11
 	oldCgo = []byte("// Created by cgo - DO NOT EDIT")
 	prefix = []byte("// Code generated ")
-	suffix = []byte(" DO NOT EDIT.")
+	suffix = []byte("DO NOT EDIT.")
 	nl     = []byte("\n")
 	crnl   = []byte("\r\n")
 )
@@ -46,10 +46,11 @@ func isGenerated(path string) (Generator, bool) {
 		s = bytes.TrimSuffix(s, nl)
 		if bytes.HasPrefix(s, prefix) && bytes.HasSuffix(s, suffix) {
 			text := string(s[len(prefix) : len(s)-len(suffix)])
-			switch text {
-			case "by goyacc.":
+
+			if strings.HasPrefix(text, "by goyacc.") {
 				return Goyacc, true
-			case "by cmd/cgo;":
+			}
+			if strings.HasPrefix(text, "by cmd/cgo;") {
 				return Cgo, true
 			}
 			if strings.HasPrefix(text, `by "stringer `) {
