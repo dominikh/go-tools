@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/custom"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil"
 	"honnef.co/go/tools/simple"
@@ -18,6 +19,7 @@ func main() {
 	fs := lintutil.FlagSet("staticcheck")
 	wholeProgram := fs.Bool("unused.whole-program", false, "Run unused in whole program mode")
 	debug := fs.String("debug.unused-graph", "", "Write unused's object graph to `file`")
+	pluginPath := fs.String("custom-analyzers", "", "Run custom analyzers from a go plugin")
 	fs.Parse(os.Args[1:])
 
 	var cs []*analysis.Analyzer
@@ -29,6 +31,15 @@ func main() {
 	}
 	for _, v := range stylecheck.Analyzers {
 		cs = append(cs, v)
+	}
+	if *pluginPath != "" {
+		customAnalyzers, err := custom.Analyzers(*pluginPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, v := range customAnalyzers {
+			cs = append(cs, v)
+		}
 	}
 
 	u := unused.NewChecker(*wholeProgram)
