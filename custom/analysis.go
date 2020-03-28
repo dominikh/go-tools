@@ -19,7 +19,7 @@ func Analyzers(pluginPath string) (result map[string]*analysis.Analyzer, _ error
 	}
 	analyzers, ok := analyzersSymbol.(*map[string]*analysis.Analyzer)
 	if !ok {
-		return nil, fmt.Errorf("Analyzers must be of type %T, not %T.", result, analyzers)
+		return nil, fmt.Errorf("analyzers must be of type %T, not %T", result, analyzers)
 	}
 	return *analyzers, nil
 }
