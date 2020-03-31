@@ -1210,7 +1210,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	conds := make([]Value, 0, len(s.Body.List))
 
 	hasDefault := false
-	done := fn.newBasicBlock(fmt.Sprintf("switch.done"))
+	done := fn.newBasicBlock("switch.done")
 	if label != nil {
 		label._break = done
 	}
@@ -1256,7 +1256,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	}
 
 	if !hasDefault {
-		head := fn.newBasicBlock(fmt.Sprintf("switch.head.implicit-default"))
+		head := fn.newBasicBlock("switch.head.implicit-default")
 		body := fn.newBasicBlock("switch.body.implicit-default")
 		fn.currentBlock = head
 		emitJump(fn, body, s)
