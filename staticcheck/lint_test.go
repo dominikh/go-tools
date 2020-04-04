@@ -55,7 +55,7 @@ func TestAll(t *testing.T) {
 		"SA4013": {{Dir: "CheckDoubleNegation"}},
 		"SA4014": {{Dir: "CheckRepeatedIfElse"}},
 		"SA4015": {{Dir: "CheckMathInt"}},
-		"SA4016": {{Dir: "CheckSillyBitwiseOps"}, {Dir: "CheckSillyBitwiseOps_shadowedIota"}},
+		"SA4016": {{Dir: "CheckSillyBitwiseOps"}, {Dir: "CheckSillyBitwiseOps_shadowedIota"}, {Dir: "CheckSillyBitwiseOps_dotImport"}},
 		"SA4017": {{Dir: "CheckPureFunctions"}},
 		"SA4018": {{Dir: "CheckSelfAssignment"}},
 		"SA4019": {{Dir: "CheckDuplicateBuildConstraints"}},
