@@ -2707,6 +2707,10 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				return
 			}
+			if obj.Pkg() != pass.Pkg {
+				// identifier was dot-imported
+				return
+			}
 			if v, _ := constant.Int64Val(obj.Val()); v != 0 {
 				return
 			}
