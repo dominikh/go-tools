@@ -1,4 +1,4 @@
-// +build darwin linux
+// +build !linux,!darwin
 
 package pkg
 
