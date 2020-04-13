@@ -8,9 +8,8 @@ import (
 )
 
 type Test struct {
-	Dir            string
-	Version        string
-	SuggestedFixes bool
+	Dir     string
+	Version string
 }
 
 func Run(t *testing.T, analyzers map[string]*analysis.Analyzer, tests map[string][]Test) {
@@ -28,11 +27,7 @@ func Run(t *testing.T, analyzers map[string]*analysis.Analyzer, tests map[string
 						t.Fatal(err)
 					}
 				}
-				if test.SuggestedFixes {
-					analysistest.RunWithSuggestedFixes(t, analysistest.TestData(), a, test.Dir)
-				} else {
-					analysistest.Run(t, analysistest.TestData(), a, test.Dir)
-				}
+				analysistest.RunWithSuggestedFixes(t, analysistest.TestData(), a, test.Dir)
 			}
 		})
 	}

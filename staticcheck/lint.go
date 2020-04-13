@@ -1536,8 +1536,7 @@ func CheckCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 		if !push {
 			return false
 		}
-		assign, ok := node.(*ast.AssignStmt)
-		if ok {
+		if assign, ok := node.(*ast.AssignStmt); ok {
 			// TODO(dh): This risks missing some Header reads, for
 			// example in `h1["foo"] = h2["foo"]` – these edge
 			// cases are probably rare enough to ignore for now.

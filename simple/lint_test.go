@@ -12,7 +12,7 @@ func TestAll(t *testing.T) {
 		"S1001": {{Dir: "copy"}},
 		"S1002": {{Dir: "bool-cmp"}},
 		"S1003": {{Dir: "contains"}},
-		"S1004": {{Dir: "compare", SuggestedFixes: true}},
+		"S1004": {{Dir: "compare"}},
 		"S1005": {{Dir: "CheckBlankOK"}, {Dir: "receive-blank"}, {Dir: "range_go13", Version: "1.3"}, {Dir: "range_go14", Version: "1.4"}},
 		"S1006": {{Dir: "for-true"}, {Dir: "generated"}},
 		"S1007": {{Dir: "regexp-raw"}},
