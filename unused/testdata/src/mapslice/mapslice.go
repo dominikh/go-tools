@@ -1,8 +1,8 @@
 package pkg
 
-type M map[int]int
+type M map[int]int // used
 
-func Fn() {
+func Fn() { // used
 	var n M
 	_ = []M{n}
 }

@@ -1,14 +1,29 @@
 package pkg
 
-type t struct{} // want `t`
+type t1 struct{} // unused
 
-func (t) fragment() {}
+func (t1) fragment() {} // unused
 
-func fn() bool { // want `fn`
-	var v interface{} = t{}
+func fn1() bool { // unused
+	var v interface{} = t1{}
 	switch obj := v.(type) {
 	case interface {
 		fragment()
+	}:
+		obj.fragment()
+	}
+	return false
+}
+
+type t2 struct{} // used
+
+func (t2) fragment() {} // used
+
+func Fn() bool { // used
+	var v interface{} = t2{}
+	switch obj := v.(type) {
+	case interface {
+		fragment() // used
 	}:
 		obj.fragment()
 	}

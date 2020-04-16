@@ -4,23 +4,80 @@ import (
 	"go/types"
 )
 
-// Identical reports whether x and y are identical types.
 // Unlike types.Identical, receivers of Signature types are not ignored.
 // Unlike types.Identical, interfaces are compared via pointer equality (except for the empty interface, which gets deduplicated).
 // Unlike types.Identical, structs are compared via pointer equality.
-func Identical(x, y types.Type) (ret bool) {
-	if !types.Identical(x, y) {
-		return false
+func identical0(x, y types.Type) bool {
+	if x == y {
+		return true
 	}
 
 	switch x := x.(type) {
-	case *types.Struct:
-		y, ok := y.(*types.Struct)
-		if !ok {
-			// should be impossible
-			return true
+	case *types.Basic:
+		// Basic types are singletons except for the rune and byte
+		// aliases, thus we cannot solely rely on the x == y check
+		// above. See also comment in TypeName.IsAlias.
+		if y, ok := y.(*types.Basic); ok {
+			return x.Kind() == y.Kind()
 		}
-		return x == y
+
+	case *types.Array:
+		// Two array types are identical if they have identical element types
+		// and the same array length.
+		if y, ok := y.(*types.Array); ok {
+			// If one or both array lengths are unknown (< 0) due to some error,
+			// assume they are the same to avoid spurious follow-on errors.
+			return (x.Len() < 0 || y.Len() < 0 || x.Len() == y.Len()) && identical0(x.Elem(), y.Elem())
+		}
+
+	case *types.Slice:
+		// Two slice types are identical if they have identical element types.
+		if y, ok := y.(*types.Slice); ok {
+			return identical0(x.Elem(), y.Elem())
+		}
+
+	case *types.Struct:
+		if y, ok := y.(*types.Struct); ok {
+			return x == y
+		}
+
+	case *types.Pointer:
+		// Two pointer types are identical if they have identical base types.
+		if y, ok := y.(*types.Pointer); ok {
+			return identical0(x.Elem(), y.Elem())
+		}
+
+	case *types.Tuple:
+		// Two tuples types are identical if they have the same number of elements
+		// and corresponding elements have identical types.
+		if y, ok := y.(*types.Tuple); ok {
+			if x.Len() == y.Len() {
+				if x != nil {
+					for i := 0; i < x.Len(); i++ {
+						v := x.At(i)
+						w := y.At(i)
+						if !identical0(v.Type(), w.Type()) {
+							return false
+						}
+					}
+				}
+				return true
+			}
+		}
+
+	case *types.Signature:
+		// Two function types are identical if they have the same number of parameters
+		// and result values, corresponding parameter and result types are identical,
+		// and either both functions are variadic or neither is. Parameter and result
+		// names are not required to match.
+		if y, ok := y.(*types.Signature); ok {
+
+			return x.Variadic() == y.Variadic() &&
+				identical0(x.Params(), y.Params()) &&
+				identical0(x.Results(), y.Results()) &&
+				(x.Recv() != nil && y.Recv() != nil && identical0(x.Recv().Type(), y.Recv().Type()) || x.Recv() == nil && y.Recv() == nil)
+		}
+
 	case *types.Interface:
 		// The issue with interfaces, typeutil.Map and types.Identical
 		//
@@ -43,33 +100,50 @@ func Identical(x, y types.Type) (ret bool) {
 		// pointers. This will obviously miss identical interfaces,
 		// but this only has a runtime cost, it doesn't affect
 		// correctness.
-		y, ok := y.(*types.Interface)
-		if !ok {
-			// should be impossible
-			return true
+		if y, ok := y.(*types.Interface); ok {
+			if x.NumEmbeddeds() == 0 &&
+				y.NumEmbeddeds() == 0 &&
+				x.NumMethods() == 0 &&
+				y.NumMethods() == 0 {
+				// all truly empty interfaces are the same
+				return true
+			}
+			return x == y
 		}
-		if x.NumEmbeddeds() == 0 &&
-			y.NumEmbeddeds() == 0 &&
-			x.NumMethods() == 0 &&
-			y.NumMethods() == 0 {
-			// all truly empty interfaces are the same
-			return true
+
+	case *types.Map:
+		// Two map types are identical if they have identical key and value types.
+		if y, ok := y.(*types.Map); ok {
+			return identical0(x.Key(), y.Key()) && identical0(x.Elem(), y.Elem())
 		}
-		return x == y
-	case *types.Signature:
-		y, ok := y.(*types.Signature)
-		if !ok {
-			// should be impossible
-			return true
+
+	case *types.Chan:
+		// Two channel types are identical if they have identical value types
+		// and the same direction.
+		if y, ok := y.(*types.Chan); ok {
+			return x.Dir() == y.Dir() && identical0(x.Elem(), y.Elem())
 		}
-		if x.Recv() == y.Recv() {
-			return true
+
+	case *types.Named:
+		// Two named types are identical if their type names originate
+		// in the same type declaration.
+		if y, ok := y.(*types.Named); ok {
+			return x.Obj() == y.Obj()
 		}
-		if x.Recv() == nil || y.Recv() == nil {
-			return false
-		}
-		return Identical(x.Recv().Type(), y.Recv().Type())
+
+	case nil:
+
 	default:
-		return true
+		panic("unreachable")
 	}
+
+	return false
+}
+
+// Identical reports whether x and y are identical types.
+// Unlike types.Identical, receivers of Signature types are not ignored.
+// Unlike types.Identical, interfaces are compared via pointer equality (except for the empty interface, which gets deduplicated).
+// Unlike types.Identical, structs are compared via pointer equality.
+func Identical(x, y types.Type) (ret bool) {
+	return identical0(x, y)
 }

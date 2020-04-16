@@ -2,16 +2,16 @@ package pkg
 
 import "reflect"
 
-type wkt interface {
-	XXX_WellKnownType() string
+type wkt interface { // used
+	XXX_WellKnownType() string // used
 }
 
-var typeOfWkt = reflect.TypeOf((*wkt)(nil)).Elem()
+var typeOfWkt = reflect.TypeOf((*wkt)(nil)).Elem() // used
 
-func Fn() {
+func Fn() { // used
 	_ = typeOfWkt
 }
 
-type t *int
+type t *int // used
 
 var _ t

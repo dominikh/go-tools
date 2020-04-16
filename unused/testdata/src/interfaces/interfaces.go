@@ -1,39 +1,46 @@
 package pkg
 
-type I interface {
-	fn1()
+type I interface { // used
+	fn1() // used
 }
 
-type t struct{}
+type t struct{} // used
 
-func (t) fn1() {}
-func (t) fn2() {} // want `fn2`
+func (t) fn1() {} // used
+func (t) fn2() {} // unused
 
-func init() {
+func init() { // used
 	_ = t{}
 }
 
-type I1 interface {
-	Foo()
+type I1 interface { // used
+	Foo() // used
 }
 
-type I2 interface {
-	Foo()
+type I2 interface { // used
+	Foo() // used
+	bar() // used
+}
+
+type i3 interface { // unused
+	foo()
 	bar()
 }
 
-type t1 struct{}
-type t2 struct{}
-type t3 struct{}
-type t4 struct{ t3 }
+type t1 struct{} // used
+type t2 struct{} // used
+type t3 struct{} // used
+type t4 struct { // used
+	t3 // used
+}
 
-func (t1) Foo() {}
-func (t2) Foo() {}
-func (t2) bar() {}
-func (t3) Foo() {}
-func (t3) bar() {}
+func (t1) Foo() {} // used
+func (t2) Foo() {} // used
+func (t2) bar() {} // used
+func (t3) Foo() {} // used
+func (t3) bar() {} // used
 
-func Fn() {
+func Fn() { // used
 	var v1 t1
 	var v2 t2
 	var v3 t3

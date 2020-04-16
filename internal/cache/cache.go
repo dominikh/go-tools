@@ -77,7 +77,7 @@ func (c *Cache) fileName(id [HashSize]byte, key string) string {
 	return filepath.Join(c.dir, fmt.Sprintf("%02x", id[0]), fmt.Sprintf("%x", id)+"-"+key)
 }
 
-var errMissing = errors.New("cache entry not found")
+var ErrMissing = errors.New("cache entry not found")
 
 const (
 	// action entry file is "v1 <hex id> <hex out> <decimal size space-padded to 20 bytes> <unixnano space-padded to 20 bytes>\n"
@@ -124,7 +124,7 @@ func initEnv() {
 // saved file for that output ID is still available.
 func (c *Cache) Get(id ActionID) (Entry, error) {
 	if verify {
-		return Entry{}, errMissing
+		return Entry{}, ErrMissing
 	}
 	return c.get(id)
 }
@@ -138,7 +138,7 @@ type Entry struct {
 // get is Get but does not respect verify mode, so that Put can use it.
 func (c *Cache) get(id ActionID) (Entry, error) {
 	missing := func() (Entry, error) {
-		return Entry{}, errMissing
+		return Entry{}, ErrMissing
 	}
 	f, err := os.Open(c.fileName(id, "a"))
 	if err != nil {
@@ -196,7 +196,7 @@ func (c *Cache) GetFile(id ActionID) (file string, entry Entry, err error) {
 	file = c.OutputFile(entry.OutputID)
 	info, err := os.Stat(file)
 	if err != nil || info.Size() != entry.Size {
-		return "", Entry{}, errMissing
+		return "", Entry{}, ErrMissing
 	}
 	return file, entry, nil
 }
@@ -211,7 +211,7 @@ func (c *Cache) GetBytes(id ActionID) ([]byte, Entry, error) {
 	}
 	data, _ := ioutil.ReadFile(c.OutputFile(entry.OutputID))
 	if sha256.Sum256(data) != entry.OutputID {
-		return nil, entry, errMissing
+		return nil, entry, ErrMissing
 	}
 	return data, entry, nil
 }

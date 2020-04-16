@@ -1,77 +1,87 @@
 package pkg
 
-type I interface {
-	f1()
-	f2()
+type I interface { // used
+	f1() // used
+	f2() // used
 }
 
-func init() {
+func init() { // used
 	var _ I
 }
 
-type t1 struct{}
-type T2 struct{ t1 }
+type t1 struct{} // used
+type T2 struct { // used
+	t1 // used
+}
 
-func (t1) f1() {}
-func (T2) f2() {}
+func (t1) f1() {} // used
+func (T2) f2() {} // used
 
-func Fn() {
+func Fn() { // used
 	var v T2
 	_ = v.t1
 }
 
-type I2 interface {
-	f3()
-	f4()
+type I2 interface { // used
+	f3() // used
+	f4() // used
 }
 
-type t3 struct{}
-type t4 struct {
-	x int // want `x`
-	y int // want `y`
-	t3
+type t3 struct{} // used
+type t4 struct { // used
+	x  int // unused
+	y  int // unused
+	t3     // used
 }
 
-func (*t3) f3() {}
-func (*t4) f4() {}
+func (*t3) f3() {} // used
+func (*t4) f4() {} // used
 
-func init() {
+func init() { // used
 	var i I2 = &t4{}
 	i.f3()
 	i.f4()
 }
 
-type i3 interface {
-	F()
+type i3 interface { // used
+	F() // used
 }
 
-type I4 interface {
+type I4 interface { // used
 	i3
 }
 
-type T5 struct {
-	t6
+type T5 struct { // used
+	t6 // used
 }
 
-type t6 struct {
-	F int
+type t6 struct { // used
+	F int // used
 }
 
-type t7 struct{ X int }
-type t8 struct{ t7 }
-type t9 struct{ t8 }
+type t7 struct { // used
+	X int // used
+}
+type t8 struct { // used
+	t7 // used
+}
+type t9 struct { // used
+	t8 // used
+}
 
 var _ = t9{}
 
-type t10 struct{}
+type t10 struct{} // used
 
-func (*t10) Foo() {}
+func (*t10) Foo() {} // used
 
-type t11 struct{ t10 }
+type t11 struct { // used
+	t10 // used
+}
 
 var _ = t11{}
 
-type i5 interface{}
-type I6 interface {
+type i5 interface{} // used
+type I6 interface { // used
 	i5
 }

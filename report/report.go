@@ -5,12 +5,12 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/astutil"
 	"honnef.co/go/tools/facts"
-	"honnef.co/go/tools/lint"
 )
 
 type Options struct {
@@ -148,7 +148,7 @@ func Report(pass *analysis.Pass, node Positioner, message string, opts ...Option
 		opt(cfg)
 	}
 
-	file := lint.DisplayPosition(pass.Fset, node.Pos()).Filename
+	file := DisplayPosition(pass.Fset, node.Pos()).Filename
 	if cfg.FilterGenerated {
 		m := pass.ResultOf[facts.Generated].(map[string]facts.Generator)
 		if _, ok := m[file]; ok {
@@ -181,4 +181,22 @@ func RenderArgs(pass *analysis.Pass, args []ast.Expr) string {
 		ss = append(ss, Render(pass, arg))
 	}
 	return strings.Join(ss, ", ")
+}
+
+func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
+	if p == token.NoPos {
+		return token.Position{}
+	}
+
+	// Only use the adjusted position if it points to another Go file.
+	// This means we'll point to the original file for cgo files, but
+	// we won't point to a YACC grammar file.
+	pos := fset.PositionFor(p, false)
+	adjPos := fset.PositionFor(p, true)
+
+	if filepath.Ext(adjPos.Filename) == ".go" {
+		return adjPos
+	}
+
+	return pos
 }

@@ -51,9 +51,9 @@ type Text struct {
 }
 
 func (o Text) Format(p lint.Problem) {
-	fmt.Fprintf(o.W, "%s: %s\n", relativePositionString(p.Pos), p.String())
+	fmt.Fprintf(o.W, "%s: %s\n", relativePositionString(p.Position), p.String())
 	for _, r := range p.Related {
-		fmt.Fprintf(o.W, "\t%s: %s\n", relativePositionString(r.Pos), r.Message)
+		fmt.Fprintf(o.W, "\t%s: %s\n", relativePositionString(r.Position), r.Message)
 	}
 }
 
@@ -92,12 +92,12 @@ func (o JSON) Format(p lint.Problem) {
 		Message  string    `json:"message"`
 		Related  []related `json:"related,omitempty"`
 	}{
-		Code:     p.Check,
+		Code:     p.Category,
 		Severity: severity(p.Severity),
 		Location: location{
-			File:   p.Pos.Filename,
-			Line:   p.Pos.Line,
-			Column: p.Pos.Column,
+			File:   p.Position.Filename,
+			Line:   p.Position.Line,
+			Column: p.Position.Column,
 		},
 		End: location{
 			File:   p.End.Filename,
@@ -109,9 +109,9 @@ func (o JSON) Format(p lint.Problem) {
 	for _, r := range p.Related {
 		jp.Related = append(jp.Related, related{
 			Location: location{
-				File:   r.Pos.Filename,
-				Line:   r.Pos.Line,
-				Column: r.Pos.Column,
+				File:   r.Position.Filename,
+				Line:   r.Position.Line,
+				Column: r.Position.Column,
 			},
 			End: location{
 				File:   r.End.Filename,
@@ -132,7 +132,7 @@ type Stylish struct {
 }
 
 func (o *Stylish) Format(p lint.Problem) {
-	pos := p.Pos
+	pos := p.Position
 	if pos.Filename == "" {
 		pos.Filename = "-"
 	}
@@ -146,9 +146,9 @@ func (o *Stylish) Format(p lint.Problem) {
 		o.prevFile = pos.Filename
 		o.tw = tabwriter.NewWriter(o.W, 0, 4, 2, ' ', 0)
 	}
-	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Check, p.Message)
+	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Category, p.Message)
 	for _, r := range p.Related {
-		fmt.Fprintf(o.tw, "    (%d, %d)\t\t  %s\n", r.Pos.Line, r.Pos.Column, r.Message)
+		fmt.Fprintf(o.tw, "    (%d, %d)\t\t  %s\n", r.Position.Line, r.Position.Column, r.Message)
 	}
 }
 

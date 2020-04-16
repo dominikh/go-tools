@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"golang.org/x/tools/go/packages"
+	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/runner"
 )
 
 func testdata() string {
@@ -21,7 +23,10 @@ func testdata() string {
 }
 
 func lintPackage(t *testing.T, name string) []Problem {
-	l := Linter{}
+	l, err := NewLinter(config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := &packages.Config{
 		Env: append(os.Environ(), "GOPATH="+testdata(), "GO111MODULE=off"),
 	}
@@ -48,7 +53,7 @@ func TestErrors(t *testing.T) {
 		if want := "expected 'package', found pckage"; ps[0].Message != want {
 			t.Errorf("got message %q, want %q", ps[0].Message, want)
 		}
-		if ps[0].Pos.Filename == "" {
+		if ps[0].Position.Filename == "" {
 			t.Errorf("didn't get useful position")
 		}
 	})
@@ -61,19 +66,21 @@ func TestErrors(t *testing.T) {
 		if len(ps) != 1 {
 			t.Fatalf("got %d problems, want 1", len(ps))
 		}
-		trimPosition(&ps[0].Pos)
+		trimPosition(&ps[0].Position)
 		want := Problem{
-			Pos: token.Position{
-				Filename: "broken_typeerror/pkg.go",
-				Offset:   42,
-				Line:     5,
-				Column:   10,
+			Diagnostic: runner.Diagnostic{
+				Position: token.Position{
+					Filename: "broken_typeerror/pkg.go",
+					Offset:   0,
+					Line:     5,
+					Column:   10,
+				},
+				Message:  "cannot convert \"\" (untyped string constant) to int",
+				Category: "compile",
 			},
-			Message:  "cannot convert \"\" (untyped string constant) to int",
-			Check:    "compile",
 			Severity: 0,
 		}
-		if !ps[0].Equal(want) {
+		if !ps[0].equal(want) {
 			t.Errorf("got %#v, want %#v", ps[0], want)
 		}
 	})
@@ -91,19 +98,21 @@ func TestErrors(t *testing.T) {
 			t.Fatalf("got %d problems, want 1", len(ps))
 		}
 
-		trimPosition(&ps[0].Pos)
+		trimPosition(&ps[0].Position)
 		want := Problem{
-			Pos: token.Position{
-				Filename: "broken_parse/pkg.go",
-				Offset:   13,
-				Line:     3,
-				Column:   1,
+			Diagnostic: runner.Diagnostic{
+				Position: token.Position{
+					Filename: "broken_parse/pkg.go",
+					Offset:   0,
+					Line:     3,
+					Column:   1,
+				},
+				Message:  "expected declaration, found asd",
+				Category: "compile",
 			},
-			Message:  "expected declaration, found asd",
-			Check:    "compile",
 			Severity: 0,
 		}
-		if !ps[0].Equal(want) {
+		if !ps[0].equal(want) {
 			t.Errorf("got %#v, want %#v", ps[0], want)
 		}
 	})

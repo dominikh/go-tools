@@ -24,13 +24,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/lint"
 	"honnef.co/go/tools/lint/lintutil/format"
+	"honnef.co/go/tools/loader"
+	"honnef.co/go/tools/runner"
 	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/analysis"
@@ -38,7 +39,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func NewVersionFlag() flag.Getter {
+func newVersionFlag() flag.Getter {
 	tags := build.Default.ReleaseTags
 	v := tags[len(tags)-1][2:]
 	version := new(VersionFlag)
@@ -52,7 +53,6 @@ type VersionFlag int
 
 func (v *VersionFlag) String() string {
 	return fmt.Sprintf("1.%d", *v)
-
 }
 
 func (v *VersionFlag) Set(s string) error {
@@ -117,7 +117,6 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("debug.version", false, "Print detailed version information about this program")
 	flags.Bool("debug.no-compile-errors", false, "Don't print compile errors")
 	flags.String("debug.measure-analyzers", "", "Write analysis measurements to `file`. `file` will be opened for appending if it already exists.")
-	flags.Uint("debug.repeat-analyzers", 0, "Run analyzers `num` times")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -144,7 +143,7 @@ func findCheck(cs []*analysis.Analyzer, check string) (*analysis.Analyzer, bool)
 	return nil, false
 }
 
-func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *flag.FlagSet) {
+func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
@@ -157,9 +156,8 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
 	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
 	debugNoCompile := fs.Lookup("debug.no-compile-errors").Value.(flag.Getter).Get().(bool)
-	debugRepeat := fs.Lookup("debug.repeat-analyzers").Value.(flag.Getter).Get().(uint)
 
-	var measureAnalyzers func(analysis *analysis.Analyzer, pkg *lint.Package, d time.Duration)
+	var measureAnalyzers func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 	if path := fs.Lookup("debug.measure-analyzers").Value.(flag.Getter).Get().(string); path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
@@ -167,10 +165,11 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 		}
 
 		mu := &sync.Mutex{}
-		measureAnalyzers = func(analysis *analysis.Analyzer, pkg *lint.Package, d time.Duration) {
+		measureAnalyzers = func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration) {
 			mu.Lock()
 			defer mu.Unlock()
-			if _, err := fmt.Fprintf(f, "%s\t%s\t%d\n", analysis.Name, pkg.ID, d.Nanoseconds()); err != nil {
+			// FIXME(dh): print pkg.ID
+			if _, err := fmt.Fprintf(f, "%s\t%s\t%d\n", analysis.Name, pkg, d.Nanoseconds()); err != nil {
 				log.Println("error writing analysis measurements:", err)
 			}
 		}
@@ -223,9 +222,6 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	if explain != "" {
 		var haystack []*analysis.Analyzer
 		haystack = append(haystack, cs...)
-		for _, cum := range cums {
-			haystack = append(haystack, cum.Analyzer())
-		}
 		check, ok := findCheck(haystack, explain)
 		if !ok {
 			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
@@ -252,13 +248,12 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 		exit(2)
 	}
 
-	ps, err := Lint(cs, cums, fs.Args(), &Options{
+	ps, err := doLint(cs, fs.Args(), &Options{
 		Tags:                     tags,
 		LintTests:                tests,
 		GoVersion:                goVersion,
 		Config:                   cfg,
 		PrintAnalyzerMeasurement: measureAnalyzers,
-		RepeatAnalyzers:          debugRepeat,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -273,24 +268,23 @@ func ProcessFlagSet(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, fs *
 	)
 
 	fail := *fs.Lookup("fail").Value.(*list)
-	analyzers := make([]*analysis.Analyzer, len(cs), len(cs)+len(cums))
-	copy(analyzers, cs)
-	for _, cum := range cums {
-		analyzers = append(analyzers, cum.Analyzer())
+	analyzerNames := make([]string, len(cs))
+	for i, a := range cs {
+		analyzerNames[i] = a.Name
 	}
-	shouldExit := lint.FilterChecks(analyzers, fail)
+	shouldExit := lint.FilterAnalyzerNames(analyzerNames, fail)
 	shouldExit["compile"] = true
 
 	total = len(ps)
 	for _, p := range ps {
-		if p.Check == "compile" && debugNoCompile {
+		if p.Category == "compile" && debugNoCompile {
 			continue
 		}
 		if p.Severity == lint.Ignored && !showIgnored {
 			ignored++
 			continue
 		}
-		if shouldExit[p.Check] {
+		if shouldExit[p.Category] {
 			errors++
 		} else {
 			p.Severity = lint.Warning
@@ -313,8 +307,7 @@ type Options struct {
 	Tags                     string
 	LintTests                bool
 	GoVersion                int
-	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *lint.Package, d time.Duration)
-	RepeatAnalyzers          uint
+	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
 func computeSalt() ([]byte, error) {
@@ -337,7 +330,7 @@ func computeSalt() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string, opt *Options) ([]lint.Problem, error) {
+func doLint(cs []*analysis.Analyzer, paths []string, opt *Options) ([]lint.Problem, error) {
 	salt, err := computeSalt()
 	if err != nil {
 		return nil, fmt.Errorf("could not compute salt for cache: %s", err)
@@ -348,14 +341,14 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 		opt = &Options{}
 	}
 
-	l := &lint.Linter{
-		Checkers:           cs,
-		CumulativeCheckers: cums,
-		GoVersion:          opt.GoVersion,
-		Config:             opt.Config,
-		RepeatAnalyzers:    opt.RepeatAnalyzers,
+	l, err := lint.NewLinter(opt.Config)
+	if err != nil {
+		return nil, err
 	}
-	l.Stats.PrintAnalyzerMeasurement = opt.PrintAnalyzerMeasurement
+	l.Checkers = cs
+	l.SetGoVersion(opt.GoVersion)
+	l.Runner.Stats.PrintAnalyzerMeasurement = opt.PrintAnalyzerMeasurement
+
 	cfg := &packages.Config{}
 	if opt.LintTests {
 		cfg.Tests = true
@@ -368,23 +361,24 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 		// Individual stats are read atomically, but overall there
 		// is no synchronisation. For printing rough progress
 		// information, this doesn't matter.
-		switch atomic.LoadUint32(&l.Stats.State) {
-		case lint.StateInitializing:
+		switch l.Runner.Stats.State() {
+		case runner.StateInitializing:
 			fmt.Fprintln(os.Stderr, "Status: initializing")
-		case lint.StateGraph:
+		case runner.StateLoadPackageGraph:
 			fmt.Fprintln(os.Stderr, "Status: loading package graph")
-		case lint.StateProcessing:
-			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d; Problems: %d\n",
-				atomic.LoadUint32(&l.Stats.ProcessedInitialPackages),
-				atomic.LoadUint32(&l.Stats.InitialPackages),
-				atomic.LoadUint32(&l.Stats.ProcessedPackages),
-				atomic.LoadUint32(&l.Stats.TotalPackages),
-				atomic.LoadUint32(&l.Stats.ActiveWorkers),
-				atomic.LoadUint32(&l.Stats.TotalWorkers),
-				atomic.LoadUint32(&l.Stats.Problems),
+		case runner.StateBuildActionGraph:
+			fmt.Fprintln(os.Stderr, "Status: building action graph")
+		case runner.StateProcessing:
+			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d\n",
+				l.Runner.Stats.ProcessedInitialPackages(),
+				l.Runner.Stats.InitialPackages(),
+				l.Runner.Stats.ProcessedPackages(),
+				l.Runner.Stats.TotalPackages(),
+				l.Runner.ActiveWorkers(),
+				l.Runner.TotalWorkers(),
 			)
-		case lint.StateCumulative:
-			fmt.Fprintln(os.Stderr, "Status: processing cumulative checkers")
+		case runner.StateFinalizing:
+			fmt.Fprintln(os.Stderr, "Status: finalizing")
 		}
 	}
 	if len(infoSignals) > 0 {
@@ -397,7 +391,6 @@ func Lint(cs []*analysis.Analyzer, cums []lint.CumulativeChecker, paths []string
 			}
 		}()
 	}
-
 	ps, err := l.Lint(cfg, paths)
 	return ps, err
 }
@@ -436,7 +429,7 @@ func InitializeAnalyzers(docs map[string]*lint.Documentation, analyzers map[stri
 		vc.Doc = doc.String()
 		if vc.Flags.Usage == nil {
 			fs := flag.NewFlagSet("", flag.PanicOnError)
-			fs.Var(NewVersionFlag(), "go", "Target Go version")
+			fs.Var(newVersionFlag(), "go", "Target Go version")
 			vc.Flags = *fs
 		}
 	}

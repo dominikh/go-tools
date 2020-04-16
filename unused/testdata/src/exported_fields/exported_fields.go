@@ -1,36 +1,36 @@
 package pkg
 
-type t1 struct {
-	F1 int
+type t1 struct { // used
+	F1 int // used
 }
 
-type T2 struct {
-	F2 int
+type T2 struct { // used
+	F2 int // used
 }
 
-var v struct {
-	T3
+var v struct { // used
+	T3 // used
 }
 
-type T3 struct{}
+type T3 struct{} // used
 
-func (T3) Foo() {}
+func (T3) Foo() {} // used
 
-func init() {
+func init() { // used
 	v.Foo()
 }
 
-func init() {
+func init() { // used
 	_ = t1{}
 }
 
-type codeResponse struct {
-	Tree *codeNode `json:"tree"`
+type codeResponse struct { // used
+	Tree *codeNode `json:"tree"` // used
 }
 
-type codeNode struct {
+type codeNode struct { // used
 }
 
-func init() {
+func init() { // used
 	_ = codeResponse{}
 }

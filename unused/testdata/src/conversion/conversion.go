@@ -5,57 +5,57 @@ import (
 	"unsafe"
 )
 
-type t1 struct {
-	a int
-	b int
+type t1 struct { // used
+	a int // used
+	b int // used
 }
 
-type t2 struct {
-	a int
-	b int
+type t2 struct { // used
+	a int // used
+	b int // used
 }
 
-type t3 struct {
-	a int
-	b int // want `b`
+type t3 struct { // used
+	a int // used
+	b int // unused
 }
 
-type t4 struct {
-	a int
-	b int // want `b`
+type t4 struct { // used
+	a int // used
+	b int // unused
 }
 
-type t5 struct {
-	a int
-	b int
+type t5 struct { // used
+	a int // used
+	b int // used
 }
 
-type t6 struct {
-	a int
-	b int
+type t6 struct { // used
+	a int // used
+	b int // used
 }
 
-type t7 struct {
-	a int
-	b int
+type t7 struct { // used
+	a int // used
+	b int // used
 }
 
-type t8 struct {
-	a int
-	b int
+type t8 struct { // used
+	a int // used
+	b int // used
 }
 
-type t9 struct {
-	Offset int64
-	Err    error
+type t9 struct { // used
+	Offset int64 // used
+	Err    error // used
 }
 
-type t10 struct {
-	a int
-	b int
+type t10 struct { // used
+	a int // used
+	b int // used
 }
 
-func fn() {
+func fn() { // used
 	// All fields in t2 used because they're initialised in t1
 	v1 := t1{0, 1}
 	v2 := t2(v1)
@@ -89,4 +89,4 @@ func fn() {
 	_ = v10
 }
 
-func init() { fn() }
+func init() { fn() } // used

@@ -1,23 +1,23 @@
 package pkg
 
-func fn1(t struct {
-	a int
-	b int
+func fn1(t struct { // used
+	a int // used
+	b int // used
 }) {
 	println(t.a)
 	fn2(t)
 }
 
-func fn2(t struct {
-	a int
-	b int
+func fn2(t struct { // used
+	a int // used
+	b int // used
 }) {
 	println(t.b)
 }
 
-func Fn() {
+func Fn() { // used
 	fn1(struct {
-		a int
-		b int
+		a int // used
+		b int // used
 	}{})
 }

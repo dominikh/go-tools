@@ -1,13 +1,13 @@
 package pkg
 
-type t struct{}
+type t struct{} // used
 
-func (t) fn1() {}
-func (t) fn2() {}
-func fn1()     {}
-func fn2()     {}
+func (t) fn1() {} // used
+func (t) fn2() {} // used
+func fn1()     {} // used
+func fn2()     {} // used
 
-func Fn() {
+func Fn() { // used
 	var v t
 	defer fn1()
 	defer v.fn1()

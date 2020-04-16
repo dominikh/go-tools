@@ -2,6 +2,7 @@
 package code
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -9,6 +10,7 @@ import (
 	"go/token"
 	"go/types"
 	"strings"
+	"sync"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -17,8 +19,54 @@ import (
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/ir"
-	"honnef.co/go/tools/lint"
 )
+
+var bufferPool = &sync.Pool{
+	New: func() interface{} {
+		buf := bytes.NewBuffer(nil)
+		buf.Grow(64)
+		return buf
+	},
+}
+
+func FuncName(f *types.Func) string {
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	if f.Type() != nil {
+		sig := f.Type().(*types.Signature)
+		if recv := sig.Recv(); recv != nil {
+			buf.WriteByte('(')
+			if _, ok := recv.Type().(*types.Interface); ok {
+				// gcimporter creates abstract methods of
+				// named interfaces using the interface type
+				// (not the named type) as the receiver.
+				// Don't print it in full.
+				buf.WriteString("interface")
+			} else {
+				types.WriteType(buf, recv.Type(), nil)
+			}
+			buf.WriteByte(')')
+			buf.WriteByte('.')
+		} else if f.Pkg() != nil {
+			writePackage(buf, f.Pkg())
+		}
+	}
+	buf.WriteString(f.Name())
+	s := buf.String()
+	bufferPool.Put(buf)
+	return s
+}
+
+func writePackage(buf *bytes.Buffer, pkg *types.Package) {
+	if pkg == nil {
+		return
+	}
+	s := pkg.Path()
+	if s != "" {
+		buf.WriteString(s)
+		buf.WriteByte('.')
+	}
+}
 
 type Positioner interface {
 	Pos() token.Pos
@@ -34,7 +82,7 @@ func CallName(call *ir.CallCommon) string {
 		if !ok {
 			return ""
 		}
-		return lint.FuncName(fn)
+		return FuncName(fn)
 	case *ir.Builtin:
 		return v.Name()
 	}
@@ -244,12 +292,12 @@ func CallNameAST(pass *analysis.Pass, call *ast.CallExpr) string {
 		if !ok {
 			return ""
 		}
-		return lint.FuncName(fn)
+		return FuncName(fn)
 	case *ast.Ident:
 		obj := pass.TypesInfo.ObjectOf(fun)
 		switch obj := obj.(type) {
 		case *types.Func:
-			return lint.FuncName(obj)
+			return FuncName(obj)
 		case *types.Builtin:
 			return obj.Name()
 		default:
@@ -472,7 +520,11 @@ func MayHaveSideEffects(pass *analysis.Pass, expr ast.Expr, purity facts.PurityR
 }
 
 func IsGoVersion(pass *analysis.Pass, minor int) bool {
-	version := pass.Analyzer.Flags.Lookup("go").Value.(flag.Getter).Get().(int)
+	f, ok := pass.Analyzer.Flags.Lookup("go").Value.(flag.Getter)
+	if !ok {
+		panic("requested Go version, but analyzer has no version flag")
+	}
+	version := f.Get().(int)
 	return version >= minor
 }
 

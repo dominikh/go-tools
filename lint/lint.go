@@ -2,23 +2,21 @@
 package lint // import "honnef.co/go/tools/lint"
 
 import (
-	"bytes"
-	"encoding/gob"
 	"fmt"
-	"go/scanner"
 	"go/token"
-	"go/types"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"unicode"
+
+	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/runner"
+	"honnef.co/go/tools/unused"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
-	"honnef.co/go/tools/config"
-	"honnef.co/go/tools/internal/cache"
 )
 
 type Documentation struct {
@@ -55,11 +53,11 @@ func (doc *Documentation) String() string {
 	return b.String()
 }
 
-type Ignore interface {
+type ignore interface {
 	Match(p Problem) bool
 }
 
-type LineIgnore struct {
+type lineIgnore struct {
 	File    string
 	Line    int
 	Checks  []string
@@ -67,13 +65,13 @@ type LineIgnore struct {
 	Pos     token.Position
 }
 
-func (li *LineIgnore) Match(p Problem) bool {
-	pos := p.Pos
+func (li *lineIgnore) Match(p Problem) bool {
+	pos := p.Position
 	if pos.Filename != li.File || pos.Line != li.Line {
 		return false
 	}
 	for _, c := range li.Checks {
-		if m, _ := filepath.Match(c, p.Check); m {
+		if m, _ := filepath.Match(c, p.Category); m {
 			li.Matched = true
 			return true
 		}
@@ -81,7 +79,7 @@ func (li *LineIgnore) Match(p Problem) bool {
 	return false
 }
 
-func (li *LineIgnore) String() string {
+func (li *lineIgnore) String() string {
 	matched := "not matched"
 	if li.Matched {
 		matched = "matched"
@@ -89,17 +87,17 @@ func (li *LineIgnore) String() string {
 	return fmt.Sprintf("%s:%d %s (%s)", li.File, li.Line, strings.Join(li.Checks, ", "), matched)
 }
 
-type FileIgnore struct {
+type fileIgnore struct {
 	File   string
 	Checks []string
 }
 
-func (fi *FileIgnore) Match(p Problem) bool {
-	if p.Pos.Filename != fi.File {
+func (fi *fileIgnore) Match(p Problem) bool {
+	if p.Position.Filename != fi.File {
 		return false
 	}
 	for _, c := range fi.Checks {
-		if m, _ := filepath.Match(c, p.Check); m {
+		if m, _ := filepath.Match(c, p.Category); m {
 			return true
 		}
 	}
@@ -116,286 +114,266 @@ const (
 
 // Problem represents a problem in some source code.
 type Problem struct {
-	Pos      token.Position
-	End      token.Position
-	Message  string
-	Check    string
+	runner.Diagnostic
 	Severity Severity
-	Related  []Related
 }
 
-type Related struct {
-	Pos     token.Position
-	End     token.Position
-	Message string
-}
-
-func (p Problem) Equal(o Problem) bool {
-	return p.Pos == o.Pos &&
+func (p Problem) equal(o Problem) bool {
+	return p.Position == o.Position &&
 		p.End == o.End &&
 		p.Message == o.Message &&
-		p.Check == o.Check &&
+		p.Category == o.Category &&
 		p.Severity == o.Severity
 }
 
 func (p *Problem) String() string {
-	return fmt.Sprintf("%s (%s)", p.Message, p.Check)
+	return fmt.Sprintf("%s (%s)", p.Message, p.Category)
 }
 
 // A Linter lints Go source code.
 type Linter struct {
-	Checkers           []*analysis.Analyzer
-	CumulativeCheckers []CumulativeChecker
-	GoVersion          int
-	Config             config.Config
-	Stats              Stats
-	RepeatAnalyzers    uint
+	Checkers []*analysis.Analyzer
+	Config   config.Config
+	Runner   *runner.Runner
 }
 
-type CumulativeChecker interface {
-	Analyzer() *analysis.Analyzer
-	Result() []types.Object
-	ProblemObject(*token.FileSet, types.Object) Problem
-}
-
-func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error) {
-	var allAnalyzers []*analysis.Analyzer
-	allAnalyzers = append(allAnalyzers, l.Checkers...)
-	for _, cum := range l.CumulativeCheckers {
-		allAnalyzers = append(allAnalyzers, cum.Analyzer())
-	}
-
-	// The -checks command line flag overrules all configuration
-	// files, which means that for `-checks="foo"`, no check other
-	// than foo can ever be reported to the user. Make use of this
-	// fact to cull the list of analyses we need to run.
-
-	// replace "inherit" with "all", as we don't want to base the
-	// list of all checks on the default configuration, which
-	// disables certain checks.
-	checks := make([]string, len(l.Config.Checks))
-	copy(checks, l.Config.Checks)
-	for i, c := range checks {
-		if c == "inherit" {
-			checks[i] = "all"
-		}
-	}
-
-	allowed := FilterChecks(allAnalyzers, checks)
-	var allowedAnalyzers []*analysis.Analyzer
-	for _, c := range l.Checkers {
-		if allowed[c.Name] {
-			allowedAnalyzers = append(allowedAnalyzers, c)
-		}
-	}
-	hasCumulative := false
-	for _, cum := range l.CumulativeCheckers {
-		a := cum.Analyzer()
-		if allowed[a.Name] {
-			hasCumulative = true
-			allowedAnalyzers = append(allowedAnalyzers, a)
-		}
-	}
-
-	r, err := NewRunner(&l.Stats)
-	if err != nil {
-		return nil, err
-	}
-	r.goVersion = l.GoVersion
-	r.repeatAnalyzers = l.RepeatAnalyzers
-
-	pkgs, err := r.Run(cfg, patterns, allowedAnalyzers, hasCumulative)
-	if err != nil {
-		return nil, err
-	}
-
-	tpkgToPkg := map[*types.Package]*Package{}
-	for _, pkg := range pkgs {
-		tpkgToPkg[pkg.Types] = pkg
-
-		for _, e := range pkg.errs {
-			switch e := e.(type) {
-			case types.Error:
-				p := Problem{
-					Pos:      e.Fset.PositionFor(e.Pos, false),
-					Message:  e.Msg,
-					Severity: Error,
-					Check:    "compile",
-				}
-				pkg.problems = append(pkg.problems, p)
-			case packages.Error:
-				msg := e.Msg
-				if len(msg) != 0 && msg[0] == '\n' {
-					// TODO(dh): See https://github.com/golang/go/issues/32363
-					msg = msg[1:]
-				}
-
-				var pos token.Position
-				if e.Pos == "" {
-					// Under certain conditions (malformed package
-					// declarations, multiple packages in the same
-					// directory), go list emits an error on stderr
-					// instead of JSON. Those errors do not have
-					// associated position information in
-					// go/packages.Error, even though the output on
-					// stderr may contain it.
-					if p, n, err := parsePos(msg); err == nil {
-						if abs, err := filepath.Abs(p.Filename); err == nil {
-							p.Filename = abs
-						}
-						pos = p
-						msg = msg[n+2:]
-					}
-				} else {
-					var err error
-					pos, _, err = parsePos(e.Pos)
-					if err != nil {
-						panic(fmt.Sprintf("internal error: %s", e))
-					}
-				}
-				p := Problem{
-					Pos:      pos,
-					Message:  msg,
-					Severity: Error,
-					Check:    "compile",
-				}
-				pkg.problems = append(pkg.problems, p)
-			case scanner.ErrorList:
-				for _, e := range e {
-					p := Problem{
-						Pos:      e.Pos,
-						Message:  e.Msg,
-						Severity: Error,
-						Check:    "compile",
-					}
-					pkg.problems = append(pkg.problems, p)
-				}
-			case error:
-				p := Problem{
-					Pos:      token.Position{},
-					Message:  e.Error(),
-					Severity: Error,
-					Check:    "compile",
-				}
-				pkg.problems = append(pkg.problems, p)
-			}
-		}
-	}
-
-	atomic.StoreUint32(&r.stats.State, StateCumulative)
-	for _, cum := range l.CumulativeCheckers {
-		for _, res := range cum.Result() {
-			pkg := tpkgToPkg[res.Pkg()]
-			if pkg == nil {
-				panic(fmt.Sprintf("analyzer %s flagged object %s in package %s, a package that we aren't tracking", cum.Analyzer(), res, res.Pkg()))
-			}
-			allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
-			if allowedChecks[cum.Analyzer().Name] {
-				pos := DisplayPosition(pkg.Fset, res.Pos())
-				// FIXME(dh): why are we ignoring generated files
-				// here? Surely this is specific to 'unused', not all
-				// cumulative checkers
-				if _, ok := pkg.gen[pos.Filename]; ok {
-					continue
-				}
-				p := cum.ProblemObject(pkg.Fset, res)
-				pkg.problems = append(pkg.problems, p)
-			}
-		}
-	}
-
-	for _, pkg := range pkgs {
-		if !pkg.fromSource {
-			// Don't cache packages that we loaded from the cache
-			continue
-		}
-		cpkg := cachedPackage{
-			Problems: pkg.problems,
-			Ignores:  pkg.ignores,
-			Config:   pkg.cfg,
-		}
-		buf := &bytes.Buffer{}
-		if err := gob.NewEncoder(buf).Encode(cpkg); err != nil {
-			return nil, err
-		}
-		id := cache.Subkey(pkg.actionID, "data "+r.problemsCacheKey)
-		if err := r.cache.PutBytes(id, buf.Bytes()); err != nil {
-			return nil, err
-		}
-	}
-
+func failed(res runner.Result) []Problem {
 	var problems []Problem
-	// Deduplicate line ignores. When U1000 processes a package and
-	// its test variant, it will only emit a single problem for an
-	// unused object, not two problems. We will, however, have two
-	// line ignores, one per package. Without deduplication, one line
-	// ignore will be marked as matched, while the other one won't,
-	// subsequently reporting a "this linter directive didn't match
-	// anything" error.
-	ignores := map[token.Position]Ignore{}
-	for _, pkg := range pkgs {
-		for _, ig := range pkg.ignores {
-			if lig, ok := ig.(*LineIgnore); ok {
-				ig = ignores[lig.Pos]
-				if ig == nil {
-					ignores[lig.Pos] = lig
-					ig = lig
-				}
-			}
-			for i := range pkg.problems {
-				p := &pkg.problems[i]
-				if ig.Match(*p) {
-					p.Severity = Ignored
-				}
-			}
-		}
 
-		if pkg.cfg == nil {
-			// The package failed to load, otherwise we would have a
-			// valid config. Pass through all errors.
-			problems = append(problems, pkg.problems...)
-		} else {
-			for _, p := range pkg.problems {
-				allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
-				allowedChecks["compile"] = true
-				if allowedChecks[p.Check] {
-					problems = append(problems, p)
-				}
-			}
-		}
-
-		for _, ig := range pkg.ignores {
-			ig, ok := ig.(*LineIgnore)
-			if !ok {
-				continue
-			}
-			ig = ignores[ig.Pos].(*LineIgnore)
-			if ig.Matched {
-				continue
+	for _, e := range res.Errors {
+		switch e := e.(type) {
+		case packages.Error:
+			msg := e.Msg
+			if len(msg) != 0 && msg[0] == '\n' {
+				// TODO(dh): See https://github.com/golang/go/issues/32363
+				msg = msg[1:]
 			}
 
-			couldveMatched := false
-			allowedChecks := FilterChecks(allowedAnalyzers, pkg.cfg.Merge(l.Config).Checks)
-			for _, c := range ig.Checks {
-				if !allowedChecks[c] {
-					continue
+			var posn token.Position
+			if e.Pos == "" {
+				// Under certain conditions (malformed package
+				// declarations, multiple packages in the same
+				// directory), go list emits an error on stderr
+				// instead of JSON. Those errors do not have
+				// associated position information in
+				// go/packages.Error, even though the output on
+				// stderr may contain it.
+				if p, n, err := parsePos(msg); err == nil {
+					if abs, err := filepath.Abs(p.Filename); err == nil {
+						p.Filename = abs
+					}
+					posn = p
+					msg = msg[n+2:]
 				}
-				couldveMatched = true
-				break
-			}
-
-			if !couldveMatched {
-				// The ignored checks were disabled for the containing package.
-				// Don't flag the ignore for not having matched.
-				continue
+			} else {
+				var err error
+				posn, _, err = parsePos(e.Pos)
+				if err != nil {
+					panic(fmt.Sprintf("internal error: %s", e))
+				}
 			}
 			p := Problem{
-				Pos:     ig.Pos,
-				Message: "this linter directive didn't match anything; should it be removed?",
-				Check:   "",
+				Diagnostic: runner.Diagnostic{
+					Position: posn,
+					Message:  msg,
+					Category: "compile",
+				},
+				Severity: Error,
+			}
+			problems = append(problems, p)
+		case error:
+			p := Problem{
+				Diagnostic: runner.Diagnostic{
+					Position: token.Position{},
+					Message:  e.Error(),
+					Category: "compile",
+				},
+				Severity: Error,
 			}
 			problems = append(problems, p)
 		}
+	}
+
+	return problems
+}
+
+type unusedKey struct {
+	pkgPath string
+	base    string
+	line    int
+	name    string
+}
+
+type unusedPair struct {
+	key unusedKey
+	obj unused.SerializedObject
+}
+
+func success(allowedChecks map[string]bool, res runner.Result) ([]Problem, unused.SerializedResult, error) {
+	diags, err := res.Diagnostics()
+	if err != nil {
+		return nil, unused.SerializedResult{}, err
+	}
+
+	var problems []Problem
+
+	for _, diag := range diags {
+		if !allowedChecks[diag.Category] {
+			continue
+		}
+		problems = append(problems, Problem{Diagnostic: diag})
+	}
+
+	u, err := res.Unused()
+	return problems, u, err
+}
+
+func filterIgnored(problems []Problem, res runner.Result, allowedAnalyzers map[string]bool) ([]Problem, error) {
+	couldveMatched := func(ig *lineIgnore) bool {
+		for _, c := range ig.Checks {
+			if c == "U1000" {
+				// We never want to flag ignores for U1000,
+				// because U1000 isn't local to a single
+				// package. For example, an identifier may
+				// only be used by tests, in which case an
+				// ignore would only fire when not analyzing
+				// tests. To avoid spurious "useless ignore"
+				// warnings, just never flag U1000.
+				return false
+			}
+
+			// Even though the runner always runs all analyzers, we
+			// still only flag unmatched ignores for the set of
+			// analyzers the user has expressed interest in. That way,
+			// `staticcheck -checks=SA1000` won't complain about an
+			// unmatched ignore for an unrelated check.
+			if allowedAnalyzers[c] {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	dirs, err := res.Directives()
+	if err != nil {
+		return nil, err
+	}
+
+	ignores, moreProblems := parseDirectives(dirs)
+
+	for _, ig := range ignores {
+		for i := range problems {
+			p := &problems[i]
+			if ig.Match(*p) {
+				p.Severity = Ignored
+			}
+		}
+
+		if ig, ok := ig.(*lineIgnore); ok && !ig.Matched && couldveMatched(ig) {
+			p := Problem{
+				Diagnostic: runner.Diagnostic{
+					Position: ig.Pos,
+					Message:  "this linter directive didn't match anything; should it be removed?",
+					Category: "",
+				},
+			}
+			moreProblems = append(moreProblems, p)
+		}
+	}
+
+	return append(problems, moreProblems...), nil
+}
+
+func NewLinter(cfg config.Config) (*Linter, error) {
+	r, err := runner.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &Linter{
+		Config: cfg,
+		Runner: r,
+	}, nil
+}
+
+func (l *Linter) SetGoVersion(n int) {
+	l.Runner.GoVersion = n
+}
+
+func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error) {
+	results, err := l.Runner.Run(cfg, l.Checkers, patterns)
+	if err != nil {
+		return nil, err
+	}
+
+	analyzerNames := make([]string, len(l.Checkers))
+	for i, a := range l.Checkers {
+		analyzerNames[i] = a.Name
+	}
+
+	var problems []Problem
+	used := map[unusedKey]bool{}
+	var unuseds []unusedPair
+	for _, res := range results {
+		if len(res.Errors) > 0 && !res.Failed {
+			panic("package has errors but isn't marked as failed")
+		}
+		if res.Failed {
+			problems = append(problems, failed(res)...)
+		} else {
+			allowedAnalyzers := FilterAnalyzerNames(analyzerNames, res.Config.Checks)
+			ps, u, err := success(allowedAnalyzers, res)
+			if err != nil {
+				return nil, err
+			}
+			filtered, err := filterIgnored(ps, res, allowedAnalyzers)
+			if err != nil {
+				return nil, err
+			}
+			problems = append(problems, filtered...)
+
+			for _, obj := range u.Used {
+				// FIXME(dh): pick the object whose filename does not include $GOROOT
+				key := unusedKey{
+					pkgPath: res.Package.PkgPath,
+					base:    filepath.Base(obj.Position.Filename),
+					line:    obj.Position.Line,
+					name:    obj.Name,
+				}
+				used[key] = true
+			}
+
+			if allowedAnalyzers["U1000"] {
+				for _, obj := range u.Unused {
+					key := unusedKey{
+						pkgPath: res.Package.PkgPath,
+						base:    filepath.Base(obj.Position.Filename),
+						line:    obj.Position.Line,
+						name:    obj.Name,
+					}
+					unuseds = append(unuseds, unusedPair{key, obj})
+					if _, ok := used[key]; !ok {
+						used[key] = false
+					}
+				}
+			}
+		}
+	}
+
+	for _, uo := range unuseds {
+		if used[uo.key] {
+			continue
+		}
+		if uo.obj.InGenerated {
+			continue
+		}
+		problems = append(problems, Problem{
+			Diagnostic: runner.Diagnostic{
+				Position: uo.obj.DisplayPosition,
+				Message:  fmt.Sprintf("%s %s is unused", uo.obj.Kind, uo.obj.Name),
+				Category: "U1000",
+			},
+		})
 	}
 
 	if len(problems) == 0 {
@@ -403,8 +381,8 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	}
 
 	sort.Slice(problems, func(i, j int) bool {
-		pi := problems[i].Pos
-		pj := problems[j].Pos
+		pi := problems[i].Position
+		pj := problems[j].Position
 
 		if pi.Filename != pj.Filename {
 			return pi.Filename < pj.Filename
@@ -424,15 +402,14 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	for i, p := range problems[1:] {
 		// We may encounter duplicate problems because one file
 		// can be part of many packages.
-		if !problems[i].Equal(p) {
+		if !problems[i].equal(p) {
 			out = append(out, p)
 		}
 	}
 	return out, nil
 }
 
-func FilterChecks(allChecks []*analysis.Analyzer, checks []string) map[string]bool {
-	// OPT(dh): this entire computation could be cached per package
+func FilterAnalyzerNames(analyzers []string, checks []string) map[string]bool {
 	allowedChecks := map[string]bool{}
 
 	for _, check := range checks {
@@ -443,26 +420,26 @@ func FilterChecks(allChecks []*analysis.Analyzer, checks []string) map[string]bo
 		}
 		if check == "*" || check == "all" {
 			// Match all
-			for _, c := range allChecks {
-				allowedChecks[c.Name] = b
+			for _, c := range analyzers {
+				allowedChecks[c] = b
 			}
 		} else if strings.HasSuffix(check, "*") {
 			// Glob
 			prefix := check[:len(check)-1]
 			isCat := strings.IndexFunc(prefix, func(r rune) bool { return unicode.IsNumber(r) }) == -1
 
-			for _, c := range allChecks {
-				idx := strings.IndexFunc(c.Name, func(r rune) bool { return unicode.IsNumber(r) })
+			for _, a := range analyzers {
+				idx := strings.IndexFunc(a, func(r rune) bool { return unicode.IsNumber(r) })
 				if isCat {
 					// Glob is S*, which should match S1000 but not SA1000
-					cat := c.Name[:idx]
+					cat := a[:idx]
 					if prefix == cat {
-						allowedChecks[c.Name] = b
+						allowedChecks[a] = b
 					}
 				} else {
 					// Glob is S1*
-					if strings.HasPrefix(c.Name, prefix) {
-						allowedChecks[c.Name] = b
+					if strings.HasPrefix(a, prefix) {
+						allowedChecks[a] = b
 					}
 				}
 			}
@@ -474,66 +451,22 @@ func FilterChecks(allChecks []*analysis.Analyzer, checks []string) map[string]bo
 	return allowedChecks
 }
 
-func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
-	if p == token.NoPos {
-		return token.Position{}
-	}
+var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?`)
 
-	// Only use the adjusted position if it points to another Go file.
-	// This means we'll point to the original file for cgo files, but
-	// we won't point to a YACC grammar file.
-	pos := fset.PositionFor(p, false)
-	adjPos := fset.PositionFor(p, true)
-
-	if filepath.Ext(adjPos.Filename) == ".go" {
-		return adjPos
+func parsePos(pos string) (token.Position, int, error) {
+	if pos == "-" || pos == "" {
+		return token.Position{}, 0, nil
 	}
-	return pos
-}
-
-var bufferPool = &sync.Pool{
-	New: func() interface{} {
-		buf := bytes.NewBuffer(nil)
-		buf.Grow(64)
-		return buf
-	},
-}
-
-func FuncName(f *types.Func) string {
-	buf := bufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	if f.Type() != nil {
-		sig := f.Type().(*types.Signature)
-		if recv := sig.Recv(); recv != nil {
-			buf.WriteByte('(')
-			if _, ok := recv.Type().(*types.Interface); ok {
-				// gcimporter creates abstract methods of
-				// named interfaces using the interface type
-				// (not the named type) as the receiver.
-				// Don't print it in full.
-				buf.WriteString("interface")
-			} else {
-				types.WriteType(buf, recv.Type(), nil)
-			}
-			buf.WriteByte(')')
-			buf.WriteByte('.')
-		} else if f.Pkg() != nil {
-			writePackage(buf, f.Pkg())
-		}
+	parts := posRe.FindStringSubmatch(pos)
+	if parts == nil {
+		return token.Position{}, 0, fmt.Errorf("malformed position %q", pos)
 	}
-	buf.WriteString(f.Name())
-	s := buf.String()
-	bufferPool.Put(buf)
-	return s
-}
-
-func writePackage(buf *bytes.Buffer, pkg *types.Package) {
-	if pkg == nil {
-		return
-	}
-	s := pkg.Path()
-	if s != "" {
-		buf.WriteString(s)
-		buf.WriteByte('.')
-	}
+	file := parts[1]
+	line, _ := strconv.Atoi(parts[2])
+	col, _ := strconv.Atoi(parts[3])
+	return token.Position{
+		Filename: file,
+		Line:     line,
+		Column:   col,
+	}, len(parts[0]), nil
 }

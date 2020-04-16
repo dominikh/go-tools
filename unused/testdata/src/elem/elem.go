@@ -2,15 +2,17 @@
 
 package pkg
 
-type t15 struct{ f151 int }
-type a2 [1]t15
+type t15 struct { // used
+	f151 int // used
+}
+type a2 [1]t15 // used
 
-type t16 struct{}
-type a3 [1][1]t16
+type t16 struct{} // used
+type a3 [1][1]t16 // used
 
-func foo() {
+func foo() { // used
 	_ = a2{0: {1}}
 	_ = a3{{{}}}
 }
 
-func init() { foo() }
+func init() { foo() } // used

@@ -6,22 +6,22 @@ import _ "unsafe"
 //go:linkname ol other4
 
 //go:linkname foo other1
-func foo() {}
+func foo() {} // used
 
 //go:linkname bar other2
-var bar int
+var bar int // used
 
 var (
-	baz int // want `baz`
+	baz int // unused
 	//go:linkname qux other3
-	qux int
+	qux int // used
 )
 
 //go:linkname fisk other3
 var (
-	fisk int
+	fisk int // used
 )
 
-var ol int
+var ol int // used
 
 //go:linkname doesnotexist other5

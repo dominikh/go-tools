@@ -1,24 +1,26 @@
 package main
 
-type myNoCopy1 struct{}
-type myNoCopy2 struct{}
-type locker struct{}            // want `locker`
-type someStruct struct{ x int } // want `someStruct`
-
-func (myNoCopy1) Lock()      {}
-func (recv myNoCopy2) Lock() {}
-func (locker) Lock()         {}
-func (locker) Unlock()       {}
-func (someStruct) Lock()     {}
-
-type T struct {
-	noCopy1 myNoCopy1
-	noCopy2 myNoCopy2
-	field1  someStruct // want `field1`
-	field2  locker     // want `field2`
-	field3  int        // want `field3`
+type myNoCopy1 struct{}  // used
+type myNoCopy2 struct{}  // used
+type locker struct{}     // unused
+type someStruct struct { // unused
+	x int
 }
 
-func main() {
+func (myNoCopy1) Lock()      {} // used
+func (recv myNoCopy2) Lock() {} // used
+func (locker) Lock()         {} // unused
+func (locker) Unlock()       {} // unused
+func (someStruct) Lock()     {} // unused
+
+type T struct { // used
+	noCopy1 myNoCopy1  // used
+	noCopy2 myNoCopy2  // used
+	field1  someStruct // unused
+	field2  locker     // unused
+	field3  int        // unused
+}
+
+func main() { // used
 	_ = T{}
 }

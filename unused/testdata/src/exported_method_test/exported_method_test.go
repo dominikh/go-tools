@@ -7,18 +7,18 @@ import (
 	"testing"
 )
 
-type countReadSeeker struct {
-	io.ReadSeeker
-	N int64
+type countReadSeeker struct { // used_test
+	io.ReadSeeker       // used_test
+	N             int64 // used_test
 }
 
-func (rs *countReadSeeker) Read(buf []byte) (int, error) {
+func (rs *countReadSeeker) Read(buf []byte) (int, error) { // used_test
 	n, err := rs.ReadSeeker.Read(buf)
 	rs.N += int64(n)
 	return n, err
 }
 
-func TestFoo(t *testing.T) {
+func TestFoo(t *testing.T) { // used_test
 	r := bytes.NewReader([]byte("Hello, world!"))
 	cr := &countReadSeeker{ReadSeeker: r}
 	ioutil.ReadAll(cr)
@@ -27,12 +27,12 @@ func TestFoo(t *testing.T) {
 	}
 }
 
-var sink int
+var sink int // used_test
 
-func BenchmarkFoo(b *testing.B) {
+func BenchmarkFoo(b *testing.B) { // used_test
 	for i := 0; i < b.N; i++ {
 		sink = fn()
 	}
 }
 
-func fn() int { return 0 }
+func fn() int { return 0 } // used_test

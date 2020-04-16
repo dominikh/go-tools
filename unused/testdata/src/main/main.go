@@ -1,14 +1,15 @@
 package main
 
-func Fn1() {}
-func Fn2() {} // want `Fn2`
+func Fn1() {} // used
+func Fn2() {} // used
+func fn3() {} // unused
 
-const X = 1 // want `X`
+const X = 1 // used
 
-var Y = 2 // want `Y`
+var Y = 2 // used
 
-type Z struct{} // want `Z`
+type Z struct{} // used
 
-func main() {
+func main() { // used
 	Fn1()
 }

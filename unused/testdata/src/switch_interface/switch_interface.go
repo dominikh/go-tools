@@ -1,19 +1,19 @@
 package pkg
 
-type t struct{}
+type t struct{} // used
 
-func (t) fragment() {}
+func (t) fragment() {} // used
 
-func fn() bool {
+func fn() bool { // used
 	var v interface{} = t{}
 	switch obj := v.(type) {
 	case interface {
-		fragment()
+		fragment() // used
 	}:
 		obj.fragment()
 	}
 	return false
 }
 
-var x = fn()
+var x = fn() // used
 var _ = x

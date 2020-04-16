@@ -1,14 +1,14 @@
 package pkg
 
-type t struct {
-	f int
+type t struct { // used
+	f int // used
 }
 
-func fn(v *t) {
+func fn(v *t) { // used
 	println(v.f)
 }
 
-func init() {
+func init() { // used
 	var v t
 	fn(&v)
 }

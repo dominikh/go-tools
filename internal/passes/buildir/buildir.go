@@ -25,6 +25,9 @@ type willUnwind struct{}
 func (*willExit) AFact()   {}
 func (*willUnwind) AFact() {}
 
+func (*willExit) String() string   { return "will exit" }
+func (*willUnwind) String() string { return "will unwind" }
+
 var Analyzer = &analysis.Analyzer{
 	Name:       "buildir",
 	Doc:        "build IR for later passes",

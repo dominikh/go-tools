@@ -1,28 +1,28 @@
 package main
 
-type AA interface {
-	A()
+type AA interface { // used
+	A() // used
 }
 
-type BB interface {
+type BB interface { // used
 	AA
 }
 
-type CC interface {
+type CC interface { // used
 	BB
-	C()
+	C() // used
 }
 
-func c(cc CC) {
+func c(cc CC) { // used
 	cc.A()
 }
 
-type z struct{}
+type z struct{} // used
 
-func (z) A() {}
-func (z) B() {}
-func (z) C() {}
+func (z) A() {} // used
+func (z) B() {} // used
+func (z) C() {} // used
 
-func main() {
+func main() { // used
 	c(z{})
 }

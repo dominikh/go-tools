@@ -1,9 +1,9 @@
 package pkg
 
-func a() { // want `a`
+func a() { // unused
 	b()
 }
 
-func b() { // want `b`
+func b() { // unused
 	a()
 }

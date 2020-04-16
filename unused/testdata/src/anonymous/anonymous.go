@@ -2,17 +2,17 @@ package pkg
 
 import "fmt"
 
-type Node interface {
-	position() int
+type Node interface { // used
+	position() int // used
 }
 
-type noder struct{}
+type noder struct{} // used
 
-func (noder) position() int { panic("unreachable") }
+func (noder) position() int { panic("unreachable") } // used
 
-func Fn() {
+func Fn() { // used
 	nodes := []Node{struct {
-		noder
+		noder // used
 	}{}}
 	fmt.Println(nodes)
 }
