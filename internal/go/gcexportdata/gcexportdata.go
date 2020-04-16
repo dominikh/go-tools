@@ -32,19 +32,6 @@ import (
 	"honnef.co/go/tools/internal/go/gcimporter"
 )
 
-// Find returns the name of an object (.o) or archive (.a) file
-// containing type information for the specified import path,
-// using the workspace layout conventions of go/build.
-// If no file was found, an empty filename is returned.
-//
-// A relative srcDir is interpreted relative to the current working directory.
-//
-// Find also returns the package's resolved (canonical) import path,
-// reflecting the effects of srcDir and vendoring on importPath.
-func Find(importPath, srcDir string) (filename, path string) {
-	return gcimporter.FindPkg(importPath, srcDir)
-}
-
 // NewReader returns a reader for the export data section of an object
 // (.o) or archive (.a) file read from r.  The new reader may provide
 // additional trailing data beyond the end of the export data.
@@ -95,15 +82,4 @@ func Read(in io.Reader, fset *token.FileSet, imports map[string]*types.Package, 
 
 	_, pkg, err := gcimporter.BImportData(fset, imports, data, path)
 	return pkg, err
-}
-
-// Write writes encoded type information for the specified package to out.
-// The FileSet provides file position information for named objects.
-func Write(out io.Writer, fset *token.FileSet, pkg *types.Package) error {
-	b, err := gcimporter.IExportData(fset, pkg)
-	if err != nil {
-		return err
-	}
-	_, err = out.Write(b)
-	return err
 }
