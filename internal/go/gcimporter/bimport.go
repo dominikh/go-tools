@@ -18,6 +18,7 @@ import (
 	"sync"
 	"unicode"
 	"unicode/utf8"
+	"unsafe"
 )
 
 type importer struct {
@@ -341,6 +342,22 @@ type fakeFileSet struct {
 	files map[string]*token.File
 }
 
+type unsafeFile struct {
+	_     uintptr
+	_     string
+	_     int
+	_     int
+	mutex sync.Mutex
+	lines []int
+}
+
+func (f *unsafeFile) SetLines(lines []int) bool {
+	f.mutex.Lock()
+	f.lines = lines
+	f.mutex.Unlock()
+	return true
+}
+
 func (s *fakeFileSet) pos(file string, line, column int) token.Pos {
 	// TODO(mdempsky): Make use of column.
 
@@ -359,7 +376,7 @@ func (s *fakeFileSet) pos(file string, line, column int) token.Pos {
 				fakeLines[i] = i
 			}
 		})
-		f.SetLines(fakeLines)
+		(*unsafeFile)(unsafe.Pointer(f)).SetLines(fakeLines)
 	}
 
 	if line > maxlines {
