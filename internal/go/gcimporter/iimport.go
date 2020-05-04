@@ -19,8 +19,6 @@ import (
 	"io"
 	"sort"
 	"sync"
-	"unicode"
-	"unicode/utf8"
 	"unsafe"
 )
 
@@ -31,14 +29,6 @@ type intReader struct {
 
 func errorf(format string, args ...interface{}) {
 	panic(fmt.Sprintf(format, args...))
-}
-
-func (r *intReader) int64() int64 {
-	i, err := binary.ReadVarint(r.Reader)
-	if err != nil {
-		errorf("import %q: read varint error: %v", r.path, err)
-	}
-	return i
 }
 
 func (r *intReader) uint64() uint64 {
@@ -710,51 +700,6 @@ func chanDir(d int) types.ChanDir {
 		return 0
 	}
 }
-
-func exported(name string) bool {
-	ch, _ := utf8.DecodeRuneInString(name)
-	return unicode.IsUpper(ch)
-}
-
-// ----------------------------------------------------------------------------
-// Export format
-
-// Tags. Must be < 0.
-const (
-	// Objects
-	packageTag = -(iota + 1)
-	constTag
-	typeTag
-	varTag
-	funcTag
-	endTag
-
-	// Types
-	namedTag
-	arrayTag
-	sliceTag
-	dddTag
-	structTag
-	pointerTag
-	signatureTag
-	interfaceTag
-	mapTag
-	chanTag
-
-	// Values
-	falseTag
-	trueTag
-	int64Tag
-	floatTag
-	fractionTag // not used by gc
-	complexTag
-	stringTag
-	nilTag     // only used by gc (appears in exported inlined function bodies)
-	unknownTag // not used by gc (only appears in packages with errors)
-
-	// Type aliases
-	aliasTag
-)
 
 var predeclOnce sync.Once
 var predecl []types.Type // initialized lazily
