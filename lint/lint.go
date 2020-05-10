@@ -328,6 +328,10 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		if res.Failed {
 			problems = append(problems, failed(res)...)
 		} else {
+			if !res.Initial {
+				continue
+			}
+
 			allowedAnalyzers := FilterAnalyzerNames(analyzerNames, res.Config.Checks)
 			ps, u, err := success(allowedAnalyzers, res)
 			if err != nil {

@@ -174,6 +174,7 @@ type TextEdit struct {
 type Result struct {
 	Package *loader.PackageSpec
 	Config  config.Config
+	Initial bool
 
 	Failed bool
 	Errors []error
@@ -1185,6 +1186,7 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 		out[i] = Result{
 			Package:     item.Package,
 			Config:      item.cfg,
+			Initial:     !item.factsOnly,
 			Failed:      item.failed,
 			Errors:      item.errors,
 			diagnostics: item.diagnostics,
