@@ -261,7 +261,6 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 
 	var (
-		total    int
 		errors   int
 		warnings int
 		ignored  int
@@ -275,7 +274,6 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	shouldExit := lint.FilterAnalyzerNames(analyzerNames, fail)
 	shouldExit["compile"] = true
 
-	total = len(ps)
 	for _, p := range ps {
 		if p.Category == "compile" && debugNoCompile {
 			continue
@@ -293,8 +291,13 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		f.Format(p)
 	}
 	if f, ok := f.(format.Statter); ok {
-		f.Stats(total, errors, warnings, ignored)
+		f.Stats(len(ps), errors, warnings, ignored)
 	}
+
+	if f, ok := f.(format.DocumentationMentioner); ok && (errors > 0 || warnings > 0) && len(os.Args) > 0 {
+		f.MentionCheckDocumentation(os.Args[0])
+	}
+
 	if errors > 0 {
 		exit(1)
 	}

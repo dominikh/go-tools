@@ -46,6 +46,10 @@ type Formatter interface {
 	Format(p lint.Problem)
 }
 
+type DocumentationMentioner interface {
+	MentionCheckDocumentation(cmd string)
+}
+
 type Text struct {
 	W io.Writer
 }
@@ -55,6 +59,10 @@ func (o Text) Format(p lint.Problem) {
 	for _, r := range p.Related {
 		fmt.Fprintf(o.W, "\t%s: %s\n", relativePositionString(r.Position), r.Message)
 	}
+}
+
+func (o Text) MentionCheckDocumentation(cmd string) {
+	fmt.Fprintf(o.W, "\nRun '%s -explain <check>' or visit https://staticcheck.io/docs/checks for documentation on checks.\n", cmd)
 }
 
 type JSON struct {
@@ -150,6 +158,10 @@ func (o *Stylish) Format(p lint.Problem) {
 	for _, r := range p.Related {
 		fmt.Fprintf(o.tw, "    (%d, %d)\t\t  %s\n", r.Position.Line, r.Position.Column, r.Message)
 	}
+}
+
+func (o *Stylish) MentionCheckDocumentation(cmd string) {
+	Text{W: o.W}.MentionCheckDocumentation(cmd)
 }
 
 func (o *Stylish) Stats(total, errors, warnings, ignored int) {
