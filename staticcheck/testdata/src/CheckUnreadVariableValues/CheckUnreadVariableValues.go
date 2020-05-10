@@ -1,5 +1,7 @@
 package pkg
 
+import "fmt"
+
 func fn1() {
 	var x int
 	x = gen() // want `this value of x is never used`
@@ -130,3 +132,13 @@ func resolveWeakTypes(types []int) {
 }
 
 func findRunLimit(int) int { return 0 }
+
+func fn10() {
+	slice := []string(nil)
+	if true {
+		slice = []string{"1", "2"}
+	} else {
+		slice = []string{"3", "4"}
+	}
+	fmt.Println(slice)
+}
