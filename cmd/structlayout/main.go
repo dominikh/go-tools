@@ -14,7 +14,7 @@ import (
 	st "honnef.co/go/tools/structlayout"
 	"honnef.co/go/tools/version"
 
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 )
 
 var (
@@ -41,38 +41,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	conf := loader.Config{
-		Build: &build.Default,
+	cfg := &packages.Config{
+		Mode:  packages.NeedImports | packages.NeedExportsFile | packages.NeedTypes | packages.NeedSyntax,
+		Tests: true,
 	}
-
-	var pkg string
-	var typName string
-	pkg = flag.Args()[0]
-	typName = flag.Args()[1]
-	conf.Import(pkg)
-
-	lprog, err := conf.Load()
+	pkgs, err := packages.Load(cfg, flag.Args()[0])
 	if err != nil {
 		log.Fatal(err)
 	}
-	var typ types.Type
-	obj := lprog.Package(pkg).Pkg.Scope().Lookup(typName)
-	if obj == nil {
-		log.Fatal("couldn't find type")
-	}
-	typ = obj.Type()
 
-	st, ok := typ.Underlying().(*types.Struct)
-	if !ok {
-		log.Fatal("identifier is not a struct type")
+	for _, pkg := range pkgs {
+		typName := flag.Args()[1]
+
+		var typ types.Type
+		obj := pkg.Types.Scope().Lookup(typName)
+		if obj == nil {
+			continue
+		}
+		typ = obj.Type()
+
+		st, ok := typ.Underlying().(*types.Struct)
+		if !ok {
+			log.Fatal("identifier is not a struct type")
+		}
+
+		fields := sizes(st, typ.(*types.Named).Obj().Name(), 0, nil)
+		if fJSON {
+			emitJSON(fields)
+		} else {
+			emitText(fields)
+		}
+		return
 	}
 
-	fields := sizes(st, typ.(*types.Named).Obj().Name(), 0, nil)
-	if fJSON {
-		emitJSON(fields)
-	} else {
-		emitText(fields)
-	}
+	log.Fatal("couldn't find type")
 }
 
 func emitJSON(fields []st.Field) {
