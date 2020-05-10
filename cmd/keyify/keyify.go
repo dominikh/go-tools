@@ -20,6 +20,8 @@ import (
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/buildutil"
+
+	//lint:ignore SA1019 this tool is unmaintained, just keep it working
 	"golang.org/x/tools/go/loader"
 )
 
