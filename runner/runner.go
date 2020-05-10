@@ -598,6 +598,10 @@ func (r *subrunner) do(act action) error {
 			return err
 		}
 
+		if a.factsOnly {
+			return nil
+		}
+
 		dirs := make([]facts.SerializedDirective, len(result.dirs))
 		for i, dir := range result.dirs {
 			dirs[i] = facts.SerializeDirective(dir, result.lpkg.Fset)
@@ -716,7 +720,10 @@ func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
 	// OPT(dh): instead of parsing directives twice (twice because
 	// U1000 depends on the facts.Directives analyzer), reuse the
 	// existing result
-	dirs := facts.ParseDirectives(pkg.Syntax, pkg.Fset)
+	var dirs []facts.Directive
+	if !a.factsOnly {
+		dirs = facts.ParseDirectives(pkg.Syntax, pkg.Fset)
+	}
 	res, err := r.runAnalyzers(a, pkg)
 
 	return packageActionResult{
