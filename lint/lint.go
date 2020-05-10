@@ -4,6 +4,7 @@ package lint // import "honnef.co/go/tools/lint"
 import (
 	"fmt"
 	"go/token"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -304,6 +305,12 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	results, err := l.Runner.Run(cfg, l.Checkers, patterns)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(results) == 0 && err == nil {
+		// TODO(dh): emulate Go's behavior more closely once we have
+		// access to go list's Match field.
+		fmt.Fprintf(os.Stderr, "warning: %q matched no packages\n", patterns)
 	}
 
 	analyzerNames := make([]string, len(l.Checkers))
