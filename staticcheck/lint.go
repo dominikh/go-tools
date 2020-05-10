@@ -527,8 +527,26 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 			return true
 		}
 
-		if flags&isString != 0 && (code.IsType(T, "[]byte") || isStringer(T, ms) || isError(T, ms)) {
-			return true
+		if flags&isString != 0 {
+			isStringyElem := func(typ types.Type) bool {
+				if typ, ok := typ.Underlying().(*types.Basic); ok {
+					return typ.Kind() == types.Byte
+				}
+				return false
+			}
+			switch T := T.(type) {
+			case *types.Slice:
+				if isStringyElem(T.Elem()) {
+					return true
+				}
+			case *types.Array:
+				if isStringyElem(T.Elem()) {
+					return true
+				}
+			}
+			if isStringer(T, ms) || isError(T, ms) {
+				return true
+			}
 		}
 
 		if flags&isPointer != 0 && code.IsPointerLike(T) {

@@ -399,3 +399,17 @@ func dbg(format string, args ...interface{}) {
 	}
 	fmt.Printf(format, args...)
 }
+
+// https://github.com/dominikh/go-tools/issues/714
+func fn2() {
+	type String string
+	type Byte byte
+
+	var a string = "a"
+	var b []byte = []byte{'b'}
+	var c [1]byte = [1]byte{'c'}
+	var d String = "d"
+	var e []uint8 = []uint8{'e'}
+	var f []Byte = []Byte{'h'}
+	fmt.Printf("%s %s %s %s %s %s %s", a, b, c, &c, d, e, f)
+}
