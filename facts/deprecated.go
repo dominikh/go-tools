@@ -37,13 +37,14 @@ func deprecated(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 			parts := strings.Split(doc.Text(), "\n\n")
-			last := parts[len(parts)-1]
-			if !strings.HasPrefix(last, "Deprecated: ") {
-				continue
+			for _, part := range parts {
+				if !strings.HasPrefix(part, "Deprecated: ") {
+					continue
+				}
+				alt := part[len("Deprecated: "):]
+				alt = strings.Replace(alt, "\n", " ", -1)
+				return alt
 			}
-			alt := last[len("Deprecated: "):]
-			alt = strings.Replace(alt, "\n", " ", -1)
-			return alt
 		}
 		return ""
 	}
