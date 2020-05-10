@@ -1104,6 +1104,12 @@ func CheckDubiousDeferInChannelRangeLoop(pass *analysis.Pass) (interface{}, erro
 }
 
 func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
+	if code.IsGoVersion(pass, 15) {
+		// Beginning with Go 1.15, the test framework will call
+		// os.Exit for us.
+		return nil, nil
+	}
+
 	var (
 		fnmain    ast.Node
 		callsExit bool
