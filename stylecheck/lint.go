@@ -50,7 +50,6 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
 				report.Report(pass, f.Doc, fmt.Sprintf(`package comment should be of the form "%s..."`, prefix))
 			}
-			f.Doc.Text()
 		}
 	}
 
