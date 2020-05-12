@@ -163,23 +163,23 @@ func Load(spec *PackageSpec) (*Package, Stats, error) {
 			continue
 		}
 		t := time.Now()
-		_, err := prog.LoadFromExport(imp)
+		_, err := prog.loadFromExport(imp)
 		stats.Export[imp] = time.Since(t)
 		if err != nil {
 			return nil, stats, err
 		}
 	}
 	t := time.Now()
-	pkg, err := prog.LoadFromSource(spec)
+	pkg, err := prog.loadFromSource(spec)
 	if err == errMaxFileSize {
-		pkg, err = prog.LoadFromExport(spec)
+		pkg, err = prog.loadFromExport(spec)
 	}
 	stats.Source = time.Since(t)
 	return pkg, stats, err
 }
 
-// LoadFromExport loads a package from export data.
-func (prog *program) LoadFromExport(spec *PackageSpec) (*Package, error) {
+// loadFromExport loads a package from export data.
+func (prog *program) loadFromExport(spec *PackageSpec) (*Package, error) {
 	// log.Printf("Loading package %s from export", spec)
 	if spec.ExportFile == "" {
 		return nil, fmt.Errorf("no export data for %q", spec.ID)
@@ -210,9 +210,9 @@ func (prog *program) LoadFromExport(spec *PackageSpec) (*Package, error) {
 	return pkg, nil
 }
 
-// LoadFromSource loads a package from source. All of its dependencies
+// loadFromSource loads a package from source. All of its dependencies
 // must have been loaded already.
-func (prog *program) LoadFromSource(spec *PackageSpec) (*Package, error) {
+func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 	if len(spec.Errors) > 0 {
 		panic("LoadFromSource called on package with errors")
 	}
