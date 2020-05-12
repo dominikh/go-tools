@@ -210,26 +210,19 @@ type unusedPair struct {
 	obj unused.SerializedObject
 }
 
-func success(allowedChecks map[string]bool, res runner.Result) ([]Problem, unused.SerializedResult, error) {
-	diags, err := res.Diagnostics()
-	if err != nil {
-		return nil, unused.SerializedResult{}, err
-	}
-
+func success(allowedChecks map[string]bool, res runner.ResultData) []Problem {
+	diags := res.Diagnostics
 	var problems []Problem
-
 	for _, diag := range diags {
 		if !allowedChecks[diag.Category] {
 			continue
 		}
 		problems = append(problems, Problem{Diagnostic: diag})
 	}
-
-	u, err := res.Unused()
-	return problems, u, err
+	return problems
 }
 
-func filterIgnored(problems []Problem, res runner.Result, allowedAnalyzers map[string]bool) ([]Problem, error) {
+func filterIgnored(problems []Problem, res runner.ResultData, allowedAnalyzers map[string]bool) ([]Problem, error) {
 	couldveMatched := func(ig *lineIgnore) bool {
 		for _, c := range ig.Checks {
 			if c == "U1000" {
@@ -256,12 +249,7 @@ func filterIgnored(problems []Problem, res runner.Result, allowedAnalyzers map[s
 		return false
 	}
 
-	dirs, err := res.Directives()
-	if err != nil {
-		return nil, err
-	}
-
-	ignores, moreProblems := parseDirectives(dirs)
+	ignores, moreProblems := parseDirectives(res.Directives)
 
 	for _, ig := range ignores {
 		for i := range problems {
@@ -337,17 +325,18 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) (problems []Probl
 			}
 
 			allowedAnalyzers := FilterAnalyzerNames(analyzerNames, res.Config.Checks)
-			ps, u, err := success(allowedAnalyzers, res)
+			resd, err := res.Load()
 			if err != nil {
 				return nil, nil, err
 			}
-			filtered, err := filterIgnored(ps, res, allowedAnalyzers)
+			ps := success(allowedAnalyzers, resd)
+			filtered, err := filterIgnored(ps, resd, allowedAnalyzers)
 			if err != nil {
 				return nil, nil, err
 			}
 			problems = append(problems, filtered...)
 
-			for _, obj := range u.Used {
+			for _, obj := range resd.Unused.Used {
 				// FIXME(dh): pick the object whose filename does not include $GOROOT
 				key := unusedKey{
 					pkgPath: res.Package.PkgPath,
@@ -359,7 +348,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) (problems []Probl
 			}
 
 			if allowedAnalyzers["U1000"] {
-				for _, obj := range u.Unused {
+				for _, obj := range resd.Unused.Unused {
 					key := unusedKey{
 						pkgPath: res.Package.PkgPath,
 						base:    filepath.Base(obj.Position.Filename),

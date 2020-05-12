@@ -112,12 +112,12 @@ package runner
 // future.
 
 import (
-	"bytes"
 	"encoding/gob"
 	"fmt"
 	"go/token"
 	"go/types"
 	"io"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"runtime"
@@ -180,82 +180,31 @@ type Result struct {
 	Failed bool
 	Errors []error
 	// Action results, paths to files
-	diagnostics string
-	directives  string
-	unused      string
+	results string
 }
 
-// Diagnostics loads and returns the diagnostics found while analyzing
-// the package.
-func (r Result) Diagnostics() ([]Diagnostic, error) {
-	if r.Failed {
-		panic("Diagnostics called on failed Result")
-	}
-	if r.diagnostics == "" {
-		// this package was only a dependency
-		return nil, nil
-	}
-	var diags []Diagnostic
-	f, err := os.Open(r.diagnostics)
-	if err != nil {
-		return nil, fmt.Errorf("failed loading diagnostics: %w", err)
-	}
-	defer f.Close()
-	dec := gob.NewDecoder(f)
-	for {
-		var diag Diagnostic
-		err := dec.Decode(&diag)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, fmt.Errorf("failed loading diagnostics: %w", err)
-		}
-		diags = append(diags, diag)
-	}
-	return diags, nil
+type ResultData struct {
+	Directives  []facts.SerializedDirective
+	Diagnostics []Diagnostic
+	Unused      unused.SerializedResult
 }
 
-// Directives loads and returns the directives found while analyzing
-// the package.
-func (r Result) Directives() ([]facts.SerializedDirective, error) {
+func (r Result) Load() (ResultData, error) {
 	if r.Failed {
-		panic("Directives called on failed Result")
+		panic("Load called on failed Result")
 	}
-	if r.directives == "" {
+	if r.results == "" {
 		// this package was only a dependency
-		return nil, nil
+		return ResultData{}, nil
 	}
-	var dirs []facts.SerializedDirective
-	f, err := os.Open(r.directives)
+	f, err := os.Open(r.results)
 	if err != nil {
-		return nil, fmt.Errorf("failed loading directives: %w", err)
+		return ResultData{}, fmt.Errorf("failed loading result: %w", err)
 	}
 	defer f.Close()
-	if err := gob.NewDecoder(f).Decode(&dirs); err != nil {
-		return nil, fmt.Errorf("failed loading directives: %w", err)
-	}
-	return dirs, nil
-}
-
-func (r Result) Unused() (unused.SerializedResult, error) {
-	if r.Failed {
-		panic("Unused called on failed Result")
-	}
-	if r.unused == "" {
-		// this package was only a dependency
-		return unused.SerializedResult{}, nil
-	}
-	var res unused.SerializedResult
-	f, err := os.Open(r.unused)
-	if err != nil {
-		return unused.SerializedResult{}, fmt.Errorf("failed loading unused: %w", err)
-	}
-	defer f.Close()
-	if err := gob.NewDecoder(f).Decode(&res); err != nil {
-		return unused.SerializedResult{}, fmt.Errorf("failed loading unused: %w", err)
-	}
-	return res, nil
+	var out ResultData
+	err = gob.NewDecoder(f).Decode(&out)
+	return out, err
 }
 
 type action interface {
@@ -307,12 +256,10 @@ type packageAction struct {
 
 	// Action results
 
-	cfg         config.Config
-	vetx        string
-	directives  string
-	diagnostics string
-	unused      string
-	skipped     bool
+	cfg     config.Config
+	vetx    string
+	results string
+	skipped bool
 }
 
 func (act *packageAction) String() string {
@@ -350,7 +297,7 @@ type analyzerAction struct {
 	// consumption because analyzer actions get garbage collected once
 	// a package has been fully analyzed.
 	Result       interface{}
-	Diagnostics  []analysis.Diagnostic
+	Diagnostics  []Diagnostic
 	ObjectFacts  map[objectFactKey]analysis.Fact
 	PackageFacts map[packageFactKey]analysis.Fact
 	Pass         *analysis.Pass
@@ -534,17 +481,12 @@ func (r *subrunner) do(act action) error {
 	a.hash = cache.ActionID(h.Sum())
 
 	// try to fetch hashed data
-	ids := make([]cache.ActionID, 0, 4)
+	ids := make([]cache.ActionID, 0, 2)
 	ids = append(ids, cache.Subkey(a.hash, "vetx"))
 	if !a.factsOnly {
-		ids = append(ids,
-			cache.Subkey(a.hash, "directives"),
-			cache.Subkey(a.hash, "diagnostics"),
-			// OPT(dh): only load "unused" data if we're running the U1000 analyzer
-			cache.Subkey(a.hash, "unused"),
-		)
+		ids = append(ids, cache.Subkey(a.hash, "results"))
 	}
-	if err := getCachedFiles(r.cache, ids, []*string{&a.vetx, &a.directives, &a.diagnostics, &a.unused}); err != nil {
+	if err := getCachedFiles(r.cache, ids, []*string{&a.vetx, &a.results}); err != nil {
 		result, err := r.doUncached(a)
 		if err != nil {
 			return err
@@ -555,46 +497,34 @@ func (r *subrunner) do(act action) error {
 
 		a.skipped = result.skipped
 
-		// OPT(dh): doUncached returns facts in one format, only for
-		// us to immediately convert them to another format.
-
 		// OPT(dh) instead of collecting all object facts and encoding
 		// them after analysis finishes, we could encode them as we
 		// go. however, that would require some locking.
-		gobFacts := &bytes.Buffer{}
-		enc := gob.NewEncoder(gobFacts)
-		for _, f := range result.objFacts {
-			objPath, err := objectpath.For(f.Object)
-			if err != nil {
-				continue
-			}
-			gf := gobFact{
-				PkgPath: f.Object.Pkg().Path(),
-				ObjPath: string(objPath),
-				Fact:    f.Fact,
-			}
-			if err := enc.Encode(gf); err != nil {
-				return fmt.Errorf("failed gob encoding data: %w", err)
-			}
-		}
-		for _, f := range result.pkgFacts {
-			gf := gobFact{
-				PkgPath: f.Package.Path(),
-				Fact:    f.Fact,
-			}
-			if err := enc.Encode(gf); err != nil {
-				return fmt.Errorf("failed gob encoding data: %w", err)
-			}
-		}
-
+		//
 		// OPT(dh): We could sort gobFacts for more consistent output,
 		// but it doesn't matter. The hash of a package includes all
 		// of its files, so whether the vetx hash changes or not, a
 		// change to a package requires re-analyzing all dependents,
 		// even if the vetx data stayed the same. See also the note at
 		// the top of loader/hash.go.
+		tf, err := ioutil.TempFile("", "staticcheck")
+		if err != nil {
+			return err
+		}
+		defer tf.Close()
+		os.Remove(tf.Name())
 
-		a.vetx, err = r.writeCache(a, "vetx", gobFacts.Bytes())
+		enc := gob.NewEncoder(tf)
+		for _, gf := range result.facts {
+			if err := enc.Encode(gf); err != nil {
+				return fmt.Errorf("failed gob encoding data: %w", err)
+			}
+		}
+
+		if _, err := tf.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		a.vetx, err = r.writeCacheReader(a, "vetx", tf)
 		if err != nil {
 			return err
 		}
@@ -603,54 +533,15 @@ func (r *subrunner) do(act action) error {
 			return nil
 		}
 
-		dirs := make([]facts.SerializedDirective, len(result.dirs))
+		var out ResultData
+		out.Directives = make([]facts.SerializedDirective, len(result.dirs))
 		for i, dir := range result.dirs {
-			dirs[i] = facts.SerializeDirective(dir, result.lpkg.Fset)
-		}
-		a.directives, err = r.writeCacheGob(a, "directives", dirs)
-		if err != nil {
-			return err
+			out.Directives[i] = facts.SerializeDirective(dir, result.lpkg.Fset)
 		}
 
-		gobDiags := &bytes.Buffer{}
-		enc = gob.NewEncoder(gobDiags)
-		for _, diag := range result.diags {
-			d := Diagnostic{
-				Position: report.DisplayPosition(result.lpkg.Fset, diag.Pos),
-				End:      report.DisplayPosition(result.lpkg.Fset, diag.End),
-				Category: diag.Category,
-				Message:  diag.Message,
-			}
-			for _, sugg := range diag.SuggestedFixes {
-				s := SuggestedFix{
-					Message: sugg.Message,
-				}
-				for _, edit := range sugg.TextEdits {
-					s.TextEdits = append(s.TextEdits, TextEdit{
-						Position: report.DisplayPosition(result.lpkg.Fset, edit.Pos),
-						End:      report.DisplayPosition(result.lpkg.Fset, edit.End),
-						NewText:  edit.NewText,
-					})
-				}
-				d.SuggestedFixed = append(d.SuggestedFixed, s)
-			}
-			for _, rel := range diag.Related {
-				d.Related = append(d.Related, RelatedInformation{
-					Position: report.DisplayPosition(result.lpkg.Fset, rel.Pos),
-					End:      report.DisplayPosition(result.lpkg.Fset, rel.End),
-					Message:  rel.Message,
-				})
-			}
-			if err := enc.Encode(d); err != nil {
-				return fmt.Errorf("failed gob encoding data: %w", err)
-			}
-		}
-		a.diagnostics, err = r.writeCache(a, "diagnostics", gobDiags.Bytes())
-		if err != nil {
-			return err
-		}
-
-		a.unused, err = r.writeCacheGob(a, "unused", result.unused)
+		out.Diagnostics = result.diags
+		out.Unused = result.unused
+		a.results, err = r.writeCacheGob(a, "results", out)
 		if err != nil {
 			return err
 		}
@@ -668,35 +559,38 @@ func (r *Runner) TotalWorkers() int {
 	return r.semaphore.Cap()
 }
 
-func (r *Runner) writeCache(a *packageAction, kind string, data []byte) (string, error) {
+func (r *Runner) writeCacheReader(a *packageAction, kind string, rs io.ReadSeeker) (string, error) {
 	h := cache.Subkey(a.hash, kind)
-	if err := r.cache.PutBytes(h, data); err != nil {
+	out, _, err := r.cache.Put(h, rs)
+	if err != nil {
 		return "", fmt.Errorf("failed caching data: %w", err)
 	}
-	// OPT(dh): change PutBytes signature so we get the file name right away, not requiring a call to GetFile
-	f, _, err := r.cache.GetFile(h)
-	if err != nil {
-		return "", fmt.Errorf("failed finding cache entry: %w", err)
-	}
-	return f, nil
+	return r.cache.OutputFile(out), nil
 }
 
 func (r *Runner) writeCacheGob(a *packageAction, kind string, data interface{}) (string, error) {
-	buf := bytes.NewBuffer(nil)
-	if err := gob.NewEncoder(buf).Encode(data); err != nil {
+	f, err := ioutil.TempFile("", "staticcheck")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	os.Remove(f.Name())
+	if err := gob.NewEncoder(f).Encode(data); err != nil {
 		return "", fmt.Errorf("failed gob encoding data: %w", err)
 	}
-	return r.writeCache(a, kind, buf.Bytes())
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	return r.writeCacheReader(a, kind, f)
 }
 
 type packageActionResult struct {
-	objFacts []analysis.ObjectFact
-	pkgFacts []analysis.PackageFact
-	diags    []analysis.Diagnostic
-	unused   unused.SerializedResult
-	dirs     []facts.Directive
-	lpkg     *loader.Package
-	skipped  bool
+	facts   []gobFact
+	diags   []Diagnostic
+	unused  unused.SerializedResult
+	dirs    []facts.Directive
+	lpkg    *loader.Package
+	skipped bool
 }
 
 func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
@@ -733,12 +627,11 @@ func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
 	res, err := r.runAnalyzers(a, pkg)
 
 	return packageActionResult{
-		objFacts: res.objFacts,
-		pkgFacts: res.pkgFacts,
-		diags:    res.diagnostics,
-		unused:   res.unused,
-		dirs:     dirs,
-		lpkg:     pkg,
+		facts:  res.facts,
+		diags:  res.diagnostics,
+		unused: res.unused,
+		dirs:   dirs,
+		lpkg:   pkg,
 	}, err
 }
 
@@ -880,10 +773,36 @@ func (ar *analyzerRunner) do(act action) error {
 		Pkg:        ar.pkg.Types,
 		TypesInfo:  ar.pkg.TypesInfo,
 		TypesSizes: ar.pkg.TypesSizes,
-		Report: func(d analysis.Diagnostic) {
+		Report: func(diag analysis.Diagnostic) {
 			if !ar.factsOnly {
-				if d.Category == "" {
-					d.Category = a.Analyzer.Name
+				if diag.Category == "" {
+					diag.Category = a.Analyzer.Name
+				}
+				d := Diagnostic{
+					Position: report.DisplayPosition(ar.pkg.Fset, diag.Pos),
+					End:      report.DisplayPosition(ar.pkg.Fset, diag.End),
+					Category: diag.Category,
+					Message:  diag.Message,
+				}
+				for _, sugg := range diag.SuggestedFixes {
+					s := SuggestedFix{
+						Message: sugg.Message,
+					}
+					for _, edit := range sugg.TextEdits {
+						s.TextEdits = append(s.TextEdits, TextEdit{
+							Position: report.DisplayPosition(ar.pkg.Fset, edit.Pos),
+							End:      report.DisplayPosition(ar.pkg.Fset, edit.End),
+							NewText:  edit.NewText,
+						})
+					}
+					d.SuggestedFixed = append(d.SuggestedFixed, s)
+				}
+				for _, rel := range diag.Related {
+					d.Related = append(d.Related, RelatedInformation{
+						Position: report.DisplayPosition(ar.pkg.Fset, rel.Pos),
+						End:      report.DisplayPosition(ar.pkg.Fset, rel.End),
+						Message:  rel.Message,
+					})
 				}
 				a.Diagnostics = append(a.Diagnostics, d)
 			}
@@ -980,9 +899,8 @@ func (ar *analyzerRunner) do(act action) error {
 }
 
 type analysisResult struct {
-	objFacts    []analysis.ObjectFact
-	pkgFacts    []analysis.PackageFact
-	diagnostics []analysis.Diagnostic
+	facts       []gobFact
+	diagnostics []Diagnostic
 	unused      unused.SerializedResult
 }
 
@@ -1056,23 +974,34 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 	}
 
 	// OPT(dh): cull objects not reachable via the exported closure
-	objFacts := make([]analysis.ObjectFact, 0, len(depObjFacts))
-	pkgFacts := make([]analysis.PackageFact, 0, len(depPkgFacts))
+	gobFacts := make([]gobFact, 0, len(depObjFacts)+len(depPkgFacts))
 	for key, fact := range depObjFacts {
-		objFacts = append(objFacts, analysis.ObjectFact{Object: key.Obj, Fact: fact})
+		objPath, err := objectpath.For(key.Obj)
+		if err != nil {
+			continue
+		}
+		gf := gobFact{
+			PkgPath: key.Obj.Pkg().Path(),
+			ObjPath: string(objPath),
+			Fact:    fact,
+		}
+		gobFacts = append(gobFacts, gf)
 	}
 	for key, fact := range depPkgFacts {
-		pkgFacts = append(pkgFacts, analysis.PackageFact{Package: key.Pkg, Fact: fact})
+		gf := gobFact{
+			PkgPath: key.Pkg.Path(),
+			Fact:    fact,
+		}
+		gobFacts = append(gobFacts, gf)
 	}
 
-	var diags []analysis.Diagnostic
+	var diags []Diagnostic
 	for _, a := range root.deps {
 		a := a.(*analyzerAction)
 		diags = append(diags, a.Diagnostics...)
 	}
 	return analysisResult{
-		objFacts:    objFacts,
-		pkgFacts:    pkgFacts,
+		facts:       gobFacts,
 		diagnostics: diags,
 		unused:      unusedResult,
 	}, nil
@@ -1197,15 +1126,13 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 			continue
 		}
 		out[i] = Result{
-			Package:     item.Package,
-			Config:      item.cfg,
-			Initial:     !item.factsOnly,
-			Skipped:     item.skipped,
-			Failed:      item.failed,
-			Errors:      item.errors,
-			diagnostics: item.diagnostics,
-			directives:  item.directives,
-			unused:      item.unused,
+			Package: item.Package,
+			Config:  item.cfg,
+			Initial: !item.factsOnly,
+			Skipped: item.skipped,
+			Failed:  item.failed,
+			Errors:  item.errors,
+			results: item.results,
 		}
 	}
 	return out, nil
