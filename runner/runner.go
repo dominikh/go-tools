@@ -175,6 +175,7 @@ type Result struct {
 	Package *loader.PackageSpec
 	Config  config.Config
 	Initial bool
+	Skipped bool
 
 	Failed bool
 	Errors []error
@@ -311,6 +312,7 @@ type packageAction struct {
 	directives  string
 	diagnostics string
 	unused      string
+	skipped     bool
 }
 
 func (act *packageAction) String() string {
@@ -433,9 +435,6 @@ func newPackageAction(pkg *loader.PackageSpec, cache map[*loader.PackageSpec]*pa
 
 	// OPT(dh): pre-allocate a.deps
 	for _, dep := range pkg.Imports {
-		if dep.PkgPath == "unsafe" {
-			continue
-		}
 		depa := newPackageAction(dep, cache)
 		depa.triggers = append(depa.triggers, a)
 		a.deps = append(a.deps, depa)
@@ -553,6 +552,8 @@ func (r *subrunner) do(act action) error {
 		if a.failed {
 			return nil
 		}
+
+		a.skipped = result.skipped
 
 		// OPT(dh): doUncached returns facts in one format, only for
 		// us to immediately convert them to another format.
@@ -695,6 +696,7 @@ type packageActionResult struct {
 	unused   unused.SerializedResult
 	dirs     []facts.Directive
 	lpkg     *loader.Package
+	skipped  bool
 }
 
 func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
@@ -715,6 +717,10 @@ func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
 		}
 		a.failed = true
 		return packageActionResult{}, nil
+	}
+
+	if len(pkg.Syntax) == 0 && pkg.PkgPath != "unsafe" {
+		return packageActionResult{lpkg: pkg, skipped: true}, nil
 	}
 
 	// OPT(dh): instead of parsing directives twice (twice because
@@ -1194,6 +1200,7 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 			Package:     item.Package,
 			Config:      item.cfg,
 			Initial:     !item.factsOnly,
+			Skipped:     item.skipped,
 			Failed:      item.failed,
 			Errors:      item.errors,
 			diagnostics: item.diagnostics,

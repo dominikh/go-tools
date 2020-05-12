@@ -30,7 +30,7 @@ func lintPackage(t *testing.T, name string) []Problem {
 	cfg := &packages.Config{
 		Env: append(os.Environ(), "GOPATH="+testdata(), "GO111MODULE=off"),
 	}
-	ps, err := l.Lint(cfg, []string{name})
+	ps, _, err := l.Lint(cfg, []string{name})
 	if err != nil {
 		t.Fatal(err)
 	}

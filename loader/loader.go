@@ -18,6 +18,10 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+const MaxFileSize = 50 * 1024 * 1024 // 50 MB
+
+var errMaxFileSize = errors.New("file exceeds max file size")
+
 type PackageSpec struct {
 	ID      string
 	Name    string
@@ -165,9 +169,12 @@ func Load(spec *PackageSpec) (*Package, Stats, error) {
 		}
 	}
 	t := time.Now()
-	pkg := prog.LoadFromSource(spec)
+	pkg, err := prog.LoadFromSource(spec)
+	if err == errMaxFileSize {
+		pkg, err = prog.LoadFromExport(spec)
+	}
 	stats.Source = time.Since(t)
-	return pkg, stats, nil
+	return pkg, stats, err
 }
 
 // LoadFromExport loads a package from export data.
@@ -203,7 +210,7 @@ func (prog *program) LoadFromExport(spec *PackageSpec) (*Package, error) {
 
 // LoadFromSource loads a package from source. All of its dependencies
 // must have been loaded already.
-func (prog *program) LoadFromSource(spec *PackageSpec) *Package {
+func (prog *program) LoadFromSource(spec *PackageSpec) (*Package, error) {
 	if len(spec.Errors) > 0 {
 		panic("LoadFromSource called on package with errors")
 	}
@@ -232,12 +239,24 @@ func (prog *program) LoadFromSource(spec *PackageSpec) *Package {
 	// be faster, and tends to be slower due to extra scheduling,
 	// bookkeeping and potentially false sharing of cache lines.
 	for i, file := range spec.CompiledGoFiles {
-		f, err := parser.ParseFile(prog.fset, file, nil, parser.ParseComments)
+		f, err := os.Open(file)
+		if err != nil {
+			return nil, err
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+		if fi.Size() >= MaxFileSize {
+			return nil, errMaxFileSize
+		}
+		af, err := parser.ParseFile(prog.fset, file, f, parser.ParseComments)
+		f.Close()
 		if err != nil {
 			pkg.Errors = append(pkg.Errors, convertError(err)...)
-			return pkg
+			return pkg, nil
 		}
-		pkg.Syntax[i] = f
+		pkg.Syntax[i] = af
 	}
 	importer := func(path string) (*types.Package, error) {
 		if path == "unsafe" {
@@ -266,7 +285,7 @@ func (prog *program) LoadFromSource(spec *PackageSpec) *Package {
 		},
 	}
 	types.NewChecker(tc, pkg.Fset, pkg.Types, pkg.TypesInfo).Files(pkg.Syntax)
-	return pkg
+	return pkg, nil
 }
 
 func convertError(err error) []packages.Error {

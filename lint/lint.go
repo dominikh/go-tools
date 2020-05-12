@@ -301,10 +301,10 @@ func (l *Linter) SetGoVersion(n int) {
 	l.Runner.GoVersion = n
 }
 
-func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error) {
+func (l *Linter) Lint(cfg *packages.Config, patterns []string) (problems []Problem, warnings []string, err error) {
 	results, err := l.Runner.Run(cfg, l.Checkers, patterns)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(results) == 0 && err == nil {
@@ -318,7 +318,6 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		analyzerNames[i] = a.Name
 	}
 
-	var problems []Problem
 	used := map[unusedKey]bool{}
 	var unuseds []unusedPair
 	for _, res := range results {
@@ -328,6 +327,11 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 		if res.Failed {
 			problems = append(problems, failed(res)...)
 		} else {
+			if res.Skipped {
+				warnings = append(warnings, fmt.Sprintf("skipped package %s because it is too large", res.Package))
+				continue
+			}
+
 			if !res.Initial {
 				continue
 			}
@@ -335,11 +339,11 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			allowedAnalyzers := FilterAnalyzerNames(analyzerNames, res.Config.Checks)
 			ps, u, err := success(allowedAnalyzers, res)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			filtered, err := filterIgnored(ps, res, allowedAnalyzers)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			problems = append(problems, filtered...)
 
@@ -388,7 +392,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 	}
 
 	if len(problems) == 0 {
-		return nil, nil
+		return nil, warnings, nil
 	}
 
 	sort.Slice(problems, func(i, j int) bool {
@@ -417,7 +421,7 @@ func (l *Linter) Lint(cfg *packages.Config, patterns []string) ([]Problem, error
 			out = append(out, p)
 		}
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
 func FilterAnalyzerNames(analyzers []string, checks []string) map[string]bool {

@@ -248,7 +248,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		exit(2)
 	}
 
-	ps, err := doLint(cs, fs.Args(), &Options{
+	ps, warnings, err := doLint(cs, fs.Args(), &Options{
 		Tags:                     tags,
 		LintTests:                tests,
 		GoVersion:                goVersion,
@@ -260,10 +260,14 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		exit(1)
 	}
 
+	for _, w := range warnings {
+		fmt.Fprintln(os.Stderr, "warning:", w)
+	}
+
 	var (
-		errors   int
-		warnings int
-		ignored  int
+		numErrors   int
+		numWarnings int
+		numIgnored  int
 	)
 
 	fail := *fs.Lookup("fail").Value.(*list)
@@ -279,26 +283,26 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 			continue
 		}
 		if p.Severity == lint.Ignored && !showIgnored {
-			ignored++
+			numIgnored++
 			continue
 		}
 		if shouldExit[p.Category] {
-			errors++
+			numErrors++
 		} else {
 			p.Severity = lint.Warning
-			warnings++
+			numWarnings++
 		}
 		f.Format(p)
 	}
 	if f, ok := f.(format.Statter); ok {
-		f.Stats(len(ps), errors, warnings, ignored)
+		f.Stats(len(ps), numErrors, numWarnings, numIgnored)
 	}
 
-	if f, ok := f.(format.DocumentationMentioner); ok && (errors > 0 || warnings > 0) && len(os.Args) > 0 {
+	if f, ok := f.(format.DocumentationMentioner); ok && (numErrors > 0 || numWarnings > 0) && len(os.Args) > 0 {
 		f.MentionCheckDocumentation(os.Args[0])
 	}
 
-	if errors > 0 {
+	if numErrors > 0 {
 		exit(1)
 	}
 	exit(0)
@@ -333,10 +337,10 @@ func computeSalt() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func doLint(cs []*analysis.Analyzer, paths []string, opt *Options) ([]lint.Problem, error) {
+func doLint(cs []*analysis.Analyzer, paths []string, opt *Options) ([]lint.Problem, []string, error) {
 	salt, err := computeSalt()
 	if err != nil {
-		return nil, fmt.Errorf("could not compute salt for cache: %s", err)
+		return nil, nil, fmt.Errorf("could not compute salt for cache: %s", err)
 	}
 	cache.SetSalt(salt)
 
@@ -346,7 +350,7 @@ func doLint(cs []*analysis.Analyzer, paths []string, opt *Options) ([]lint.Probl
 
 	l, err := lint.NewLinter(opt.Config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	l.Checkers = cs
 	l.SetGoVersion(opt.GoVersion)
@@ -394,8 +398,7 @@ func doLint(cs []*analysis.Analyzer, paths []string, opt *Options) ([]lint.Probl
 			}
 		}()
 	}
-	ps, err := l.Lint(cfg, paths)
-	return ps, err
+	return l.Lint(cfg, paths)
 }
 
 var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?$`)
