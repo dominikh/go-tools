@@ -321,6 +321,7 @@ type Runner struct {
 type subrunner struct {
 	*Runner
 	analyzers     []*analysis.Analyzer
+	factAnalyzers []*analysis.Analyzer
 	analyzerNames string
 }
 
@@ -344,9 +345,17 @@ func newSubrunner(r *Runner, analyzers []*analysis.Analyzer) *subrunner {
 		analyzerNames[i] = a.Name
 	}
 	sort.Strings(analyzerNames)
+
+	var factAnalyzers []*analysis.Analyzer
+	for _, a := range analyzers {
+		if len(a.FactTypes) > 0 {
+			factAnalyzers = append(factAnalyzers, a)
+		}
+	}
 	return &subrunner{
 		Runner:        r,
 		analyzers:     analyzers,
+		factAnalyzers: factAnalyzers,
 		analyzerNames: strings.Join(analyzerNames, ","),
 	}
 }
@@ -757,6 +766,11 @@ func (ar *analyzerRunner) do(act action) error {
 		dep := dep.(*analyzerAction)
 		results[dep.Analyzer] = dep.Result
 	}
+	// OPT(dh): cache factTypes, it is the same for all packages for a given analyzer
+	//
+	// OPT(dh): do we need the factTypes map? most analyzers have 0-1
+	// fact types. iterating over the slice is probably faster than
+	// indexing a map.
 	factTypes := map[reflect.Type]struct{}{}
 	for _, typ := range a.Analyzer.FactTypes {
 		factTypes[reflect.TypeOf(typ)] = struct{}{}
@@ -914,18 +928,21 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 		}
 	}
 
-	// OPT(dh): this computation is the same for all packages
-	// (depending on act.factsOnly), we should cache it in the runner.
 	analyzerActionCache := map[*analysis.Analyzer]*analyzerAction{}
 	root := &analyzerAction{}
-	for _, a := range r.analyzers {
+	var analyzers []*analysis.Analyzer
+	if pkgAct.factsOnly {
 		// When analyzing non-initial packages, we only care about
 		// analyzers that produce facts.
-		if !pkgAct.factsOnly || len(a.FactTypes) > 0 {
-			a := newAnalyzerAction(a, analyzerActionCache)
-			root.deps = append(root.deps, a)
-			a.triggers = append(a.triggers, root)
-		}
+		analyzers = r.factAnalyzers
+	} else {
+		analyzers = r.analyzers
+	}
+
+	for _, a := range analyzers {
+		a := newAnalyzerAction(a, analyzerActionCache)
+		root.deps = append(root.deps, a)
+		a.triggers = append(a.triggers, root)
 	}
 	root.pending = uint32(len(root.deps))
 	all := actionList(root)
@@ -1007,6 +1024,7 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 	}, nil
 }
 
+// OPT(dh): why use actionList when we already have a map of all actions?
 func actionList(root action) []action {
 	seen := map[action]struct{}{}
 	all := []action{}
