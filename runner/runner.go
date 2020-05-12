@@ -928,7 +928,6 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 		}
 	}
 
-	analyzerActionCache := map[*analysis.Analyzer]*analyzerAction{}
 	root := &analyzerAction{}
 	var analyzers []*analysis.Analyzer
 	if pkgAct.factsOnly {
@@ -939,13 +938,13 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 		analyzers = r.analyzers
 	}
 
+	all := map[*analysis.Analyzer]*analyzerAction{}
 	for _, a := range analyzers {
-		a := newAnalyzerAction(a, analyzerActionCache)
+		a := newAnalyzerAction(a, all)
 		root.deps = append(root.deps, a)
 		a.triggers = append(a.triggers, root)
 	}
 	root.pending = uint32(len(root.deps))
-	all := actionList(root)
 
 	ar := &analyzerRunner{
 		pkg:         pkg,
@@ -974,8 +973,6 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 
 	var unusedResult unused.SerializedResult
 	for _, a := range all {
-		a := a.(*analyzerAction)
-
 		if a != root && a.Analyzer.Name == "U1000" {
 			// TODO(dh): figure out a clean abstraction, instead of
 			// special-casing U1000.
@@ -1022,25 +1019,6 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 		diagnostics: diags,
 		unused:      unusedResult,
 	}, nil
-}
-
-// OPT(dh): why use actionList when we already have a map of all actions?
-func actionList(root action) []action {
-	seen := map[action]struct{}{}
-	all := []action{}
-	var walk func(action)
-	walk = func(a action) {
-		if _, ok := seen[a]; ok {
-			return
-		}
-		seen[a] = struct{}{}
-		for _, a1 := range a.Deps() {
-			walk(a1)
-		}
-		all = append(all, a)
-	}
-	walk(root)
-	return all
 }
 
 func registerGobTypes(analyzers []*analysis.Analyzer) {
@@ -1105,17 +1083,20 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 	}
 	r.Stats.setInitialPackages(len(lpkgs))
 
+	if len(lpkgs) == 0 {
+		return nil, nil
+	}
+
 	r.Stats.setState(StateBuildActionGraph)
-	packageActionCache := map[*loader.PackageSpec]*packageAction{}
+	all := map[*loader.PackageSpec]*packageAction{}
 	root := &packageAction{}
 	for _, lpkg := range lpkgs {
-		a := newPackageActionRoot(lpkg, packageActionCache)
+		a := newPackageActionRoot(lpkg, all)
 		root.deps = append(root.deps, a)
 		a.triggers = append(a.triggers, root)
 	}
 	root.pending = uint32(len(root.deps))
 
-	all := actionList(root)
 	queue := make(chan action)
 	r.Stats.setTotalPackages(len(all) - 1)
 
@@ -1137,13 +1118,12 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 	}
 
 	r.Stats.setState(StateFinalizing)
-	out := make([]Result, len(all)-1)
-	for i, item := range all {
-		item := item.(*packageAction)
+	out := make([]Result, 0, len(all))
+	for _, item := range all {
 		if item.Package == nil {
 			continue
 		}
-		out[i] = Result{
+		out = append(out, Result{
 			Package: item.Package,
 			Config:  item.cfg,
 			Initial: !item.factsOnly,
@@ -1151,7 +1131,7 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 			Failed:  item.failed,
 			Errors:  item.errors,
 			results: item.results,
-		}
+		})
 	}
 	return out, nil
 }
