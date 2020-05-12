@@ -9,8 +9,10 @@
 package gcimporter
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
 )
@@ -36,18 +38,13 @@ func readGopackHeader(r io.Reader) (name string, size int, err error) {
 	return
 }
 
-type BufferedReader interface {
-	Read(b []byte) (int, error)
-	ReadSlice(delim byte) (line []byte, err error)
-}
-
-// FindExportData positions the reader r at the beginning of the
+// findExportData positions the reader r at the beginning of the
 // export data section of an underlying GC-created object/archive
 // file by reading from it. The reader must be positioned at the
 // start of the file before calling this function. The hdr result
 // is the string before the export data, either "$$" or "$$B".
 //
-func FindExportData(r BufferedReader) (hdr string, err error) {
+func findExportData(r *bufio.Reader) (hdr string, length int, err error) {
 	// Read first line to make sure this is an object file.
 	line, err := r.ReadSlice('\n')
 	if err != nil {
@@ -58,7 +55,7 @@ func FindExportData(r BufferedReader) (hdr string, err error) {
 	if string(line) == "!<arch>\n" {
 		// Archive file. Scan to __.PKGDEF.
 		var name string
-		if name, _, err = readGopackHeader(r); err != nil {
+		if name, length, err = readGopackHeader(r); err != nil {
 			return
 		}
 
@@ -74,6 +71,7 @@ func FindExportData(r BufferedReader) (hdr string, err error) {
 			err = fmt.Errorf("can't find export data (%v)", err)
 			return
 		}
+		length -= len(line)
 	}
 
 	// Now at __.PKGDEF in archive or still at beginning of file.
@@ -90,8 +88,30 @@ func FindExportData(r BufferedReader) (hdr string, err error) {
 			err = fmt.Errorf("can't find export data (%v)", err)
 			return
 		}
+		length -= len(line)
 	}
 	hdr = string(line)
 
 	return
+}
+
+func GetExportData(r io.ReadSeeker) ([]byte, error) {
+	br := bufio.NewReader(r)
+	_, length, err := findExportData(br)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.Seek(-int64(br.Buffered()), io.SeekCurrent); err != nil {
+		return nil, err
+	}
+	if length > 0 {
+		// OPT(dh): in theory, reusing this slice across calls to
+		// LoadFromExport should help. when we tried, it made no
+		// difference. investigate.
+		b := make([]byte, length)
+		_, err := io.ReadFull(r, b)
+		return b, err
+	} else {
+		return ioutil.ReadAll(r)
+	}
 }

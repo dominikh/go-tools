@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"honnef.co/go/tools/internal/go/gcexportdata"
+	"honnef.co/go/tools/internal/go/gcimporter"
 )
 
 // Test to ensure that gcexportdata can read files produced by App
@@ -19,7 +20,8 @@ func TestAppEngine16(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	r, err := gcexportdata.NewReader(f)
+
+	b, err := gcimporter.GetExportData(f)
 	if err != nil {
 		log.Fatalf("reading export data: %v", err)
 	}
@@ -27,7 +29,7 @@ func TestAppEngine16(t *testing.T) {
 	// Decode the export data.
 	fset := token.NewFileSet()
 	imports := make(map[string]*types.Package)
-	pkg, err := gcexportdata.Read(r, fset, imports, "errors")
+	pkg, err := gcexportdata.Read(b, fset, imports, "errors")
 	if err != nil {
 		log.Fatal(err)
 	}

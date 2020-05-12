@@ -14,6 +14,7 @@ import (
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/internal/go/gcexportdata"
+	"honnef.co/go/tools/internal/go/gcimporter"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -189,11 +190,12 @@ func (prog *program) LoadFromExport(spec *PackageSpec) (*Package, error) {
 	}
 	defer f.Close()
 
-	r, err := gcexportdata.NewReader(f)
+	b, err := gcimporter.GetExportData(f)
 	if err != nil {
 		return nil, err
 	}
-	tpkg, err := gcexportdata.Read(r, prog.fset, prog.packages, spec.PkgPath)
+
+	tpkg, err := gcexportdata.Read(b, prog.fset, prog.packages, spec.PkgPath)
 	if err != nil {
 		return nil, err
 	}

@@ -21,47 +21,15 @@
 package gcexportdata
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"go/token"
 	"go/types"
-	"io"
-	"io/ioutil"
-	"os"
 
 	"honnef.co/go/tools/internal/go/gcimporter"
 )
 
-type bufferedReader struct {
-	r   io.Reader
-	buf *bufio.Reader
-}
-
-func (r *bufferedReader) Read(b []byte) (int, error) {
-	return r.buf.Read(b)
-}
-
-func (r *bufferedReader) ReadSlice(delim byte) (line []byte, err error) {
-	return r.buf.ReadSlice(delim)
-}
-
-// NewReader returns a reader for the export data section of an object
-// (.o) or archive (.a) file read from r.  The new reader may provide
-// additional trailing data beyond the end of the export data.
-func NewReader(r io.Reader) (io.Reader, error) {
-	buf := &bufferedReader{
-		r:   r,
-		buf: bufio.NewReader(r),
-	}
-	_, err := gcimporter.FindExportData(buf)
-	// If we ever switch to a zip-like archive format with the ToC
-	// at the end, we can return the correct portion of export data,
-	// but for now we must return the entire rest of the file.
-	return buf, err
-}
-
-// Read reads export data from in, decodes it, and returns type
+// Read reads export data from data, decodes it, and returns type
 // information for the package.
 // The package name is specified by path.
 // File position information is added to fset.
@@ -71,34 +39,7 @@ func NewReader(r io.Reader) (io.Reader, error) {
 // must ensure that imports[path] does not exist, or exists but is
 // incomplete (see types.Package.Complete), and Read inserts the
 // resulting package into this map entry.
-//
-// On return, the state of the reader is undefined.
-func Read(in io.Reader, fset *token.FileSet, imports map[string]*types.Package, path string) (*types.Package, error) {
-	var data []byte
-	if br, ok := in.(*bufferedReader); ok {
-		if f, ok := br.r.(*os.File); ok {
-			fi, err := f.Stat()
-			if err == nil {
-				// we expect to be close to the start of the file,
-				// which is why we don't bother checking with
-				// SEEK_CUR.
-				data = make([]byte, fi.Size())
-				n, err := io.ReadFull(in, data)
-				data = data[:n]
-				if err != nil && err != io.ErrUnexpectedEOF {
-					data = nil
-				}
-			}
-		}
-	}
-	if data == nil {
-		var err error
-		data, err = ioutil.ReadAll(in)
-		if err != nil {
-			return nil, fmt.Errorf("reading export data for %q: %v", path, err)
-		}
-	}
-
+func Read(data []byte, fset *token.FileSet, imports map[string]*types.Package, path string) (*types.Package, error) {
 	if bytes.HasPrefix(data, []byte("!<arch>")) {
 		return nil, fmt.Errorf("can't read export data for %q directly from an archive file (call gcexportdata.NewReader first to extract export data)", path)
 	}
