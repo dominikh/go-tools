@@ -157,12 +157,14 @@ func Load(spec *PackageSpec) (*Package, Stats, error) {
 	stats := Stats{
 		Export: map[*PackageSpec]time.Duration{},
 	}
+	var b []byte
 	for _, imp := range spec.Imports {
 		if imp.PkgPath == "unsafe" {
 			continue
 		}
 		t := time.Now()
-		_, err := prog.loadFromExport(imp)
+		var err error
+		_, b, err = prog.loadFromExport(imp, b)
 		stats.Export[imp] = time.Since(t)
 		if err != nil {
 			return nil, stats, err
@@ -171,32 +173,32 @@ func Load(spec *PackageSpec) (*Package, Stats, error) {
 	t := time.Now()
 	pkg, err := prog.loadFromSource(spec)
 	if err == errMaxFileSize {
-		pkg, err = prog.loadFromExport(spec)
+		pkg, _, err = prog.loadFromExport(spec, b)
 	}
 	stats.Source = time.Since(t)
 	return pkg, stats, err
 }
 
 // loadFromExport loads a package from export data.
-func (prog *program) loadFromExport(spec *PackageSpec) (*Package, error) {
+func (prog *program) loadFromExport(spec *PackageSpec, b []byte) (*Package, []byte, error) {
 	// log.Printf("Loading package %s from export", spec)
 	if spec.ExportFile == "" {
-		return nil, fmt.Errorf("no export data for %q", spec.ID)
+		return nil, b, fmt.Errorf("no export data for %q", spec.ID)
 	}
 	f, err := os.Open(spec.ExportFile)
 	if err != nil {
-		return nil, err
+		return nil, b, err
 	}
 	defer f.Close()
 
-	b, err := gcimporter.GetExportData(f)
+	b, err = gcimporter.GetExportData(f, b)
 	if err != nil {
-		return nil, err
+		return nil, b, err
 	}
 
 	_, tpkg, err := gcimporter.IImportData(prog.fset, prog.packages, b[1:], spec.PkgPath)
 	if err != nil {
-		return nil, err
+		return nil, b, err
 	}
 	pkg := &Package{
 		PackageSpec: spec,
@@ -206,7 +208,7 @@ func (prog *program) loadFromExport(spec *PackageSpec) (*Package, error) {
 	// runtime.SetFinalizer(pkg, func(pkg *Package) {
 	// 	log.Println("Unloading package", pkg.PkgPath)
 	// })
-	return pkg, nil
+	return pkg, b, nil
 }
 
 // loadFromSource loads a package from source. All of its dependencies

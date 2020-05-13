@@ -95,7 +95,7 @@ func findExportData(r *bufio.Reader) (hdr string, length int, err error) {
 	return
 }
 
-func GetExportData(r io.ReadSeeker) ([]byte, error) {
+func GetExportData(r io.ReadSeeker, b []byte) ([]byte, error) {
 	br := bufio.NewReader(r)
 	_, length, err := findExportData(br)
 	if err != nil {
@@ -105,10 +105,11 @@ func GetExportData(r io.ReadSeeker) ([]byte, error) {
 		return nil, err
 	}
 	if length > 0 {
-		// OPT(dh): in theory, reusing this slice across calls to
-		// LoadFromExport should help. when we tried, it made no
-		// difference. investigate.
-		b := make([]byte, length)
+		if cap(b) >= length {
+			b = b[:length]
+		} else {
+			b = make([]byte, length)
+		}
 		_, err := io.ReadFull(r, b)
 		return b, err
 	} else {
