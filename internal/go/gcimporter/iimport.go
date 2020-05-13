@@ -73,6 +73,8 @@ func IImportData(fset *token.FileSet, imports map[string]*types.Package, data []
 		}
 	}()
 
+	// OPT(dh): use a cheaper reader that does less state tracking. we
+	// don't need to be able to unread.
 	r := &intReader{bytes.NewReader(data), path}
 
 	version = int64(r.uint64())

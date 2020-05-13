@@ -377,10 +377,10 @@ func newPackageAction(pkg *loader.PackageSpec, cache map[*loader.PackageSpec]*pa
 	}
 	cache[pkg] = a
 
-	// OPT(dh): pre-allocate a.errors
 	if len(pkg.Errors) > 0 {
-		for _, err := range pkg.Errors {
-			a.errors = append(a.errors, err)
+		a.errors = make([]error, len(pkg.Errors))
+		for i, err := range pkg.Errors {
+			a.errors[i] = err
 		}
 		a.failed = true
 
@@ -389,7 +389,7 @@ func newPackageAction(pkg *loader.PackageSpec, cache map[*loader.PackageSpec]*pa
 		return a
 	}
 
-	// OPT(dh): pre-allocate a.deps
+	a.deps = make([]action, 0, len(pkg.Imports))
 	for _, dep := range pkg.Imports {
 		depa := newPackageAction(dep, cache)
 		depa.triggers = append(depa.triggers, a)

@@ -580,6 +580,8 @@ func (c *checker) results() (used, unused []types.Object) {
 		}
 	})
 
+	// OPT(dh): can we find meaningful initial capacities for the used and unused slices?
+
 	for _, n := range c.graph.Nodes {
 		if obj, ok := n.obj.(types.Object); ok {
 			switch obj := obj.(type) {
@@ -1119,6 +1121,7 @@ func (g *graph) entry(pkg *pkg) {
 		}
 	}
 
+	// OPT(dh): can we find meaningful initial capacities for these slices?
 	var ifaces []*types.Interface
 	var notIfaces []types.Type
 
