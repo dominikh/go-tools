@@ -40,7 +40,7 @@ func TestSwitches(t *testing.T) {
 
 	for _, mem := range mainPkg.Members {
 		if fn, ok := mem.(*ir.Function); ok {
-			if fn.Synthetic != "" {
+			if fn.Synthetic != 0 {
 				continue // e.g. init()
 			}
 			// Each (multi-line) "switch" comment within

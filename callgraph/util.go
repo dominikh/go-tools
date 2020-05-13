@@ -103,7 +103,7 @@ func (g *Graph) DeleteSyntheticNodes() {
 		}
 	}
 	for fn, cgn := range g.Nodes {
-		if cgn == g.Root || fn.Synthetic == "" || isInit(cgn.Func) {
+		if cgn == g.Root || fn.Synthetic == 0 || isInit(cgn.Func) {
 			continue // keep
 		}
 		for _, eIn := range cgn.In {

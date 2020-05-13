@@ -96,7 +96,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 		fn.source = syntax
 		fn.initHTML(pkg.printFunc)
 		if syntax == nil {
-			fn.Synthetic = "loaded from gc object file"
+			fn.Synthetic = SyntheticLoadedFromExportData
 		} else {
 			fn.functionBody = new(functionBody)
 		}
@@ -180,7 +180,7 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 	p.init = &Function{
 		name:         "init",
 		Signature:    new(types.Signature),
-		Synthetic:    "package initializer",
+		Synthetic:    SyntheticPackageInitializer,
 		Pkg:          p,
 		Prog:         prog,
 		functionBody: new(functionBody),

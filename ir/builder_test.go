@@ -16,7 +16,6 @@ import (
 	"os"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/loader"
@@ -117,7 +116,7 @@ func main() {
 				for i, n := 0, mset.Len(); i < n; i++ {
 					m := prog.MethodValue(mset.At(i))
 					// For external types, only synthetic wrappers have code.
-					expExt := !strings.Contains(m.Synthetic, "wrapper")
+					expExt := m.Synthetic != ir.SyntheticWrapper
 					if expExt && !isEmpty(m) {
 						t.Errorf("external method %s is non-empty: %s",
 							m, m.Synthetic)
@@ -367,28 +366,28 @@ var (
 	prog.Build()
 
 	// Enumerate reachable synthetic functions
-	want := map[string]string{
-		"(*P.T).g$bound": "bound method wrapper for func (*P.T).g() int",
-		"(P.T).f$bound":  "bound method wrapper for func (P.T).f() int",
+	want := map[string]ir.Synthetic{
+		"(*P.T).g$bound": ir.SyntheticBound,
+		"(P.T).f$bound":  ir.SyntheticBound,
 
-		"(*P.T).g$thunk":         "thunk for func (*P.T).g() int",
-		"(P.T).f$thunk":          "thunk for func (P.T).f() int",
-		"(struct{*P.T}).g$thunk": "thunk for func (*P.T).g() int",
-		"(struct{P.T}).f$thunk":  "thunk for func (P.T).f() int",
+		"(*P.T).g$thunk":         ir.SyntheticThunk,
+		"(P.T).f$thunk":          ir.SyntheticThunk,
+		"(struct{*P.T}).g$thunk": ir.SyntheticThunk,
+		"(struct{P.T}).f$thunk":  ir.SyntheticThunk,
 
-		"(*P.T).f":          "wrapper for func (P.T).f() int",
-		"(*struct{*P.T}).f": "wrapper for func (P.T).f() int",
-		"(*struct{*P.T}).g": "wrapper for func (*P.T).g() int",
-		"(*struct{P.T}).f":  "wrapper for func (P.T).f() int",
-		"(*struct{P.T}).g":  "wrapper for func (*P.T).g() int",
-		"(struct{*P.T}).f":  "wrapper for func (P.T).f() int",
-		"(struct{*P.T}).g":  "wrapper for func (*P.T).g() int",
-		"(struct{P.T}).f":   "wrapper for func (P.T).f() int",
+		"(*P.T).f":          ir.SyntheticWrapper,
+		"(*struct{*P.T}).f": ir.SyntheticWrapper,
+		"(*struct{*P.T}).g": ir.SyntheticWrapper,
+		"(*struct{P.T}).f":  ir.SyntheticWrapper,
+		"(*struct{P.T}).g":  ir.SyntheticWrapper,
+		"(struct{*P.T}).f":  ir.SyntheticWrapper,
+		"(struct{*P.T}).g":  ir.SyntheticWrapper,
+		"(struct{P.T}).f":   ir.SyntheticWrapper,
 
-		"P.init": "package initializer",
+		"P.init": ir.SyntheticPackageInitializer,
 	}
 	for fn := range irutil.AllFunctions(prog) {
-		if fn.Synthetic == "" {
+		if fn.Synthetic == 0 {
 			continue
 		}
 		name := fn.String()

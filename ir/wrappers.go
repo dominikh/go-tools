@@ -48,19 +48,18 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 
 	var recv *types.Var // wrapper's receiver or thunk's params[0]
 	name := obj.Name()
-	var description string
+	var description Synthetic
 	var start int // first regular param
 	if sel.Kind() == types.MethodExpr {
 		name += "$thunk"
-		description = "thunk"
+		description = SyntheticThunk
 		recv = sig.Params().At(0)
 		start = 1
 	} else {
-		description = "wrapper"
+		description = SyntheticWrapper
 		recv = sig.Recv()
 	}
 
-	description = fmt.Sprintf("%s for %s", description, sel.Obj())
 	if prog.mode&LogSource != 0 {
 		defer logStack("make %s to (%s)", description, recv.Type())()
 	}
@@ -180,15 +179,14 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 	defer prog.methodsMu.Unlock()
 	fn, ok := prog.bounds[obj]
 	if !ok {
-		description := fmt.Sprintf("bound method wrapper for %s", obj)
 		if prog.mode&LogSource != 0 {
-			defer logStack("%s", description)()
+			defer logStack("%s", SyntheticBound)()
 		}
 		fn = &Function{
 			name:         obj.Name() + "$bound",
 			object:       obj,
 			Signature:    changeRecv(obj.Type().(*types.Signature), nil), // drop receiver
-			Synthetic:    description,
+			Synthetic:    SyntheticBound,
 			Prog:         prog,
 			functionBody: new(functionBody),
 		}

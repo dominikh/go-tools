@@ -443,16 +443,15 @@ func (s *sanity) checkFunction(fn *Function) bool {
 	// shared across packages, or duplicated as weak symbols in a
 	// separate-compilation model), and error.Error.
 	if fn.Pkg == nil {
-		if strings.HasPrefix(fn.Synthetic, "wrapper ") ||
-			strings.HasPrefix(fn.Synthetic, "bound ") ||
-			strings.HasPrefix(fn.Synthetic, "thunk ") ||
-			strings.HasSuffix(fn.name, "Error") {
-			// ok
-		} else {
-			s.errorf("nil Pkg")
+		switch fn.Synthetic {
+		case SyntheticWrapper, SyntheticBound, SyntheticThunk:
+		default:
+			if !strings.HasSuffix(fn.name, "Error") {
+				s.errorf("nil Pkg")
+			}
 		}
 	}
-	if src, syn := fn.Synthetic == "", fn.source != nil; src != syn {
+	if src, syn := fn.Synthetic == 0, fn.source != nil; src != syn {
 		s.errorf("got fromSource=%t, hasSyntax=%t; want same values", src, syn)
 	}
 	for i, l := range fn.Locals {

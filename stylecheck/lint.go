@@ -232,7 +232,7 @@ fnLoop:
 // types do not return unexported types.
 func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		if fn.Synthetic != "" || fn.Parent() != nil {
+		if fn.Synthetic != 0 || fn.Parent() != nil {
 			continue
 		}
 		if !ast.IsExported(fn.Name()) || code.IsMain(pass) || code.IsInTest(pass, fn) {
@@ -324,7 +324,7 @@ func CheckContextFirstArg(pass *analysis.Pass) (interface{}, error) {
 	// 	func helperCommandContext(t *testing.T, ctx context.Context, s ...string) (cmd *exec.Cmd) {
 fnLoop:
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		if fn.Synthetic != "" || fn.Parent() != nil {
+		if fn.Synthetic != 0 || fn.Parent() != nil {
 			continue
 		}
 		params := fn.Signature.Params()

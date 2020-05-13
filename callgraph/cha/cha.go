@@ -71,7 +71,7 @@ func CallGraph(prog *ir.Program) *callgraph.Graph {
 	for f := range allFuncs {
 		if f.Signature.Recv() == nil {
 			// Package initializers can never be address-taken.
-			if f.Name() == "init" && f.Synthetic == "package initializer" {
+			if f.Name() == "init" && f.Synthetic == ir.SyntheticPackageInitializer {
 				continue
 			}
 			funcs, _ := funcsBySig.At(f.Signature).([]*ir.Function)

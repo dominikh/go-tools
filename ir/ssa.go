@@ -279,6 +279,33 @@ type Node interface {
 	Referrers() *[]Instruction        // nil for non-Values
 }
 
+type Synthetic int
+
+const (
+	SyntheticLoadedFromExportData Synthetic = iota + 1
+	SyntheticPackageInitializer
+	SyntheticThunk
+	SyntheticWrapper
+	SyntheticBound
+)
+
+func (syn Synthetic) String() string {
+	switch syn {
+	case SyntheticLoadedFromExportData:
+		return "loaded from export data"
+	case SyntheticPackageInitializer:
+		return "package initializer"
+	case SyntheticThunk:
+		return "thunk"
+	case SyntheticWrapper:
+		return "wrapper"
+	case SyntheticBound:
+		return "bound"
+	default:
+		return fmt.Sprintf("Synthetic(%d)", syn)
+	}
+}
+
 // Function represents the parameters, results, and code of a function
 // or method.
 //
@@ -322,7 +349,7 @@ type Function struct {
 	method    *types.Selection // info about provenance of synthetic methods
 	Signature *types.Signature
 
-	Synthetic  string        // provenance of synthetic function; "" for true source functions
+	Synthetic  Synthetic
 	parent     *Function     // enclosing function if anon; nil if global
 	Pkg        *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
 	Prog       *Program      // enclosing program

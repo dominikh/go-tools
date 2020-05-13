@@ -813,7 +813,7 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 	if f.Pkg != nil {
 		fmt.Fprintf(buf, "# Package: %s\n", f.Pkg.Pkg.Path())
 	}
-	if syn := f.Synthetic; syn != "" {
+	if syn := f.Synthetic; syn != 0 {
 		fmt.Fprintln(buf, "# Synthetic:", syn)
 	}
 	if pos := f.Pos(); pos.IsValid() {
@@ -941,7 +941,7 @@ func (f *Function) newBasicBlock(comment string) *BasicBlock {
 //
 // TODO(adonovan): think harder about the API here.
 //
-func (prog *Program) NewFunction(name string, sig *types.Signature, provenance string) *Function {
+func (prog *Program) NewFunction(name string, sig *types.Signature, provenance Synthetic) *Function {
 	return &Function{Prog: prog, name: name, Signature: sig, Synthetic: provenance}
 }
 
