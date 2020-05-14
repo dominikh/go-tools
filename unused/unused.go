@@ -1155,7 +1155,7 @@ func (g *graph) entry(pkg *pkg) {
 	}
 	ignores := map[ignoredKey]struct{}{}
 	for _, dir := range g.pkg.Directives {
-		if dir.Command != "ignore" {
+		if dir.Command != "ignore" && dir.Command != "file-ignore" {
 			continue
 		}
 		if len(dir.Arguments) == 0 {
@@ -1164,10 +1164,20 @@ func (g *graph) entry(pkg *pkg) {
 		for _, check := range strings.Split(dir.Arguments[0], ",") {
 			if check == "U1000" {
 				pos := g.pkg.Fset.PositionFor(dir.Node.Pos(), false)
-				key := ignoredKey{
-					pos.Filename,
-					pos.Line,
+				var key ignoredKey
+				switch dir.Command {
+				case "ignore":
+					key = ignoredKey{
+						pos.Filename,
+						pos.Line,
+					}
+				case "file-ignore":
+					key = ignoredKey{
+						pos.Filename,
+						-1,
+					}
 				}
+
 				ignores[key] = struct{}{}
 				break
 			}
@@ -1179,11 +1189,19 @@ func (g *graph) entry(pkg *pkg) {
 		for obj := range g.Nodes {
 			if obj, ok := obj.(types.Object); ok {
 				pos := g.pkg.Fset.PositionFor(obj.Pos(), false)
-				key := ignoredKey{
+				key1 := ignoredKey{
 					pos.Filename,
 					pos.Line,
 				}
-				if _, ok := ignores[key]; ok {
+				key2 := ignoredKey{
+					pos.Filename,
+					-1,
+				}
+				_, ok := ignores[key1]
+				if !ok {
+					_, ok = ignores[key2]
+				}
+				if ok {
 					g.use(obj, nil, edgeIgnored)
 
 					// use methods and fields of ignored types
