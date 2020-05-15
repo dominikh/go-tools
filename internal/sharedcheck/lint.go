@@ -26,7 +26,7 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 			if val == nil {
 				return true
 			}
-			Tsrc, ok := val.X.Type().(*types.Basic)
+			Tsrc, ok := val.X.Type().Underlying().(*types.Basic)
 			if !ok || Tsrc.Kind() != types.String {
 				return true
 			}

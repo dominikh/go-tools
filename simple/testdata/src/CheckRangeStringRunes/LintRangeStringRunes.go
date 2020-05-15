@@ -1,6 +1,8 @@
 package pkg
 
-func fn(s string) {
+type String string
+
+func fn(s string, s2 String) {
 	for _, r := range s {
 		println(r)
 	}
@@ -24,4 +26,8 @@ func fn(s string) {
 		println(r)
 	}
 	println(y[0])
+
+	for _, r := range []rune(s2) { // want `should range over string`
+		println(r)
+	}
 }
