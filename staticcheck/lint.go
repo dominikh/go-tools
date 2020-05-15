@@ -900,6 +900,7 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
+		// OPT(dh): use integer for kind
 		var kind string
 		switch code.CallNameAST(pass, call) {
 		case "(*text/template.Template).Parse":

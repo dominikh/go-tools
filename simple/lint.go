@@ -799,24 +799,13 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
-	var skip ast.Node
-	fn := func(node ast.Node) {
-		// Do not suggest type conversion between pointers
-		if unary, ok := node.(*ast.UnaryExpr); ok && unary.Op == token.AND {
-			if lit, ok := unary.X.(*ast.CompositeLit); ok {
-				skip = lit
-			}
+	fn := func(node ast.Node, stack []ast.Node) {
+		if unary, ok := stack[len(stack)-2].(*ast.UnaryExpr); ok && unary.Op == token.AND {
+			// Do not suggest type conversion between pointers
 			return
 		}
 
-		if node == skip {
-			return
-		}
-
-		lit, ok := node.(*ast.CompositeLit)
-		if !ok {
-			return
-		}
+		lit := node.(*ast.CompositeLit)
 		typ1, _ := pass.TypesInfo.TypeOf(lit.Type).(*types.Named)
 		if typ1 == nil {
 			return
@@ -924,7 +913,7 @@ func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil), (*ast.CompositeLit)(nil))
+	code.PreorderStack(pass, fn, (*ast.CompositeLit)(nil))
 	return nil, nil
 }
 
@@ -1257,6 +1246,7 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 			report.ShortRange(),
 			report.FilterGenerated())
 	}
+	// OPT(dh): merge fn1 and fn2
 	code.Preorder(pass, fn1, (*ast.IfStmt)(nil))
 	code.Preorder(pass, fn2, (*ast.IfStmt)(nil))
 	return nil, nil
