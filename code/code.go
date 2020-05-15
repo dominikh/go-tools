@@ -532,3 +532,12 @@ func IsGoVersion(pass *analysis.Pass, minor int) bool {
 func Preorder(pass *analysis.Pass, fn func(ast.Node), types ...ast.Node) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(types, fn)
 }
+
+func PreorderStack(pass *analysis.Pass, fn func(ast.Node, []ast.Node), types ...ast.Node) {
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).WithStack(types, func(n ast.Node, push bool, stack []ast.Node) (proceed bool) {
+		if push {
+			fn(n, stack)
+		}
+		return true
+	})
+}

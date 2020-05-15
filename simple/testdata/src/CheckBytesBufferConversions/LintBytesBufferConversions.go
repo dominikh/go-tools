@@ -13,6 +13,9 @@ func fn() {
 	_ = string(m["key"].Bytes())  // want `should use m\["key"\]\.String\(\) instead of string\(m\["key"\]\.Bytes\(\)\)`
 	_ = []byte(m["key"].String()) // want `should use m\["key"\]\.Bytes\(\) instead of \[\]byte\(m\["key"\]\.String\(\)\)`
 
+	var m2 map[string]int
+	_ = m2[string(buf.Bytes())] // no warning, this is more efficient than buf.String()
+
 	string := func(_ interface{}) interface{} {
 		return nil
 	}

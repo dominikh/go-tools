@@ -160,7 +160,7 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 		// The bytes package can use itself however it wants
 		return nil, nil
 	}
-	fn := func(node ast.Node) {
+	fn := func(node ast.Node, stack []ast.Node) {
 		m, ok := Match(pass, checkBytesBufferConversionsQ, node)
 		if !ok {
 			return
@@ -170,6 +170,13 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
 		if typ == types.Universe.Lookup("string").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
+			if _, ok := stack[len(stack)-2].(*ast.IndexExpr); ok {
+				// Don't flag m[string(buf.Bytes())] – thanks to a
+				// compiler optimization, this is actually faster than
+				// m[buf.String()]
+				return
+			}
+
 			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRs, m.State, node))))
@@ -180,7 +187,7 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 		}
 
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	code.PreorderStack(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
