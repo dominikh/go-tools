@@ -842,7 +842,7 @@ flag empty structs.`,
 
 	"SA9006": {
 		Title: `Dubious bit shifting of a fixed size integer value`,
-		Text: `Bit shifting an value past its size will always clear the value.
+		Text: `Bit shifting a value past its size will always clear the value.
 
 For instance:
 
