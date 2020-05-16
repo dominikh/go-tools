@@ -3858,10 +3858,8 @@ func CheckStaticBitShift(pass *analysis.Pass) (interface{}, error) {
 
 		switch e := node.(type) {
 		case *ast.AssignStmt:
-			for i := range e.Lhs {
-				if size, shift, yes := isDubiousShift(e.Lhs[i], e.Rhs[i]); yes {
-					report.Report(pass, e, fmt.Sprintf("shifting %d-bit value by %d bits will always clear it", size, shift))
-				}
+			if size, shift, yes := isDubiousShift(e.Lhs[0], e.Rhs[0]); yes {
+				report.Report(pass, e, fmt.Sprintf("shifting %d-bit value by %d bits will always clear it", size, shift))
 			}
 		case *ast.BinaryExpr:
 			if size, shift, yes := isDubiousShift(e.X, e.Y); yes {
