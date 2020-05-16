@@ -1,5 +1,5 @@
 // Package staticcheck contains a linter for Go source code.
-package staticcheck // import "honnef.co/go/tools/staticcheck"
+package staticcheck
 
 import (
 	"fmt"
@@ -18,20 +18,18 @@ import (
 	texttemplate "text/template"
 	"unicode"
 
-	. "honnef.co/go/tools/arg"
-	"honnef.co/go/tools/code"
-	"honnef.co/go/tools/deprecated"
-	"honnef.co/go/tools/edit"
-	"honnef.co/go/tools/facts"
-	"honnef.co/go/tools/functions"
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/analysis/edit"
+	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
-	"honnef.co/go/tools/ir"
-	"honnef.co/go/tools/ir/irutil"
-	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/printf"
-	"honnef.co/go/tools/report"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -122,7 +120,7 @@ var (
 
 	checkTimeParseRules = map[string]CallCheck{
 		"time.Parse": func(call *Call) {
-			arg := call.Args[Arg("time.Parse.layout")]
+			arg := call.Args[knowledge.Arg("time.Parse.layout")]
 			err := ValidateTimeLayout(arg.Value)
 			if err != nil {
 				arg.Invalid(err.Error())
@@ -132,7 +130,7 @@ var (
 
 	checkEncodingBinaryRules = map[string]CallCheck{
 		"encoding/binary.Write": func(call *Call) {
-			arg := call.Args[Arg("encoding/binary.Write.data")]
+			arg := call.Args[knowledge.Arg("encoding/binary.Write.data")]
 			if !CanBinaryMarshal(call.Pass, arg.Value) {
 				arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 			}
@@ -141,7 +139,7 @@ var (
 
 	checkURLsRules = map[string]CallCheck{
 		"net/url.Parse": func(call *Call) {
-			arg := call.Args[Arg("net/url.Parse.rawurl")]
+			arg := call.Args[knowledge.Arg("net/url.Parse.rawurl")]
 			err := ValidateURL(arg.Value)
 			if err != nil {
 				arg.Invalid(err.Error())
@@ -151,7 +149,7 @@ var (
 
 	checkSyncPoolValueRules = map[string]CallCheck{
 		"(*sync.Pool).Put": func(call *Call) {
-			arg := call.Args[Arg("(*sync.Pool).Put.x")]
+			arg := call.Args[knowledge.Arg("(*sync.Pool).Put.x")]
 			typ := arg.Value.Value.Type()
 			if !code.IsPointerLike(typ) {
 				arg.Invalid("argument should be pointer-like to avoid allocations")
@@ -195,7 +193,7 @@ var (
 
 	checkUnbufferedSignalChanRules = map[string]CallCheck{
 		"os/signal.Notify": func(call *Call) {
-			arg := call.Args[Arg("os/signal.Notify.c")]
+			arg := call.Args[knowledge.Arg("os/signal.Notify.c")]
 			if UnbufferedChannel(arg.Value) {
 				arg.Invalid("the channel used with signal.Notify should be buffered")
 			}
@@ -222,8 +220,8 @@ var (
 
 	checkBytesEqualIPRules = map[string]CallCheck{
 		"bytes.Equal": func(call *Call) {
-			if ConvertedFrom(call.Args[Arg("bytes.Equal.a")].Value, "net.IP") &&
-				ConvertedFrom(call.Args[Arg("bytes.Equal.b")].Value, "net.IP") {
+			if ConvertedFrom(call.Args[knowledge.Arg("bytes.Equal.a")].Value, "net.IP") &&
+				ConvertedFrom(call.Args[knowledge.Arg("bytes.Equal.b")].Value, "net.IP") {
 				call.Invalid("use net.IP.Equal to compare net.IPs, not bytes.Equal")
 			}
 		},
@@ -241,22 +239,22 @@ var (
 		// Let's see if we encounter any false positives.
 		//
 		// Also, should we flag gob?
-		"encoding/json.Marshal":           checkNoopMarshalImpl(Arg("json.Marshal.v"), "MarshalJSON", "MarshalText"),
-		"encoding/xml.Marshal":            checkNoopMarshalImpl(Arg("xml.Marshal.v"), "MarshalXML", "MarshalText"),
-		"(*encoding/json.Encoder).Encode": checkNoopMarshalImpl(Arg("(*encoding/json.Encoder).Encode.v"), "MarshalJSON", "MarshalText"),
-		"(*encoding/xml.Encoder).Encode":  checkNoopMarshalImpl(Arg("(*encoding/xml.Encoder).Encode.v"), "MarshalXML", "MarshalText"),
+		"encoding/json.Marshal":           checkNoopMarshalImpl(knowledge.Arg("json.Marshal.v"), "MarshalJSON", "MarshalText"),
+		"encoding/xml.Marshal":            checkNoopMarshalImpl(knowledge.Arg("xml.Marshal.v"), "MarshalXML", "MarshalText"),
+		"(*encoding/json.Encoder).Encode": checkNoopMarshalImpl(knowledge.Arg("(*encoding/json.Encoder).Encode.v"), "MarshalJSON", "MarshalText"),
+		"(*encoding/xml.Encoder).Encode":  checkNoopMarshalImpl(knowledge.Arg("(*encoding/xml.Encoder).Encode.v"), "MarshalXML", "MarshalText"),
 
-		"encoding/json.Unmarshal":         checkNoopMarshalImpl(Arg("json.Unmarshal.v"), "UnmarshalJSON", "UnmarshalText"),
-		"encoding/xml.Unmarshal":          checkNoopMarshalImpl(Arg("xml.Unmarshal.v"), "UnmarshalXML", "UnmarshalText"),
-		"(*encoding/json.Decoder).Decode": checkNoopMarshalImpl(Arg("(*encoding/json.Decoder).Decode.v"), "UnmarshalJSON", "UnmarshalText"),
-		"(*encoding/xml.Decoder).Decode":  checkNoopMarshalImpl(Arg("(*encoding/xml.Decoder).Decode.v"), "UnmarshalXML", "UnmarshalText"),
+		"encoding/json.Unmarshal":         checkNoopMarshalImpl(knowledge.Arg("json.Unmarshal.v"), "UnmarshalJSON", "UnmarshalText"),
+		"encoding/xml.Unmarshal":          checkNoopMarshalImpl(knowledge.Arg("xml.Unmarshal.v"), "UnmarshalXML", "UnmarshalText"),
+		"(*encoding/json.Decoder).Decode": checkNoopMarshalImpl(knowledge.Arg("(*encoding/json.Decoder).Decode.v"), "UnmarshalJSON", "UnmarshalText"),
+		"(*encoding/xml.Decoder).Decode":  checkNoopMarshalImpl(knowledge.Arg("(*encoding/xml.Decoder).Decode.v"), "UnmarshalXML", "UnmarshalText"),
 	}
 
 	checkUnsupportedMarshal = map[string]CallCheck{
-		"encoding/json.Marshal":           checkUnsupportedMarshalImpl(Arg("json.Marshal.v"), "json", "MarshalJSON", "MarshalText"),
-		"encoding/xml.Marshal":            checkUnsupportedMarshalImpl(Arg("xml.Marshal.v"), "xml", "MarshalXML", "MarshalText"),
-		"(*encoding/json.Encoder).Encode": checkUnsupportedMarshalImpl(Arg("(*encoding/json.Encoder).Encode.v"), "json", "MarshalJSON", "MarshalText"),
-		"(*encoding/xml.Encoder).Encode":  checkUnsupportedMarshalImpl(Arg("(*encoding/xml.Encoder).Encode.v"), "xml", "MarshalXML", "MarshalText"),
+		"encoding/json.Marshal":           checkUnsupportedMarshalImpl(knowledge.Arg("json.Marshal.v"), "json", "MarshalJSON", "MarshalText"),
+		"encoding/xml.Marshal":            checkUnsupportedMarshalImpl(knowledge.Arg("xml.Marshal.v"), "xml", "MarshalXML", "MarshalText"),
+		"(*encoding/json.Encoder).Encode": checkUnsupportedMarshalImpl(knowledge.Arg("(*encoding/json.Encoder).Encode.v"), "json", "MarshalJSON", "MarshalText"),
+		"(*encoding/xml.Encoder).Encode":  checkUnsupportedMarshalImpl(knowledge.Arg("(*encoding/xml.Encoder).Encode.v"), "xml", "MarshalXML", "MarshalText"),
 	}
 
 	checkAtomicAlignment = map[string]CallCheck{
@@ -818,7 +816,7 @@ func fieldPath(start types.Type, indices []int) string {
 }
 
 func isInLoop(b *ir.BasicBlock) bool {
-	sets := functions.FindLoops(b.Parent())
+	sets := code.FindLoops(b.Parent())
 	for _, set := range sets {
 		if set.Has(b) {
 			return true
@@ -858,7 +856,7 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 					nargs := make([]ast.Expr, len(call.Args))
 					for j, a := range call.Args {
 						if i == j {
-							nargs[j] = Selector("syscall", "SIGTERM")
+							nargs[j] = edit.Selector("syscall", "SIGTERM")
 						} else {
 							nargs[j] = a
 						}
@@ -918,7 +916,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 			// template comes from and where it has been
 			return
 		}
-		s, ok := code.ExprToString(pass, call.Args[Arg("(*text/template.Template).Parse.text")])
+		s, ok := code.ExprToString(pass, call.Args[knowledge.Arg("(*text/template.Template).Parse.text")])
 		if !ok {
 			return
 		}
@@ -932,7 +930,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 		if err != nil {
 			// TODO(dominikh): whitelist other parse errors, if any
 			if strings.Contains(err.Error(), "unexpected") {
-				report.Report(pass, call.Args[Arg("(*text/template.Template).Parse.text")], err.Error())
+				report.Report(pass, call.Args[knowledge.Arg("(*text/template.Template).Parse.text")], err.Error())
 			}
 		}
 	}
@@ -951,7 +949,7 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 		if !code.IsCallToAST(pass, call, "time.Sleep") {
 			return
 		}
-		lit, ok := call.Args[Arg("time.Sleep.d")].(*ast.BasicLit)
+		lit, ok := call.Args[knowledge.Arg("time.Sleep.d")].(*ast.BasicLit)
 		if !ok {
 			return
 		}
@@ -984,7 +982,7 @@ var checkWaitgroupAddQ = pattern.MustParse(`
 
 func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkWaitgroupAddQ, node); ok {
+		if m, ok := code.Match(pass, checkWaitgroupAddQ, node); ok {
 			call := m.State["call"].(ast.Node)
 			report.Report(pass, call, fmt.Sprintf("should call %s before starting the goroutine to avoid a race", report.Render(pass, call)))
 		}
@@ -1163,7 +1161,7 @@ func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
 			}
 			return true
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 			return true
 		}
 	}
@@ -1191,14 +1189,14 @@ func CheckExec(pass *analysis.Pass) (interface{}, error) {
 		if !code.IsCallToAST(pass, call, "os/exec.Command") {
 			return
 		}
-		val, ok := code.ExprToString(pass, call.Args[Arg("os/exec.Command.name")])
+		val, ok := code.ExprToString(pass, call.Args[knowledge.Arg("os/exec.Command.name")])
 		if !ok {
 			return
 		}
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) || strings.Contains(val, "/") {
 			return
 		}
-		report.Report(pass, call.Args[Arg("os/exec.Command.name")],
+		report.Report(pass, call.Args[knowledge.Arg("os/exec.Command.name")],
 			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
@@ -1308,7 +1306,7 @@ func CheckScopedBreak(pass *analysis.Pass) (interface{}, error) {
 		case *ast.RangeStmt:
 			body = node.Body
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 		}
 		for _, stmt := range body.List {
 			var blocks [][]ast.Stmt
@@ -1366,9 +1364,9 @@ func CheckUnsafePrintf(pass *analysis.Pass) (interface{}, error) {
 
 		switch name {
 		case "fmt.Printf", "fmt.Sprintf", "log.Printf":
-			arg = Arg("fmt.Printf.format")
+			arg = knowledge.Arg("fmt.Printf.format")
 		case "fmt.Fprintf":
-			arg = Arg("fmt.Fprintf.format")
+			arg = knowledge.Arg("fmt.Fprintf.format")
 		default:
 			return
 		}
@@ -1543,11 +1541,11 @@ var (
 
 func CheckIneffectiveCopy(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkIneffectiveCopyQ1, node); ok {
+		if m, ok := code.Match(pass, checkIneffectiveCopyQ1, node); ok {
 			if ident, ok := m.State["obj"].(*ast.Ident); !ok || !cgoIdent.MatchString(ident.Name) {
 				report.Report(pass, node, "&*x will be simplified to x. It will not copy x.")
 			}
-		} else if _, ok := Match(pass, checkIneffectiveCopyQ2, node); ok {
+		} else if _, ok := code.Match(pass, checkIneffectiveCopyQ2, node); ok {
 			report.Report(pass, node, "*&x will be simplified to x. It will not copy x.")
 		}
 	}
@@ -1596,7 +1594,7 @@ func CheckCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 			fix = edit.Fix("canonicalize header key", edit.ReplaceWithString(pass.Fset, op.Index, strconv.Quote(canonical)))
 		case *ast.Ident:
 			call := &ast.CallExpr{
-				Fun:  Selector("http", "CanonicalHeaderKey"),
+				Fun:  edit.Selector("http", "CanonicalHeaderKey"),
 				Args: []ast.Expr{op.Index},
 			}
 			fix = edit.Fix("wrap in http.CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, op.Index, call))
@@ -2009,7 +2007,9 @@ func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
 
 			return true
 		}
-		Inspect(fn.Source(), cb)
+		if source := fn.Source(); source != nil {
+			ast.Inspect(source, cb)
+		}
 	}
 	return nil, nil
 }
@@ -2083,7 +2083,9 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 			}
 			return true
 		}
-		Inspect(fn.Source(), cb)
+		if source := fn.Source(); source != nil {
+			ast.Inspect(source, cb)
+		}
 	}
 	return nil, nil
 }
@@ -2105,7 +2107,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncLit:
 			body = fn.Body
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 		}
 		if body == nil {
 			return
@@ -2201,13 +2203,13 @@ var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Function _) (Builtin "n
 
 func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 	todo := &ast.CallExpr{
-		Fun: Selector("context", "TODO"),
+		Fun: edit.Selector("context", "TODO"),
 	}
 	bg := &ast.CallExpr{
-		Fun: Selector("context", "Background"),
+		Fun: edit.Selector("context", "Background"),
 	}
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkNilContextQ, node)
+		m, ok := code.Match(pass, checkNilContextQ, node)
 		if !ok {
 			return
 		}
@@ -2244,7 +2246,7 @@ var (
 
 func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if _, edits, ok := MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
+		if _, edits, ok := code.MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
 			report.Report(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
 				report.Fixes(edit.Fix("swap arguments", edits...)))
 		}
@@ -2402,7 +2404,7 @@ func CheckCyclicFinalizer(pass *analysis.Pass) (interface{}, error) {
 		if callee.RelString(nil) != "runtime.SetFinalizer" {
 			return
 		}
-		arg0 := site.Common().Args[Arg("runtime.SetFinalizer.obj")]
+		arg0 := site.Common().Args[knowledge.Arg("runtime.SetFinalizer.obj")]
 		if iface, ok := arg0.(*ir.MakeInterface); ok {
 			arg0 = iface.X
 		}
@@ -2414,7 +2416,7 @@ func CheckCyclicFinalizer(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		arg1 := site.Common().Args[Arg("runtime.SetFinalizer.finalizer")]
+		arg1 := site.Common().Args[knowledge.Arg("runtime.SetFinalizer.finalizer")]
 		if iface, ok := arg1.(*ir.MakeInterface); ok {
 			arg1 = iface.X
 		}
@@ -2598,7 +2600,7 @@ func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 				if !ok || !code.IsCallTo(call.Common(), "time.Tick") {
 					continue
 				}
-				if !functions.Terminates(call.Parent()) {
+				if !code.Terminates(call.Parent()) {
 					continue
 				}
 				report.Report(pass, call, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
@@ -2612,7 +2614,7 @@ var checkDoubleNegationQ = pattern.MustParse(`(UnaryExpr "!" single@(UnaryExpr "
 
 func CheckDoubleNegation(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkDoubleNegationQ, node); ok {
+		if m, ok := code.Match(pass, checkDoubleNegationQ, node); ok {
 			report.Report(pass, node, "negating a boolean twice has no effect; is this a typo?", report.Fixes(
 				edit.Fix("turn into single negation", edit.ReplaceWithNode(pass.Fset, node, m.State["single"].(ast.Node))),
 				edit.Fix("remove double negation", edit.ReplaceWithNode(pass.Fset, node, m.State["x"].(ast.Node)))))
@@ -2928,7 +2930,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			// already in 1.0, and we're targeting 1.2, it still
 			// makes sense to use the alternative from 1.0, to be
 			// future-proof.
-			minVersion := deprecated.Stdlib[code.SelectorName(pass, sel)].AlternativeAvailableSince
+			minVersion := knowledge.StdlibDeprecations[code.SelectorName(pass, sel)].AlternativeAvailableSince
 			if !code.IsGoVersion(pass, minVersion) {
 				return true
 			}
@@ -3140,7 +3142,9 @@ func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, ifstmt, "empty branch", report.FilterGenerated(), report.ShortRange())
 			return true
 		}
-		Inspect(fn.Source(), cb)
+		if source := fn.Source(); source != nil {
+			ast.Inspect(source, cb)
+		}
 	}
 	return nil, nil
 }
@@ -3430,7 +3434,7 @@ var (
 
 func CheckToLowerToUpperComparison(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkToLowerToUpperComparisonQ, node)
+		m, ok := code.Match(pass, checkToLowerToUpperComparisonQ, node)
 		if !ok {
 			return
 		}
@@ -3522,7 +3526,7 @@ var checkSingleArgAppendQ = pattern.MustParse(`(CallExpr (Builtin "append") [_])
 
 func CheckSingleArgAppend(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		_, ok := Match(pass, checkSingleArgAppendQ, node)
+		_, ok := code.Match(pass, checkSingleArgAppendQ, node)
 		if !ok {
 			return
 		}
@@ -3845,7 +3849,7 @@ var checkAddressIsNilQ = pattern.MustParse(
 
 func CheckAddressIsNil(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		_, ok := Match(pass, checkAddressIsNilQ, node)
+		_, ok := code.Match(pass, checkAddressIsNilQ, node)
 		if !ok {
 			return
 		}

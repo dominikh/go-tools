@@ -6,8 +6,6 @@ import (
 	"go/token"
 	"go/types"
 	"reflect"
-
-	"honnef.co/go/tools/code"
 )
 
 var tokensByString = map[string]Token{
@@ -452,7 +450,8 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 		obj = m.TypesInfo.ObjectOf(node)
 		switch obj := obj.(type) {
 		case *types.Func:
-			name = code.FuncName(obj)
+			// OPT(dh): optimize this similar to code.FuncName
+			name = obj.FullName()
 		case *types.Builtin:
 			name = obj.Name()
 		default:
@@ -464,7 +463,8 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 		if !ok {
 			return nil, false
 		}
-		name = code.FuncName(obj.(*types.Func))
+		// OPT(dh): optimize this similar to code.FuncName
+		name = obj.(*types.Func).FullName()
 	default:
 		return nil, false
 	}

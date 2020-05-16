@@ -12,7 +12,7 @@ import (
 	"go/build"
 	"os"
 
-	"honnef.co/go/tools/version"
+	"honnef.co/go/tools/lintcmd/version"
 
 	"github.com/kisielk/gotool"
 	"golang.org/x/tools/go/buildutil"

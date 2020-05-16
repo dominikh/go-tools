@@ -1,6 +1,6 @@
 package staticcheck
 
-import "honnef.co/go/tools/lint"
+import "honnef.co/go/tools/analysis/lint"
 
 var Docs = map[string]*lint.Documentation{
 	"SA1000": {

@@ -12,10 +12,11 @@ import (
 	"os"
 	"runtime/pprof"
 
+	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/ir/irutil"
+
 	"golang.org/x/tools/go/buildutil"
 	"golang.org/x/tools/go/packages"
-	"honnef.co/go/tools/ir"
-	"honnef.co/go/tools/ir/irutil"
 )
 
 // flags

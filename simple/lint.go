@@ -1,5 +1,5 @@
 // Package simple contains a linter for Go source code.
-package simple // import "honnef.co/go/tools/simple"
+package simple
 
 import (
 	"fmt"
@@ -14,14 +14,14 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/typeutil"
-	. "honnef.co/go/tools/arg"
-	"honnef.co/go/tools/code"
-	"honnef.co/go/tools/edit"
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/analysis/edit"
+	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
-	. "honnef.co/go/tools/lint/lintdsl"
+	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
-	"honnef.co/go/tools/report"
 )
 
 var (
@@ -40,10 +40,10 @@ var (
 func CheckSingleCaseSelect(pass *analysis.Pass) (interface{}, error) {
 	seen := map[ast.Node]struct{}{}
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkSingleCaseSelectQ1, node); ok {
+		if m, ok := code.Match(pass, checkSingleCaseSelectQ1, node); ok {
 			seen[m.State["select"].(ast.Node)] = struct{}{}
 			report.Report(pass, node, "should use for range instead of for { select {} }", report.FilterGenerated())
-		} else if _, ok := Match(pass, checkSingleCaseSelectQ2, node); ok {
+		} else if _, ok := code.Match(pass, checkSingleCaseSelectQ2, node); ok {
 			if _, ok := seen[node]; !ok {
 				report.Report(pass, node, "should use a simple channel send/receive instead of select with a single case",
 					report.ShortRange(),
@@ -75,7 +75,7 @@ var (
 
 func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, edits, ok := MatchAndEdit(pass, checkLoopCopyQ, checkLoopCopyR, node)
+		m, edits, ok := code.MatchAndEdit(pass, checkLoopCopyQ, checkLoopCopyR, node)
 		if !ok {
 			return
 		}
@@ -161,7 +161,7 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 	fn := func(node ast.Node, stack []ast.Node) {
-		m, ok := Match(pass, checkBytesBufferConversionsQ, node)
+		m, ok := code.Match(pass, checkBytesBufferConversionsQ, node)
 		if !ok {
 			return
 		}
@@ -288,7 +288,7 @@ func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkBytesCompareQ, node)
+		m, ok := code.Match(pass, checkBytesCompareQ, node)
 		if !ok {
 			return
 		}
@@ -341,7 +341,7 @@ func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		lit, ok := call.Args[Arg("regexp.Compile.expr")].(*ast.BasicLit)
+		lit, ok := call.Args[knowledge.Arg("regexp.Compile.expr")].(*ast.BasicLit)
 		if !ok {
 			// TODO(dominikh): support string concat, maybe support constants
 			return
@@ -404,11 +404,11 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 		}
-		m1, ok := Match(pass, checkIfReturnQIf, n1)
+		m1, ok := code.Match(pass, checkIfReturnQIf, n1)
 		if !ok {
 			return
 		}
-		m2, ok := Match(pass, checkIfReturnQRet, n2)
+		m2, ok := code.Match(pass, checkIfReturnQRet, n2)
 		if !ok {
 			return
 		}
@@ -553,7 +553,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		if !ok || yxFun.Name != "len" || len(yx.Args) != 1 {
 			return
 		}
-		yxArg, ok := yx.Args[Arg("len.v")].(*ast.Ident)
+		yxArg, ok := yx.Args[knowledge.Arg("len.v")].(*ast.Ident)
 		if !ok {
 			return
 		}
@@ -616,7 +616,7 @@ var checkSlicingQ = pattern.MustParse(`(SliceExpr x@(Object _) low (CallExpr (Bu
 
 func CheckSlicing(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if _, ok := Match(pass, checkSlicingQ, node); ok {
+		if _, ok := code.Match(pass, checkSlicingQ, node); ok {
 			expr := node.(*ast.SliceExpr)
 			report.Report(pass, expr.High,
 				"should omit second index in slice, s[a:len(s)] is identical to s[a:]",
@@ -655,7 +655,7 @@ var checkLoopAppendQ = pattern.MustParse(`
 
 func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkLoopAppendQ, node)
+		m, ok := code.Match(pass, checkLoopAppendQ, node)
 		if !ok {
 			return
 		}
@@ -702,7 +702,7 @@ var (
 
 func CheckTimeSince(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if _, edits, ok := MatchAndEdit(pass, checkTimeSinceQ, checkTimeSinceR, node); ok {
+		if _, edits, ok := code.MatchAndEdit(pass, checkTimeSinceQ, checkTimeSinceR, node); ok {
 			report.Report(pass, node, "should use time.Since instead of time.Now().Sub",
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("replace with call to time.Since", edits...)))
@@ -722,7 +722,7 @@ func CheckTimeUntil(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 	fn := func(node ast.Node) {
-		if _, ok := Match(pass, checkTimeUntilQ, node); ok {
+		if _, ok := code.Match(pass, checkTimeUntilQ, node); ok {
 			if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
 				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]interface{}{"arg": sel.X}).(ast.Node)
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
@@ -752,13 +752,13 @@ var (
 
 func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 	fn1 := func(node ast.Node) {
-		if _, ok := Match(pass, checkUnnecessaryBlankQ1, node); ok {
+		if _, ok := code.Match(pass, checkUnnecessaryBlankQ1, node); ok {
 			r := *node.(*ast.AssignStmt)
 			r.Lhs = r.Lhs[0:1]
 			report.Report(pass, node, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.ReplaceWithNode(pass.Fset, node, &r))))
-		} else if m, ok := Match(pass, checkUnnecessaryBlankQ2, node); ok {
+		} else if m, ok := code.Match(pass, checkUnnecessaryBlankQ2, node); ok {
 			report.Report(pass, node, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("simplify channel receive operation", edit.ReplaceWithNode(pass.Fset, node, m.State["recv"].(ast.Node)))))
@@ -945,7 +945,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 		if len(call.Args) != 1 {
 			return false
 		}
-		return sameNonDynamic(call.Args[Arg("len.v")], ident)
+		return sameNonDynamic(call.Args[knowledge.Arg("len.v")], ident)
 	}
 
 	fn := func(node ast.Node) {
@@ -1062,7 +1062,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				if len(index.Args) != 1 {
 					return
 				}
-				id3 := index.Args[Arg("len.v")]
+				id3 := index.Args[knowledge.Arg("len.v")]
 				switch oid3 := condCall.Args[1].(type) {
 				case *ast.BasicLit:
 					if pkg != "strings" {
@@ -1150,7 +1150,7 @@ func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 
 	fn := func(node ast.Node) {
 		loop := node.(*ast.ForStmt)
-		m, edits, ok := MatchAndEdit(pass, checkLoopSlideQ, checkLoopSlideR, loop)
+		m, edits, ok := code.MatchAndEdit(pass, checkLoopSlideQ, checkLoopSlideR, loop)
 		if !ok {
 			return
 		}
@@ -1178,14 +1178,14 @@ func CheckMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 			// special case of runtime tests testing map creation
 			return
 		}
-		if m, ok := Match(pass, checkMakeLenCapQ1, node); ok {
+		if m, ok := code.Match(pass, checkMakeLenCapQ1, node); ok {
 			T := m.State["typ"].(ast.Expr)
 			size := m.State["size"].(ast.Node)
 			if _, ok := pass.TypesInfo.TypeOf(T).Underlying().(*types.Slice); ok {
 				return
 			}
 			report.Report(pass, size, fmt.Sprintf("should use make(%s) instead", report.Render(pass, T)), report.FilterGenerated())
-		} else if m, ok := Match(pass, checkMakeLenCapQ2, node); ok {
+		} else if m, ok := code.Match(pass, checkMakeLenCapQ2, node); ok {
 			// TODO(dh): don't consider sizes identical if they're
 			// dynamic. for example: make(T, <-ch, <-ch).
 			T := m.State["typ"].(ast.Expr)
@@ -1224,7 +1224,7 @@ var (
 
 func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 	fn1 := func(node ast.Node) {
-		m, ok := Match(pass, checkAssertNotNilFn1Q, node)
+		m, ok := code.Match(pass, checkAssertNotNilFn1Q, node)
 		if !ok {
 			return
 		}
@@ -1235,7 +1235,7 @@ func CheckAssertNotNil(pass *analysis.Pass) (interface{}, error) {
 			report.FilterGenerated())
 	}
 	fn2 := func(node ast.Node) {
-		m, ok := Match(pass, checkAssertNotNilFn2Q, node)
+		m, ok := code.Match(pass, checkAssertNotNilFn2Q, node)
 		if !ok {
 			return
 		}
@@ -1359,7 +1359,7 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 			ret = x.Type.Results
 			body = x.Body
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 		}
 		// if the func has results, a return can't be redundant.
 		// similarly, if there are no statements, there can be
@@ -1408,7 +1408,7 @@ var checkRedundantSprintfQ = pattern.MustParse(`(CallExpr (Function "fmt.Sprintf
 
 func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkRedundantSprintfQ, node)
+		m, ok := code.Match(pass, checkRedundantSprintfQ, node)
 		if !ok {
 			return
 		}
@@ -1460,7 +1460,7 @@ var (
 
 func CheckErrorsNewSprintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if _, edits, ok := MatchAndEdit(pass, checkErrorsNewSprintfQ, checkErrorsNewSprintfR, node); ok {
+		if _, edits, ok := code.MatchAndEdit(pass, checkErrorsNewSprintfQ, checkErrorsNewSprintfR, node); ok {
 			// TODO(dh): the suggested fix may leave an unused import behind
 			report.Report(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))",
 				report.FilterGenerated(),
@@ -1484,7 +1484,7 @@ var checkNilCheckAroundRangeQ = pattern.MustParse(`
 
 func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkNilCheckAroundRangeQ, node)
+		m, ok := code.Match(pass, checkNilCheckAroundRangeQ, node)
 		if !ok {
 			return
 		}
@@ -1535,7 +1535,7 @@ func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncDecl:
 			body = node.Body
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 		}
 		if body == nil {
 			return
@@ -1555,7 +1555,7 @@ func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 				return false
 			}
 			call := node.(*ast.CallExpr)
-			typeconv := call.Args[Arg("sort.Sort.data")].(*ast.CallExpr)
+			typeconv := call.Args[knowledge.Arg("sort.Sort.data")].(*ast.CallExpr)
 			sel := typeconv.Fun.(*ast.SelectorExpr)
 			name := code.SelectorName(pass, sel)
 
@@ -1603,7 +1603,7 @@ var checkGuardedDeleteQ = pattern.MustParse(`
 
 func CheckGuardedDelete(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkGuardedDeleteQ, node); ok {
+		if m, ok := code.Match(pass, checkGuardedDeleteQ, node); ok {
 			report.Report(pass, node, "unnecessary guard around call to delete",
 				report.ShortRange(),
 				report.FilterGenerated(),
@@ -1626,7 +1626,7 @@ var (
 
 func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkSimplifyTypeSwitchQ, node)
+		m, ok := code.Match(pass, checkSimplifyTypeSwitchQ, node)
 		if !ok {
 			return
 		}
@@ -1745,7 +1745,7 @@ var checkUnnecessaryGuardQ = pattern.MustParse(`
 
 func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkUnnecessaryGuardQ, node); ok {
+		if m, ok := code.Match(pass, checkUnnecessaryGuardQ, node); ok {
 			if code.MayHaveSideEffects(pass, m.State["indexexpr"].(ast.Expr), nil) {
 				return
 			}
@@ -1765,7 +1765,7 @@ var (
 
 func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if m, ok := Match(pass, checkElaborateSleepQ, node); ok {
+		if m, ok := code.Match(pass, checkElaborateSleepQ, node); ok {
 			if body, ok := m.State["body"].([]ast.Stmt); ok && len(body) == 0 {
 				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
 					report.ShortRange(),
@@ -1801,7 +1801,7 @@ var checkPrintSprintQ = pattern.MustParse(`
 
 func CheckPrintSprintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkPrintSprintQ, node)
+		m, ok := code.Match(pass, checkPrintSprintQ, node)
 		if !ok {
 			return
 		}
@@ -1844,7 +1844,7 @@ func CheckSprintLiteral(pass *analysis.Pass) (interface{}, error) {
 	// for copying strings, which may be useful when extracing a small
 	// substring from a large string.
 	fn := func(node ast.Node) {
-		m, ok := Match(pass, checkSprintLiteralQ, node)
+		m, ok := code.Match(pass, checkSprintLiteralQ, node)
 		if !ok {
 			return
 		}

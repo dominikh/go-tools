@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"strings"
 
-	"honnef.co/go/tools/code"
+	"honnef.co/go/tools/analysis/code"
 )
 
 func buildTags(f *ast.File) [][]string {

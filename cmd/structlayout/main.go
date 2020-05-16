@@ -10,9 +10,9 @@ import (
 	"log"
 	"os"
 
-	"honnef.co/go/tools/gcsizes"
+	"honnef.co/go/tools/go/gcsizes"
+	"honnef.co/go/tools/lintcmd/version"
 	st "honnef.co/go/tools/structlayout"
-	"honnef.co/go/tools/version"
 
 	"golang.org/x/tools/go/packages"
 )

@@ -13,9 +13,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/go/ir"
+
 	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/code"
-	"honnef.co/go/tools/ir"
 )
 
 const (

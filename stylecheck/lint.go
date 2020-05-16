@@ -1,4 +1,4 @@
-package stylecheck // import "honnef.co/go/tools/stylecheck"
+package stylecheck
 
 import (
 	"fmt"
@@ -12,14 +12,14 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"honnef.co/go/tools/code"
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/analysis/edit"
+	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/config"
-	"honnef.co/go/tools/edit"
+	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/internal/passes/buildir"
-	"honnef.co/go/tools/ir"
-	. "honnef.co/go/tools/lint/lintdsl"
 	"honnef.co/go/tools/pattern"
-	"honnef.co/go/tools/report"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -651,7 +651,7 @@ var (
 
 func CheckYodaConditions(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if _, edits, ok := MatchAndEdit(pass, checkYodaConditionsQ, checkYodaConditionsR, node); ok {
+		if _, edits, ok := code.MatchAndEdit(pass, checkYodaConditionsQ, checkYodaConditionsR, node); ok {
 			report.Report(pass, node, "don't use Yoda conditions",
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("un-Yoda-fy", edits...)))
@@ -788,7 +788,7 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 					return
 				}
 			default:
-				ExhaustiveTypeSwitch(T)
+				lint.ExhaustiveTypeSwitch(T)
 			}
 		}
 		prefix := decl.Name.Name + " "
@@ -856,7 +856,7 @@ func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncLit, *ast.FuncDecl:
 			return false
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 			return false
 		}
 	}
@@ -907,7 +907,7 @@ func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
 		case *ast.FuncLit, *ast.FuncDecl:
 			return false
 		default:
-			ExhaustiveTypeSwitch(node)
+			lint.ExhaustiveTypeSwitch(node)
 			return false
 		}
 	}

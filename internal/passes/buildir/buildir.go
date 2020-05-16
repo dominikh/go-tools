@@ -15,8 +15,9 @@ import (
 	"go/types"
 	"reflect"
 
+	"honnef.co/go/tools/go/ir"
+
 	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/ir"
 )
 
 type willExit struct{}

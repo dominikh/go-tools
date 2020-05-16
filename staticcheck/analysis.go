@@ -1,9 +1,9 @@
 package staticcheck
 
 import (
-	"honnef.co/go/tools/facts"
+	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/internal/passes/buildir"
-	"honnef.co/go/tools/lint/lintutil"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -18,7 +18,7 @@ func makeCallCheckerAnalyzer(rules map[string]CallCheck, extraReqs ...*analysis.
 	}
 }
 
-var Analyzers = lintutil.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
+var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA1000": makeCallCheckerAnalyzer(checkRegexpRules),
 	"SA1001": {
 		Run:      CheckTemplate,

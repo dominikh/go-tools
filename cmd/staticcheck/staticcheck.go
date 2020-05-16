@@ -1,12 +1,12 @@
 // staticcheck analyses Go code and makes it better.
-package main // import "honnef.co/go/tools/cmd/staticcheck"
+package main
 
 import (
 	"log"
 	"os"
 
 	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/lint/lintutil"
+	"honnef.co/go/tools/lintcmd"
 	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
 	"honnef.co/go/tools/stylecheck"
@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	fs := lintutil.FlagSet("staticcheck")
+	fs := lintcmd.FlagSet("staticcheck")
 	debug := fs.String("debug.unused-graph", "", "Write unused's object graph to `file`")
 	fs.Parse(os.Args[1:])
 
@@ -38,5 +38,5 @@ func main() {
 		unused.Debug = f
 	}
 
-	lintutil.ProcessFlagSet(cs, fs)
+	lintcmd.ProcessFlagSet(cs, fs)
 }

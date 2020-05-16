@@ -4,11 +4,11 @@ import (
 	"go/ast"
 	"go/types"
 
-	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/code"
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/internal/passes/buildir"
-	"honnef.co/go/tools/ir"
-	. "honnef.co/go/tools/lint/lintdsl"
+
+	"golang.org/x/tools/go/analysis"
 )
 
 func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
@@ -65,7 +65,9 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 
 			return true
 		}
-		Inspect(fn.Source(), cb)
+		if source := fn.Source(); source != nil {
+			ast.Inspect(source, cb)
+		}
 	}
 	return nil, nil
 }

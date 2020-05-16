@@ -9,13 +9,15 @@ import (
 	"reflect"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/code"
-	"honnef.co/go/tools/facts"
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
-	"honnef.co/go/tools/ir"
-	"honnef.co/go/tools/report"
+
+	"golang.org/x/tools/go/analysis"
 )
 
 var Debug io.Writer
@@ -397,7 +399,7 @@ type pkg struct {
 	TypesSizes types.Sizes
 	IR         *ir.Package
 	SrcFuncs   []*ir.Function
-	Directives []facts.Directive
+	Directives []lint.Directive
 }
 
 // TODO(dh): should we return a map instead of two slices?
@@ -502,7 +504,7 @@ func debugf(f string, v ...interface{}) {
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR)
-	dirs := pass.ResultOf[facts.Directives].([]facts.Directive)
+	dirs := pass.ResultOf[facts.Directives].([]lint.Directive)
 	pkg := &pkg{
 		Fset:       pass.Fset,
 		Files:      pass.Files,

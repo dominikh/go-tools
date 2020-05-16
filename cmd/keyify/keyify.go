@@ -16,7 +16,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"honnef.co/go/tools/version"
+	"honnef.co/go/tools/lintcmd/version"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/buildutil"

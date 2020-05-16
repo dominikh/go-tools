@@ -10,10 +10,11 @@ import (
 	"strings"
 	"unicode"
 
-	"golang.org/x/tools/go/analysis"
-	"honnef.co/go/tools/code"
+	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/config"
-	"honnef.co/go/tools/report"
+
+	"golang.org/x/tools/go/analysis"
 )
 
 // knownNameExceptions is a set of names that are known to be exempt from naming checks.
