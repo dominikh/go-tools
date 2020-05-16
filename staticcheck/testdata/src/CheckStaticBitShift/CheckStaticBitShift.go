@@ -6,7 +6,12 @@ package pkg
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE-THIRD-PARTY file.
 
+type Number int8
+
 func fn() {
+	var n8 Number
+	n8 <<= 8 // want `will always clear it`
+
 	var i8 int8
 	_ = i8 << 7
 	_ = (i8 + 1) << 8 // want `will always clear it`

@@ -3869,7 +3869,7 @@ var (
 
 func CheckStaticBitShift(pass *analysis.Pass) (interface{}, error) {
 	isDubiousShift := func(x, y ast.Expr) (int64, int64, bool) {
-		typ, ok := pass.TypesInfo.TypeOf(x).(*types.Basic)
+		typ, ok := pass.TypesInfo.TypeOf(x).Underlying().(*types.Basic)
 		if !ok {
 			return 0, 0, false
 		}
