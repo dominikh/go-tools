@@ -19,6 +19,7 @@ func fn() {
 	_ = i8 >> 8       // want `will always clear it`
 	i8 <<= 8          // want `will always clear it`
 	i8 >>= 8          // want `will always clear it`
+	i8 <<= 12         // want `will always clear it`
 
 	var i16 int16
 	_ = i16 << 15
@@ -26,6 +27,7 @@ func fn() {
 	_ = i16 >> 16 // want `will always clear it`
 	i16 <<= 16    // want `will always clear it`
 	i16 >>= 16    // want `will always clear it`
+	i16 <<= 18    // want `will always clear it`
 
 	var i32 int32
 	_ = i32 << 31
@@ -33,6 +35,7 @@ func fn() {
 	_ = i32 >> 32 // want `will always clear it`
 	i32 <<= 32    // want `will always clear it`
 	i32 >>= 32    // want `will always clear it`
+	i32 <<= 40    // want `will always clear it`
 
 	var i64 int64
 	_ = i64 << 63
@@ -40,6 +43,7 @@ func fn() {
 	_ = i64 >> 64 // want `will always clear it`
 	i64 <<= 64    // want `will always clear it`
 	i64 >>= 64    // want `will always clear it`
+	i64 <<= 70    // want `will always clear it`
 
 	var u8 uint8
 	_ = u8 << 7
@@ -47,6 +51,7 @@ func fn() {
 	_ = u8 >> 8 // want `will always clear it`
 	u8 <<= 8    // want `will always clear it`
 	u8 >>= 8    // want `will always clear it`
+	u8 <<= 12   // want `will always clear it`
 
 	var u16 uint16
 	_ = u16 << 15
@@ -54,6 +59,7 @@ func fn() {
 	_ = u16 >> 16 // want `will always clear it`
 	u16 <<= 16    // want `will always clear it`
 	u16 >>= 16    // want `will always clear it`
+	u16 <<= 18    // want `will always clear it`
 
 	var u32 uint32
 	_ = u32 << 31
@@ -61,6 +67,7 @@ func fn() {
 	_ = u32 >> 32 // want `will always clear it`
 	u32 <<= 32    // want `will always clear it`
 	u32 >>= 32    // want `will always clear it`
+	u32 <<= 40    // want `will always clear it`
 
 	var u64 uint64
 	_ = u64 << 63
@@ -68,6 +75,7 @@ func fn() {
 	_ = u64 >> 64 // want `will always clear it`
 	u64 <<= 64    // want `will always clear it`
 	u64 >>= 64    // want `will always clear it`
+	u64 <<= 70    // want `will always clear it`
 	_ = u64 << u64
 }
 
