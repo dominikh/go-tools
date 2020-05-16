@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"regexp"
 	"regexp/syntax"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,7 +24,6 @@ import (
 	"honnef.co/go/tools/edit"
 	"honnef.co/go/tools/facts"
 	"honnef.co/go/tools/functions"
-	"honnef.co/go/tools/gcsizes"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/ir"
@@ -3826,7 +3824,6 @@ var (
 			(AssignStmt _ (Or ">>=" "<<=") _)
 			(BinaryExpr _ (Or ">>" "<<") _))
 	`)
-	wordSize = gcsizes.ForArch(runtime.GOARCH).WordSize
 )
 
 func CheckStaticBitShift(pass *analysis.Pass) (interface{}, error) {
@@ -3842,14 +3839,16 @@ func CheckStaticBitShift(pass *analysis.Pass) (interface{}, error) {
 		default:
 			return 0, 0, false
 		}
-		typeSize := pass.TypesSizes.Sizeof(typ) * wordSize
+
+		const bitsInByte = 8
+		typeBits := pass.TypesSizes.Sizeof(typ) * bitsInByte
 
 		shiftLength, ok := code.ExprToInt(pass, y)
 		if !ok {
 			return 0, 0, false
 		}
 
-		return typeSize, shiftLength, shiftLength >= typeSize
+		return typeBits, shiftLength, shiftLength >= typeBits
 	}
 
 	fn := func(node ast.Node) {
