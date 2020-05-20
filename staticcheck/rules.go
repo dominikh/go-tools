@@ -15,6 +15,7 @@ import (
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/types/typeutil"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -289,7 +290,7 @@ func ValidHostPort(v Value) bool {
 // ConvertedFrom reports whether value v was converted from type typ.
 func ConvertedFrom(v Value, typ string) bool {
 	change, ok := v.Value.(*ir.ChangeType)
-	return ok && code.IsType(change.X.Type(), typ)
+	return ok && typeutil.IsType(change.X.Type(), typ)
 }
 
 func UniqueStringCutset(v Value) bool {

@@ -13,6 +13,7 @@ import (
 	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
@@ -987,7 +988,7 @@ func (g *graph) entry(pkg *pkg) {
 			case *ast.GenDecl:
 				switch n.Tok {
 				case token.CONST:
-					groups := code.GroupSpecs(pkg.Fset, n.Specs)
+					groups := astutil.GroupSpecs(pkg.Fset, n.Specs)
 					for _, specs := range groups {
 						if len(specs) > 1 {
 							cg := &constGroup{}
@@ -1230,13 +1231,13 @@ func (g *graph) useMethod(t types.Type, sel *types.Selection, by interface{}, ki
 	path := sel.Index()
 	assert(obj != nil)
 	if len(path) > 1 {
-		base := code.Dereference(t).Underlying().(*types.Struct)
+		base := typeutil.Dereference(t).Underlying().(*types.Struct)
 		for _, idx := range path[:len(path)-1] {
 			next := base.Field(idx)
 			// (6.3) structs use embedded fields that help implement interfaces
 			g.see(base)
 			g.seeAndUse(next, base, edgeProvidesMethod)
-			base, _ = code.Dereference(next.Type()).Underlying().(*types.Struct)
+			base, _ = typeutil.Dereference(next.Type()).Underlying().(*types.Struct)
 		}
 	}
 	g.seeAndUse(obj, by, kind)
@@ -1329,7 +1330,7 @@ func (g *graph) typ(t types.Type, parent types.Type) {
 				seen := map[*types.Struct]struct{}{}
 				var hasExportedField func(t types.Type) bool
 				hasExportedField = func(T types.Type) bool {
-					t, ok := code.Dereference(T).Underlying().(*types.Struct)
+					t, ok := typeutil.Dereference(T).Underlying().(*types.Struct)
 					if !ok {
 						return false
 					}
@@ -1512,7 +1513,7 @@ func (g *graph) instructions(fn *ir.Function) {
 				// (4.7) functions use fields they access
 				g.seeAndUse(field, fnObj, edgeFieldAccess)
 			case *ir.FieldAddr:
-				st := code.Dereference(instr.X.Type()).Underlying().(*types.Struct)
+				st := typeutil.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
 				g.seeAndUse(field, fnObj, edgeFieldAccess)
@@ -1531,8 +1532,8 @@ func (g *graph) instructions(fn *ir.Function) {
 			case *ir.ChangeType:
 				// conversion type handled generically
 
-				s1, ok1 := code.Dereference(instr.Type()).Underlying().(*types.Struct)
-				s2, ok2 := code.Dereference(instr.X.Type()).Underlying().(*types.Struct)
+				s1, ok1 := typeutil.Dereference(instr.Type()).Underlying().(*types.Struct)
+				s2, ok2 := typeutil.Dereference(instr.X.Type()).Underlying().(*types.Struct)
 				if ok1 && ok2 {
 					// Converting between two structs. The fields are
 					// relevant for the conversion, but only if the

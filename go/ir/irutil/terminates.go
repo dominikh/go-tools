@@ -1,4 +1,4 @@
-package code
+package irutil
 
 import (
 	"go/types"

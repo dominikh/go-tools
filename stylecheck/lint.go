@@ -17,14 +17,17 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/ir/irutil"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/types/typeutil"
+	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
 
 func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
@@ -151,7 +154,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 		for i, imp := range f.Imports {
 			pos := fset.Position(imp.Pos())
 
-			if !code.IsBlank(imp.Name) {
+			if !astutil.IsBlank(imp.Name) {
 				continue
 			}
 			// Only flag the first blank import in a group of imports,
@@ -160,7 +163,7 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 			if i > 0 {
 				prev := f.Imports[i-1]
 				prevPos := fset.Position(prev.Pos())
-				if pos.Line-1 == prevPos.Line && code.IsBlank(prev.Name) {
+				if pos.Line-1 == prevPos.Line && astutil.IsBlank(prev.Name) {
 					continue
 				}
 			}
@@ -186,7 +189,7 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		if (len(assign.Lhs) != 1 || len(assign.Rhs) != 1) ||
-			!code.IsIntLiteral(assign.Rhs[0], "1") {
+			!astutil.IsIntLiteral(assign.Rhs[0], "1") {
 			return
 		}
 
@@ -239,12 +242,12 @@ func CheckUnexportedReturn(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 		sig := fn.Type().(*types.Signature)
-		if sig.Recv() != nil && !ast.IsExported(code.Dereference(sig.Recv().Type()).(*types.Named).Obj().Name()) {
+		if sig.Recv() != nil && !ast.IsExported(typeutil.Dereference(sig.Recv().Type()).(*types.Named).Obj().Name()) {
 			continue
 		}
 		res := sig.Results()
 		for i := 0; i < res.Len(); i++ {
-			if named, ok := code.DereferenceR(res.At(i).Type()).(*types.Named); ok &&
+			if named, ok := typeutil.DereferenceR(res.At(i).Type()).(*types.Named); ok &&
 				!ast.IsExported(named.Obj().Name()) &&
 				named != types.Universe.Lookup("error").Type() {
 				report.Report(pass, fn, "should not return unexported type")
@@ -258,11 +261,11 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 	for _, m := range irpkg.Members {
 		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
-			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
+			ms := gotypeutil.IntuitiveMethodSet(T.Type(), nil)
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()
-				if code.Dereference(recv.Type()) != T.Type() {
+				if typeutil.Dereference(recv.Type()) != T.Type() {
 					// skip embedded methods
 					continue
 				}
@@ -285,7 +288,7 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 
 		var firstFn *types.Func
 		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
-			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
+			ms := gotypeutil.IntuitiveMethodSet(T.Type(), nil)
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()
@@ -293,7 +296,7 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 					// Don't concern ourselves with methods in generated code
 					continue
 				}
-				if code.Dereference(recv.Type()) != T.Type() {
+				if typeutil.Dereference(recv.Type()) != T.Type() {
 					// skip embedded methods
 					continue
 				}
@@ -372,7 +375,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !code.IsCallToAny(call.Common(), "errors.New", "fmt.Errorf") {
+				if !irutil.IsCallToAny(call.Common(), "errors.New", "fmt.Errorf") {
 					continue
 				}
 
@@ -446,7 +449,7 @@ func CheckTimeNames(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 			T := pass.TypesInfo.TypeOf(name)
-			if !code.IsType(T, "time.Duration") && !code.IsType(T, "*time.Duration") {
+			if !typeutil.IsType(T, "time.Duration") && !typeutil.IsType(T, "*time.Duration") {
 				continue
 			}
 			for _, suffix := range suffixes {

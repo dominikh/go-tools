@@ -2,7 +2,6 @@
 package code
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -10,154 +9,20 @@ import (
 	"go/token"
 	"go/types"
 	"strings"
-	"sync"
 
 	"honnef.co/go/tools/analysis/facts"
-	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/types/typeutil"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-var bufferPool = &sync.Pool{
-	New: func() interface{} {
-		buf := bytes.NewBuffer(nil)
-		buf.Grow(64)
-		return buf
-	},
-}
-
-func FuncName(f *types.Func) string {
-	buf := bufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	if f.Type() != nil {
-		sig := f.Type().(*types.Signature)
-		if recv := sig.Recv(); recv != nil {
-			buf.WriteByte('(')
-			if _, ok := recv.Type().(*types.Interface); ok {
-				// gcimporter creates abstract methods of
-				// named interfaces using the interface type
-				// (not the named type) as the receiver.
-				// Don't print it in full.
-				buf.WriteString("interface")
-			} else {
-				types.WriteType(buf, recv.Type(), nil)
-			}
-			buf.WriteByte(')')
-			buf.WriteByte('.')
-		} else if f.Pkg() != nil {
-			writePackage(buf, f.Pkg())
-		}
-	}
-	buf.WriteString(f.Name())
-	s := buf.String()
-	bufferPool.Put(buf)
-	return s
-}
-
-func writePackage(buf *bytes.Buffer, pkg *types.Package) {
-	if pkg == nil {
-		return
-	}
-	s := pkg.Path()
-	if s != "" {
-		buf.WriteString(s)
-		buf.WriteByte('.')
-	}
-}
-
 type Positioner interface {
 	Pos() token.Pos
 }
 
-func CallName(call *ir.CallCommon) string {
-	if call.IsInvoke() {
-		return ""
-	}
-	switch v := call.Value.(type) {
-	case *ir.Function:
-		fn, ok := v.Object().(*types.Func)
-		if !ok {
-			return ""
-		}
-		return FuncName(fn)
-	case *ir.Builtin:
-		return v.Name()
-	}
-	return ""
-}
-
-func IsCallTo(call *ir.CallCommon, name string) bool { return CallName(call) == name }
-
-func IsCallToAny(call *ir.CallCommon, names ...string) bool {
-	q := CallName(call)
-	for _, name := range names {
-		if q == name {
-			return true
-		}
-	}
-	return false
-}
-
-// OPT(dh): IsType is kind of expensive; should we really use it?
-func IsType(T types.Type, name string) bool { return types.TypeString(T, nil) == name }
-
-func FilterDebug(instr []ir.Instruction) []ir.Instruction {
-	var out []ir.Instruction
-	for _, ins := range instr {
-		if _, ok := ins.(*ir.DebugRef); !ok {
-			out = append(out, ins)
-		}
-	}
-	return out
-}
-
-func IsExample(fn *ir.Function) bool {
-	if !strings.HasPrefix(fn.Name(), "Example") {
-		return false
-	}
-	f := fn.Prog.Fset.File(fn.Pos())
-	if f == nil {
-		return false
-	}
-	return strings.HasSuffix(f.Name(), "_test.go")
-}
-
-func IsPointerLike(T types.Type) bool {
-	switch T := T.Underlying().(type) {
-	case *types.Interface, *types.Chan, *types.Map, *types.Signature, *types.Pointer:
-		return true
-	case *types.Basic:
-		return T.Kind() == types.UnsafePointer
-	}
-	return false
-}
-
-func IsIdent(expr ast.Expr, ident string) bool {
-	id, ok := expr.(*ast.Ident)
-	return ok && id.Name == ident
-}
-
-// isBlank returns whether id is the blank identifier "_".
-// If id == nil, the answer is false.
-func IsBlank(id ast.Expr) bool {
-	ident, _ := id.(*ast.Ident)
-	return ident != nil && ident.Name == "_"
-}
-
-func IsIntLiteral(expr ast.Expr, literal string) bool {
-	lit, ok := expr.(*ast.BasicLit)
-	return ok && lit.Kind == token.INT && lit.Value == literal
-}
-
-// Deprecated: use IsIntLiteral instead
-func IsZero(expr ast.Expr) bool {
-	return IsIntLiteral(expr, "0")
-}
-
 func IsOfType(pass *analysis.Pass, expr ast.Expr, name string) bool {
-	return IsType(pass.TypesInfo.TypeOf(expr), name)
+	return typeutil.IsType(pass.TypesInfo.TypeOf(expr), name)
 }
 
 func IsInTest(pass *analysis.Pass, node Positioner) bool {
@@ -266,25 +131,6 @@ func ExprToString(pass *analysis.Pass, expr ast.Expr) (string, bool) {
 	return constant.StringVal(val), true
 }
 
-// Dereference returns a pointer's element type; otherwise it returns
-// T.
-func Dereference(T types.Type) types.Type {
-	if p, ok := T.Underlying().(*types.Pointer); ok {
-		return p.Elem()
-	}
-	return T
-}
-
-// DereferenceR returns a pointer's element type; otherwise it returns
-// T. If the element type is itself a pointer, DereferenceR will be
-// applied recursively.
-func DereferenceR(T types.Type) types.Type {
-	if p, ok := T.Underlying().(*types.Pointer); ok {
-		return DereferenceR(p.Elem())
-	}
-	return T
-}
-
 func CallNameAST(pass *analysis.Pass, call *ast.CallExpr) string {
 	switch fun := astutil.Unparen(call.Fun).(type) {
 	case *ast.SelectorExpr:
@@ -292,12 +138,12 @@ func CallNameAST(pass *analysis.Pass, call *ast.CallExpr) string {
 		if !ok {
 			return ""
 		}
-		return FuncName(fn)
+		return typeutil.FuncName(fn)
 	case *ast.Ident:
 		obj := pass.TypesInfo.ObjectOf(fun)
 		switch obj := obj.(type) {
 		case *types.Func:
-			return FuncName(obj)
+			return typeutil.FuncName(obj)
 		case *types.Builtin:
 			return obj.Name()
 		default:
@@ -328,87 +174,6 @@ func IsCallToAnyAST(pass *analysis.Pass, node ast.Node, names ...string) bool {
 		}
 	}
 	return false
-}
-
-func Preamble(f *ast.File) string {
-	cutoff := f.Package
-	if f.Doc != nil {
-		cutoff = f.Doc.Pos()
-	}
-	var out []string
-	for _, cmt := range f.Comments {
-		if cmt.Pos() >= cutoff {
-			break
-		}
-		out = append(out, cmt.Text())
-	}
-	return strings.Join(out, "\n")
-}
-
-func GroupSpecs(fset *token.FileSet, specs []ast.Spec) [][]ast.Spec {
-	if len(specs) == 0 {
-		return nil
-	}
-	groups := make([][]ast.Spec, 1)
-	groups[0] = append(groups[0], specs[0])
-
-	for _, spec := range specs[1:] {
-		g := groups[len(groups)-1]
-		if fset.PositionFor(spec.Pos(), false).Line-1 !=
-			fset.PositionFor(g[len(g)-1].End(), false).Line {
-
-			groups = append(groups, nil)
-		}
-
-		groups[len(groups)-1] = append(groups[len(groups)-1], spec)
-	}
-
-	return groups
-}
-
-func IsObject(obj types.Object, name string) bool {
-	var path string
-	if pkg := obj.Pkg(); pkg != nil {
-		path = pkg.Path() + "."
-	}
-	return path+obj.Name() == name
-}
-
-type Field struct {
-	Var  *types.Var
-	Tag  string
-	Path []int
-}
-
-// FlattenFields recursively flattens T and embedded structs,
-// returning a list of fields. If multiple fields with the same name
-// exist, all will be returned.
-func FlattenFields(T *types.Struct) []Field {
-	return flattenFields(T, nil, nil)
-}
-
-func flattenFields(T *types.Struct, path []int, seen map[types.Type]bool) []Field {
-	if seen == nil {
-		seen = map[types.Type]bool{}
-	}
-	if seen[T] {
-		return nil
-	}
-	seen[T] = true
-	var out []Field
-	for i := 0; i < T.NumFields(); i++ {
-		field := T.Field(i)
-		tag := T.Tag(i)
-		np := append(path[:len(path):len(path)], i)
-		if field.Anonymous() {
-			if s, ok := Dereference(field.Type()).Underlying().(*types.Struct); ok {
-				out = append(out, flattenFields(s, np, seen)...)
-			}
-		} else {
-			out = append(out, Field{field, tag, np})
-		}
-	}
-	return out
 }
 
 func File(pass *analysis.Pass, node Positioner) *ast.File {

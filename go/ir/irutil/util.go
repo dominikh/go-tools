@@ -1,7 +1,11 @@
 package irutil
 
 import (
+	"go/types"
+	"strings"
+
 	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 func Reachable(from, to *ir.BasicBlock) bool {
@@ -67,4 +71,54 @@ func Vararg(x *ir.Slice) ([]ir.Value, bool) {
 		out = append(out, store.Val)
 	}
 	return out, true
+}
+
+func CallName(call *ir.CallCommon) string {
+	if call.IsInvoke() {
+		return ""
+	}
+	switch v := call.Value.(type) {
+	case *ir.Function:
+		fn, ok := v.Object().(*types.Func)
+		if !ok {
+			return ""
+		}
+		return typeutil.FuncName(fn)
+	case *ir.Builtin:
+		return v.Name()
+	}
+	return ""
+}
+
+func IsCallTo(call *ir.CallCommon, name string) bool { return CallName(call) == name }
+
+func IsCallToAny(call *ir.CallCommon, names ...string) bool {
+	q := CallName(call)
+	for _, name := range names {
+		if q == name {
+			return true
+		}
+	}
+	return false
+}
+
+func FilterDebug(instr []ir.Instruction) []ir.Instruction {
+	var out []ir.Instruction
+	for _, ins := range instr {
+		if _, ok := ins.(*ir.DebugRef); !ok {
+			out = append(out, ins)
+		}
+	}
+	return out
+}
+
+func IsExample(fn *ir.Function) bool {
+	if !strings.HasPrefix(fn.Name(), "Example") {
+		return false
+	}
+	f := fn.Prog.Fset.File(fn.Pos())
+	if f == nil {
+		return false
+	}
+	return strings.HasSuffix(f.Name(), "_test.go")
 }

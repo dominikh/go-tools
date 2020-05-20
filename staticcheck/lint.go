@@ -23,8 +23,10 @@ import (
 	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/knowledge"
@@ -33,9 +35,9 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/astutil"
+	goastutil "golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/types/typeutil"
+	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
 
 func checkSortSlice(call *Call) {
@@ -97,7 +99,7 @@ func unmarshalPointer(name string, arg int) CallCheck {
 
 func pointlessIntMath(call *Call) {
 	if ConvertedFromInt(call.Args[0].Value) {
-		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", code.CallName(call.Instr.Common())))
+		call.Invalid(fmt.Sprintf("calling %s on a converted integer is pointless", irutil.CallName(call.Instr.Common())))
 	}
 }
 
@@ -151,7 +153,7 @@ var (
 		"(*sync.Pool).Put": func(call *Call) {
 			arg := call.Args[knowledge.Arg("(*sync.Pool).Put.x")]
 			typ := arg.Value.Value.Type()
-			if !code.IsPointerLike(typ) {
+			if !typeutil.IsPointerLike(typ) {
 				arg.Invalid("argument should be pointer-like to avoid allocations")
 			}
 		},
@@ -351,7 +353,7 @@ var verbs = [...]verbFlag{
 }
 
 func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
-	var msCache *typeutil.MethodSetCache
+	var msCache *gotypeutil.MethodSetCache
 	if f.Parent() != nil {
 		msCache = &f.Parent().Prog.MethodSets
 	}
@@ -365,7 +367,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 			if verbs[verb]&isSlice != 0 {
 				return []types.Type{T}, false
 			}
-			if verbs[verb]&isString != 0 && code.IsType(T.Elem().Underlying(), "byte") {
+			if verbs[verb]&isString != 0 && typeutil.IsType(T.Elem().Underlying(), "byte") {
 				return []types.Type{T}, false
 			}
 			return []types.Type{T.Elem()}, true
@@ -407,7 +409,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 		if sig.Results().Len() != 1 {
 			return false
 		}
-		if !code.IsType(sig.Results().At(0).Type(), "string") {
+		if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
 			return false
 		}
 		return true
@@ -429,7 +431,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 		if sig.Results().Len() != 1 {
 			return false
 		}
-		if !code.IsType(sig.Results().At(0).Type(), "string") {
+		if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
 			return false
 		}
 		return true
@@ -493,10 +495,10 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 
 		T = T.Underlying()
 		if flags&(isPointer|isPseudoPointer) == 0 && top {
-			T = code.Dereference(T)
+			T = typeutil.Dereference(T)
 		}
 		if flags&isPseudoPointer != 0 && top {
-			t := code.Dereference(T)
+			t := typeutil.Dereference(T)
 			if _, ok := t.Underlying().(*types.Struct); ok {
 				T = t
 			}
@@ -547,7 +549,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 			}
 		}
 
-		if flags&isPointer != 0 && code.IsPointerLike(T) {
+		if flags&isPointer != 0 && typeutil.IsPointerLike(T) {
 			return true
 		}
 		if flags&isPseudoPointer != 0 {
@@ -724,7 +726,7 @@ func checkAtomicAlignmentImpl(call *Call) {
 	if off%8 != 0 {
 		msg := fmt.Sprintf("address of non 64-bit aligned field %s passed to %s",
 			T.Field(v.Field).Name(),
-			code.CallName(call.Instr.Common()))
+			irutil.CallName(call.Instr.Common()))
 		call.Invalid(msg)
 	}
 }
@@ -736,14 +738,14 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 		}
 		arg := call.Args[argN]
 		T := arg.Value.Value.Type()
-		Ts, ok := code.Dereference(T).Underlying().(*types.Struct)
+		Ts, ok := typeutil.Dereference(T).Underlying().(*types.Struct)
 		if !ok {
 			return
 		}
 		if Ts.NumFields() == 0 {
 			return
 		}
-		fields := code.FlattenFields(Ts)
+		fields := typeutil.FlattenFields(Ts)
 		for _, field := range fields {
 			if field.Var.Exported() {
 				return
@@ -769,7 +771,7 @@ func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallChec
 
 		arg := call.Args[argN]
 		T := arg.Value.Value.Type()
-		Ts, ok := code.Dereference(T).Underlying().(*types.Struct)
+		Ts, ok := typeutil.Dereference(T).Underlying().(*types.Struct)
 		if !ok {
 			return
 		}
@@ -781,7 +783,7 @@ func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallChec
 				return
 			}
 		}
-		fields := code.FlattenFields(Ts)
+		fields := typeutil.FlattenFields(Ts)
 		for _, field := range fields {
 			if !(field.Var.Exported()) {
 				continue
@@ -808,7 +810,7 @@ func checkUnsupportedMarshalImpl(argN int, tag string, meths ...string) CallChec
 func fieldPath(start types.Type, indices []int) string {
 	p := start.String()
 	for _, idx := range indices {
-		field := code.Dereference(start).Underlying().(*types.Struct).Field(idx)
+		field := typeutil.Dereference(start).Underlying().(*types.Struct).Field(idx)
 		start = field.Type()
 		p += "." + field.Name()
 	}
@@ -816,7 +818,7 @@ func fieldPath(start types.Type, indices []int) string {
 }
 
 func isInLoop(b *ir.BasicBlock) bool {
-	sets := code.FindLoops(b.Parent())
+	sets := irutil.FindLoops(b.Parent())
 	for _, set := range sets {
 		if set.Has(b) {
 			return true
@@ -1635,7 +1637,7 @@ func CheckBenchmarkN(pass *analysis.Pass) (interface{}, error) {
 
 func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		if code.IsExample(fn) {
+		if irutil.IsExample(fn) {
 			continue
 		}
 		node := fn.Source()
@@ -1828,7 +1830,7 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return false
 		}
-		return code.IsObject(pass.TypesInfo.ObjectOf(sel.Sel), name)
+		return typeutil.IsObject(pass.TypesInfo.ObjectOf(sel.Sel), name)
 	}
 
 	fn := func(node ast.Node) {
@@ -1881,12 +1883,12 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if (basic.Info() & types.IsUnsigned) != 0 {
-			if (expr.Op == token.LSS && code.IsIntLiteral(expr.Y, "0")) ||
-				(expr.Op == token.GTR && code.IsIntLiteral(expr.X, "0")) {
+			if (expr.Op == token.LSS && astutil.IsIntLiteral(expr.Y, "0")) ||
+				(expr.Op == token.GTR && astutil.IsIntLiteral(expr.X, "0")) {
 				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than 0", basic))
 			}
-			if expr.Op == token.GEQ && code.IsIntLiteral(expr.Y, "0") ||
-				expr.Op == token.LEQ && code.IsIntLiteral(expr.X, "0") {
+			if expr.Op == token.GEQ && astutil.IsIntLiteral(expr.Y, "0") ||
+				expr.Op == token.LEQ && astutil.IsIntLiteral(expr.X, "0") {
 				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= 0", basic))
 			}
 		} else {
@@ -2050,7 +2052,7 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 					if refs == nil {
 						continue
 					}
-					if len(code.FilterDebug(*refs)) != 0 {
+					if len(irutil.FilterDebug(*refs)) != 0 {
 						continue
 					}
 
@@ -2227,7 +2229,7 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 			// the Foo method, but the method receiver.
 			return
 		}
-		if !code.IsType(sig.Params().At(0).Type(), "context.Context") {
+		if !typeutil.IsType(sig.Params().At(0).Type(), "context.Context") {
 			return
 		}
 		report.Report(pass, call.Args[0],
@@ -2361,7 +2363,7 @@ func CheckConcurrentTesting(pass *analysis.Pass) (interface{}, error) {
 						if recv == nil {
 							continue
 						}
-						if !code.IsType(recv.Type(), "*testing.common") {
+						if !typeutil.IsType(recv.Type(), "*testing.common") {
 							continue
 						}
 						fn, ok := call.Call.StaticCallee().Object().(*types.Func)
@@ -2467,7 +2469,7 @@ func CheckSliceOutOfBounds(pass *analysis.Pass) (interface{}, error) {
 func CheckDeferLock(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, block := range fn.Blocks {
-			instrs := code.FilterDebug(block.Instrs)
+			instrs := irutil.FilterDebug(block.Instrs)
 			if len(instrs) < 2 {
 				continue
 			}
@@ -2476,14 +2478,14 @@ func CheckDeferLock(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !code.IsCallToAny(call.Common(), "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
+				if !irutil.IsCallToAny(call.Common(), "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
 					continue
 				}
 				nins, ok := instrs[i+1].(*ir.Defer)
 				if !ok {
 					continue
 				}
-				if !code.IsCallToAny(&nins.Call, "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
+				if !irutil.IsCallToAny(&nins.Call, "(*sync.Mutex).Lock", "(*sync.RWMutex).RLock") {
 					continue
 				}
 				if call.Common().Args[0] != nins.Call.Args[0] {
@@ -2510,7 +2512,7 @@ func CheckNaNComparison(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return false
 		}
-		return code.IsCallTo(call.Common(), "math.NaN")
+		return irutil.IsCallTo(call.Common(), "math.NaN")
 	}
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, block := range fn.Blocks {
@@ -2597,10 +2599,10 @@ func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 		for _, block := range fn.Blocks {
 			for _, ins := range block.Instrs {
 				call, ok := ins.(*ir.Call)
-				if !ok || !code.IsCallTo(call.Common(), "time.Tick") {
+				if !ok || !irutil.IsCallTo(call.Common(), "time.Tick") {
 					continue
 				}
-				if !code.Terminates(call.Parent()) {
+				if !irutil.Terminates(call.Parent()) {
 					continue
 				}
 				report.Report(pass, call, "using time.Tick leaks the underlying ticker, consider using it only in endless functions, tests and the main package, and use time.NewTicker here")
@@ -2695,12 +2697,12 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 						// of a pattern, x<<0, x<<8, x<<16, ...
 						continue
 					}
-					path, _ := astutil.PathEnclosingInterval(code.File(pass, ins), ins.Pos(), ins.Pos())
+					path, _ := goastutil.PathEnclosingInterval(code.File(pass, ins), ins.Pos(), ins.Pos())
 					if len(path) == 0 {
 						continue
 					}
 
-					if node, ok := path[0].(*ast.BinaryExpr); !ok || !code.IsIntLiteral(node.Y, "0") {
+					if node, ok := path[0].(*ast.BinaryExpr); !ok || !astutil.IsIntLiteral(node.Y, "0") {
 						continue
 					}
 
@@ -2743,7 +2745,7 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 			if v, _ := constant.Int64Val(obj.Val()); v != 0 {
 				return
 			}
-			path, _ := astutil.PathEnclosingInterval(code.File(pass, obj), obj.Pos(), obj.Pos())
+			path, _ := goastutil.PathEnclosingInterval(code.File(pass, obj), obj.Pos(), obj.Pos())
 			if len(path) < 2 {
 				return
 			}
@@ -2771,7 +2773,7 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 					fmt.Sprintf("%s always equals %s; %s is defined as iota and has value 0, maybe %s is meant to be 1 << iota?", report.Render(pass, binop), report.Render(pass, binop.X), report.Render(pass, binop.Y), report.Render(pass, binop.Y)))
 			}
 		case *ast.BasicLit:
-			if !code.IsIntLiteral(binop.Y, "0") {
+			if !astutil.IsIntLiteral(binop.Y, "0") {
 				return
 			}
 			switch binop.Op {
@@ -2809,7 +2811,7 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 		n := sig.Params().Len()
 		for i := 0; i < n; i++ {
 			typ := sig.Params().At(i).Type()
-			if !code.IsType(typ, "os.FileMode") {
+			if !typeutil.IsType(typ, "os.FileMode") {
 				continue
 			}
 
@@ -2845,7 +2847,7 @@ fnLoop:
 			params := fn.Signature.Params()
 			for i := 0; i < params.Len(); i++ {
 				param := params.At(i)
-				if code.IsType(param.Type(), "*testing.B") {
+				if typeutil.IsType(param.Type(), "*testing.B") {
 					// Ignore discarded pure functions in code related
 					// to benchmarks. Instead of matching BenchmarkFoo
 					// functions, we match any function accepting a
@@ -2865,7 +2867,7 @@ fnLoop:
 					continue
 				}
 				refs := ins.Referrers()
-				if refs == nil || len(code.FilterDebug(*refs)) > 0 {
+				if refs == nil || len(irutil.FilterDebug(*refs)) > 0 {
 					continue
 				}
 
@@ -2987,7 +2989,7 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			return
 		}
 
-		r, ok := rules[code.FuncName(obj)]
+		r, ok := rules[typeutil.FuncName(obj)]
 		if !ok {
 			return
 		}
@@ -3009,7 +3011,7 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			Parent: site.Parent(),
 		}
 		r(call)
-		path, _ := astutil.PathEnclosingInterval(code.File(pass, site), site.Pos(), site.Pos())
+		path, _ := goastutil.PathEnclosingInterval(code.File(pass, site), site.Pos(), site.Pos())
 		var astcall *ast.CallExpr
 		for _, el := range path {
 			if expr, ok := el.(*ast.CallExpr); ok {
@@ -3073,7 +3075,7 @@ func CheckWriterBufferModified(pass *analysis.Pass) (interface{}, error) {
 		if basic, ok := sig.Results().At(0).Type().(*types.Basic); !ok || basic.Kind() != types.Int {
 			continue
 		}
-		if named, ok := sig.Results().At(1).Type().(*types.Named); !ok || !code.IsType(named, "error") {
+		if named, ok := sig.Results().At(1).Type().(*types.Named); !ok || !typeutil.IsType(named, "error") {
 			continue
 		}
 
@@ -3090,7 +3092,7 @@ func CheckWriterBufferModified(pass *analysis.Pass) (interface{}, error) {
 					}
 					report.Report(pass, ins, "io.Writer.Write must not modify the provided buffer, not even temporarily")
 				case *ir.Call:
-					if !code.IsCallTo(ins.Common(), "append") {
+					if !irutil.IsCallTo(ins.Common(), "append") {
 						continue
 					}
 					if ins.Common().Args[0] != fn.Params[1] {
@@ -3121,7 +3123,7 @@ func CheckEmptyBranch(pass *analysis.Pass) (interface{}, error) {
 		if fn.Source() == nil {
 			continue
 		}
-		if code.IsExample(fn) {
+		if irutil.IsExample(fn) {
 			continue
 		}
 		cb := func(node ast.Node) bool {
@@ -3281,7 +3283,7 @@ func CheckSillyRegexp(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !code.IsCallToAny(call.Common(), "regexp.MustCompile", "regexp.Compile", "regexp.Match", "regexp.MatchReader", "regexp.MatchString") {
+				if !irutil.IsCallToAny(call.Common(), "regexp.MustCompile", "regexp.Compile", "regexp.Match", "regexp.MatchReader", "regexp.MatchString") {
 					continue
 				}
 				c, ok := call.Common().Args[0].(*ir.Const)
@@ -3313,7 +3315,7 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 			return
 		}
 
-		groups := code.GroupSpecs(pass.Fset, decl.Specs)
+		groups := astutil.GroupSpecs(pass.Fset, decl.Specs)
 	groupLoop:
 		for _, group := range groups {
 			if len(group) < 2 {
@@ -3368,14 +3370,14 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !code.IsCallTo(call.Common(), "(*time.Timer).Reset") {
+				if !irutil.IsCallTo(call.Common(), "(*time.Timer).Reset") {
 					continue
 				}
 				refs := call.Referrers()
 				if refs == nil {
 					continue
 				}
-				for _, ref := range code.FilterDebug(*refs) {
+				for _, ref := range irutil.FilterDebug(*refs) {
 					ifstmt, ok := ref.(*ir.If)
 					if !ok {
 						continue
@@ -3404,7 +3406,7 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 								// priority, considering the rarity of
 								// Reset and the tiny likeliness of a
 								// false positive
-								if ins, ok := ins.(*ir.Recv); ok && code.IsType(ins.Chan.Type(), "<-chan time.Time") {
+								if ins, ok := ins.(*ir.Recv); ok && typeutil.IsType(ins.Chan.Type(), "<-chan time.Time") {
 									found = true
 									return false
 								}
@@ -3610,7 +3612,7 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 		case "string":
 			cs++
 			// only for string, floating point, integer and bool
-			T := code.Dereference(pass.TypesInfo.TypeOf(field.Type).Underlying()).Underlying()
+			T := typeutil.Dereference(pass.TypesInfo.TypeOf(field.Type).Underlying()).Underlying()
 			basic, ok := T.(*types.Basic)
 			if !ok || (basic.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString)) == 0 {
 				report.Report(pass, field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
@@ -3786,7 +3788,7 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 	// We choose to err on the side of false negatives.
 
 	isNilConst := func(v ir.Value) bool {
-		if code.IsPointerLike(v.Type()) {
+		if typeutil.IsPointerLike(v.Type()) {
 			if k, ok := v.(*ir.Const); ok {
 				return k.IsNil()
 			}

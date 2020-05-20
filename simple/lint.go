@@ -12,16 +12,19 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/types/typeutil"
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/go/ast/astutil"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
+
+	"golang.org/x/tools/go/analysis"
+	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
 
 var (
@@ -497,7 +500,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
 		_, ok := expr.(*ast.BasicLit)
 		if ok {
-			return true, code.IsIntLiteral(expr, "0")
+			return true, astutil.IsIntLiteral(expr, "0")
 		}
 		id, ok := expr.(*ast.Ident)
 		if !ok {
@@ -561,7 +564,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if eqNil && !code.IsIntLiteral(y.Y, "0") { // must be len(x) == *0*
+		if eqNil && !astutil.IsIntLiteral(y.Y, "0") { // must be len(x) == *0*
 			return
 		}
 
@@ -769,14 +772,14 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		rs := node.(*ast.RangeStmt)
 
 		// for _
-		if rs.Value == nil && code.IsBlank(rs.Key) {
+		if rs.Value == nil && astutil.IsBlank(rs.Key) {
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
 		// for _, _
-		if code.IsBlank(rs.Key) && code.IsBlank(rs.Value) {
+		if astutil.IsBlank(rs.Key) && astutil.IsBlank(rs.Value) {
 			// FIXME we should mark both key and value
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
@@ -784,7 +787,7 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// for x, _
-		if !code.IsBlank(rs.Key) && code.IsBlank(rs.Value) {
+		if !astutil.IsBlank(rs.Key) && astutil.IsBlank(rs.Value) {
 			report.Report(pass, rs.Value, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()}))))
@@ -1380,7 +1383,7 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
+func isStringer(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
 	ms := msCache.MethodSet(T)
 	sel := ms.Lookup(nil, "String")
 	if sel == nil {
@@ -1398,7 +1401,7 @@ func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	if sig.Results().Len() != 1 {
 		return false
 	}
-	if !code.IsType(sig.Results().At(0).Type(), "string") {
+	if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
 		return false
 	}
 	return true
