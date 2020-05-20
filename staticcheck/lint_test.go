@@ -80,6 +80,7 @@ func TestAll(t *testing.T) {
 		"SA5009": {{Dir: "CheckPrintf"}},
 		"SA5010": {{Dir: "CheckImpossibleTypeAssertion"}},
 		"SA5011": {{Dir: "CheckMaybeNil"}},
+		"SA5012": {{Dir: "CheckEvenSliceLength"}},
 		"SA6000": {{Dir: "CheckRegexpMatchLoop"}},
 		"SA6001": {{Dir: "CheckMapBytesKey"}},
 		"SA6002": {{Dir: "CheckSyncPoolValue"}},

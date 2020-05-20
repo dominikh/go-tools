@@ -183,6 +183,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckSingleArgAppend,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.TokenFile},
 	},
+	"SA4022": {
+		Run:      CheckAddressIsNil,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,
@@ -225,6 +229,11 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckMaybeNil,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
+	"SA5012": {
+		Run:       CheckEvenSliceLength,
+		FactTypes: []analysis.Fact{new(evenElements)},
+		Requires:  []*analysis.Analyzer{buildir.Analyzer},
+	},
 
 	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),
 	"SA6001": {
@@ -261,11 +270,6 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA9005": makeCallCheckerAnalyzer(checkNoopMarshal, facts.Generated),
 	"SA9006": {
 		Run:      CheckStaticBitShift,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
-	},
-
-	"SA4022": {
-		Run:      CheckAddressIsNil,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 })

@@ -661,6 +661,15 @@ popular package.`,
 		Since: "2020.1",
 	},
 
+	"SA5012": {
+		Title: "Passing odd-sized slice to function expecting even size",
+		Text: `Some functions that take slices as parameters expect the slices to have an even number of elements. 
+Often, these functions treat elements in a slice as pairs. 
+For example, strings.NewReplacer takes pairs of old and new strings, 
+and calling it with an odd number of elements would be an error.`,
+		Since: "Unreleased",
+	},
+
 	"SA6000": {
 		Title: `Using regexp.Match or related in a loop, should use regexp.Compile`,
 		Since: "2017.1",
