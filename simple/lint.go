@@ -172,7 +172,7 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 		sel := m.State["sel"].(*ast.SelectorExpr)
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
-		if typ == types.Universe.Lookup("string").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
+		if typ == types.Universe.Lookup("string").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
 			if _, ok := stack[len(stack)-2].(*ast.IndexExpr); ok {
 				// Don't flag m[string(buf.Bytes())] – thanks to a
 				// compiler optimization, this is actually faster than
@@ -183,7 +183,7 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRs, m.State, node))))
-		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && code.IsCallToAST(pass, call.Args[0], "(*bytes.Buffer).String") {
+		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).String") {
 			report.Report(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRb, m.State, node))))
@@ -337,7 +337,7 @@ func CheckForTrue(pass *analysis.Pass) (interface{}, error) {
 func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !code.IsCallToAnyAST(pass, call, "regexp.MustCompile", "regexp.Compile") {
+		if !code.IsCallToAny(pass, call, "regexp.MustCompile", "regexp.Compile") {
 			return
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -970,7 +970,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		condCallName := code.CallNameAST(pass, condCall)
+		condCallName := code.CallName(pass, condCall)
 		switch condCallName {
 		case "strings.HasPrefix":
 			pkg = "strings"
@@ -1014,7 +1014,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 
-			rhsName := code.CallNameAST(pass, rhs)
+			rhsName := code.CallName(pass, rhs)
 			if condCallName == "strings.HasPrefix" && rhsName == "strings.TrimPrefix" ||
 				condCallName == "strings.HasSuffix" && rhsName == "strings.TrimSuffix" ||
 				condCallName == "strings.Contains" && rhsName == "strings.Replace" ||
@@ -1550,7 +1550,7 @@ func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 			if permissible {
 				return false
 			}
-			if !code.IsCallToAST(pass, node, "sort.Sort") {
+			if !code.IsCallTo(pass, node, "sort.Sort") {
 				return true
 			}
 			if isPermissibleSort(pass, node) {
@@ -1708,14 +1708,14 @@ func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 func CheckRedundantCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		callName := code.CallNameAST(pass, call)
+		callName := code.CallName(pass, call)
 		switch callName {
 		case "(net/http.Header).Add", "(net/http.Header).Del", "(net/http.Header).Get", "(net/http.Header).Set":
 		default:
 			return
 		}
 
-		if !code.IsCallToAST(pass, call.Args[0], "net/http.CanonicalHeaderKey") {
+		if !code.IsCallTo(pass, call.Args[0], "net/http.CanonicalHeaderKey") {
 			return
 		}
 

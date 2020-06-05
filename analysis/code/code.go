@@ -131,7 +131,7 @@ func ExprToString(pass *analysis.Pass, expr ast.Expr) (string, bool) {
 	return constant.StringVal(val), true
 }
 
-func CallNameAST(pass *analysis.Pass, call *ast.CallExpr) string {
+func CallName(pass *analysis.Pass, call *ast.CallExpr) string {
 	switch fun := astutil.Unparen(call.Fun).(type) {
 	case *ast.SelectorExpr:
 		fn, ok := pass.TypesInfo.ObjectOf(fun.Sel).(*types.Func)
@@ -154,20 +154,20 @@ func CallNameAST(pass *analysis.Pass, call *ast.CallExpr) string {
 	}
 }
 
-func IsCallToAST(pass *analysis.Pass, node ast.Node, name string) bool {
+func IsCallTo(pass *analysis.Pass, node ast.Node, name string) bool {
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return false
 	}
-	return CallNameAST(pass, call) == name
+	return CallName(pass, call) == name
 }
 
-func IsCallToAnyAST(pass *analysis.Pass, node ast.Node, names ...string) bool {
+func IsCallToAny(pass *analysis.Pass, node ast.Node, names ...string) bool {
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return false
 	}
-	q := CallNameAST(pass, call)
+	q := CallName(pass, call)
 	for _, name := range names {
 		if q == name {
 			return true

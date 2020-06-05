@@ -502,7 +502,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 
 				for i, name := range spec.Names {
 					val := spec.Values[i]
-					if !code.IsCallToAnyAST(pass, val, "errors.New", "fmt.Errorf") {
+					if !code.IsCallToAny(pass, val, "errors.New", "fmt.Errorf") {
 						continue
 					}
 
@@ -596,7 +596,7 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		call := node.(*ast.CallExpr)
 
 		var arg int
-		switch code.CallNameAST(pass, call) {
+		switch code.CallName(pass, call) {
 		case "net/http.Error":
 			arg = 2
 		case "net/http.Redirect":

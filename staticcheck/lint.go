@@ -830,7 +830,7 @@ func isInLoop(b *ir.BasicBlock) bool {
 func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !code.IsCallToAnyAST(pass, call,
+		if !code.IsCallToAny(pass, call,
 			"os/signal.Ignore", "os/signal.Notify", "os/signal.Reset") {
 			return
 		}
@@ -902,7 +902,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 		call := node.(*ast.CallExpr)
 		// OPT(dh): use integer for kind
 		var kind string
-		switch code.CallNameAST(pass, call) {
+		switch code.CallName(pass, call) {
 		case "(*text/template.Template).Parse":
 			kind = "text"
 		case "(*html/template.Template).Parse":
@@ -911,7 +911,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		sel := call.Fun.(*ast.SelectorExpr)
-		if !code.IsCallToAnyAST(pass, sel.X, "text/template.New", "html/template.New") {
+		if !code.IsCallToAny(pass, sel.X, "text/template.New", "html/template.New") {
 			// TODO(dh): this is a cheap workaround for templates with
 			// different delims. A better solution with less false
 			// negatives would use data flow analysis to see where the
@@ -948,7 +948,7 @@ var (
 func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !code.IsCallToAST(pass, call, "time.Sleep") {
+		if !code.IsCallTo(pass, call, "time.Sleep") {
 			return
 		}
 		lit, ok := call.Args[knowledge.Arg("time.Sleep.d")].(*ast.BasicLit)
@@ -1142,7 +1142,7 @@ func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
 			arg = pass.TypesInfo.ObjectOf(node.Type.Params.List[0].Names[0])
 			return true
 		case *ast.CallExpr:
-			if code.IsCallToAST(pass, node, "os.Exit") {
+			if code.IsCallTo(pass, node, "os.Exit") {
 				callsExit = true
 				return false
 			}
@@ -1188,7 +1188,7 @@ func isTestMain(pass *analysis.Pass, decl *ast.FuncDecl) bool {
 func CheckExec(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		if !code.IsCallToAST(pass, call, "os/exec.Command") {
+		if !code.IsCallTo(pass, call, "os/exec.Command") {
 			return
 		}
 		val, ok := code.ExprToString(pass, call.Args[knowledge.Arg("os/exec.Command.name")])
@@ -1361,7 +1361,7 @@ func CheckScopedBreak(pass *analysis.Pass) (interface{}, error) {
 func CheckUnsafePrintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		name := code.CallNameAST(pass, call)
+		name := code.CallName(pass, call)
 		var arg int
 
 		switch name {
