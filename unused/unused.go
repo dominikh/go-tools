@@ -549,9 +549,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, v := range c.graph.Nodes {
 			debugNode(v)
 		}
-		c.graph.TypeNodes.Iterate(func(key types.Type, value interface{}) {
-			debugNode(value.(*node))
-		})
+		for _, node := range c.graph.TypeNodes {
+			debugNode(node)
+		}
 
 		debugf("}\n")
 	}
@@ -561,10 +561,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 func (c *checker) results() (used, unused []types.Object) {
 	c.graph.color(c.graph.Root)
-	c.graph.TypeNodes.Iterate(func(_ types.Type, value interface{}) {
-		node := value.(*node)
+	for _, node := range c.graph.TypeNodes {
 		if node.seen {
-			return
+			continue
 		}
 		switch obj := node.obj.(type) {
 		case *types.Struct:
@@ -581,7 +580,7 @@ func (c *checker) results() (used, unused []types.Object) {
 				}
 			}
 		}
-	})
+	}
 
 	// OPT(dh): can we find meaningful initial capacities for the used and unused slices?
 
@@ -617,9 +616,9 @@ func (c *checker) results() (used, unused []types.Object) {
 
 type graph struct {
 	Root      *node
-	seenTypes typeutil.Map
+	seenTypes map[types.Type]struct{}
 
-	TypeNodes typeutil.Map
+	TypeNodes map[types.Type]*node
 	Nodes     map[interface{}]*node
 
 	// context
@@ -630,9 +629,11 @@ type graph struct {
 
 func newGraph(pkg *pkg) *graph {
 	g := &graph{
-		Nodes:   map[interface{}]*node{},
-		seenFns: map[string]struct{}{},
-		pkg:     pkg,
+		Nodes:     map[interface{}]*node{},
+		seenFns:   map[string]struct{}{},
+		seenTypes: map[types.Type]struct{}{},
+		TypeNodes: map[types.Type]*node{},
+		pkg:       pkg,
 	}
 	g.Root = g.newNode(nil)
 	return g
@@ -683,11 +684,11 @@ func (g *graph) nodeMaybe(obj types.Object) (*node, bool) {
 func (g *graph) node(obj interface{}) (n *node, new bool) {
 	switch obj := obj.(type) {
 	case types.Type:
-		if v := g.TypeNodes.At(obj); v != nil {
-			return v.(*node), false
+		if v := g.TypeNodes[obj]; v != nil {
+			return v, false
 		}
 		n = g.newNode(obj)
-		g.TypeNodes.Set(obj, n)
+		g.TypeNodes[obj] = n
 		return n, true
 	case types.Object:
 		// OPT(dh): the types.Object and default cases are identical
@@ -1128,7 +1129,7 @@ func (g *graph) entry(pkg *pkg) {
 	var ifaces []*types.Interface
 	var notIfaces []types.Type
 
-	g.seenTypes.Iterate(func(t types.Type, _ interface{}) {
+	for t := range g.seenTypes {
 		switch t := t.(type) {
 		case *types.Interface:
 			// OPT(dh): (8.1) we only need interfaces that have unexported methods
@@ -1138,7 +1139,7 @@ func (g *graph) entry(pkg *pkg) {
 				notIfaces = append(notIfaces, t)
 			}
 		}
-	})
+	}
 
 	// (8.0) handle interfaces
 	for _, t := range notIfaces {
@@ -1278,7 +1279,7 @@ func (g *graph) function(fn *ir.Function) {
 }
 
 func (g *graph) typ(t types.Type, parent types.Type) {
-	if g.seenTypes.At(t) != nil {
+	if _, ok := g.seenTypes[t]; ok {
 		return
 	}
 
@@ -1288,7 +1289,7 @@ func (g *graph) typ(t types.Type, parent types.Type) {
 		}
 	}
 
-	g.seenTypes.Set(t, struct{}{})
+	g.seenTypes[t] = struct{}{}
 	if isIrrelevant(t) {
 		return
 	}
