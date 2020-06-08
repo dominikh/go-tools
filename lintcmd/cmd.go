@@ -659,6 +659,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 
 	var (
+		numCompiles int
 		numErrors   int
 		numWarnings int
 		numIgnored  int
@@ -670,7 +671,6 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		analyzerNames[i] = a.Name
 	}
 	shouldExit := filterAnalyzerNames(analyzerNames, fail)
-	shouldExit["compile"] = true
 
 	for _, p := range ps {
 		if p.Category == "compile" && debugNoCompile {
@@ -680,7 +680,9 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 			numIgnored++
 			continue
 		}
-		if shouldExit[p.Category] {
+		if p.Category == "compile" {
+			numCompiles++
+		} else if shouldExit[p.Category] {
 			numErrors++
 		} else {
 			p.Severity = severityWarning
@@ -689,14 +691,14 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		f.Format(p)
 	}
 	if f, ok := f.(statter); ok {
-		f.Stats(len(ps), numErrors, numWarnings, numIgnored)
+		f.Stats(len(ps), numErrors+numCompiles, numWarnings, numIgnored)
 	}
 
 	if f, ok := f.(documentationMentioner); ok && (numErrors > 0 || numWarnings > 0) && len(os.Args) > 0 {
 		f.MentionCheckDocumentation(os.Args[0])
 	}
 
-	if numErrors > 0 {
+	if numErrors > 0 || numCompiles > 0 {
 		exit(1)
 	}
 	exit(0)
