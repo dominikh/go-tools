@@ -8,6 +8,7 @@ package renameio
 
 import (
 	"encoding/binary"
+	"errors"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -61,9 +62,10 @@ func TestConcurrentReadsAndWrites(t *testing.T) {
 				atomic.AddInt64(&writeSuccesses, 1)
 			} else if robustio.IsEphemeralError(err) {
 				var (
-					dup bool
+					errno syscall.Errno
+					dup   bool
 				)
-				if errno, ok := err.(syscall.Errno); ok {
+				if errors.As(err, &errno) {
 					_, dup = writeErrnoSeen.LoadOrStore(errno, true)
 				}
 				if !dup {
@@ -79,9 +81,10 @@ func TestConcurrentReadsAndWrites(t *testing.T) {
 				atomic.AddInt64(&readSuccesses, 1)
 			} else if robustio.IsEphemeralError(err) {
 				var (
-					dup bool
+					errno syscall.Errno
+					dup   bool
 				)
-				if errno, ok := err.(syscall.Errno); ok {
+				if errors.As(err, &errno) {
 					_, dup = readErrnoSeen.LoadOrStore(errno, true)
 				}
 				if !dup {
