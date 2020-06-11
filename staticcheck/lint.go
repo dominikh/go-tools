@@ -3917,7 +3917,7 @@ var builtinLessThanZeroQ = pattern.MustParse(`
 	(Or
 		(BinaryExpr
 			(BasicLit "INT" "0")
-			"<"
+			">"
 			(CallExpr builtin@(Builtin (Or "len" "cap")) _))
 		(BinaryExpr
 			(CallExpr builtin@(Builtin (Or "len" "cap")) _)

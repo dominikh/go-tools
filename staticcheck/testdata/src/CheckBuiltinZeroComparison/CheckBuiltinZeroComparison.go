@@ -18,20 +18,20 @@ func fn1() {
 
 	println(len(foo) < 0) // want `negative`
 
-	if 0 < cap(foo) { // want `cap\(\) does not return negative values`
+	if 0 > cap(foo) { // want `cap\(\) does not return negative values`
 		println("test")
 	}
 
 	switch {
-	case 0 < cap(foo): // want `negative`
+	case 0 > cap(foo): // want `negative`
 		println("test")
 	}
 
-	for 0 < cap(foo) { // want `negative`
+	for 0 > cap(foo) { // want `negative`
 		println("test")
 	}
 
-	println(0 < cap(foo)) // want `negative`
+	println(0 > cap(foo)) // want `negative`
 }
 
 func fn2() {
