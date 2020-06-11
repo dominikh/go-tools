@@ -225,6 +225,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckMaybeNil,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
+	"SA5012": {
+		Run:      CheckBuiltinZeroComparison,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),
 	"SA6001": {

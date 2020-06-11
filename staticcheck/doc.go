@@ -661,6 +661,20 @@ popular package.`,
 		Since: "2020.1",
 	},
 
+	"SA5012": {
+		Title: `Checking for impossible return value from a builtin function`,
+		Text: `Return values from builtin-s len() and cap() cannot be negative.
+
+See https://golang.org/pkg/builtin/#len and https://golang.org/pkg/builtin/#cap.
+
+Example:
+
+    if len(slice) < 0 {
+        fmt.Println("unreachable code")
+    }`,
+		Since: `2020.2`,
+	},
+
 	"SA6000": {
 		Title: `Using regexp.Match or related in a loop, should use regexp.Compile`,
 		Since: "2017.1",
