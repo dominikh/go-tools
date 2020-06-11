@@ -732,6 +732,20 @@ and calling it with an odd number of elements would be an error.`,
 		Since: "2020.2",
 	},
 
+	"SA5013": {
+		Title: `Checking for impossible return value from a builtin function`,
+		Text: `Return values the len and cap builtins cannot be negative.
+
+See https://golang.org/pkg/builtin/#len and https://golang.org/pkg/builtin/#cap.
+
+Example:
+
+    if len(slice) < 0 {
+        fmt.Println("unreachable code")
+    }`,
+		Since: `Unreleased`,
+	},
+
 	"SA6000": {
 		Title: `Using regexp.Match or related in a loop, should use regexp.Compile`,
 		Since: "2017.1",

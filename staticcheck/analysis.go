@@ -240,6 +240,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		FactTypes: []analysis.Fact{new(evenElements)},
 		Requires:  []*analysis.Analyzer{buildir.Analyzer},
 	},
+	"SA5013": {
+		Run:      CheckBuiltinZeroComparison,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),
 	"SA6001": {

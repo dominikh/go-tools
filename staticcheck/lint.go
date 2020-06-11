@@ -4332,3 +4332,30 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 
 	return nil, nil
 }
+
+var builtinLessThanZeroQ = pattern.MustParse(`
+	(Or
+		(BinaryExpr
+			(BasicLit "INT" "0")
+			">"
+			(CallExpr builtin@(Builtin (Or "len" "cap")) _))
+		(BinaryExpr
+			(CallExpr builtin@(Builtin (Or "len" "cap")) _)
+			"<"
+			(BasicLit "INT" "0")))
+`)
+
+func CheckBuiltinZeroComparison(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		matcher, ok := code.Match(pass, builtinLessThanZeroQ, node)
+		if !ok {
+			return
+		}
+
+		builtin := matcher.State["builtin"].(string)
+		report.Report(pass, node, fmt.Sprintf("builtin function %s does not return negative values", builtin))
+	}
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+
+	return nil, nil
+}
