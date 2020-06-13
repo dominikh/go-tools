@@ -30,4 +30,4 @@ jobs:
       with:
         fetch-depth: 1
     - run: "go vet ./..."
-    - run: "$(go env GOPATH)/bin/staticcheck -go 1.11 ./..."
+    - run: "$(go env GOPATH)/bin/staticcheck -go 1.13 ./..."
