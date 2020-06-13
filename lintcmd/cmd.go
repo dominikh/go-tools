@@ -257,7 +257,7 @@ func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers m
 				Diagnostic: runner.Diagnostic{
 					Position: ig.Pos,
 					Message:  "this linter directive didn't match anything; should it be removed?",
-					Category: "",
+					Category: "staticcheck",
 				},
 			}
 			moreProblems = append(moreProblems, p)
@@ -671,6 +671,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		analyzerNames[i] = a.Name
 	}
 	shouldExit := filterAnalyzerNames(analyzerNames, fail)
+	shouldExit["staticcheck"] = true
 
 	for _, p := range ps {
 		if p.Category == "compile" && debugNoCompile {
