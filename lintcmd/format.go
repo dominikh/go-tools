@@ -48,18 +48,19 @@ type documentationMentioner interface {
 }
 
 type textFormatter struct {
-	W io.Writer
+	Diagnostics io.Writer
+	UI          io.Writer
 }
 
 func (o textFormatter) Format(p problem) {
-	fmt.Fprintf(o.W, "%s: %s\n", relativePositionString(p.Position), p.String())
+	fmt.Fprintf(o.Diagnostics, "%s: %s\n", relativePositionString(p.Position), p.String())
 	for _, r := range p.Related {
-		fmt.Fprintf(o.W, "\t%s: %s\n", relativePositionString(r.Position), r.Message)
+		fmt.Fprintf(o.Diagnostics, "\t%s: %s\n", relativePositionString(r.Position), r.Message)
 	}
 }
 
 func (o textFormatter) MentionCheckDocumentation(cmd string) {
-	fmt.Fprintf(o.W, "\nRun '%s -explain <check>' or visit https://staticcheck.io/docs/checks for documentation on checks.\n", cmd)
+	fmt.Fprintf(o.UI, "\nRun '%s -explain <check>' or visit https://staticcheck.io/docs/checks for documentation on checks.\n", cmd)
 }
 
 type jsonFormatter struct {
@@ -118,7 +119,8 @@ func (o jsonFormatter) Format(p problem) {
 }
 
 type stylishFormatter struct {
-	W io.Writer
+	Diagnostics io.Writer
+	UI          io.Writer
 
 	prevFile string
 	tw       *tabwriter.Writer
@@ -133,11 +135,11 @@ func (o *stylishFormatter) Format(p problem) {
 	if pos.Filename != o.prevFile {
 		if o.prevFile != "" {
 			o.tw.Flush()
-			fmt.Fprintln(o.W)
+			fmt.Fprintln(o.Diagnostics)
 		}
-		fmt.Fprintln(o.W, pos.Filename)
+		fmt.Fprintln(o.Diagnostics, pos.Filename)
 		o.prevFile = pos.Filename
-		o.tw = tabwriter.NewWriter(o.W, 0, 4, 2, ' ', 0)
+		o.tw = tabwriter.NewWriter(o.Diagnostics, 0, 4, 2, ' ', 0)
 	}
 	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Category, p.Message)
 	for _, r := range p.Related {
@@ -146,14 +148,14 @@ func (o *stylishFormatter) Format(p problem) {
 }
 
 func (o *stylishFormatter) MentionCheckDocumentation(cmd string) {
-	textFormatter{W: o.W}.MentionCheckDocumentation(cmd)
+	textFormatter{UI: o.UI}.MentionCheckDocumentation(cmd)
 }
 
 func (o *stylishFormatter) Stats(total, errors, warnings, ignored int) {
 	if o.tw != nil {
 		o.tw.Flush()
-		fmt.Fprintln(o.W)
+		fmt.Fprintln(o.Diagnostics)
 	}
-	fmt.Fprintf(o.W, " ✖ %d problems (%d errors, %d warnings, %d ignored)\n",
+	fmt.Fprintf(o.Diagnostics, " ✖ %d problems (%d errors, %d warnings, %d ignored)\n",
 		total, errors, warnings, ignored)
 }

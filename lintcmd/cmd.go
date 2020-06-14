@@ -632,9 +632,9 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	var f formatter
 	switch theFormatter {
 	case "text":
-		f = textFormatter{W: os.Stdout}
+		f = textFormatter{Diagnostics: os.Stdout, UI: os.Stderr}
 	case "stylish":
-		f = &stylishFormatter{W: os.Stdout}
+		f = &stylishFormatter{Diagnostics: os.Stdout, UI: os.Stderr}
 	case "json":
 		f = jsonFormatter{W: os.Stdout}
 	default:
