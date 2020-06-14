@@ -42,13 +42,13 @@
 //
 // Actions are executed in parallel where the dependency graph allows.
 // Overall parallelism is bounded by a semaphore, sized according to
-// runtime.NumCPU(). Each concurrently processed package takes up a
+// GOMAXPROCS. Each concurrently processed package takes up a
 // token, as does each analyzer – but a package can always execute at
 // least one analyzer, using the package's token.
 //
-// Depending on the overall shape of the graph, there may be NumCPU
+// Depending on the overall shape of the graph, there may be GOMAXPROCS
 // packages running a single analyzer each, a single package running
-// NumCPU analyzers, or anything in between.
+// GOMAXPROCS analyzers, or anything in between.
 //
 // Total memory consumption grows roughly linearly with the number of
 // CPUs, while total execution time is inversely proportional to the
@@ -353,7 +353,7 @@ func New(cfg config.Config) (*Runner, error) {
 	return &Runner{
 		cfg:       cfg,
 		cache:     cache,
-		semaphore: tsync.NewSemaphore(runtime.NumCPU()),
+		semaphore: tsync.NewSemaphore(runtime.GOMAXPROCS(0)),
 	}, nil
 }
 
