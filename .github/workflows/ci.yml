@@ -29,5 +29,11 @@ jobs:
     - uses: actions/checkout@v1
       with:
         fetch-depth: 1
+    - uses: actions/cache@v2
+      with:
+        path: ~/.cache/staticcheck
+        key: staticcheck-${{ github.sha }}
+        restore-keys: |
+          staticcheck-
     - run: "go vet ./..."
     - run: "$(go env GOPATH)/bin/staticcheck -go 1.13 ./..."
