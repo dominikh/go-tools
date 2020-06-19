@@ -493,10 +493,6 @@ func serializeObject(pass *analysis.Pass, fset *token.FileSet, obj types.Object)
 	}
 }
 
-type checker struct {
-	graph *graph
-}
-
 func debugf(f string, v ...interface{}) {
 	if Debug != nil {
 		fmt.Fprintf(Debug, f, v...)
@@ -517,12 +513,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		Directives: dirs,
 	}
 
-	c := &checker{
-		graph: newGraph(pkg),
-	}
-
-	c.graph.entry(pkg)
-	used, unused := c.results()
+	g := newGraph(pkg)
+	g.entry(pkg)
+	used, unused := results(g)
 
 	if Debug != nil {
 		debugNode := func(n *node) {
@@ -545,11 +538,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		debugf("digraph{\n")
-		debugNode(c.graph.Root)
-		for _, v := range c.graph.Nodes {
+		debugNode(g.Root)
+		for _, v := range g.Nodes {
 			debugNode(v)
 		}
-		for _, node := range c.graph.TypeNodes {
+		for _, node := range g.TypeNodes {
 			debugNode(node)
 		}
 
@@ -559,23 +552,23 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return Result{Used: used, Unused: unused}, nil
 }
 
-func (c *checker) results() (used, unused []types.Object) {
-	c.graph.color(c.graph.Root)
-	for _, node := range c.graph.TypeNodes {
+func results(g *graph) (used, unused []types.Object) {
+	g.color(g.Root)
+	for _, node := range g.TypeNodes {
 		if node.seen {
 			continue
 		}
 		switch obj := node.obj.(type) {
 		case *types.Struct:
 			for i := 0; i < obj.NumFields(); i++ {
-				if node, ok := c.graph.nodeMaybe(obj.Field(i)); ok {
+				if node, ok := g.nodeMaybe(obj.Field(i)); ok {
 					node.quiet = true
 				}
 			}
 		case *types.Interface:
 			for i := 0; i < obj.NumExplicitMethods(); i++ {
 				m := obj.ExplicitMethod(i)
-				if node, ok := c.graph.nodeMaybe(m); ok {
+				if node, ok := g.nodeMaybe(m); ok {
 					node.quiet = true
 				}
 			}
@@ -584,7 +577,7 @@ func (c *checker) results() (used, unused []types.Object) {
 
 	// OPT(dh): can we find meaningful initial capacities for the used and unused slices?
 
-	for _, n := range c.graph.Nodes {
+	for _, n := range g.Nodes {
 		if obj, ok := n.obj.(types.Object); ok {
 			switch obj := obj.(type) {
 			case *types.Var:
@@ -602,7 +595,7 @@ func (c *checker) results() (used, unused []types.Object) {
 				if n.seen {
 					used = append(used, obj)
 				} else if !n.quiet {
-					if obj.Pkg() != c.graph.pkg.Pkg {
+					if obj.Pkg() != g.pkg.Pkg {
 						continue
 					}
 					unused = append(unused, obj)
