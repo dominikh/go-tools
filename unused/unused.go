@@ -513,7 +513,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		Directives: dirs,
 	}
 
-	g := newGraph(pkg)
+	g := newGraph()
 	g.entry(pkg)
 	used, unused := results(g)
 
@@ -620,13 +620,12 @@ type graph struct {
 	nodeCounter uint64
 }
 
-func newGraph(pkg *pkg) *graph {
+func newGraph() *graph {
 	g := &graph{
 		Nodes:     map[interface{}]*node{},
 		seenFns:   map[string]struct{}{},
 		seenTypes: map[types.Type]struct{}{},
 		TypeNodes: map[types.Type]*node{},
-		pkg:       pkg,
 	}
 	g.Root = g.newNode(nil)
 	return g
@@ -828,6 +827,7 @@ func (g *graph) seeAndUse(used, by interface{}, kind edgeKind) *node {
 }
 
 func (g *graph) entry(pkg *pkg) {
+	g.pkg = pkg
 	scopes := map[*types.Scope]*ir.Function{}
 	for _, fn := range pkg.SrcFuncs {
 		if fn.Object() != nil {
@@ -929,7 +929,7 @@ func (g *graph) entry(pkg *pkg) {
 					if obj == nil {
 						continue
 					}
-					path := g.pkg.Fset.File(obj.Pos()).Name()
+					path := pkg.Fset.File(obj.Pos()).Name()
 					if strings.HasSuffix(path, "_test.go") {
 						if obj.Parent() != nil && obj.Parent().Parent() != nil && obj.Parent().Parent().Parent() == nil {
 							// object's scope is the package, whose
@@ -1151,7 +1151,7 @@ func (g *graph) entry(pkg *pkg) {
 		line int
 	}
 	ignores := map[ignoredKey]struct{}{}
-	for _, dir := range g.pkg.Directives {
+	for _, dir := range pkg.Directives {
 		if dir.Command != "ignore" && dir.Command != "file-ignore" {
 			continue
 		}
@@ -1160,7 +1160,7 @@ func (g *graph) entry(pkg *pkg) {
 		}
 		for _, check := range strings.Split(dir.Arguments[0], ",") {
 			if check == "U1000" {
-				pos := g.pkg.Fset.PositionFor(dir.Node.Pos(), false)
+				pos := pkg.Fset.PositionFor(dir.Node.Pos(), false)
 				var key ignoredKey
 				switch dir.Command {
 				case "ignore":
@@ -1185,7 +1185,7 @@ func (g *graph) entry(pkg *pkg) {
 		// all objects annotated with a //lint:ignore U1000 are considered used
 		for obj := range g.Nodes {
 			if obj, ok := obj.(types.Object); ok {
-				pos := g.pkg.Fset.PositionFor(obj.Pos(), false)
+				pos := pkg.Fset.PositionFor(obj.Pos(), false)
 				key1 := ignoredKey{
 					pos.Filename,
 					pos.Line,
