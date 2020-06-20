@@ -616,14 +616,14 @@ type graph struct {
 
 	// context
 	pkg         *pkg
-	seenFns     map[string]struct{}
+	seenFns     map[*ir.Function]struct{}
 	nodeCounter uint64
 }
 
 func newGraph() *graph {
 	g := &graph{
 		Nodes:     map[interface{}]*node{},
-		seenFns:   map[string]struct{}{},
+		seenFns:   map[*ir.Function]struct{}{},
 		seenTypes: map[types.Type]struct{}{},
 		TypeNodes: map[types.Type]*node{},
 	}
@@ -1252,11 +1252,10 @@ func (g *graph) function(fn *ir.Function) {
 		return
 	}
 
-	name := fn.RelString(nil)
-	if _, ok := g.seenFns[name]; ok {
+	if _, ok := g.seenFns[fn]; ok {
 		return
 	}
-	g.seenFns[name] = struct{}{}
+	g.seenFns[fn] = struct{}{}
 
 	// (4.1) functions use all their arguments, return parameters and receivers
 	g.signature(fn.Signature, owningObject(fn))
