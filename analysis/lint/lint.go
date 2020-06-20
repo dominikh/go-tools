@@ -94,7 +94,7 @@ func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*a
 		if !ok {
 			panic(fmt.Sprintf("missing documentation for check %s", k))
 		}
-		vc.Doc = doc.String()
+		vc.Doc = fmt.Sprintf("%s\nOnline documentation\n    https://staticcheck.io/docs/checks#%s", doc.String(), k)
 		if vc.Flags.Usage == nil {
 			fs := flag.NewFlagSet("", flag.PanicOnError)
 			fs.Var(newVersionFlag(), "go", "Target Go version")
