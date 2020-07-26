@@ -63,6 +63,10 @@ func (o textFormatter) MentionCheckDocumentation(cmd string) {
 	fmt.Fprintf(o.UI, "\nRun '%s -explain <check>' or visit https://staticcheck.io/docs/checks for documentation on checks.\n", cmd)
 }
 
+type nullFormatter struct{}
+
+func (nullFormatter) Format(problem) {}
+
 type jsonFormatter struct {
 	W io.Writer
 }

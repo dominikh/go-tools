@@ -637,6 +637,8 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		f = &stylishFormatter{Diagnostics: os.Stdout, UI: os.Stderr}
 	case "json":
 		f = jsonFormatter{W: os.Stdout}
+	case "null":
+		f = nullFormatter{}
 	default:
 		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", theFormatter)
 		exit(2)
