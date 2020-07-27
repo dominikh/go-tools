@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	"runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -511,6 +512,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("debug.version", false, "Print detailed version information about this program")
 	flags.Bool("debug.no-compile-errors", false, "Don't print compile errors")
 	flags.String("debug.measure-analyzers", "", "Write analysis measurements to `file`. `file` will be opened for appending if it already exists.")
+	flags.String("debug.trace", "", "Write trace to `file`")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -550,6 +552,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
 	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
 	debugNoCompile := fs.Lookup("debug.no-compile-errors").Value.(flag.Getter).Get().(bool)
+	traceOut := fs.Lookup("debug.trace").Value.(flag.Getter).Get().(string)
 
 	var measureAnalyzers func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 	if path := fs.Lookup("debug.measure-analyzers").Value.(flag.Getter).Get().(string); path != "" {
@@ -584,6 +587,9 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 			runtime.GC()
 			pprof.WriteHeapProfile(f)
 		}
+		if traceOut != "" {
+			trace.Stop()
+		}
 		os.Exit(code)
 	}
 	if cpuProfile != "" {
@@ -592,6 +598,13 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 			log.Fatal(err)
 		}
 		pprof.StartCPUProfile(f)
+	}
+	if traceOut != "" {
+		f, err := os.Create(traceOut)
+		if err != nil {
+			log.Fatal(err)
+		}
+		trace.Start(f)
 	}
 
 	if debugVersion {
