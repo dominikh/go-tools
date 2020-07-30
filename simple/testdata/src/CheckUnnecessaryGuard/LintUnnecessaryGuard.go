@@ -61,3 +61,12 @@ func fn() {
 		m2["k"] = 1
 	}
 }
+
+// this used to cause a panic in the pattern package
+func fn2() {
+	var obj interface{}
+
+	if _, ok := obj.(map[string]interface{})["items"]; ok {
+		obj.(map[string]interface{})["version"] = 1
+	}
+}
