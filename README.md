@@ -1,4 +1,4 @@
-# honnef.co/go/tools
+# honnef.co/go/tools.
 
 `honnef.co/go/tools/...` is a collection of tools and libraries for
 working with Go code, including linters and static analysis, most
