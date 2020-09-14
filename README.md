@@ -1,17 +1,20 @@
-# honnef.co/go/tools
+<div align="center">
+	<h1><img alt="Staticcheck logo" src="/images/logo.svg" height="300" /><br />
+		The advanced Go linter
+	</h1>
+</div>
 
-`honnef.co/go/tools/...` is a collection of tools and libraries for
-working with Go code, including linters and static analysis, most
-prominently staticcheck.
+Staticcheck is a state of the art linter for the [Go programming
+language](https://go.dev/). Using static analysis, it finds bugs and performance issues,
+offers simplifications, and enforces style rules.
 
-**These tools are financially supported by [private and corporate sponsors](http://staticcheck.io/sponsors) to ensure its continued development.
-Please consider [becoming a sponsor](https://github.com/users/dominikh/sponsorship) if you or your company relies on the tools.**
+**Financial support by [private and corporate sponsors](http://staticcheck.io/sponsors) guarantees the tool's continued development.
+Please [become a sponsor](https://github.com/users/dominikh/sponsorship) if you or your company rely on Staticcheck.**
 
 
 ## Documentation
 
-You can find extensive documentation on these tools, in particular staticcheck, on [staticcheck.io](https://staticcheck.io/docs/).
-
+You can find extensive documentation on Staticcheck on [its website](https://staticcheck.io/docs/).
 
 ## Installation
 
