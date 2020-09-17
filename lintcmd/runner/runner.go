@@ -978,6 +978,12 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 		}
 	}
 
+	// Don't hang if there are no analyzers to run; for example
+	// because we are analyzing a dependency but have no analyzers
+	// that produce facts.
+	if len(all) == 0 {
+		close(queue)
+	}
 	for item := range queue {
 		b := r.semaphore.AcquireMaybe()
 		if b {
