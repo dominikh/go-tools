@@ -3306,6 +3306,18 @@ func CheckSillyRegexp(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error) {
+	convertibleTo := func(V, T types.Type) bool {
+		if types.ConvertibleTo(V, T) {
+			return true
+		}
+		// Go <1.16 returns false for untyped string to string conversion
+		if V, ok := V.(*types.Basic); ok && V.Kind() == types.UntypedString {
+			if T, ok := T.Underlying().(*types.Basic); ok && T.Kind() == types.String {
+				return true
+			}
+		}
+		return false
+	}
 	fn := func(node ast.Node) {
 		decl := node.(*ast.GenDecl)
 		if !decl.Lparen.IsValid() {
@@ -3325,11 +3337,21 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 				// first constant doesn't have a type
 				continue groupLoop
 			}
+
+			firstType := pass.TypesInfo.TypeOf(group[0].(*ast.ValueSpec).Values[0])
 			for i, spec := range group {
 				spec := spec.(*ast.ValueSpec)
+				if i > 0 && spec.Type != nil {
+					continue groupLoop
+				}
 				if len(spec.Names) != 1 || len(spec.Values) != 1 {
 					continue groupLoop
 				}
+
+				if !convertibleTo(pass.TypesInfo.TypeOf(spec.Values[0]), firstType) {
+					continue groupLoop
+				}
+
 				switch v := spec.Values[0].(type) {
 				case *ast.BasicLit:
 				case *ast.UnaryExpr:
@@ -3339,12 +3361,6 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 				default:
 					// if it's not a literal it might be typed, such as
 					// time.Microsecond = 1000 * Nanosecond
-					continue groupLoop
-				}
-				if i == 0 {
-					continue
-				}
-				if spec.Type != nil {
 					continue groupLoop
 				}
 			}

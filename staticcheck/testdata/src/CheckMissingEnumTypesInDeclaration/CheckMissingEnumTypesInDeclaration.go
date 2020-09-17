@@ -66,3 +66,21 @@ const (
 
 	c36 int = 2
 )
+
+const (
+	c37 int = 1
+	c38     = "2"
+)
+
+const (
+	c39 int8 = 1.0 // want `only the first constant in this group has an explicit type`
+	c40      = 'a'
+	c41      = 3
+)
+
+type String string
+
+const (
+	c42 String = "" // want `only the first constant in this group has an explicit type`
+	c43        = ""
+)
