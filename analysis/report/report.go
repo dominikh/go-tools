@@ -6,6 +6,7 @@ import (
 	"go/printer"
 	"go/token"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/analysis/facts"
@@ -200,4 +201,24 @@ func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
 	}
 
 	return pos
+}
+
+func Ordinal(n int) string {
+	suffix := "th"
+	if n < 10 || n > 20 {
+		switch n % 10 {
+		case 0:
+			suffix = "th"
+		case 1:
+			suffix = "st"
+		case 2:
+			suffix = "nd"
+		case 3:
+			suffix = "rd"
+		default:
+			suffix = "th"
+		}
+	}
+
+	return strconv.Itoa(n) + suffix
 }

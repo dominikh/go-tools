@@ -21,6 +21,8 @@ import (
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/analysis/facts/nilness"
+	"honnef.co/go/tools/analysis/facts/typedness"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ast/astutil"
@@ -153,7 +155,8 @@ var (
 		"(*sync.Pool).Put": func(call *Call) {
 			arg := call.Args[knowledge.Arg("(*sync.Pool).Put.x")]
 			typ := arg.Value.Value.Type()
-			if !typeutil.IsPointerLike(typ) {
+			_, isSlice := typ.Underlying().(*types.Slice)
+			if !typeutil.IsPointerLike(typ) || isSlice {
 				arg.Invalid("argument should be pointer-like to avoid allocations")
 			}
 		},
@@ -4147,6 +4150,8 @@ func flagSliceLens(pass *analysis.Pass) {
 						continue
 					}
 
+					// TODO handle stubs
+
 					// we know the argument has to have even length.
 					// now let's try to find its length
 					if n := findSliceLength(arg); n > -1 && n%2 != 0 {
@@ -4173,6 +4178,104 @@ func CheckEvenSliceLength(pass *analysis.Pass) (interface{}, error) {
 	findSliceLenChecks(pass)
 	findIndirectSliceLenChecks(pass)
 	flagSliceLens(pass)
+
+	return nil, nil
+}
+
+func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
+	// The comparison 'fn() == nil' can never be true if fn() returns
+	// an interface value and only returns typed nils. This is usually
+	// a mistake in the function itself, but all we can say for
+	// certain is that the comparison is pointless.
+	//
+	// Flag results if no untyped nils are being returned, but either
+	// known typed nils, or typed unknown nilness are being returned.
+
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR)
+	typedness := pass.ResultOf[typedness.Analysis].(*typedness.Result)
+	nilness := pass.ResultOf[nilness.Analysis].(*nilness.Result)
+	for _, fn := range irpkg.SrcFuncs {
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				binop, ok := instr.(*ir.BinOp)
+				if !ok || !(binop.Op == token.EQL || binop.Op == token.NEQ) {
+					continue
+				}
+				if _, ok := binop.X.Type().Underlying().(*types.Interface); !ok {
+					// TODO support swapped X and Y
+					continue
+				}
+
+				k, ok := binop.Y.(*ir.Const)
+				if !ok || !k.IsNil() {
+					// if binop.X is an interface, then binop.Y can
+					// only be a Const if its untyped. A typed nil
+					// constant would first be passed to
+					// MakeInterface.
+					continue
+				}
+
+				var idx int
+				var obj *types.Func
+				switch x := binop.X.(type) {
+				case *ir.Call:
+					callee := x.Call.StaticCallee()
+					if callee == nil {
+						continue
+					}
+					obj, _ = callee.Object().(*types.Func)
+					idx = 0
+				case *ir.Extract:
+					call, ok := x.Tuple.(*ir.Call)
+					if !ok {
+						continue
+					}
+					callee := call.Call.StaticCallee()
+					if callee == nil {
+						continue
+					}
+					obj, _ = callee.Object().(*types.Func)
+					idx = x.Index
+				case *ir.MakeInterface:
+					var qualifier string
+					switch binop.Op {
+					case token.EQL:
+						qualifier = "never"
+					case token.NEQ:
+						qualifier = "always"
+					default:
+						panic("unreachable")
+					}
+					report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
+						report.Related(x.X, "the lhs of the comparison gets its value from here and has a concrete type"))
+					continue
+				}
+				if obj == nil {
+					continue
+				}
+
+				if typedness.MustReturnTyped(obj, idx) && nilness.MayReturnNil(obj, idx) && !code.IsInTest(pass, binop) {
+					// Don't flag these comparisons in tests. Tests
+					// may be explicitly enforcing the invariant that
+					// a value isn't nil.
+
+					var qualifier string
+					switch binop.Op {
+					case token.EQL:
+						qualifier = "never"
+					case token.NEQ:
+						qualifier = "always"
+					default:
+						panic("unreachable")
+					}
+					report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
+						// TODO support swapped X and Y
+						report.Related(binop.X, fmt.Sprintf("the lhs of the comparison is the %s return value of this function call", report.Ordinal(idx+1))),
+						report.Related(obj, fmt.Sprintf("%s never returns a nil interface value", typeutil.FuncName(obj))))
+				}
+			}
+		}
+	}
 
 	return nil, nil
 }

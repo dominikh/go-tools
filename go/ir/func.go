@@ -33,7 +33,7 @@ func (b *BasicBlock) Control() Instruction {
 	return b.Instrs[len(b.Instrs)-1]
 }
 
-// SIgmaFor returns the sigma node for v coming from pred.
+// SigmaFor returns the sigma node for v coming from pred.
 func (b *BasicBlock) SigmaFor(v Value, pred *BasicBlock) *Sigma {
 	for _, instr := range b.Instrs {
 		sigma, ok := instr.(*Sigma)

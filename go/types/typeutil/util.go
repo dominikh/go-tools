@@ -85,7 +85,7 @@ func IsType(T types.Type, name string) bool { return types.TypeString(T, nil) ==
 
 func IsPointerLike(T types.Type) bool {
 	switch T := T.Underlying().(type) {
-	case *types.Interface, *types.Chan, *types.Map, *types.Signature, *types.Pointer:
+	case *types.Interface, *types.Chan, *types.Map, *types.Signature, *types.Pointer, *types.Slice:
 		return true
 	case *types.Basic:
 		return T.Kind() == types.UnsafePointer

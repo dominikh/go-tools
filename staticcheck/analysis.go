@@ -2,6 +2,8 @@ package staticcheck
 
 import (
 	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/analysis/facts/nilness"
+	"honnef.co/go/tools/analysis/facts/typedness"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/internal/passes/buildir"
 
@@ -186,6 +188,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA4022": {
 		Run:      CheckAddressIsNil,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
+	"SA4023": {
+		Run:      CheckTypedNilInterface,
+		Requires: []*analysis.Analyzer{buildir.Analyzer, typedness.Analysis, nilness.Analysis},
 	},
 
 	"SA5000": {
