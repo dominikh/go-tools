@@ -139,6 +139,8 @@ import (
 	"golang.org/x/tools/go/types/objectpath"
 )
 
+const sanityCheck = false
+
 type Diagnostic struct {
 	Position token.Position
 	End      token.Position
@@ -284,6 +286,11 @@ func (act *packageAction) String() string {
 	return fmt.Sprintf("packageAction(%s)", act.Package)
 }
 
+type objectFact struct {
+	fact analysis.Fact
+	path objectpath.Path
+}
+
 type objectFactKey struct {
 	Obj  types.Object
 	Type reflect.Type
@@ -316,7 +323,7 @@ type analyzerAction struct {
 	// a package has been fully analyzed.
 	Result       interface{}
 	Diagnostics  []Diagnostic
-	ObjectFacts  map[objectFactKey]analysis.Fact
+	ObjectFacts  map[objectFactKey]objectFact
 	PackageFacts map[packageFactKey]analysis.Fact
 	Pass         *analysis.Pass
 }
@@ -435,7 +442,7 @@ func newAnalyzerAction(an *analysis.Analyzer, cache map[*analysis.Analyzer]*anal
 
 	a := &analyzerAction{
 		Analyzer:     an,
-		ObjectFacts:  map[objectFactKey]analysis.Fact{},
+		ObjectFacts:  map[objectFactKey]objectFact{},
 		PackageFacts: map[packageFactKey]analysis.Fact{},
 	}
 	cache[an] = a
@@ -678,7 +685,7 @@ func pkgPaths(root *types.Package) map[string]*types.Package {
 	return out
 }
 
-func (r *Runner) loadFacts(root *types.Package, dep *packageAction, objFacts map[objectFactKey]analysis.Fact, pkgFacts map[packageFactKey]analysis.Fact) error {
+func (r *Runner) loadFacts(root *types.Package, dep *packageAction, objFacts map[objectFactKey]objectFact, pkgFacts map[packageFactKey]analysis.Fact) error {
 	// Load facts of all imported packages
 	vetx, err := os.Open(dep.vetx)
 	if err != nil {
@@ -715,7 +722,7 @@ func (r *Runner) loadFacts(root *types.Package, dep *packageAction, objFacts map
 			objFacts[objectFactKey{
 				Obj:  obj,
 				Type: reflect.TypeOf(gf.Fact),
-			}] = gf.Fact
+			}] = objectFact{gf.Fact, objectpath.Path(gf.ObjPath)}
 		}
 	}
 	return nil
@@ -767,7 +774,7 @@ type analyzerRunner struct {
 	pkg *loader.Package
 	// object facts of our dependencies; may contain facts of
 	// analyzers other than the current one
-	depObjFacts map[objectFactKey]analysis.Fact
+	depObjFacts map[objectFactKey]objectFact
 	// package facts of our dependencies; may contain facts of
 	// analyzers other than the current one
 	depPkgFacts map[packageFactKey]analysis.Fact
@@ -846,10 +853,10 @@ func (ar *analyzerRunner) do(act action) error {
 				Type: reflect.TypeOf(fact),
 			}
 			if f, ok := ar.depObjFacts[key]; ok {
-				reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
+				reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f.fact).Elem())
 				return true
 			} else if f, ok := a.ObjectFacts[key]; ok {
-				reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f).Elem())
+				reflect.ValueOf(fact).Elem().Set(reflect.ValueOf(f.fact).Elem())
 				return true
 			}
 			return false
@@ -873,7 +880,8 @@ func (ar *analyzerRunner) do(act action) error {
 				Obj:  obj,
 				Type: reflect.TypeOf(fact),
 			}
-			a.ObjectFacts[key] = fact
+			path, _ := objectpath.For(obj)
+			a.ObjectFacts[key] = objectFact{fact, path}
 		},
 		ExportPackageFact: func(fact analysis.Fact) {
 			key := packageFactKey{
@@ -904,7 +912,7 @@ func (ar *analyzerRunner) do(act action) error {
 				if filterFactType(key.Type) {
 					out = append(out, analysis.ObjectFact{
 						Object: key.Obj,
-						Fact:   fact,
+						Fact:   fact.fact,
 					})
 				}
 			}
@@ -912,7 +920,7 @@ func (ar *analyzerRunner) do(act action) error {
 				if filterFactType(key.Type) {
 					out = append(out, analysis.ObjectFact{
 						Object: key.Obj,
-						Fact:   fact,
+						Fact:   fact.fact,
 					})
 				}
 			}
@@ -937,7 +945,7 @@ type analysisResult struct {
 }
 
 func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (analysisResult, error) {
-	depObjFacts := map[objectFactKey]analysis.Fact{}
+	depObjFacts := map[objectFactKey]objectFact{}
 	depPkgFacts := map[packageFactKey]analysis.Fact{}
 
 	for _, dep := range pkgAct.deps {
@@ -1014,14 +1022,19 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 	// OPT(dh): cull objects not reachable via the exported closure
 	gobFacts := make([]gobFact, 0, len(depObjFacts)+len(depPkgFacts))
 	for key, fact := range depObjFacts {
-		objPath, err := objectpath.For(key.Obj)
-		if err != nil {
+		if fact.path == "" {
 			continue
+		}
+		if sanityCheck {
+			p, _ := objectpath.For(key.Obj)
+			if p != fact.path {
+				panic(fmt.Sprintf("got different object paths for %v. old: %q new: %q", key.Obj, fact.path, p))
+			}
 		}
 		gf := gobFact{
 			PkgPath: key.Obj.Pkg().Path(),
-			ObjPath: string(objPath),
-			Fact:    fact,
+			ObjPath: string(fact.path),
+			Fact:    fact.fact,
 		}
 		gobFacts = append(gobFacts, gf)
 	}
