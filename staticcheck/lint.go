@@ -4254,7 +4254,8 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				if typedness.MustReturnTyped(obj, idx) && nilness.MayReturnNil(obj, idx) && !code.IsInTest(pass, binop) {
+				isNil, onlyGlobal := nilness.MayReturnNil(obj, idx)
+				if typedness.MustReturnTyped(obj, idx) && isNil && !onlyGlobal && !code.IsInTest(pass, binop) {
 					// Don't flag these comparisons in tests. Tests
 					// may be explicitly enforcing the invariant that
 					// a value isn't nil.

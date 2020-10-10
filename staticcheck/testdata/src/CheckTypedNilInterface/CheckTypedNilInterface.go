@@ -167,6 +167,13 @@ func gen21() error {
 	return fn4()
 }
 
+func gen22() interface{} {
+	if true {
+		return g
+	}
+	return (*int)(nil)
+}
+
 func test() {
 	_ = gen1() == nil
 	_ = gen2() == nil
@@ -187,8 +194,7 @@ func test() {
 	_ = gen13() == nil     // want `never true`
 	_ = gen14(nil) == nil  // want `never true`
 	_ = gen15() == nil     // want `never true`
-	// TODO(dh): fix the following case, ideally it doesn't cause a diagnostic
-	_ = gen16() == nil // want `never true`
+	_ = gen16() == nil
 	_ = gen17(nil) == nil
 	{
 		_, r2 := gen18()
@@ -197,4 +203,5 @@ func test() {
 	_ = gen19() == nil
 	_ = gen20() == nil
 	_ = gen21() == nil
+	_ = gen22() == nil // want `never true`
 }

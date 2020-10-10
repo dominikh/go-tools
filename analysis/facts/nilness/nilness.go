@@ -17,16 +17,16 @@ import (
 // be nil (typed or untyped). The analysis errs on the side of false
 // negatives.
 type neverReturnsNilFact struct {
-	Rets uint8
+	Rets []neverNilness
 }
 
 func (*neverReturnsNilFact) AFact() {}
 func (fact *neverReturnsNilFact) String() string {
-	return fmt.Sprintf("never returns nil: %08b", fact.Rets)
+	return fmt.Sprintf("never returns nil: %v", fact.Rets)
 }
 
 type Result struct {
-	m map[*types.Func]uint8
+	m map[*types.Func][]neverNilness
 }
 
 var Analysis = &analysis.Analyzer{
@@ -39,21 +39,28 @@ var Analysis = &analysis.Analyzer{
 }
 
 // MayReturnNil reports whether the ret's return value of fn might be
-// a typed or untyped nil value. The value of ret is zero-based.
+// a typed or untyped nil value. The value of ret is zero-based. When
+// globalOnly is true, the only possible nil values are global
+// variables.
 //
 // The analysis has false positives: MayReturnNil can incorrectly
 // report true, but never incorrectly reports false.
-func (r *Result) MayReturnNil(fn *types.Func, ret int) bool {
+func (r *Result) MayReturnNil(fn *types.Func, ret int) (yes bool, globalOnly bool) {
 	if !typeutil.IsPointerLike(fn.Type().(*types.Signature).Results().At(ret).Type()) {
-		return false
+		return false, false
 	}
-	return (r.m[fn] & (1 << ret)) == 0
+	if len(r.m[fn]) == 0 {
+		return true, false
+	}
+
+	v := r.m[fn][ret]
+	return v != neverNil, v == onlyGlobal
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	seen := map[*ir.Function]struct{}{}
 	out := &Result{
-		m: map[*types.Func]uint8{},
+		m: map[*types.Func][]neverNilness{},
 	}
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		impl(pass, fn, seen)
@@ -66,53 +73,66 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return out, nil
 }
 
-func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{}) (out uint8) {
-	if fn.Signature.Results().Len() > 8 {
-		return 0
+type neverNilness uint8
+
+const (
+	neverNil   neverNilness = 1
+	onlyGlobal neverNilness = 2
+	nilly      neverNilness = 3
+)
+
+func (n neverNilness) String() string {
+	switch n {
+	case neverNil:
+		return "never"
+	case onlyGlobal:
+		return "global"
+	case nilly:
+		return "nil"
+	default:
+		return "BUG"
 	}
+}
+
+func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{}) (out []neverNilness) {
 	if fn.Object() == nil {
 		// TODO(dh): support closures
-		return 0
+		return nil
 	}
 	if fact := new(neverReturnsNilFact); pass.ImportObjectFact(fn.Object(), fact) {
 		return fact.Rets
 	}
 	if fn.Pkg != pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg {
-		return 0
+		return nil
 	}
 	if fn.Blocks == nil {
-		return 0
+		return nil
 	}
 	if _, ok := seenFns[fn]; ok {
 		// break recursion
-		return 0
+		return nil
 	}
 
 	seenFns[fn] = struct{}{}
 	defer func() {
-		for i := 0; i < fn.Signature.Results().Len(); i++ {
-			if !typeutil.IsPointerLike(fn.Signature.Results().At(i).Type()) {
-				// we don't need facts to know that non-pointer types
-				// can't be nil. zeroing out those bits may result in
-				// all bits being zero, in which case we don't have to
-				// save any fact.
-				out &= ^(1 << i)
+		for i, v := range out {
+			if typeutil.IsPointerLike(fn.Signature.Results().At(i).Type()) && v != nilly {
+				pass.ExportObjectFact(fn.Object(), &neverReturnsNilFact{out})
+				break
 			}
-		}
-		if out > 0 {
-			pass.ExportObjectFact(fn.Object(), &neverReturnsNilFact{out})
 		}
 	}()
 
 	seen := map[ir.Value]struct{}{}
-	var mightReturnNil func(v ir.Value) bool
-	mightReturnNil = func(v ir.Value) bool {
+
+	var mightReturnNil func(v ir.Value) neverNilness
+	mightReturnNil = func(v ir.Value) neverNilness {
 		if _, ok := seen[v]; ok {
 			// break cycle
-			return true
+			return nilly
 		}
 		if !typeutil.IsPointerLike(v.Type()) {
-			return false
+			return neverNil
 		}
 		seen[v] = struct{}{}
 		switch v := v.(type) {
@@ -123,44 +143,52 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 		case *ir.Slice:
 			return mightReturnNil(v.X)
 		case *ir.Phi:
+			ret := neverNil
 			for _, e := range v.Edges {
-				if mightReturnNil(e) {
-					return true
+				if n := mightReturnNil(e); n > ret {
+					ret = n
 				}
 			}
-			return false
+			return ret
 		case *ir.Extract:
 			switch d := v.Tuple.(type) {
 			case *ir.Call:
 				if callee := d.Call.StaticCallee(); callee != nil {
-					return impl(pass, callee, seenFns)&(1<<v.Index) == 0
+					ret := impl(pass, callee, seenFns)
+					if len(ret) == 0 {
+						return nilly
+					}
+					return ret[v.Index]
 				} else {
-					return true
+					return nilly
 				}
 			case *ir.TypeAssert, *ir.Next, *ir.Select, *ir.MapLookup, *ir.TypeSwitch, *ir.Recv:
 				// we don't need to look at the Extract's index
 				// because we've already checked its type.
-				return true
+				return nilly
 			default:
 				panic(fmt.Sprintf("internal error: unhandled type %T", d))
 			}
 		case *ir.Call:
 			if callee := v.Call.StaticCallee(); callee != nil {
 				ret := impl(pass, callee, seenFns)
-				return ret&1 == 0
+				if len(ret) == 0 {
+					return nilly
+				}
+				return ret[0]
 			} else {
-				return true
+				return nilly
 			}
 		case *ir.BinOp, *ir.UnOp, *ir.Alloc, *ir.FieldAddr, *ir.IndexAddr, *ir.Global, *ir.MakeSlice, *ir.MakeClosure, *ir.Function, *ir.MakeMap, *ir.MakeChan:
-			return false
+			return neverNil
 		case *ir.Sigma:
 			iff, ok := v.From.Control().(*ir.If)
 			if !ok {
-				return true
+				return nilly
 			}
 			binop, ok := iff.Cond.(*ir.BinOp)
 			if !ok {
-				return true
+				return nilly
 			}
 			isNil := func(v ir.Value) bool {
 				k, ok := v.(*ir.Const)
@@ -184,27 +212,31 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 				}
 				switch op {
 				case token.EQL:
-					return true
+					return nilly
 				case token.NEQ:
-					return false
+					return neverNil
 				default:
 					panic(fmt.Sprintf("internal error: unhandled token %v", op))
 				}
 			}
-			return true
+			return nilly
 		case *ir.ChangeType:
 			return mightReturnNil(v.X)
-		case *ir.TypeAssert, *ir.ChangeInterface, *ir.Field, *ir.Const, *ir.Index, *ir.MapLookup, *ir.Parameter, *ir.Load, *ir.Recv, *ir.TypeSwitch:
-			return true
+		case *ir.Load:
+			if _, ok := v.X.(*ir.Global); ok {
+				return onlyGlobal
+			}
+			return nilly
+		case *ir.TypeAssert, *ir.ChangeInterface, *ir.Field, *ir.Const, *ir.Index, *ir.MapLookup, *ir.Parameter, *ir.Recv, *ir.TypeSwitch:
+			return nilly
 		default:
 			panic(fmt.Sprintf("internal error: unhandled type %T", v))
 		}
 	}
 	ret := fn.Exit.Control().(*ir.Return)
+	out = make([]neverNilness, len(ret.Results))
 	for i, v := range ret.Results {
-		if !mightReturnNil(v) {
-			out |= 1 << i
-		}
+		out[i] = mightReturnNil(v)
 	}
 	return out
 }
