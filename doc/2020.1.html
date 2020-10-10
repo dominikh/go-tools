@@ -12,6 +12,7 @@
   <li><a href="#2020.1.3">Staticcheck 2020.1.3 release notes</a></li>
   <li><a href="#2020.1.4">Staticcheck 2020.1.4 release notes</a></li>
   <li><a href="#2020.1.5">Staticcheck 2020.1.5 release notes</a></li>
+  <li><a href="#2020.1.6">Staticcheck 2020.1.6 release notes</a></li>
 </ul>
 
 <h2 id="introduction">Introduction to Staticcheck 2020.1</h2>
@@ -228,3 +229,21 @@
   This release fixes a <a href="https://github.com/dominikh/go-tools/issues/806">crash in the pattern matching engine</a>
   and a <a href="https://github.com/dominikh/go-tools/issues/733">false positive in SA4006</a>.
 </p>
+
+<h2 id="2020.1.6">Staticcheck 2020.1.6 release notes</h2>
+
+<p>
+  This release makes the following fixes and improvements:
+</p>
+
+<ul>
+  <li>Staticcheck no longer panics when encountering files that have the following comment: <code>// Code generated DO NOT EDIT.</code></li>
+  <li>{{ check "SA4016" }} no longer panics when checking bitwise operations that involve dot-imported identifiers.</li>
+  <li>Fixed the suggested fix offered by {{ check "S1004" }}.</li>
+  <li>Fixed a false positive involving byte arrays in {{ check "SA5009" }}.</li>
+  <li>Fixed a false positive involving named byte slice types in {{ check "SA5009" }}.</li>
+  <li>Added another heuristic to avoid flagging function names in error messages in {{ check "ST1005" }}.</li>
+  <li>{{ check "SA3000" }} will no longer flag missing calls to os.Exit in TestMain functions if targeting Go 1.15 or newer.</li>
+</ul>
+
+
