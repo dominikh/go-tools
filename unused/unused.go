@@ -1105,12 +1105,10 @@ func (g *graph) entry(pkg *pkg) {
 			}
 			g.function(m)
 		case *ir.Type:
-			if m.Object() != nil {
-				g.see(m.Object())
-				if m.Object().Exported() {
-					// (1.1) packages use exported named types
-					g.use(m.Object(), nil, edgeExportedType)
-				}
+			g.see(m.Object())
+			if m.Object().Exported() {
+				// (1.1) packages use exported named types
+				g.use(m.Object(), nil, edgeExportedType)
 			}
 			g.typ(m.Type(), nil)
 		default:
