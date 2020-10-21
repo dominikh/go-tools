@@ -17,6 +17,8 @@ var Foo_BAR int // want `var Foo_BAR should be FooBAR`
 var foo_bar int // want `foo_bar should be fooBar`
 var kFoobar int // not a check we inherited from golint. more false positives than true ones.
 
+var _1000 int // issue 858
+
 func fn(x []int) {
 	var (
 		a_b = 1 // want `var a_b should be aB`
