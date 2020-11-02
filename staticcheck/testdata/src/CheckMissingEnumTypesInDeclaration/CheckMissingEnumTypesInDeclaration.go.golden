@@ -11,7 +11,7 @@ const (
 
 const (
 	c6 int = 1 // want `only the first constant in this group has an explicit type`
-	c7 int = 2
+	c7 int = 2 // comment for testing https://github.com/dominikh/go-tools/issues/866
 	c8 int = 3
 )
 
