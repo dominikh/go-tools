@@ -3381,6 +3381,9 @@ func CheckMissingEnumTypesInDeclaration(pass *analysis.Pass) (interface{}, error
 			for _, spec := range group[1:] {
 				nspec := *spec.(*ast.ValueSpec)
 				nspec.Type = typ
+				// The position of `spec` node excludes comments (if any).
+				// However, on generating the source back from the node, the comments are included. Setting `Comment` to nil ensures deduplication of comments.
+				nspec.Comment = nil
 				edits = append(edits, edit.ReplaceWithNode(pass.Fset, spec, &nspec))
 			}
 			report.Report(pass, group[0], "only the first constant in this group has an explicit type", report.Fixes(edit.Fix("add type to all constants in group", edits...)))
