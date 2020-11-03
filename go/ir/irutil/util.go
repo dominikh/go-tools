@@ -75,7 +75,7 @@ func Vararg(x *ir.Slice) ([]ir.Value, bool) {
 
 func CallName(call *ir.CallCommon) string {
 	if call.IsInvoke() {
-		return ""
+		return call.Method.FullName()
 	}
 	switch v := call.Value.(type) {
 	case *ir.Function:
@@ -94,6 +94,9 @@ func IsCallTo(call *ir.CallCommon, name string) bool { return CallName(call) == 
 
 func IsCallToAny(call *ir.CallCommon, names ...string) bool {
 	q := CallName(call)
+	if q == "" {
+		return false
+	}
 	for _, name := range names {
 		if q == name {
 			return true

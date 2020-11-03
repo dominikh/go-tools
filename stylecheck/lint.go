@@ -375,11 +375,20 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if !irutil.IsCallToAny(call.Common(), "errors.New", "fmt.Errorf") {
+				if !irutil.IsCallToAny(call.Common(), config.For(pass).ErrorFunctions...) {
 					continue
 				}
 
-				k, ok := call.Common().Args[0].(*ir.Const)
+				var arg ir.Value
+				// If it is a call to a method of a structure,
+				// the first argument is receiver
+				if _, ok := call.Common().Args[0].(*ir.Load); ok {
+					arg = call.Common().Args[1]
+				} else {
+					arg = call.Common().Args[0]
+				}
+
+				k, ok := arg.(*ir.Const)
 				if !ok {
 					continue
 				}
@@ -502,7 +511,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 
 				for i, name := range spec.Names {
 					val := spec.Values[i]
-					if !code.IsCallToAny(pass, val, "errors.New", "fmt.Errorf") {
+					if !code.IsCallToAny(pass, val, config.For(pass).ErrorFunctions...) {
 						continue
 					}
 
