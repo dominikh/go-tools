@@ -42,7 +42,15 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 	if pass.Pkg.Name() == "main" {
 		return nil, nil
 	}
+
+	type invalidDoc struct {
+		doc *ast.CommentGroup
+		msg string
+	}
+	var invalidDocs []invalidDoc
 	hasDocs := false
+	hasValidDoc := false
+
 	for _, f := range pass.Files {
 		if code.IsInTest(pass, f) {
 			continue
@@ -51,8 +59,16 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 			hasDocs = true
 			prefix := "Package " + f.Name.Name + " "
 			if !strings.HasPrefix(strings.TrimSpace(f.Doc.Text()), prefix) {
-				report.Report(pass, f.Doc, fmt.Sprintf(`package comment should be of the form "%s..."`, prefix))
+				invalidDocs = append(invalidDocs, invalidDoc{doc: f.Doc, msg: fmt.Sprintf(`package comment should be of the form "%s..."`, prefix)})
+			} else {
+				hasValidDoc = true
 			}
+		}
+	}
+
+	if !hasValidDoc {
+		for _, i := range invalidDocs {
+			report.Report(pass, i.doc, i.msg)
 		}
 	}
 
