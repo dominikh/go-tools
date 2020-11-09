@@ -2261,7 +2261,7 @@ func (b *builder) buildFunction(fn *Function) {
 		// However, they aren't stubs, so buildExits ends up getting
 		// called on them, so that's where we handle those special
 		// cases.
-		fn.WillExit = true
+		fn.NoReturn = AlwaysExits
 	}
 
 	if body == nil {

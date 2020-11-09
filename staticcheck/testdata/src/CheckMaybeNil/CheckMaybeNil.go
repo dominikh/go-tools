@@ -1,6 +1,9 @@
 package pkg
 
-import "os"
+import (
+	"os"
+	"syscall"
+)
 
 func fn1(x *int) {
 	_ = *x // want `possible nil pointer dereference`
@@ -105,4 +108,26 @@ func fn11(x *int) {
 		die2(true)
 	}
 	_ = *x // want `possible nil pointer dereference`
+}
+
+func doPanic() { panic("") }
+func doExit()  { syscall.Exit(1) }
+
+func fn12(arg bool) {
+	if arg {
+		doPanic()
+	} else {
+		doExit()
+	}
+}
+
+func fn13(arg bool) {
+	fn12(arg)
+}
+
+func fn14(x *int) {
+	if x == nil {
+		fn13(true)
+	}
+	_ = *x
 }

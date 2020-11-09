@@ -349,22 +349,30 @@ type Function struct {
 	method    *types.Selection // info about provenance of synthetic methods
 	Signature *types.Signature
 
-	Synthetic  Synthetic
-	parent     *Function     // enclosing function if anon; nil if global
-	Pkg        *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
-	Prog       *Program      // enclosing program
-	Params     []*Parameter  // function parameters; for methods, includes receiver
-	FreeVars   []*FreeVar    // free variables whose values must be supplied by closure
-	Locals     []*Alloc      // local variables of this function
-	Blocks     []*BasicBlock // basic blocks of the function; nil => external
-	Exit       *BasicBlock   // The function's exit block
-	AnonFuncs  []*Function   // anonymous functions directly beneath this one
-	referrers  []Instruction // referring instructions (iff Parent() != nil)
-	WillExit   bool          // Calling this function will always terminate the process
-	WillUnwind bool          // Calling this function will always unwind (it will call runtime.Goexit or panic)
+	Synthetic Synthetic
+	parent    *Function     // enclosing function if anon; nil if global
+	Pkg       *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
+	Prog      *Program      // enclosing program
+	Params    []*Parameter  // function parameters; for methods, includes receiver
+	FreeVars  []*FreeVar    // free variables whose values must be supplied by closure
+	Locals    []*Alloc      // local variables of this function
+	Blocks    []*BasicBlock // basic blocks of the function; nil => external
+	Exit      *BasicBlock   // The function's exit block
+	AnonFuncs []*Function   // anonymous functions directly beneath this one
+	referrers []Instruction // referring instructions (iff Parent() != nil)
+	NoReturn  NoReturn      // Calling this function will always terminate control flow.
 
 	*functionBody
 }
+
+type NoReturn uint8
+
+const (
+	Returns NoReturn = iota
+	AlwaysExits
+	AlwaysUnwinds
+	NeverReturns
+)
 
 type functionBody struct {
 	// The following fields are set transiently during building,
@@ -517,6 +525,10 @@ type Global struct {
 //   // wrapnilchk returns ptr if non-nil, panics otherwise.
 //   // (For use in indirection wrappers.)
 //   func ir:wrapnilchk(ptr *T, recvType, methodName string) *T
+//
+//   // noreturnWasPanic returns true if the previously called
+//   // function panicked, false if it exited the process.
+//   func ir:noreturnWasPanic() bool
 //
 // Object() returns a *types.Builtin for built-ins defined by the spec,
 // nil for others.
