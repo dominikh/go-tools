@@ -470,7 +470,7 @@ func negate(expr ast.Expr) ast.Expr {
 		case token.LEQ:
 			out.Op = token.GTR
 		case token.GEQ:
-			out.Op = token.LEQ
+			out.Op = token.LSS
 		}
 		return &out
 	case *ast.Ident, *ast.CallExpr, *ast.IndexExpr:
