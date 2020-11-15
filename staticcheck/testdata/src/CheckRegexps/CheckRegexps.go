@@ -40,3 +40,7 @@ func (T) init() {}
 // this will become a synthetic init function, that we don't want to
 // ignore
 var _ = regexp.MustCompile("(") // want `error parsing regexp`
+
+func fn2() {
+	regexp.MustCompile("foo(").FindAll(nil, 0) // want `error parsing regexp`
+}

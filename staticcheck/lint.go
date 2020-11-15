@@ -3014,14 +3014,23 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 			Parent: site.Parent(),
 		}
 		r(call)
-		path, _ := goastutil.PathEnclosingInterval(code.File(pass, site), site.Pos(), site.Pos())
+
 		var astcall *ast.CallExpr
-		for _, el := range path {
-			if expr, ok := el.(*ast.CallExpr); ok {
-				astcall = expr
-				break
-			}
+		switch source := site.Source().(type) {
+		case *ast.CallExpr:
+			astcall = source
+		case *ast.DeferStmt:
+			astcall = source.Call
+		case *ast.GoStmt:
+			astcall = source.Call
+		case nil:
+			// TODO(dh): I am not sure this can actually happen. If it
+			// can't, we should remove this case, and also stop
+			// checking for astcall == nil in the code that follows.
+		default:
+			panic(fmt.Sprintf("unhandled case %T", source))
 		}
+
 		for idx, arg := range call.Args {
 			for _, e := range arg.invalids {
 				if astcall != nil {

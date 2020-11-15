@@ -36,3 +36,17 @@ func fn() {
 	var basic int
 	p.Put(basic) // want `argument should be pointer-like`
 }
+
+func fn2() {
+	// https://github.com/dominikh/go-tools/issues/873
+	var pool sync.Pool
+	func() {
+		defer pool.Put([]byte{}) // want `argument should be pointer-like`
+	}()
+}
+
+func fn3() {
+	var pool sync.Pool
+	defer pool.Put([]byte{}) // want `argument should be pointer-like`
+	go pool.Put([]byte{})    // want `argument should be pointer-like`
+}
