@@ -48,3 +48,20 @@ func fn4() {
 	subtle.ConstantTimeLessOrEq(0, 0)
 	subtle.ConstantTimeSelect(0, 0, 0)
 }
+
+func produceBool(a int) bool {
+	return a == 0
+}
+
+func fn5() {
+	// make sure we do correctly flag pointless calls to produceBool
+	produceBool(0) // want `only makes sense if its return values get used`
+	if produceBool(0) {
+		// only comments, no code. possibly a TODO to actually handle
+		// this case. flagging this would be noisy.
+	}
+
+	_ = produceBool(0) // assigning to _ counts as a use
+	return
+	_ = produceBool(0) // this code is dead
+}
