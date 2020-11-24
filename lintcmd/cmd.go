@@ -292,7 +292,9 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 	if len(results) == 0 && err == nil {
 		// TODO(dh): emulate Go's behavior more closely once we have
 		// access to go list's Match field.
-		fmt.Fprintf(os.Stderr, "warning: %q matched no packages\n", patterns)
+		for _, pattern := range patterns {
+			fmt.Fprintf(os.Stderr, "warning: %q matched no packages\n", pattern)
+		}
 	}
 
 	analyzerNames := make([]string, len(l.Checkers))
