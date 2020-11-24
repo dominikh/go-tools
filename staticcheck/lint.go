@@ -2887,7 +2887,7 @@ fnLoop:
 						// special case for benchmarks in the fmt package
 						continue
 					}
-					report.Report(pass, ins, fmt.Sprintf("%s is a pure function but its return value is ignored", callee.Name()))
+					report.Report(pass, ins, fmt.Sprintf("calling %s only makes sense if its return values get used, but they are being ignored", callee.Name()))
 				}
 			}
 		}

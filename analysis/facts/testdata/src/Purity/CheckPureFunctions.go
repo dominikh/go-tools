@@ -1,5 +1,7 @@
 package pkg
 
+import "strings"
+
 func foo(a, b int) int { return a + b } // want foo:"is pure"
 func bar(a, b int) int {
 	println(a + b)
@@ -24,3 +26,12 @@ var X int
 
 func load() int        { _ = X; return 0 }
 func assign(x int) int { _ = x; return 0 } // want assign:"is pure"
+
+func ourLen(x []int) int {
+	return x[0]
+}
+
+func foo2() int {
+	_ = strings.NewReader("")
+	return 0
+}

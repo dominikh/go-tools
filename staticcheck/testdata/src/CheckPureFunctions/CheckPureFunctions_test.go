@@ -6,7 +6,7 @@ import (
 )
 
 func TestFoo(t *testing.T) {
-	strings.Replace("", "", "", 1) // want `is a pure function but its return value is ignored`
+	strings.Replace("", "", "", 1) // want `only makes sense if its return values get used`
 }
 
 func BenchmarkFoo(b *testing.B) {
