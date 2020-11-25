@@ -970,5 +970,6 @@ positives in somewhat exotic but valid bit twiddling tricks:
         v = v << 32
         return i-v
     }`,
+		Since: "Unreleased",
 	},
 }
