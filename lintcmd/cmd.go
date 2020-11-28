@@ -515,6 +515,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("debug.no-compile-errors", false, "Don't print compile errors")
 	flags.String("debug.measure-analyzers", "", "Write analysis measurements to `file`. `file` will be opened for appending if it already exists.")
 	flags.String("debug.trace", "", "Write trace to `file`")
+	flags.Bool("list", false, "List all available checks")
 
 	checks := list{"inherit"}
 	fail := list{"all"}
@@ -555,6 +556,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
 	debugNoCompile := fs.Lookup("debug.no-compile-errors").Value.(flag.Getter).Get().(bool)
 	traceOut := fs.Lookup("debug.trace").Value.(flag.Getter).Get().(string)
+	listChecks := fs.Lookup("list").Value.(flag.Getter).Get().(bool)
 
 	var measureAnalyzers func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 	if path := fs.Lookup("debug.measure-analyzers").Value.(flag.Getter).Get().(string); path != "" {
@@ -616,6 +618,20 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 
 	if printVersion {
 		version.Print()
+		exit(0)
+	}
+
+	if listChecks {
+		titles := make(map[string]string)
+		analyzerNames := make([]string, len(cs))
+		for i, c := range cs {
+			titles[c.Name] = strings.Split(c.Doc, "\n")[0]
+			analyzerNames[i] = c.Name
+		}
+		sort.Strings(analyzerNames)
+		for _, k := range analyzerNames {
+			fmt.Fprintln(os.Stderr, fmt.Errorf("%s %s", k, titles[k]))
+		}
 		exit(0)
 	}
 
