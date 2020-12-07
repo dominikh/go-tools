@@ -358,6 +358,20 @@ falsify results.`,
 
 	"SA4008": {
 		Title: `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
+		Text: `This happens if the code changes the wrong variable in a
+loop, such as:
+
+    for i := 0; i < 10; x++ { /* ... loop body ... */ }
+
+This will be an infinite loop at runtime. This error also occurs for
+loops that unconditionally exit, such as with panic or break:
+
+    for i := 0; i < 10; i++ {
+      break
+    }
+
+These loops are only ever executed once. To fix the warning, remove
+the loop.`,
 		Since: "2017.1",
 	},
 
