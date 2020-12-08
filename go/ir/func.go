@@ -557,6 +557,7 @@ func (f *Function) finishBody() {
 	f.Locals = f.Locals[:j]
 
 	optimizeBlocks(f)
+	buildFakeExits(f)
 	buildReferrers(f)
 	buildDomTree(f)
 	buildPostDomTree(f)
