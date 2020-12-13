@@ -8,29 +8,30 @@ import (
 )
 
 const Version = "devel"
+const MachineVersion = "devel"
 
 // version returns a version descriptor and reports whether the
 // version is a known release.
-func version() (string, bool) {
+func version() (human, machine string, known bool) {
 	if Version != "devel" {
-		return Version, true
+		return Version, MachineVersion, true
 	}
 	v, ok := buildInfoVersion()
 	if ok {
-		return v, false
+		return v, "", false
 	}
-	return "devel", false
+	return "devel", "", false
 }
 
 func Print() {
-	v, release := version()
+	human, machine, release := version()
 
 	if release {
-		fmt.Printf("%s %s\n", filepath.Base(os.Args[0]), v)
-	} else if v == "devel" {
+		fmt.Printf("%s %s (%s)\n", filepath.Base(os.Args[0]), human, machine)
+	} else if human == "devel" {
 		fmt.Printf("%s (no version)\n", filepath.Base(os.Args[0]))
 	} else {
-		fmt.Printf("%s (devel, %s)\n", filepath.Base(os.Args[0]), v)
+		fmt.Printf("%s (devel, %s)\n", filepath.Base(os.Args[0]), human)
 	}
 }
 
