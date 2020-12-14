@@ -21,10 +21,10 @@ func fn1(err error) {
 	var _ flate.ReadError // want `No longer returned`
 
 	var tr *http.Transport
-	tr.CancelRequest(nil) // want `CancelRequest is deprecated`
+	tr.CancelRequest(nil) // want `CancelRequest has been deprecated`
 
 	var conn driver.Conn
-	conn.Begin() // want `Begin is deprecated`
+	conn.Begin() // want `Begin has been deprecated`
 }
 
 // Deprecated: Don't use this.

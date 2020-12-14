@@ -2929,14 +2929,37 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			return true
 		}
 		if depr, ok := deprs.Objects[obj]; ok {
-			// Look for the first available alternative, not the first
-			// version something was deprecated in. If a function was
-			// deprecated in Go 1.6, an alternative has been available
-			// already in 1.0, and we're targeting 1.2, it still
-			// makes sense to use the alternative from 1.0, to be
-			// future-proof.
-			minVersion := knowledge.StdlibDeprecations[code.SelectorName(pass, sel)].AlternativeAvailableSince
-			if !code.IsGoVersion(pass, minVersion) {
+			std, ok := knowledge.StdlibDeprecations[code.SelectorName(pass, sel)]
+			if ok {
+				switch std.AlternativeAvailableSince {
+				case knowledge.DeprecatedNeverUse:
+					// This should never be used, regardless of the
+					// targeted Go version. Examples include insecure
+					// cryptography or inherently broken APIs.
+					//
+					// We always want to flag these.
+				case knowledge.DeprecatedUseNoLonger:
+					// This should no longer be used. Using it with
+					// older Go versions might still make sense.
+					if !code.IsGoVersion(pass, std.DeprecatedSince) {
+						return true
+					}
+				default:
+					if std.AlternativeAvailableSince < 0 {
+						panic(fmt.Sprintf("unhandled case %d", std.AlternativeAvailableSince))
+					}
+					// Look for the first available alternative, not the first
+					// version something was deprecated in. If a function was
+					// deprecated in Go 1.6, an alternative has been available
+					// already in 1.0, and we're targeting 1.2, it still
+					// makes sense to use the alternative from 1.0, to be
+					// future-proof.
+					if !code.IsGoVersion(pass, std.AlternativeAvailableSince) {
+						return true
+					}
+				}
+			}
+			if ok && !code.IsGoVersion(pass, std.AlternativeAvailableSince) {
 				return true
 			}
 
@@ -2947,7 +2970,18 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 					return true
 				}
 			}
-			report.Report(pass, sel, fmt.Sprintf("%s is deprecated: %s", report.Render(pass, sel), depr.Msg))
+
+			if ok {
+				if std.AlternativeAvailableSince == knowledge.DeprecatedNeverUse {
+					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d because it shouldn't be used: %s", report.Render(pass, sel), std.DeprecatedSince, depr.Msg))
+				} else if std.AlternativeAvailableSince == std.DeprecatedSince || std.AlternativeAvailableSince == knowledge.DeprecatedUseNoLonger {
+					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d: %s", report.Render(pass, sel), std.DeprecatedSince, depr.Msg))
+				} else {
+					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d and an alternative has been available since Go 1.%d: %s", report.Render(pass, sel), std.DeprecatedSince, std.AlternativeAvailableSince, depr.Msg))
+				}
+			} else {
+				report.Report(pass, sel, fmt.Sprintf("%s is deprecated: %s", report.Render(pass, sel), depr.Msg))
+			}
 			return true
 		}
 		return true

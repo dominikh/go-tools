@@ -15,9 +15,6 @@ func fn1(err error) {
 	_ = r.Cancel                    // want `If a Request's Cancel field and context are both`
 	_ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
 	_ = os.SEEK_SET
-	if err == http.ErrWriteAfterFlush { // want `ErrWriteAfterFlush is no longer`
-		println()
-	}
 	var _ flate.ReadError
 
 	var tr *http.Transport

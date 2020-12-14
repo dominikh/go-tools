@@ -26,7 +26,12 @@ func TestAll(t *testing.T) {
 		"SA1016": {{Dir: "CheckUntrappableSignal"}},
 		"SA1017": {{Dir: "CheckUnbufferedSignalChan"}},
 		"SA1018": {{Dir: "CheckStringsReplaceZero"}},
-		"SA1019": {{Dir: "CheckDeprecated"}, {Dir: "CheckDeprecated_go14", Version: "1.4"}, {Dir: "CheckDeprecated_go18", Version: "1.8"}},
+		"SA1019": {
+			{Dir: "CheckDeprecated"},
+			{Dir: "CheckDeprecated_go13", Version: "1.3"},
+			{Dir: "CheckDeprecated_go14", Version: "1.4"},
+			{Dir: "CheckDeprecated_go18", Version: "1.8"},
+		},
 		"SA1020": {{Dir: "CheckListenAddress"}},
 		"SA1021": {{Dir: "CheckBytesEqualIP"}},
 		"SA1023": {{Dir: "CheckWriterBufferModified"}},
