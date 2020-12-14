@@ -69,6 +69,13 @@ var StdlibDeprecations = map[string]Deprecation{
 	"net/http.CloseNotifier":                      {11, 7},
 	"net/http.ProtocolError":                      {8, 8},
 	"(crypto/x509.CertificateRequest).Attributes": {5, 3},
+
+	// These functions have no direct alternative, but they are insecure and should no longer be used.
+	"crypto/x509.IsEncryptedPEMBlock": {16, 0},
+	"crypto/x509.DecryptPEMBlock":     {16, 0},
+	"crypto/x509.EncryptPEMBlock":     {16, 0},
+	"crypto/dsa":                      {16, 0},
+
 	// This function has no alternative, but also no purpose.
 	"(*crypto/rc4.Cipher).Reset":                     {12, 0},
 	"(net/http/httptest.ResponseRecorder).HeaderMap": {11, 7},
@@ -79,7 +86,12 @@ var StdlibDeprecations = map[string]Deprecation{
 	"crypto/tls.VersionSSL30":                     {13, 0},
 	"(crypto/tls.Config).NameToCertificate":       {14, 14},
 	"(*crypto/tls.Config).BuildNameToCertificate": {14, 14},
-	"image/jpeg.Reader":                           {4, 0},
+	"(crypto/tls.Config).SessionTicketKey":        {16, 5},
+	// No alternative, no use
+	"(crypto/tls.ConnectionState).NegotiatedProtocolIsMutual": {16, 0},
+	// No alternative, but insecure
+	"(crypto/tls.ConnectionState).TLSUnique": {16, 0},
+	"image/jpeg.Reader":                      {4, 0},
 
 	// All of these have been deprecated in favour of external libraries
 	"syscall.AttachLsf":                     {7, 0},
@@ -116,4 +128,7 @@ var StdlibDeprecations = map[string]Deprecation{
 	"syscall.InterfaceAnnounceMessage":      {7, 0},
 	"syscall.InterfaceMulticastAddrMessage": {7, 0},
 	"syscall.FormatMessage":                 {5, 0},
+
+	// Not marked as deprecated with a recognizable header, but deprecated nonetheless.
+	"io/ioutil": {16, 16},
 }
