@@ -557,7 +557,7 @@ Reflection (https://golang.org/doc/articles/laws_of_reflection.html).
 This text has been copied from
 https://golang.org/doc/faq#nil_error, licensed under the Creative
 Commons Attribution 3.0 License.`,
-		Since: "Unreleased",
+		Since: "2020.2",
 	},
 
 	"SA5000": {
@@ -729,7 +729,7 @@ popular package.`,
 Often, these functions treat elements in a slice as pairs. 
 For example, strings.NewReplacer takes pairs of old and new strings, 
 and calling it with an odd number of elements would be an error.`,
-		Since: "Unreleased",
+		Since: "2020.2",
 	},
 
 	"SA6000": {
@@ -970,6 +970,6 @@ positives in somewhat exotic but valid bit twiddling tricks:
         v = v << 32
         return i-v
     }`,
-		Since: "Unreleased",
+		Since: "2020.2",
 	},
 }
