@@ -62,13 +62,15 @@ go mod init foo
 GO111MODULE=on go get -d honnef.co/go/tools/cmd/staticcheck@"$rev"
 
 
-SYSTEMS=(windows linux freebsd darwin)
+SYSTEMS=(windows linux freebsd)
 ARCHS=(amd64 386)
 for os in ${SYSTEMS[@]}; do
     for arch in ${ARCHS[@]}; do
         build "$os" "$arch"
     done
 done
+
+build "darwin" "amd64"
 
 for arch in armv5l armv6l armv7l arm64; do
     build "linux" "$arch"
