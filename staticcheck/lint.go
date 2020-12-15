@@ -2147,6 +2147,12 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 			if len(body.List) < 2 {
+				// TODO(dh): is this check needed? when body.List < 2,
+				// then we can't find both an unconditional exit and a
+				// branching statement (if, ...). and we don't flag
+				// unconditional exits if there has been no branching
+				// in the loop body.
+
 				// avoid flagging the somewhat common pattern of using
 				// a range loop to get the first element in a slice,
 				// or the first rune in a string.
