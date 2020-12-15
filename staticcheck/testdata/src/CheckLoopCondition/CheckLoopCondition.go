@@ -13,4 +13,7 @@ func fn() {
 			*x++
 		}
 	}
+
+	for i, x := 0, 0; i < 10; x++ { // want `variable in loop condition never changes`
+	}
 }
