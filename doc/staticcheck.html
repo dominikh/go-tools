@@ -203,12 +203,6 @@ staticcheck github.com/example/...</code></pre>
     </td>
   </tr>
   <tr>
-    <td>-unused.whole-program</td>
-    <td>
-      Run unused in whole program mode.
-    </td>
-  </tr>
-  <tr>
     <td>-version</td>
     <td>
       Display the version of staticcheck and exit.
@@ -363,12 +357,6 @@ regexp.Compile(".+")</code></pre>
   As <code>GOMAXPROCS</code> approaches 1, peak memory usage will be dominated by the most complex package in the code base.
   Additionally, smaller code bases may have such interconnected dependencies that peak parallelism is never reached, or there may simply be fewer packages than cores.
   For example, when checking 10 packages it makes no difference if GOMAXPROCS is set to 32 or 16, at most 10 packages can be processed in parallel.
-</p>
-
-<p>
-  Furthermore, a certain amount of type information per package needs to be retained until the end of the process,
-  which means that overall memory usage grows with the number of checked packages.
-  You can reduce this effect by disabling the U1000 and U1001 checks via the <code>-checks</code> command line flag (e.g. via <code>staticcheck -checks="inherit,-U1000,-U1001"</code>).
 </p>
 
 <p>
