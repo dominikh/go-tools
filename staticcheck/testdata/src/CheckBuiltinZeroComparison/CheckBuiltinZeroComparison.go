@@ -3,7 +3,7 @@ package pkg
 func fn1() {
 	var foo []int
 
-	if len(foo) < 0 { // want `len\(\) does not return negative values`
+	if len(foo) < 0 { // want `len does not return negative values`
 		println("test")
 	}
 
@@ -18,7 +18,7 @@ func fn1() {
 
 	println(len(foo) < 0) // want `negative`
 
-	if 0 > cap(foo) { // want `cap\(\) does not return negative values`
+	if 0 > cap(foo) { // want `cap does not return negative values`
 		println("test")
 	}
 
