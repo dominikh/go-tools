@@ -62,6 +62,13 @@ func fn1() {
 		println("T")
 	}
 
+	switch v.(type) {
+	case interface{}:
+		println("interface{}")
+	case nil, T: // want `unreachable case clause: interface{} will always match before CheckUnreachableTypeCases\.T`
+		println("nil or T")
+	}
+
 	switch err.(type) {
 	case V:
 		println("V")
@@ -119,5 +126,12 @@ func fn3() {
 	switch v.(type) {
 	default:
 		println("something")
+	}
+
+	switch v.(type) {
+	case interface{}:
+		println("interface{}")
+	case nil:
+		println("nil")
 	}
 }

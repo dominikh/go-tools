@@ -3567,9 +3567,12 @@ func CheckUnreachableTypeCases(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 
-			Ts := make([]types.Type, len(cc.List))
-			for i, expr := range cc.List {
-				Ts[i] = pass.TypesInfo.TypeOf(expr)
+			Ts := make([]types.Type, 0, len(cc.List))
+			for _, expr := range cc.List {
+				// Exclude the 'nil' value from any 'case' statement (it is always reachable).
+				if typ := pass.TypesInfo.TypeOf(expr); typ != types.Typ[types.UntypedNil] {
+					Ts = append(Ts, typ)
+				}
 			}
 
 			ccs = append(ccs, ccAndTypes{cc: cc, types: Ts})
