@@ -2061,16 +2061,18 @@ func CheckArgOverwritten(pass *analysis.Pass) (interface{}, error) {
 						if assignment != nil {
 							return false
 						}
-						assign, ok := node.(*ast.AssignStmt)
-						if !ok {
-							return true
-						}
-						for _, lhs := range assign.Lhs {
-							ident, ok := lhs.(*ast.Ident)
-							if !ok {
-								continue
+						switch assign := node.(type) {
+						case *ast.AssignStmt:
+							for _, lhs := range assign.Lhs {
+								ident, ok := lhs.(*ast.Ident)
+								if ok && pass.TypesInfo.ObjectOf(ident) == obj {
+									assignment = assign
+									return false
+								}
 							}
-							if pass.TypesInfo.ObjectOf(ident) == obj {
+						case *ast.IncDecStmt:
+							ident, ok := assign.X.(*ast.Ident)
+							if ok && pass.TypesInfo.ObjectOf(ident) == obj {
 								assignment = assign
 								return false
 							}
