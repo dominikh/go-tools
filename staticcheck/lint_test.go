@@ -55,7 +55,7 @@ func TestAll(t *testing.T) {
 		"SA4004": {{Dir: "CheckIneffectiveLoop"}},
 		"SA4006": {{Dir: "CheckUnreadVariableValues"}},
 		"SA4008": {{Dir: "CheckLoopCondition"}},
-		"SA4009": {{Dir: "CheckArgOverwritten"}},
+		"SA4009": {{Dir: "CheckArgOverwritten"}, {Dir: "CheckArgOverwrittenIncrementOperator"}},
 		"SA4010": {{Dir: "CheckIneffectiveAppend"}},
 		"SA4011": {{Dir: "CheckScopedBreak"}},
 		"SA4012": {{Dir: "CheckNaNComparison"}},
