@@ -647,9 +647,9 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	var f formatter
 	switch theFormatter {
 	case "text":
-		f = textFormatter{Diagnostics: os.Stdout, UI: os.Stderr}
+		f = textFormatter{W: os.Stdout}
 	case "stylish":
-		f = &stylishFormatter{Diagnostics: os.Stdout, UI: os.Stderr}
+		f = &stylishFormatter{W: os.Stdout}
 	case "json":
 		f = jsonFormatter{W: os.Stdout}
 	case "null":
@@ -676,7 +676,6 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 
 	var (
-		numCompiles int
 		numErrors   int
 		numWarnings int
 		numIgnored  int
@@ -689,6 +688,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 	shouldExit := filterAnalyzerNames(analyzerNames, fail)
 	shouldExit["staticcheck"] = true
+	shouldExit["compile"] = true
 
 	for _, p := range ps {
 		if p.Category == "compile" && debugNoCompile {
@@ -698,9 +698,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 			numIgnored++
 			continue
 		}
-		if p.Category == "compile" {
-			numCompiles++
-		} else if shouldExit[p.Category] {
+		if shouldExit[p.Category] {
 			numErrors++
 		} else {
 			p.Severity = severityWarning
@@ -709,14 +707,10 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		f.Format(p)
 	}
 	if f, ok := f.(statter); ok {
-		f.Stats(len(ps), numErrors+numCompiles, numWarnings, numIgnored)
+		f.Stats(len(ps), numErrors, numWarnings, numIgnored)
 	}
 
-	if f, ok := f.(documentationMentioner); ok && (numErrors > 0 || numWarnings > 0) && len(os.Args) > 0 {
-		f.MentionCheckDocumentation(os.Args[0])
-	}
-
-	if numErrors > 0 || numCompiles > 0 {
+	if numErrors > 0 {
 		exit(1)
 	}
 	exit(0)
