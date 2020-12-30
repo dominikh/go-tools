@@ -145,4 +145,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckSprintLiteral,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
 	},
+	"S1040": {
+		Run:      CheckSameTypeTypeAssertion,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+	},
 })

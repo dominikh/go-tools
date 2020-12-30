@@ -486,4 +486,14 @@ can much simpler be expressed with a simple call to time.Sleep.`,
 		Text:  `Calling fmt.Sprint with a single string argument is unnecessary and identical to using the string directly.`,
 		Since: "2020.1",
 	},
+	"S1040": {
+		Title: "Type assertion to current type",
+		Text: `The type assertion 'x.(SomeInterface)', when 'x' already has type
+'SomeInterface', can only fail if 'x' is nil. Usually, this is
+left-over code from when 'x' had a different type and you can safely
+delete the type assertion. If you want to check that 'x' is not nil,
+consider being explicit and using an actual 'if x == nil' comparison
+instead of relying on the type assertion panicking.`,
+		Since: "Unreleased",
+	},
 }

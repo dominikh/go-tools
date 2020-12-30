@@ -42,6 +42,7 @@ func TestAll(t *testing.T) {
 		"S1037": {{Dir: "CheckElaborateSleep"}},
 		"S1038": {{Dir: "CheckPrintSprintf"}},
 		"S1039": {{Dir: "CheckSprintLiteral"}},
+		"S1040": {{Dir: "CheckSameTypeTypeAssertion"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)
