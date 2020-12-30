@@ -413,3 +413,12 @@ func fn2() {
 	var f []Byte = []Byte{'h'}
 	fmt.Printf("%s %s %s %s %s %s %s", a, b, c, &c, d, e, f)
 }
+
+func fn3() {
+	s := "%d"
+	if true {
+		fmt.Printf(s, "") // want `Printf format`
+	} else {
+		_ = s
+	}
+}

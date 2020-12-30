@@ -612,7 +612,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 		return true
 	}
 
-	k, ok := f.(*ir.Const)
+	k, ok := irutil.Flatten(f).(*ir.Const)
 	if !ok {
 		return
 	}
@@ -714,7 +714,7 @@ func checkAtomicAlignmentImpl(call *Call) {
 		// Not running on a 32-bit platform
 		return
 	}
-	v, ok := call.Args[0].Value.Value.(*ir.FieldAddr)
+	v, ok := irutil.Flatten(call.Args[0].Value.Value).(*ir.FieldAddr)
 	if !ok {
 		// TODO(dh): also check indexing into arrays and slices
 		return
@@ -1813,7 +1813,7 @@ func CheckNilMaps(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				c, ok := mu.Map.(*ir.Const)
+				c, ok := irutil.Flatten(mu.Map).(*ir.Const)
 				if !ok {
 					continue
 				}
@@ -2530,7 +2530,7 @@ func CheckNaNComparison(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if isNaN(ins.X) || isNaN(ins.Y) {
+				if isNaN(irutil.Flatten(ins.X)) || isNaN(irutil.Flatten(ins.Y)) {
 					report.Report(pass, ins, "no value is equal to NaN, not even NaN itself")
 				}
 			}
@@ -4136,6 +4136,7 @@ func findIndirectSliceLenChecks(pass *analysis.Pass) {
 func findSliceLength(v ir.Value) int {
 	// TODO(dh): VRP would help here
 
+	v = irutil.Flatten(v)
 	val := func(v ir.Value) int {
 		if v, ok := v.(*ir.Const); ok {
 			return int(v.Int64())
@@ -4272,7 +4273,7 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 
 				var idx int
 				var obj *types.Func
-				switch x := binop.X.(type) {
+				switch x := irutil.Flatten(binop.X).(type) {
 				case *ir.Call:
 					callee := x.Call.StaticCallee()
 					if callee == nil {
@@ -4281,7 +4282,7 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 					obj, _ = callee.Object().(*types.Func)
 					idx = 0
 				case *ir.Extract:
-					call, ok := x.Tuple.(*ir.Call)
+					call, ok := irutil.Flatten(x.Tuple).(*ir.Call)
 					if !ok {
 						continue
 					}

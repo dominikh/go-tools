@@ -48,3 +48,10 @@ func fn2(bleh []interface{}, arr1 [3]interface{}) { // want bleh:"needs even ele
 	strings.NewReplacer("one") // want `variadic argument "oldnew".+ but has 1 elements`
 	strings.NewReplacer("one", "two")
 }
+
+func fn3() {
+	args := []interface{}{""}
+	if true {
+		fnSlice("", args) // want `but has 1 element`
+	}
+}

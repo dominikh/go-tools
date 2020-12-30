@@ -16,3 +16,12 @@ func fn() {
 	atomic.AddInt64(&v.C, 0) // want `address of non 64-bit aligned field C passed to sync/atomic.AddInt64`
 	atomic.LoadInt64(&v.C)   // want `address of non 64-bit aligned field C passed to sync/atomic.LoadInt64`
 }
+
+func fn2(t *T) {
+	addr := &t.C
+	if true {
+		atomic.LoadUint64(addr) // want `address of non 64-bit`
+	} else {
+		_ = addr
+	}
+}
