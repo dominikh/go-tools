@@ -8,6 +8,10 @@ type T3 int
 type T4 int
 type T5 int
 type T6 string
+type T7 []byte
+type T8 []MyByte
+
+type MyByte byte
 
 func (T3) String() string        { return "" }
 func (T6) String() string        { return "" }
@@ -21,6 +25,8 @@ func fn() {
 	var t4 T4
 	var t5 T5
 	var t6 T6
+	var t7 T7
+	var t8 T8
 	_ = fmt.Sprintf("%s", "test")      // want `is already a string`
 	_ = fmt.Sprintf("%s", t1)          // want `is a string`
 	_ = fmt.Sprintf("%s", t2)          // want `is a string`
@@ -31,4 +37,6 @@ func fn() {
 	_ = fmt.Sprintf("%s %s", t1, t2)
 	_ = fmt.Sprintf("%v", t1)
 	_ = fmt.Sprintf("%s", t6) // want `should use String\(\) instead of fmt\.Sprintf`
+	_ = fmt.Sprintf("%s", t7) // want `underlying type is a slice of bytes`
+	_ = fmt.Sprintf("%s", t8)
 }

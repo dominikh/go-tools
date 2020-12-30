@@ -1418,6 +1418,9 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 
 		format := m.State["format"].(ast.Expr)
 		arg := m.State["arg"].(ast.Expr)
+		// TODO(dh): should we really support named constants here?
+		// shouldn't we only look for string literals? to avoid false
+		// positives via build tags?
 		if s, ok := code.ExprToString(pass, format); !ok || s != "%s" {
 			return
 		}
@@ -1433,10 +1436,7 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			}
 			report.Report(pass, node, "should use String() instead of fmt.Sprintf",
 				report.Fixes(edit.Fix("replace with call to String method", edit.ReplaceWithNode(pass.Fset, node, replacement))))
-			return
-		}
-
-		if typ.Underlying() == types.Universe.Lookup("string").Type() {
+		} else if typ.Underlying() == types.Universe.Lookup("string").Type() {
 			if typ == types.Universe.Lookup("string").Type() {
 				report.Report(pass, node, "the argument is already a string, there's no need to use fmt.Sprintf",
 					report.FilterGenerated(),
@@ -1450,7 +1450,17 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 					report.FilterGenerated(),
 					report.Fixes(edit.Fix("replace with conversion to string", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 			}
+		} else if slice, ok := typ.Underlying().(*types.Slice); ok && slice.Elem() == types.Universe.Lookup("byte").Type() {
+			// Note that we check slice.Elem(), not slice.Elem().Underlying, because of https://github.com/golang/go/issues/23536
+			replacement := &ast.CallExpr{
+				Fun:  &ast.Ident{Name: "string"},
+				Args: []ast.Expr{arg},
+			}
+			report.Report(pass, node, "the argument's underlying type is a slice of bytes, should use a simple conversion instead of fmt.Sprintf",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("replace with conversion to string", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 		}
+
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
