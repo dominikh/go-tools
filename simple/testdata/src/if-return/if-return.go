@@ -100,3 +100,10 @@ func fn14(a, b int) bool {
 	}
 	return true
 }
+
+func fn15() bool {
+	if !fn() { // want `should use 'return fn\(\)'`
+		return false
+	}
+	return true
+}

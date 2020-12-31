@@ -478,14 +478,18 @@ func negate(expr ast.Expr) ast.Expr {
 			Op: token.NOT,
 			X:  expr,
 		}
-	default:
-		return &ast.UnaryExpr{
-			Op: token.NOT,
-			X: &ast.ParenExpr{
-				X: expr,
-			},
+	case *ast.UnaryExpr:
+		if expr.Op == token.NOT {
+			return expr.X
 		}
 	}
+	return &ast.UnaryExpr{
+		Op: token.NOT,
+		X: &ast.ParenExpr{
+			X: expr,
+		},
+	}
+
 }
 
 // CheckRedundantNilCheckWithLen checks for the following redundant nil-checks:
