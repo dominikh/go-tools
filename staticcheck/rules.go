@@ -15,6 +15,7 @@ import (
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/go/types/typeutil"
 
 	"golang.org/x/tools/go/analysis"
@@ -56,6 +57,7 @@ func (arg *Argument) Invalid(msg string) {
 type CallCheck func(call *Call)
 
 func extractConsts(v ir.Value) []*ir.Const {
+	v = irutil.Flatten(v)
 	switch v := v.(type) {
 	case *ir.Const:
 		return []*ir.Const{v}
