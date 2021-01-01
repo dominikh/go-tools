@@ -8,11 +8,17 @@ type T3 int
 type T4 int
 type T5 int
 type T6 string
+type T9 string
+type T11 int
 
 func (T3) String() string        { return "" }
 func (T6) String() string        { return "" }
 func (T4) String(arg int) string { return "" }
 func (T5) String()               {}
+
+func (T9) Format(f fmt.State, c rune)  {}
+func (T11) Format(f fmt.State, c rune) {}
+func (T11) String() string             { return "" }
 
 func fn() {
 	var t1 T1
@@ -21,6 +27,8 @@ func fn() {
 	var t4 T4
 	var t5 T5
 	var t6 T6
+	var t9 T9
+	var t11 T11
 	_ = fmt.Sprintf("%s", "test")      // want `is already a string`
 	_ = fmt.Sprintf("%s", t1)          // want `is a string`
 	_ = fmt.Sprintf("%s", t2)          // want `is a string`
@@ -31,4 +39,8 @@ func fn() {
 	_ = fmt.Sprintf("%s %s", t1, t2)
 	_ = fmt.Sprintf("%v", t1)
 	_ = fmt.Sprintf("%s", t6) // want `should use String\(\) instead of fmt\.Sprintf`
+
+	// don't simplify types that implement fmt.Formatter
+	_ = fmt.Sprintf("%s", t9)
+	_ = fmt.Sprintf("%s", t11)
 }

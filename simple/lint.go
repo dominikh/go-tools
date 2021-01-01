@@ -1407,6 +1407,31 @@ func isStringer(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
 	return true
 }
 
+func isFormatter(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
+	// TODO(dh): this function also exists in staticcheck/lint.go – deduplicate.
+
+	ms := msCache.MethodSet(T)
+	sel := ms.Lookup(nil, "Format")
+	if sel == nil {
+		return false
+	}
+	fn, ok := sel.Obj().(*types.Func)
+	if !ok {
+		// should be unreachable
+		return false
+	}
+	sig := fn.Type().(*types.Signature)
+	if sig.Params().Len() != 2 {
+		return false
+	}
+	// TODO(dh): check the types of the arguments for more
+	// precision
+	if sig.Results().Len() != 0 {
+		return false
+	}
+	return true
+}
+
 var checkRedundantSprintfQ = pattern.MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
 
 func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
@@ -1422,9 +1447,20 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		typ := pass.TypesInfo.TypeOf(arg)
-
 		irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
-		if types.TypeString(typ, nil) != "reflect.Value" && isStringer(typ, &irpkg.Prog.MethodSets) {
+
+		if types.TypeString(typ, nil) == "reflect.Value" {
+			// printing with %s produces output different from using
+			// the String method
+			return
+		}
+
+		if isFormatter(typ, &irpkg.Prog.MethodSets) {
+			// the type may choose to handle %s in arbitrary ways
+			return
+		}
+
+		if isStringer(typ, &irpkg.Prog.MethodSets) {
 			replacement := &ast.CallExpr{
 				Fun: &ast.SelectorExpr{
 					X:   arg,
