@@ -293,7 +293,110 @@ var (
 	checkWithValueKeyRules = map[string]CallCheck{
 		"context.WithValue": checkWithValueKey,
 	}
+
+	checkStrconvRules = map[string]CallCheck{
+		"strconv.ParseComplex": func(call *Call) {
+			validateComplexBitSize(call.Args[knowledge.Arg("strconv.ParseComplex.bitSize")])
+		},
+		"strconv.ParseFloat": func(call *Call) {
+			validateFloatBitSize(call.Args[knowledge.Arg("strconv.ParseFloat.bitSize")])
+		},
+		"strconv.ParseInt": func(call *Call) {
+			validateContinuousBitSize(call.Args[knowledge.Arg("strconv.ParseInt.bitSize")], 0, 64)
+			validateIntBaseAllowZero(call.Args[knowledge.Arg("strconv.ParseInt.base")])
+		},
+		"strconv.ParseUint": func(call *Call) {
+			validateContinuousBitSize(call.Args[knowledge.Arg("strconv.ParseUint.bitSize")], 0, 64)
+			validateIntBaseAllowZero(call.Args[knowledge.Arg("strconv.ParseUint.base")])
+		},
+
+		"strconv.FormatComplex": func(call *Call) {
+			validateComplexFormat(call.Args[knowledge.Arg("strconv.FormatComplex.fmt")])
+			validateComplexBitSize(call.Args[knowledge.Arg("strconv.FormatComplex.bitSize")])
+		},
+		"strconv.FormatFloat": func(call *Call) {
+			validateFloatFormat(call.Args[knowledge.Arg("strconv.FormatFloat.fmt")])
+			validateFloatBitSize(call.Args[knowledge.Arg("strconv.FormatFloat.bitSize")])
+		},
+		"strconv.FormatInt": func(call *Call) {
+			validateIntBase(call.Args[knowledge.Arg("strconv.FormatInt.base")])
+		},
+		"strconv.FormatUint": func(call *Call) {
+			validateIntBase(call.Args[knowledge.Arg("strconv.FormatUint.base")])
+		},
+
+		"strconv.AppendFloat": func(call *Call) {
+			validateFloatFormat(call.Args[knowledge.Arg("strconv.AppendFloat.fmt")])
+			validateFloatBitSize(call.Args[knowledge.Arg("strconv.AppendFloat.bitSize")])
+		},
+		"strconv.AppendInt": func(call *Call) {
+			validateIntBase(call.Args[knowledge.Arg("strconv.AppendInt.base")])
+		},
+		"strconv.AppendUint": func(call *Call) {
+			validateIntBase(call.Args[knowledge.Arg("strconv.AppendUint.base")])
+		},
+	}
 )
+
+func validateIntBase(arg *Argument) {
+	if c := extractConstExpectKind(arg.Value.Value, constant.Int); c != nil {
+		val, _ := constant.Int64Val(c.Value)
+		if val < 2 {
+			arg.Invalid("'base' must not be smaller than 2")
+		}
+		if val > 36 {
+			arg.Invalid("'base' must not be larger than 36")
+		}
+	}
+}
+
+func validateIntBaseAllowZero(arg *Argument) {
+	if c := extractConstExpectKind(arg.Value.Value, constant.Int); c != nil {
+		val, _ := constant.Int64Val(c.Value)
+		if val < 2 && val != 0 {
+			arg.Invalid("'base' must not be smaller than 2, unless it is 0")
+		}
+		if val > 36 {
+			arg.Invalid("'base' must not be larger than 36")
+		}
+	}
+}
+
+func validateComplexFormat(arg *Argument) {
+	validateFloatFormat(arg)
+}
+
+func validateFloatFormat(arg *Argument) {
+	if c := extractConstExpectKind(arg.Value.Value, constant.Int); c != nil {
+		val, _ := constant.Int64Val(c.Value)
+		switch val {
+		case 'b', 'e', 'E', 'f', 'g', 'G', 'x', 'X':
+		default:
+			arg.Invalid(fmt.Sprintf("'fmt' argument is invalid: unknown format %q", val))
+		}
+	}
+}
+
+func validateComplexBitSize(arg *Argument) { validateDiscreetBitSize(arg, 64, 128) }
+func validateFloatBitSize(arg *Argument)   { validateDiscreetBitSize(arg, 32, 64) }
+
+func validateDiscreetBitSize(arg *Argument, size1 int, size2 int) {
+	if c := extractConstExpectKind(arg.Value.Value, constant.Int); c != nil {
+		val, _ := constant.Int64Val(c.Value)
+		if val != int64(size1) && val != int64(size2) {
+			arg.Invalid(fmt.Sprintf("'bitSize' argument is invalid, must be either %d or %d", size1, size2))
+		}
+	}
+}
+
+func validateContinuousBitSize(arg *Argument, min int, max int) {
+	if c := extractConstExpectKind(arg.Value.Value, constant.Int); c != nil {
+		val, _ := constant.Int64Val(c.Value)
+		if val < int64(min) || val > int64(max) {
+			arg.Invalid(fmt.Sprintf("'bitSize' argument is invalid, must be within %d and %d", min, max))
+		}
+	}
+}
 
 func checkPrintfCall(call *Call, fIdx, vIdx int) {
 	f := call.Args[fIdx]

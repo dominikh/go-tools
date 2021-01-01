@@ -265,6 +265,13 @@ interface.`,
 		Since: "2020.1",
 	},
 
+	"SA1030": {
+		Title: `Invalid argument in call to a strconv function`,
+		Text: `This check validates the format, number base and bit size arguments of
+the various parsing and formatting functions in strconv.`,
+		Since: "Unreleased",
+	},
+
 	"SA2000": {
 		Title: `sync.WaitGroup.Add called inside the goroutine, leading to a race condition`,
 		Since: "2017.1",

@@ -41,6 +41,7 @@ func TestAll(t *testing.T) {
 		"SA1027": {{Dir: "CheckAtomicAlignment"}},
 		"SA1028": {{Dir: "CheckSortSlice"}},
 		"SA1029": {{Dir: "CheckWithValueKey"}},
+		"SA1030": {{Dir: "CheckStrconv"}},
 		"SA2000": {{Dir: "CheckWaitgroupAdd"}},
 		"SA2001": {{Dir: "CheckEmptyCriticalSection"}},
 		"SA2002": {{Dir: "CheckConcurrentTesting"}},
