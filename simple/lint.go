@@ -1407,6 +1407,31 @@ func isStringer(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
 	return true
 }
 
+func isFormatter(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
+	// TODO(dh): this function also exists in staticcheck/lint.go – deduplicate.
+
+	ms := msCache.MethodSet(T)
+	sel := ms.Lookup(nil, "Format")
+	if sel == nil {
+		return false
+	}
+	fn, ok := sel.Obj().(*types.Func)
+	if !ok {
+		// should be unreachable
+		return false
+	}
+	sig := fn.Type().(*types.Signature)
+	if sig.Params().Len() != 2 {
+		return false
+	}
+	// TODO(dh): check the types of the arguments for more
+	// precision
+	if sig.Results().Len() != 0 {
+		return false
+	}
+	return true
+}
+
 var checkRedundantSprintfQ = pattern.MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
 
 func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
@@ -1425,9 +1450,20 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		typ := pass.TypesInfo.TypeOf(arg)
-
 		irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
-		if types.TypeString(typ, nil) != "reflect.Value" && isStringer(typ, &irpkg.Prog.MethodSets) {
+
+		if types.TypeString(typ, nil) == "reflect.Value" {
+			// printing with %s produces output different from using
+			// the String method
+			return
+		}
+
+		if isFormatter(typ, &irpkg.Prog.MethodSets) {
+			// the type may choose to handle %s in arbitrary ways
+			return
+		}
+
+		if isStringer(typ, &irpkg.Prog.MethodSets) {
 			replacement := &ast.CallExpr{
 				Fun: &ast.SelectorExpr{
 					X:   arg,
@@ -1436,20 +1472,18 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			}
 			report.Report(pass, node, "should use String() instead of fmt.Sprintf",
 				report.Fixes(edit.Fix("replace with call to String method", edit.ReplaceWithNode(pass.Fset, node, replacement))))
+		} else if typ == types.Universe.Lookup("string").Type() {
+			report.Report(pass, node, "the argument is already a string, there's no need to use fmt.Sprintf",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("remove unnecessary call to fmt.Sprintf", edit.ReplaceWithNode(pass.Fset, node, arg))))
 		} else if typ.Underlying() == types.Universe.Lookup("string").Type() {
-			if typ == types.Universe.Lookup("string").Type() {
-				report.Report(pass, node, "the argument is already a string, there's no need to use fmt.Sprintf",
-					report.FilterGenerated(),
-					report.Fixes(edit.Fix("remove unnecessary call to fmt.Sprintf", edit.ReplaceWithNode(pass.Fset, node, arg))))
-			} else {
-				replacement := &ast.CallExpr{
-					Fun:  &ast.Ident{Name: "string"},
-					Args: []ast.Expr{arg},
-				}
-				report.Report(pass, node, "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf",
-					report.FilterGenerated(),
-					report.Fixes(edit.Fix("replace with conversion to string", edit.ReplaceWithNode(pass.Fset, node, replacement))))
+			replacement := &ast.CallExpr{
+				Fun:  &ast.Ident{Name: "string"},
+				Args: []ast.Expr{arg},
 			}
+			report.Report(pass, node, "the argument's underlying type is a string, should use a simple conversion instead of fmt.Sprintf",
+				report.FilterGenerated(),
+				report.Fixes(edit.Fix("replace with conversion to string", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 		} else if slice, ok := typ.Underlying().(*types.Slice); ok && slice.Elem() == types.Universe.Lookup("byte").Type() {
 			// Note that we check slice.Elem(), not slice.Elem().Underlying, because of https://github.com/golang/go/issues/23536
 			replacement := &ast.CallExpr{
