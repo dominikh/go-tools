@@ -194,6 +194,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckTypedNilInterface,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, typedness.Analysis, nilness.Analysis},
 	},
+	"SA4024": {
+		Run:      CheckBuiltinZeroComparison,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,
@@ -240,10 +244,6 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:       CheckEvenSliceLength,
 		FactTypes: []analysis.Fact{new(evenElements)},
 		Requires:  []*analysis.Analyzer{buildir.Analyzer},
-	},
-	"SA5013": {
-		Run:      CheckBuiltinZeroComparison,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 
 	"SA6000": makeCallCheckerAnalyzer(checkRegexpMatchLoopRules),

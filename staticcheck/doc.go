@@ -567,6 +567,20 @@ Commons Attribution 3.0 License.`,
 		Since: "2020.2",
 	},
 
+	"SA4024": {
+		Title: `Checking for impossible return value from a builtin function`,
+		Text: `Return values the len and cap builtins cannot be negative.
+
+See https://golang.org/pkg/builtin/#len and https://golang.org/pkg/builtin/#cap.
+
+Example:
+
+    if len(slice) < 0 {
+        fmt.Println("unreachable code")
+    }`,
+		Since: `Unreleased`,
+	},
+
 	"SA5000": {
 		Title: `Assignment to nil map`,
 		Since: "2017.1",
@@ -737,20 +751,6 @@ Often, these functions treat elements in a slice as pairs.
 For example, strings.NewReplacer takes pairs of old and new strings, 
 and calling it with an odd number of elements would be an error.`,
 		Since: "2020.2",
-	},
-
-	"SA5013": {
-		Title: `Checking for impossible return value from a builtin function`,
-		Text: `Return values the len and cap builtins cannot be negative.
-
-See https://golang.org/pkg/builtin/#len and https://golang.org/pkg/builtin/#cap.
-
-Example:
-
-    if len(slice) < 0 {
-        fmt.Println("unreachable code")
-    }`,
-		Since: `Unreleased`,
 	},
 
 	"SA6000": {
