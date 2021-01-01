@@ -3,11 +3,6 @@ package pkg
 import "strconv"
 
 func fn() {
-	strconv.ParseComplex("", 32) // want `'bitSize' argument is invalid, must be either 64 or 128`
-	strconv.ParseComplex("", 64)
-	strconv.ParseComplex("", 128)
-	strconv.ParseComplex("", 256) // want `'bitSize' argument is invalid, must be either 64 or 128`
-
 	strconv.ParseFloat("", 16) // want `'bitSize' argument is invalid, must be either 32 or 64`
 	strconv.ParseFloat("", 32)
 	strconv.ParseFloat("", 64)
@@ -36,12 +31,6 @@ func fn() {
 	strconv.ParseUint("", 10, 0)
 	strconv.ParseUint("", 36, 0)
 	strconv.ParseUint("", 37, 0) // want `'base' must not be larger than 36`
-
-	strconv.FormatComplex(0, 'e', 0, 32) // want `'bitSize' argument is invalid, must be either 64 or 128`
-	strconv.FormatComplex(0, 'e', 0, 64)
-	strconv.FormatComplex(0, 'e', 0, 128)
-	strconv.FormatComplex(0, 'e', 0, 256) // want `'bitSize' argument is invalid, must be either 64 or 128`
-	strconv.FormatComplex(0, 'j', 0, 64)  // want `'fmt' argument is invalid: unknown format 'j'`
 
 	strconv.FormatFloat(0, 'e', 0, 18) // want `'bitSize' argument is invalid, must be either 32 or 64`
 	strconv.FormatFloat(0, 'e', 0, 32)

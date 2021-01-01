@@ -43,7 +43,7 @@ func TestAll(t *testing.T) {
 		"SA1029": {{Dir: "CheckWithValueKey"}},
 		"SA1030": {
 			{Dir: "CheckStrconv"},
-			{Dir: "CheckStrconv_go15", Version: "1.15"},
+			{Dir: "CheckStrconv_go115", Version: "1.15"},
 		},
 		"SA2000": {{Dir: "CheckWaitgroupAdd"}},
 		"SA2001": {{Dir: "CheckEmptyCriticalSection"}},
