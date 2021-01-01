@@ -3160,7 +3160,7 @@ func CheckWriterBufferModified(pass *analysis.Pass) (interface{}, error) {
 
 func loopedRegexp(name string) CallCheck {
 	return func(call *Call) {
-		if len(extractConsts(call.Args[0].Value.Value)) == 0 {
+		if extractConst(call.Args[0].Value.Value) == nil {
 			return
 		}
 		if !isInLoop(call.Instr.Block()) {
