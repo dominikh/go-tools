@@ -268,19 +268,22 @@ func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers m
 	return append(problems, moreProblems...), nil
 }
 
+func defaultGoVersion() string {
+	tags := build.Default.ReleaseTags
+	v := tags[len(tags)-1][2:]
+	return v
+}
+
 func newLinter(cfg config.Config) (*linter, error) {
 	r, err := runner.New(cfg)
 	if err != nil {
 		return nil, err
 	}
+	r.FallbackGoVersion = defaultGoVersion()
 	return &linter{
 		Config: cfg,
 		Runner: r,
 	}, nil
-}
-
-func (l *linter) SetGoVersion(n int) {
-	l.Runner.GoVersion = n
 }
 
 func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []problem, warnings []string, err error) {
@@ -528,7 +531,7 @@ func FlagSet(name string) *flag.FlagSet {
 		panic(fmt.Sprintf("internal error: %s", err))
 	}
 
-	flags.Var(version, "go", "Target Go `version` in the format '1.x'")
+	flags.String("go", "module", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
 	return flags
 }
 
@@ -544,7 +547,7 @@ func findCheck(cs []*analysis.Analyzer, check string) (*analysis.Analyzer, bool)
 func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
-	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(int)
+	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(string)
 	theFormatter := fs.Lookup("f").Value.(flag.Getter).Get().(string)
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
@@ -721,7 +724,7 @@ type options struct {
 
 	Tags                     string
 	LintTests                bool
-	GoVersion                int
+	GoVersion                string
 	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
@@ -761,7 +764,7 @@ func doLint(cs []*analysis.Analyzer, paths []string, opt *options) ([]problem, [
 		return nil, nil, err
 	}
 	l.Checkers = cs
-	l.SetGoVersion(opt.GoVersion)
+	l.Runner.GoVersion = opt.GoVersion
 	l.Runner.Stats.PrintAnalyzerMeasurement = opt.PrintAnalyzerMeasurement
 
 	cfg := &packages.Config{}

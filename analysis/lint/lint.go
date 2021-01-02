@@ -2,7 +2,6 @@
 package lint
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -66,13 +65,13 @@ func (v *VersionFlag) String() string {
 
 func (v *VersionFlag) Set(s string) error {
 	if len(s) < 3 {
-		return errors.New("invalid Go version")
+		return fmt.Errorf("invalid Go version: %q", s)
 	}
 	if s[0] != '1' {
-		return errors.New("invalid Go version")
+		return fmt.Errorf("invalid Go version: %q", s)
 	}
 	if s[1] != '.' {
-		return errors.New("invalid Go version")
+		return fmt.Errorf("invalid Go version: %q", s)
 	}
 	i, err := strconv.Atoi(s[2:])
 	*v = VersionFlag(i)

@@ -37,6 +37,7 @@ type PackageSpec struct {
 	Imports         map[string]*PackageSpec
 	TypesSizes      types.Sizes
 	Hash            cache.ActionID
+	Module          *packages.Module
 
 	Config config.Config
 }
@@ -74,7 +75,8 @@ func Graph(cfg *packages.Config, patterns ...string) ([]*PackageSpec, error) {
 		packages.NeedExportsFile |
 		packages.NeedFiles |
 		packages.NeedCompiledGoFiles |
-		packages.NeedTypesSizes
+		packages.NeedTypesSizes |
+		packages.NeedModule
 	pkgs, err := packages.Load(&dcfg, patterns...)
 	if err != nil {
 		return nil, err
@@ -93,6 +95,7 @@ func Graph(cfg *packages.Config, patterns ...string) ([]*PackageSpec, error) {
 			ExportFile:      pkg.ExportFile,
 			Imports:         map[string]*PackageSpec{},
 			TypesSizes:      pkg.TypesSizes,
+			Module:          pkg.Module,
 		}
 		for path, imp := range pkg.Imports {
 			spec.Imports[path] = m[imp]

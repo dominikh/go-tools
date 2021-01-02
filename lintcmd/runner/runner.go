@@ -335,7 +335,13 @@ func (act *analyzerAction) String() string {
 // A Runner executes analyzers on packages.
 type Runner struct {
 	Stats     Stats
-	GoVersion int
+	GoVersion string
+	// if GoVersion == "module", and we couldn't determine the
+	// module's Go version, use this as the fallback
+	FallbackGoVersion string
+
+	// GoVersion might be "module"; actualGoVersion contains the resolved version
+	actualGoVersion string
 
 	// Config that gets merged with per-package configs
 	cfg       config.Config
@@ -499,7 +505,7 @@ func (r *subrunner) do(act action) error {
 	fmt.Fprintf(h, "cfg %#v\n", hashCfg)
 	fmt.Fprintf(h, "pkg %x\n", a.Package.Hash)
 	fmt.Fprintf(h, "analyzers %s\n", r.analyzerNames)
-	fmt.Fprintf(h, "go 1.%d\n", r.GoVersion)
+	fmt.Fprintf(h, "go %s\n", r.actualGoVersion)
 
 	// OPT(dh): do we actually need to hash vetx? can we not assume
 	// that for identical inputs, staticcheck will produce identical
@@ -1097,21 +1103,9 @@ func allAnalyzers(analyzers []*analysis.Analyzer) []*analysis.Analyzer {
 //
 // If cfg is nil, a default config will be used. Otherwise, cfg will
 // be used, with the exception of the Mode field.
-//
-// Run can be called multiple times on the same Runner and it is safe
-// for concurrent use. All runs will share the same semaphore.
 func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patterns []string) ([]Result, error) {
 	analyzers = allAnalyzers(analyzers)
 	registerGobTypes(analyzers)
-
-	for _, a := range analyzers {
-		flag := a.Flags.Lookup("go")
-		if flag == nil {
-			continue
-		}
-		// OPT(dh): this is terrible
-		flag.Value.Set(fmt.Sprintf("1.%d", r.GoVersion))
-	}
 
 	r.Stats.setState(StateLoadPackageGraph)
 	lpkgs, err := loader.Graph(cfg, patterns...)
@@ -1122,6 +1116,43 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 
 	if len(lpkgs) == 0 {
 		return nil, nil
+	}
+
+	var goVersion string
+	if r.GoVersion == "module" {
+		for _, lpkg := range lpkgs {
+			if m := lpkg.Module; m != nil {
+				if goVersion == "" {
+					goVersion = m.GoVersion
+				} else if goVersion != m.GoVersion {
+					// Theoretically, we should only ever see a single Go
+					// module. At least that's currently (as of Go 1.15)
+					// true when using 'go list'.
+					fmt.Fprintln(os.Stderr, "warning: encountered multiple modules and could not deduce targeted Go version")
+					goVersion = ""
+					break
+				}
+			}
+		}
+	} else {
+		goVersion = r.GoVersion
+	}
+
+	if goVersion == "" {
+		if r.FallbackGoVersion == "" {
+			panic("could not determine Go version of module, and fallback version hasn't been set")
+		}
+		goVersion = r.FallbackGoVersion
+	}
+	r.actualGoVersion = goVersion
+	for _, a := range analyzers {
+		flag := a.Flags.Lookup("go")
+		if flag == nil {
+			continue
+		}
+		if err := flag.Value.Set(goVersion); err != nil {
+			return nil, err
+		}
 	}
 
 	r.Stats.setState(StateBuildActionGraph)
