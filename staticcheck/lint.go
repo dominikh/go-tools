@@ -3038,6 +3038,13 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			return true
 		}
 		if depr, ok := deprs.Objects[obj]; ok {
+			// Note: gopls dosn't correctly run analyzers on
+			// dependencies, so we'll never be able to find deprecated
+			// objects in imported code. We've experimented with
+			// lifting the stdlib handling out of the general check,
+			// to at least work for deprecated objects in the stdlib,
+			// but we gave up on that, because we wouldn't have access
+			// to the deprecation message.
 			std, ok := knowledge.StdlibDeprecations[code.SelectorName(pass, sel)]
 			if ok {
 				switch std.AlternativeAvailableSince {
@@ -3067,9 +3074,6 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 						return true
 					}
 				}
-			}
-			if ok && !code.IsGoVersion(pass, std.AlternativeAvailableSince) {
-				return true
 			}
 
 			if tfn != nil {
