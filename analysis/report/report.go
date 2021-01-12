@@ -3,7 +3,7 @@ package report
 import (
 	"bytes"
 	"go/ast"
-	"go/printer"
+	"go/format"
 	"go/token"
 	"path/filepath"
 	"strconv"
@@ -171,7 +171,7 @@ func Report(pass *analysis.Pass, node Positioner, message string, opts ...Option
 
 func Render(pass *analysis.Pass, x interface{}) string {
 	var buf bytes.Buffer
-	if err := printer.Fprint(&buf, pass.Fset, x); err != nil {
+	if err := format.Node(&buf, pass.Fset, x); err != nil {
 		panic(err)
 	}
 	return buf.String()
