@@ -37,7 +37,6 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	goastutil "golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
 	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
@@ -2809,7 +2808,7 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 						// of a pattern, x<<0, x<<8, x<<16, ...
 						continue
 					}
-					path, _ := goastutil.PathEnclosingInterval(code.File(pass, ins), ins.Pos(), ins.Pos())
+					path, _ := astutil.PathEnclosingInterval(code.File(pass, ins), ins.Pos(), ins.Pos())
 					if len(path) == 0 {
 						continue
 					}
@@ -2857,7 +2856,7 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 			if v, _ := constant.Int64Val(obj.Val()); v != 0 {
 				return
 			}
-			path, _ := goastutil.PathEnclosingInterval(code.File(pass, obj), obj.Pos(), obj.Pos())
+			path, _ := astutil.PathEnclosingInterval(code.File(pass, obj), obj.Pos(), obj.Pos())
 			if len(path) < 2 {
 				return
 			}

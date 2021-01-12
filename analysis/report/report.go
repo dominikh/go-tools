@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/go/ast/astutil"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 type Options struct {

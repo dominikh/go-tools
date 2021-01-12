@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"honnef.co/go/tools/analysis/facts"
+	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 type Positioner interface {

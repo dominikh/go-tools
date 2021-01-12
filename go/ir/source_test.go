@@ -21,10 +21,10 @@ import (
 	"strings"
 	"testing"
 
+	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
 
-	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/expect"
 	"golang.org/x/tools/go/loader"
 )
