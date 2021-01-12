@@ -29,8 +29,7 @@ import (
 	"honnef.co/go/tools/go/callgraph"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
-
-	"golang.org/x/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // CallGraph computes the call graph of the specified program using the

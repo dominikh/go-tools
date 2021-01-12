@@ -52,8 +52,7 @@ import (
 
 	"honnef.co/go/tools/go/callgraph"
 	"honnef.co/go/tools/go/ir"
-
-	"golang.org/x/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // A Result holds the results of Rapid Type Analysis, which includes the

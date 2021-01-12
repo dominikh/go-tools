@@ -15,7 +15,7 @@ import (
 	"go/types"
 	"sync"
 
-	"golang.org/x/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 type ID int

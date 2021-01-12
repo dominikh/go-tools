@@ -24,7 +24,6 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
 
 var (
@@ -1383,7 +1382,7 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func isStringer(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
+func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	ms := msCache.MethodSet(T)
 	sel := ms.Lookup(nil, "String")
 	if sel == nil {
@@ -1407,7 +1406,7 @@ func isStringer(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
 	return true
 }
 
-func isFormatter(T types.Type, msCache *gotypeutil.MethodSetCache) bool {
+func isFormatter(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	// TODO(dh): this function also exists in staticcheck/lint.go – deduplicate.
 
 	ms := msCache.MethodSet(T)

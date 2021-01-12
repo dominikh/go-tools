@@ -27,7 +27,6 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
 
 func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
@@ -261,7 +260,7 @@ func CheckReceiverNames(pass *analysis.Pass) (interface{}, error) {
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 	for _, m := range irpkg.Members {
 		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
-			ms := gotypeutil.IntuitiveMethodSet(T.Type(), nil)
+			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()
@@ -288,7 +287,7 @@ func CheckReceiverNamesIdentical(pass *analysis.Pass) (interface{}, error) {
 
 		var firstFn *types.Func
 		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {
-			ms := gotypeutil.IntuitiveMethodSet(T.Type(), nil)
+			ms := typeutil.IntuitiveMethodSet(T.Type(), nil)
 			for _, sel := range ms {
 				fn := sel.Obj().(*types.Func)
 				recv := fn.Type().(*types.Signature).Recv()

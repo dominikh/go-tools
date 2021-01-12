@@ -38,7 +38,6 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	gotypeutil "golang.org/x/tools/go/types/typeutil"
 )
 
 func checkSortSlice(call *Call) {
@@ -458,7 +457,7 @@ var verbs = [...]verbFlag{
 }
 
 func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
-	var msCache *gotypeutil.MethodSetCache
+	var msCache *typeutil.MethodSetCache
 	if f.Parent() != nil {
 		msCache = &f.Parent().Prog.MethodSets
 	}

@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"sort"
 
-	"golang.org/x/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // relName returns the name of v relative to i.
