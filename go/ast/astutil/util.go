@@ -1,8 +1,10 @@
 package astutil
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
+	"reflect"
 	"strings"
 )
 
@@ -72,5 +74,123 @@ func Unparen(e ast.Expr) ast.Expr {
 			return e
 		}
 		e = p.X
+	}
+}
+func Equal(a, b ast.Node) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if reflect.TypeOf(a) != reflect.TypeOf(b) {
+		return false
+	}
+
+	switch a := a.(type) {
+	case *ast.BasicLit:
+		b := b.(*ast.BasicLit)
+		return a.Kind == b.Kind && a.Value == b.Value
+	case *ast.BinaryExpr:
+		b := b.(*ast.BinaryExpr)
+		return Equal(a.X, b.X) && a.Op == b.Op && Equal(a.Y, b.Y)
+	case *ast.CallExpr:
+		b := b.(*ast.CallExpr)
+		if len(a.Args) != len(b.Args) {
+			return false
+		}
+		for i, arg := range a.Args {
+			if !Equal(arg, b.Args[i]) {
+				return false
+			}
+		}
+		return Equal(a.Fun, b.Fun) &&
+			(a.Ellipsis == token.NoPos && b.Ellipsis == token.NoPos || a.Ellipsis != token.NoPos && b.Ellipsis != token.NoPos)
+	case *ast.CompositeLit:
+		b := b.(*ast.CompositeLit)
+		if len(a.Elts) != len(b.Elts) {
+			return false
+		}
+		for i, elt := range b.Elts {
+			if !Equal(elt, b.Elts[i]) {
+				return false
+			}
+		}
+		return Equal(a.Type, b.Type) && a.Incomplete == b.Incomplete
+	case *ast.Ident:
+		b := b.(*ast.Ident)
+		return a.Name == b.Name
+	case *ast.IndexExpr:
+		b := b.(*ast.IndexExpr)
+		return Equal(a.X, b.X) && Equal(a.Index, b.Index)
+	case *ast.KeyValueExpr:
+		b := b.(*ast.KeyValueExpr)
+		return Equal(a.Key, b.Key) && Equal(a.Value, b.Value)
+	case *ast.ParenExpr:
+		b := b.(*ast.ParenExpr)
+		return Equal(a.X, b.X)
+	case *ast.SelectorExpr:
+		b := b.(*ast.SelectorExpr)
+		return Equal(a.X, b.X) && Equal(a.Sel, b.Sel)
+	case *ast.SliceExpr:
+		b := b.(*ast.SliceExpr)
+		return Equal(a.X, b.X) && Equal(a.Low, b.Low) && Equal(a.High, b.High) && Equal(a.Max, b.Max) && a.Slice3 == b.Slice3
+	case *ast.StarExpr:
+		b := b.(*ast.StarExpr)
+		return Equal(a.X, b.X)
+	case *ast.TypeAssertExpr:
+		b := b.(*ast.TypeAssertExpr)
+		return Equal(a.X, b.X) && Equal(a.Type, b.Type)
+	case *ast.UnaryExpr:
+		b := b.(*ast.UnaryExpr)
+		return a.Op == b.Op && Equal(a.X, b.X)
+	case *ast.MapType:
+		b := b.(*ast.MapType)
+		return Equal(a.Key, b.Key) && Equal(a.Value, b.Value)
+	case *ast.ArrayType:
+		b := b.(*ast.ArrayType)
+		return Equal(a.Len, b.Len) && Equal(a.Elt, b.Elt)
+	case *ast.Ellipsis:
+		b := b.(*ast.Ellipsis)
+		return Equal(a.Elt, b.Elt)
+	case *ast.InterfaceType:
+		b := b.(*ast.InterfaceType)
+		return a.Incomplete == b.Incomplete && Equal(a.Methods, b.Methods)
+	case *ast.StructType:
+		b := b.(*ast.StructType)
+		return a.Incomplete == b.Incomplete && Equal(a.Fields, b.Fields)
+	case *ast.FuncLit:
+		// TODO(dh): support function literals
+		return false
+	case *ast.ChanType:
+		b := b.(*ast.ChanType)
+		return a.Dir == b.Dir && (a.Arrow == token.NoPos && b.Arrow == token.NoPos || a.Arrow != token.NoPos && b.Arrow != token.NoPos)
+	case *ast.FieldList:
+		b := b.(*ast.FieldList)
+		if len(a.List) != len(b.List) {
+			return false
+		}
+		for i, fieldA := range a.List {
+			if !Equal(fieldA, b.List[i]) {
+				return false
+			}
+		}
+		return true
+	case *ast.Field:
+		b := b.(*ast.Field)
+		if len(a.Names) != len(b.Names) {
+			return false
+		}
+		for j, name := range a.Names {
+			if !Equal(name, b.Names[j]) {
+				return false
+			}
+		}
+		if !Equal(a.Type, b.Type) || !Equal(a.Tag, b.Tag) {
+			return false
+		}
+		return true
+	default:
+		panic(fmt.Sprintf("unreachable: %T", a))
 	}
 }

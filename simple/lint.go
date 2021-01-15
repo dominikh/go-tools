@@ -928,10 +928,8 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 		switch node1 := node1.(type) {
 		case *ast.Ident:
 			return node1.Obj == node2.(*ast.Ident).Obj
-		case *ast.SelectorExpr:
-			return report.Render(pass, node1) == report.Render(pass, node2)
-		case *ast.IndexExpr:
-			return report.Render(pass, node1) == report.Render(pass, node2)
+		case *ast.SelectorExpr, *ast.IndexExpr:
+			return astutil.Equal(node1, node2)
 		}
 		return false
 	}
