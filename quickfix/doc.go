@@ -11,4 +11,32 @@ var Docs = map[string]*lint.Documentation{
 		Title: "Apply De Morgan's law",
 		Since: "Unreleased",
 	},
+	"QF1002": {
+		Title: "Convert untagged switch to tagged switch",
+		Text: `An untagged switch that compares a single variable against a series of values can be replaced with a tagged switch.
+
+Before:
+
+	switch {
+	case x == 1 || x == 2, x == 3:
+		...
+	case x == 4:
+		...
+	default:
+		...
+	}
+
+After:
+
+	switch x {
+	case 1, 2, 3:
+		...
+	case 4:
+		...
+	default:
+		...
+	}
+`,
+		Since: "Unreleased",
+	},
 }

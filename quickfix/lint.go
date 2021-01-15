@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"strconv"
+	"strings"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -310,5 +311,96 @@ func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
 
 	code.PreorderStack(pass, fn, (*ast.UnaryExpr)(nil))
 
+	return nil, nil
+}
+
+func findSwitchPairs(pass *analysis.Pass, expr ast.Expr, pairs *[]*ast.BinaryExpr) (OUT bool) {
+	binexpr, ok := astutil.Unparen(expr).(*ast.BinaryExpr)
+	if !ok {
+		return false
+	}
+	switch binexpr.Op {
+	case token.EQL:
+		if code.MayHaveSideEffects(pass, binexpr.X, nil) || code.MayHaveSideEffects(pass, binexpr.Y, nil) {
+			return false
+		}
+		// syntactic identity should suffice. we do not allow side
+		// effects in the case clauses, so there should be no way for
+		// values to change.
+		if len(*pairs) > 0 && !astutil.Equal(binexpr.X, (*pairs)[0].X) {
+			return false
+		}
+		*pairs = append(*pairs, binexpr)
+		return true
+	case token.LOR:
+		return findSwitchPairs(pass, binexpr.X, pairs) && findSwitchPairs(pass, binexpr.Y, pairs)
+	default:
+		return false
+	}
+}
+
+func CheckTaglessSwitch(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		swtch := node.(*ast.SwitchStmt)
+		if swtch.Tag != nil || len(swtch.Body.List) == 0 {
+			return
+		}
+
+		pairs := make([][]*ast.BinaryExpr, len(swtch.Body.List))
+		for i, stmt := range swtch.Body.List {
+			stmt := stmt.(*ast.CaseClause)
+			for _, cond := range stmt.List {
+				if !findSwitchPairs(pass, cond, &pairs[i]) {
+					return
+				}
+			}
+		}
+
+		var x ast.Expr
+		for _, pair := range pairs {
+			if len(pair) == 0 {
+				continue
+			}
+			if x == nil {
+				x = pair[0].X
+			} else {
+				if !astutil.Equal(x, pair[0].X) {
+					return
+				}
+			}
+		}
+		if x == nil {
+			// the switch only has a default case
+			if len(pairs) > 1 {
+				panic("found more than one case clause with no pairs")
+			}
+			return
+		}
+
+		edits := make([]analysis.TextEdit, 0, len(swtch.Body.List)+1)
+		for i, stmt := range swtch.Body.List {
+			stmt := stmt.(*ast.CaseClause)
+			if stmt.List == nil {
+				continue
+			}
+
+			var values []string
+			for _, binexpr := range pairs[i] {
+				y := binexpr.Y
+				if p, ok := y.(*ast.ParenExpr); ok {
+					y = p.X
+				}
+				values = append(values, report.Render(pass, y))
+			}
+
+			edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{stmt.List[0].Pos(), stmt.Colon}, strings.Join(values, ", ")))
+		}
+		pos := swtch.Switch + token.Pos(len("switch"))
+		edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{pos, pos}, " "+report.Render(pass, x)))
+		report.Report(pass, swtch, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
+			report.Fixes(edit.Fix("Replace with tagged switch", edits...)))
+	}
+
+	code.Preorder(pass, fn, (*ast.SwitchStmt)(nil))
 	return nil, nil
 }
