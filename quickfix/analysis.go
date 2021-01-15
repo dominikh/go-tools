@@ -12,4 +12,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckStringsIndexByte,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1001": {
+		Run:      CheckDeMorgan,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

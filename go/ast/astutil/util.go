@@ -76,6 +76,109 @@ func Unparen(e ast.Expr) ast.Expr {
 		e = p.X
 	}
 }
+
+func CopyExpr(node ast.Expr) ast.Expr {
+	switch node := node.(type) {
+	case *ast.BasicLit:
+		cp := *node
+		return &cp
+	case *ast.BinaryExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		cp.Y = CopyExpr(cp.Y)
+		return &cp
+	case *ast.CallExpr:
+		cp := *node
+		cp.Fun = CopyExpr(cp.Fun)
+		cp.Args = make([]ast.Expr, len(node.Args))
+		for i, v := range node.Args {
+			cp.Args[i] = CopyExpr(v)
+		}
+		return &cp
+	case *ast.CompositeLit:
+		cp := *node
+		cp.Type = CopyExpr(cp.Type)
+		cp.Elts = make([]ast.Expr, len(node.Elts))
+		for i, v := range node.Elts {
+			cp.Elts[i] = CopyExpr(v)
+		}
+		return &cp
+	case *ast.Ident:
+		cp := *node
+		return &cp
+	case *ast.IndexExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		cp.Index = CopyExpr(cp.Index)
+		return &cp
+	case *ast.KeyValueExpr:
+		cp := *node
+		cp.Key = CopyExpr(cp.Key)
+		cp.Value = CopyExpr(cp.Value)
+		return &cp
+	case *ast.ParenExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		return &cp
+	case *ast.SelectorExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		cp.Sel = CopyExpr(cp.Sel).(*ast.Ident)
+		return &cp
+	case *ast.SliceExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		cp.Low = CopyExpr(cp.Low)
+		cp.High = CopyExpr(cp.High)
+		cp.Max = CopyExpr(cp.Max)
+		return &cp
+	case *ast.StarExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		return &cp
+	case *ast.TypeAssertExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		cp.Type = CopyExpr(cp.Type)
+		return &cp
+	case *ast.UnaryExpr:
+		cp := *node
+		cp.X = CopyExpr(cp.X)
+		return &cp
+	case *ast.MapType:
+		cp := *node
+		cp.Key = CopyExpr(cp.Key)
+		cp.Value = CopyExpr(cp.Value)
+		return &cp
+	case *ast.ArrayType:
+		cp := *node
+		cp.Len = CopyExpr(cp.Len)
+		cp.Elt = CopyExpr(cp.Elt)
+		return &cp
+	case *ast.Ellipsis:
+		cp := *node
+		cp.Elt = CopyExpr(cp.Elt)
+		return &cp
+	case *ast.InterfaceType:
+		cp := *node
+		return &cp
+	case *ast.StructType:
+		cp := *node
+		return &cp
+	case *ast.FuncLit:
+		// TODO(dh): implement copying of function literals.
+		return nil
+	case *ast.ChanType:
+		cp := *node
+		cp.Value = CopyExpr(cp.Value)
+		return &cp
+	case nil:
+		return nil
+	default:
+		panic(fmt.Sprintf("unreachable: %T", node))
+	}
+}
+
 func Equal(a, b ast.Node) bool {
 	if a == b {
 		return true

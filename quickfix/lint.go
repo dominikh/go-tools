@@ -10,6 +10,7 @@ import (
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/pattern"
 
@@ -117,5 +118,197 @@ func CheckStringsIndexByte(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}
+
+func deMorgan(expr ast.Expr, recursive bool) ast.Expr {
+	switch expr := expr.(type) {
+	case *ast.BinaryExpr:
+		var out ast.BinaryExpr
+		switch expr.Op {
+		case token.EQL:
+			out.X = expr.X
+			out.Op = token.NEQ
+			out.Y = expr.Y
+		case token.LSS:
+			out.X = expr.X
+			out.Op = token.GEQ
+			out.Y = expr.Y
+		case token.GTR:
+			out.X = expr.X
+			out.Op = token.LEQ
+			out.Y = expr.Y
+		case token.NEQ:
+			out.X = expr.X
+			out.Op = token.EQL
+			out.Y = expr.Y
+		case token.LEQ:
+			out.X = expr.X
+			out.Op = token.GTR
+			out.Y = expr.Y
+		case token.GEQ:
+			out.X = expr.X
+			out.Op = token.LSS
+			out.Y = expr.Y
+
+		case token.LAND:
+			out.X = deMorgan(expr.X, recursive)
+			out.Op = token.LOR
+			out.Y = deMorgan(expr.Y, recursive)
+		case token.LOR:
+			out.X = deMorgan(expr.X, recursive)
+			out.Op = token.LAND
+			out.Y = deMorgan(expr.Y, recursive)
+		}
+		return &out
+
+	case *ast.ParenExpr:
+		if recursive {
+			return &ast.ParenExpr{
+				X: deMorgan(expr.X, recursive),
+			}
+		} else {
+			return &ast.UnaryExpr{
+				Op: token.NOT,
+				X:  expr,
+			}
+		}
+
+	case *ast.UnaryExpr:
+		if expr.Op == token.NOT {
+			return expr.X
+		} else {
+			return &ast.UnaryExpr{
+				Op: token.NOT,
+				X:  expr,
+			}
+		}
+
+	default:
+		return &ast.UnaryExpr{
+			Op: token.NOT,
+			X:  expr,
+		}
+	}
+}
+
+func simplifyParentheses(node ast.Expr) ast.Expr {
+	var changed bool
+	// XXX accept list of ops to operate on
+	// XXX copy AST node, don't modify in place
+	post := func(c *astutil.Cursor) bool {
+		out := c.Node()
+		if paren, ok := c.Node().(*ast.ParenExpr); ok {
+			out = paren.X
+		}
+
+		if binop, ok := out.(*ast.BinaryExpr); ok {
+			if right, ok := binop.Y.(*ast.BinaryExpr); ok && binop.Op == right.Op {
+				// XXX also check that Op is associative
+
+				root := binop
+				pivot := root.Y.(*ast.BinaryExpr)
+				root.Y = pivot.X
+				pivot.X = root
+				root = pivot
+				out = root
+			}
+		}
+
+		if out != c.Node() {
+			changed = true
+			c.Replace(out)
+		}
+		return true
+	}
+
+	for changed = true; changed; {
+		changed = false
+		node = astutil.Apply(node, nil, post).(ast.Expr)
+	}
+
+	return node
+}
+
+var demorganQ = pattern.MustParse(`(UnaryExpr "!" expr@(BinaryExpr _ _ _))`)
+
+func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
+	// TODO(dh): support going in the other direction, e.g. turning `!a && !b && !c` into `!(a || b || c)`
+
+	// hasFloats reports whether any subexpression is of type float.
+	hasFloats := func(expr ast.Expr) bool {
+		found := false
+		ast.Inspect(expr, func(node ast.Node) bool {
+			if expr, ok := node.(ast.Expr); ok {
+				if basic, ok := pass.TypesInfo.TypeOf(expr).Underlying().(*types.Basic); ok {
+					if (basic.Info() & types.IsFloat) != 0 {
+						found = true
+						return false
+					}
+				}
+			}
+			return true
+		})
+		return found
+	}
+
+	fn := func(node ast.Node, stack []ast.Node) {
+		matcher, ok := code.Match(pass, demorganQ, node)
+		if !ok {
+			return
+		}
+
+		expr := matcher.State["expr"].(ast.Expr)
+
+		// be extremely conservative when it comes to floats
+		if hasFloats(expr) {
+			return
+		}
+
+		n := deMorgan(expr, false)
+		nr := deMorgan(expr, true)
+		ns := simplifyParentheses(astutil.CopyExpr(n))
+		nrs := simplifyParentheses(astutil.CopyExpr(nr))
+
+		var bn, bnr, bns, bnrs string
+		switch parent := stack[len(stack)-2]; parent.(type) {
+		case *ast.BinaryExpr, *ast.IfStmt, *ast.ForStmt, *ast.SwitchStmt:
+			// Always add parentheses for if, for and switch. If
+			// they're unnecessary, go/printer will strip them when
+			// the whole file gets formatted.
+
+			bn = report.Render(pass, &ast.ParenExpr{X: n})
+			bnr = report.Render(pass, &ast.ParenExpr{X: nr})
+			bns = report.Render(pass, &ast.ParenExpr{X: ns})
+			bnrs = report.Render(pass, &ast.ParenExpr{X: nrs})
+
+		default:
+			// TODO are there other types where we don't want to strip parentheses?
+			bn = report.Render(pass, n)
+			bnr = report.Render(pass, nr)
+			bns = report.Render(pass, ns)
+			bnrs = report.Render(pass, nrs)
+		}
+
+		// Note: we cannot compare the ASTs directly, because
+		// simplifyParentheses might have rebalanced trees without
+		// affecting the rendered form.
+		var fixes []analysis.SuggestedFix
+		fixes = append(fixes, edit.Fix("Apply De Morgan's law", edit.ReplaceWithString(pass.Fset, node, bn)))
+		if bn != bns {
+			fixes = append(fixes, edit.Fix("Apply De Morgan's law & simplify", edit.ReplaceWithString(pass.Fset, node, bns)))
+		}
+		if bn != bnr {
+			fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively", edit.ReplaceWithString(pass.Fset, node, bnr)))
+			if bnr != bnrs {
+				fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively & simplify", edit.ReplaceWithString(pass.Fset, node, bnrs)))
+			}
+		}
+
+		report.Report(pass, node, "could apply De Morgan's law", report.Fixes(fixes...))
+	}
+
+	code.PreorderStack(pass, fn, (*ast.UnaryExpr)(nil))
+
 	return nil, nil
 }

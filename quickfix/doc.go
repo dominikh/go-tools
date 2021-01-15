@@ -7,4 +7,8 @@ var Docs = map[string]*lint.Documentation{
 		Title: "Use byte-specific indexing function",
 		Since: "Unreleased",
 	},
+	"QF1001": {
+		Title: "Apply De Morgan's law",
+		Since: "Unreleased",
+	},
 }
