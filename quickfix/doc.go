@@ -68,4 +68,17 @@ After:
 	"QF1004": {
 		Since: "Unreleased",
 	},
+	"QF1005": {
+		Title: "Expand call to math.Pow",
+		Text: `Some uses of math.Pow can be simplified to basic multiplication.
+
+Before:
+
+	math.Pow(x, 2)
+
+After:
+
+	x * x`,
+		Since: "Unreleased",
+	},
 }

@@ -563,3 +563,78 @@ func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
+
+var mathPowQ = pattern.MustParse(`(CallExpr (Function "math.Pow") [x n@(BasicLit "INT" _)])`)
+
+func CheckMathPow(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		matcher, ok := code.Match(pass, mathPowQ, node)
+		if !ok {
+			return
+		}
+
+		x := matcher.State["x"].(ast.Expr)
+		if code.MayHaveSideEffects(pass, x, nil) {
+			return
+		}
+		n, _ := strconv.ParseInt(matcher.State["n"].(*ast.BasicLit).Value, 10, 64)
+
+		needConversion := false
+		if T, ok := pass.TypesInfo.Types[x]; ok && T.Value != nil {
+			info := types.Info{
+				Types: map[ast.Expr]types.TypeAndValue{},
+			}
+
+			// determine if the constant expression would have type float64 if used on its own
+			if err := types.CheckExpr(pass.Fset, pass.Pkg, x.Pos(), x, &info); err != nil {
+				// This should not happen
+				return
+			}
+			if T, ok := info.Types[x].Type.(*types.Basic); ok {
+				if T.Kind() != types.UntypedFloat && T.Kind() != types.Float64 {
+					needConversion = true
+				}
+			} else {
+				needConversion = true
+			}
+		}
+
+		var replacement ast.Expr
+		switch n {
+		case 0:
+			replacement = &ast.BasicLit{
+				Kind:  token.FLOAT,
+				Value: "1.0",
+			}
+		case 1:
+			replacement = x
+		case 2, 3:
+			r := &ast.BinaryExpr{
+				X:  x,
+				Op: token.MUL,
+				Y:  x,
+			}
+			for i := 3; i <= int(n); i++ {
+				r = &ast.BinaryExpr{
+					X:  r,
+					Op: token.MUL,
+					Y:  x,
+				}
+			}
+
+			replacement = simplifyParentheses(astutil.CopyExpr(r))
+		default:
+			return
+		}
+		if needConversion && n != 0 {
+			replacement = &ast.CallExpr{
+				Fun:  &ast.Ident{Name: "float64"},
+				Args: []ast.Expr{replacement},
+			}
+		}
+		report.Report(pass, node, "could expand call to math.Pow",
+			report.Fixes(edit.Fix("Expand call to math.Pow", edit.ReplaceWithNode(pass.Fset, node, replacement))))
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}

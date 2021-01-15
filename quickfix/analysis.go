@@ -28,4 +28,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckStringsReplaceAll,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1005": {
+		Run:      CheckMathPow,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })
