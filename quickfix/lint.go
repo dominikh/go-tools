@@ -404,3 +404,115 @@ func CheckTaglessSwitch(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.SwitchStmt)(nil))
 	return nil, nil
 }
+
+func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node, stack []ast.Node) {
+		if _, ok := stack[len(stack)-2].(*ast.IfStmt); ok {
+			// this if statement is part of an if-else chain
+			return
+		}
+		ifstmt := node.(*ast.IfStmt)
+
+		m := map[ast.Expr][]*ast.BinaryExpr{}
+		for item := ifstmt; item != nil; {
+			if item.Init != nil {
+				return
+			}
+			if item.Body == nil {
+				return
+			}
+
+			skip := false
+			ast.Inspect(item.Body, func(node ast.Node) bool {
+				if branch, ok := node.(*ast.BranchStmt); ok && branch.Tok != token.GOTO {
+					skip = true
+					return false
+				}
+				return true
+			})
+			if skip {
+				return
+			}
+
+			var pairs []*ast.BinaryExpr
+			if !findSwitchPairs(pass, item.Cond, &pairs) {
+				return
+			}
+			m[item.Cond] = pairs
+			switch els := item.Else.(type) {
+			case *ast.IfStmt:
+				item = els
+			case *ast.BlockStmt, nil:
+				item = nil
+			default:
+				panic(fmt.Sprintf("unreachable: %T", els))
+			}
+		}
+
+		var x ast.Expr
+		for _, pair := range m {
+			if len(pair) == 0 {
+				continue
+			}
+			if x == nil {
+				x = pair[0].X
+			} else {
+				if !astutil.Equal(x, pair[0].X) {
+					return
+				}
+			}
+		}
+		if x == nil {
+			// shouldn't happen
+			return
+		}
+
+		// We require at least two 'if' to make this suggestion, to
+		// avoid clutter in the editor.
+		if len(m) < 2 {
+			return
+		}
+
+		var edits []analysis.TextEdit
+		for item := ifstmt; item != nil; {
+			var end token.Pos
+			if item.Else != nil {
+				end = item.Else.Pos()
+			} else {
+				// delete up to but not including the closing brace.
+				end = item.Body.Rbrace
+			}
+
+			var conds []string
+			for _, cond := range m[item.Cond] {
+				y := cond.Y
+				if p, ok := y.(*ast.ParenExpr); ok {
+					y = p.X
+				}
+				conds = append(conds, report.Render(pass, y))
+			}
+			sconds := strings.Join(conds, ", ")
+			edits = append(edits,
+				edit.ReplaceWithString(pass.Fset, edit.Range{item.If, item.Body.Lbrace + 1}, "case "+sconds+":"),
+				edit.Delete(edit.Range{item.Body.Rbrace, end}))
+
+			switch els := item.Else.(type) {
+			case *ast.IfStmt:
+				item = els
+			case *ast.BlockStmt:
+				edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{els.Lbrace, els.Lbrace + 1}, "default:"))
+				item = nil
+			case nil:
+				item = nil
+			default:
+				panic(fmt.Sprintf("unreachable: %T", els))
+			}
+		}
+		// FIXME this forces the first case to begin in column 0. try to fix the indentation
+		edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
+		report.Report(pass, ifstmt, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
+			report.Fixes(edit.Fix("Replace with tagged switch", edits...)))
+	}
+	code.PreorderStack(pass, fn, (*ast.IfStmt)(nil))
+	return nil, nil
+}

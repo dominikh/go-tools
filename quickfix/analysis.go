@@ -20,4 +20,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckTaglessSwitch,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1003": {
+		Run:      CheckIfElseToSwitch,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })
