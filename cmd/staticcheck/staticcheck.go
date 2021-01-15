@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"honnef.co/go/tools/lintcmd"
+	"honnef.co/go/tools/quickfix"
 	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
 	"honnef.co/go/tools/stylecheck"
@@ -16,6 +17,7 @@ import (
 func main() {
 	fs := lintcmd.FlagSet("staticcheck")
 	debug := fs.String("debug.unused-graph", "", "Write unused's object graph to `file`")
+	qf := fs.Bool("debug.run-quickfix-analyzers", false, "Run quickfix analyzers")
 	fs.Parse(os.Args[1:])
 
 	var cs []*analysis.Analyzer
@@ -27,6 +29,12 @@ func main() {
 	}
 	for _, v := range stylecheck.Analyzers {
 		cs = append(cs, v)
+	}
+
+	if *qf {
+		for _, v := range quickfix.Analyzers {
+			cs = append(cs, v)
+		}
 	}
 
 	cs = append(cs, unused.Analyzer)
