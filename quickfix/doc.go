@@ -65,4 +65,7 @@ After:
 	}`,
 		Since: "Unreleased",
 	},
+	"QF1004": {
+		Since: "Unreleased",
+	},
 }

@@ -24,4 +24,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckIfElseToSwitch,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1004": {
+		Run:      CheckStringsReplaceAll,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

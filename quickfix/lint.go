@@ -516,3 +516,50 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 	code.PreorderStack(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
+
+var stringsReplaceAllQ = pattern.MustParse(`(Or
+	(CallExpr fn@(Function "strings.Replace") [_ _ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
+	(CallExpr fn@(Function "strings.SplitN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
+	(CallExpr fn@(Function "strings.SplitAfterN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
+	(CallExpr fn@(Function "bytes.Replace") [_ _ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
+	(CallExpr fn@(Function "bytes.SplitN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
+	(CallExpr fn@(Function "bytes.SplitAfterN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))]))`)
+
+func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
+	// XXX respect minimum Go version
+
+	// FIXME(dh): create proper suggested fix for renamed import
+
+	fn := func(node ast.Node) {
+		matcher, ok := code.Match(pass, stringsReplaceAllQ, node)
+		if !ok {
+			return
+		}
+
+		var replacement string
+		switch typeutil.FuncName(matcher.State["fn"].(*types.Func)) {
+		case "strings.Replace":
+			replacement = "strings.ReplaceAll"
+		case "strings.SplitN":
+			replacement = "strings.Split"
+		case "strings.SplitAfterN":
+			replacement = "strings.SplitAfter"
+		case "bytes.Replace":
+			replacement = "bytes.ReplaceAll"
+		case "bytes.SplitN":
+			replacement = "bytes.Split"
+		case "bytes.SplitAfterN":
+			replacement = "bytes.SplitAfter"
+		default:
+			panic("unreachable")
+		}
+
+		call := node.(*ast.CallExpr)
+		report.Report(pass, call.Fun, fmt.Sprintf("could use %s instead", replacement),
+			report.Fixes(edit.Fix(fmt.Sprintf("Use %s instead", replacement),
+				edit.ReplaceWithString(pass.Fset, call.Fun, replacement),
+				edit.Delete(matcher.State["lit"].(ast.Node)))))
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}
