@@ -10,6 +10,7 @@
 	  <li><a href="#checks-new">New checks</a></li>
 	  <li><a href="#checks-changed">Changed checks</a></li>
   </ul></li>
+  <li><a href="#2020.2.1">Staticcheck 2020.2.1 release notes</a></li>
 </ul>
 
 <h2 id="performance-improvements">Performance improvements</h2>
@@ -559,4 +560,22 @@ We've made some minor improvements to the output and behavior of the <code>stati
   <li>{{ check "ST1003" }} no longer complains about ALL_CAPS in variable names that don't contain any letters</li>
   <li>Incorrect position information in various checks have been fixed</li>
   <li>Crashes in various checks have been fixed</li>
+</ul>
+
+<h2 id="2020.2.1">Staticcheck 2020.2.1 release notes</h2>
+
+<p>
+  This release eliminates some false negatives as well as false positives, makes the <code>staticcheck</code> command less noisy and fixes a potential security issue.
+</p>
+
+<ul>
+  <li>{{ check "SA4020" }} no longer claims that <code>case nil</code> is an unreachable case in a type switch.</li>
+  <li>{{ check "S1025" }} no longer marks uses of Printf as unnecessary when the printed types implement the <code>fmt.Formatter</code> interface.</li>
+  <li>Various checks may now detect bugs in conditional code that were previously missed. This was a regression introduced in Staticcheck 2020.1.</li>
+  <li>The <code>staticcheck</code> command no longer reminds the user of the <code>-explain</code> flag every time problems are found. This was deemed too noisy.</li>
+  <li>
+	We've updated our dependency on <code>golang.org/x/tools</code> to guard against arbitrary code execution on Windows.
+	Note that to be fully safe, you will also have to update your installation of Go.
+	See the <a href="https://blog.golang.org/path-security">Command PATH security in Go</a> article by the Go authors for more information on this potential vulnerability.
+  </li>
 </ul>
