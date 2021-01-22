@@ -81,4 +81,23 @@ After:
 	x * x`,
 		Since: "Unreleased",
 	},
+
+	"QF1006": {
+		Title: "Lift if+break into loop condition",
+		Text: `Before:
+
+	for {
+		if done {
+			break
+		}
+		...
+	}
+
+After:
+
+	for !done {
+		...
+	}`,
+		Since: "Unreleased",
+	},
 }

@@ -32,4 +32,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckMathPow,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1006": {
+		Run:      CheckForLoopIfBreak,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

@@ -125,7 +125,7 @@ func CheckStringsIndexByte(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func deMorgan(expr ast.Expr, recursive bool) ast.Expr {
+func negateDeMorgan(expr ast.Expr, recursive bool) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.BinaryExpr:
 		var out ast.BinaryExpr
@@ -156,20 +156,20 @@ func deMorgan(expr ast.Expr, recursive bool) ast.Expr {
 			out.Y = expr.Y
 
 		case token.LAND:
-			out.X = deMorgan(expr.X, recursive)
+			out.X = negateDeMorgan(expr.X, recursive)
 			out.Op = token.LOR
-			out.Y = deMorgan(expr.Y, recursive)
+			out.Y = negateDeMorgan(expr.Y, recursive)
 		case token.LOR:
-			out.X = deMorgan(expr.X, recursive)
+			out.X = negateDeMorgan(expr.X, recursive)
 			out.Op = token.LAND
-			out.Y = deMorgan(expr.Y, recursive)
+			out.Y = negateDeMorgan(expr.Y, recursive)
 		}
 		return &out
 
 	case *ast.ParenExpr:
 		if recursive {
 			return &ast.ParenExpr{
-				X: deMorgan(expr.X, recursive),
+				X: negateDeMorgan(expr.X, recursive),
 			}
 		} else {
 			return &ast.UnaryExpr{
@@ -269,8 +269,8 @@ func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		n := deMorgan(expr, false)
-		nr := deMorgan(expr, true)
+		n := negateDeMorgan(expr, false)
+		nr := negateDeMorgan(expr, true)
 		ns := simplifyParentheses(astutil.CopyExpr(n))
 		nrs := simplifyParentheses(astutil.CopyExpr(nr))
 
@@ -639,5 +639,30 @@ func CheckMathPow(pass *analysis.Pass) (interface{}, error) {
 			report.Fixes(edit.Fix("Expand call to math.Pow", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}
+
+var checkForLoopIfBreak = pattern.MustParse(`(ForStmt nil nil nil if@(IfStmt nil cond (BranchStmt "BREAK" nil) nil):_)`)
+
+func CheckForLoopIfBreak(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, checkForLoopIfBreak, node)
+		if !ok {
+			return
+		}
+
+		pos := node.Pos() + token.Pos(len("for"))
+		r := negateDeMorgan(m.State["cond"].(ast.Expr), false)
+
+		// FIXME(dh): we're leaving behind an empty line when we
+		// delete the old if statement. However, we can't just delete
+		// an additional character, in case there closing curly brace
+		// is followed by a comment, or Windows newlines.
+		report.Report(pass, m.State["if"].(ast.Node), "could lift into loop condition",
+			report.Fixes(edit.Fix("Lift into loop condition",
+				edit.ReplaceWithString(pass.Fset, edit.Range{pos, pos}, " "+report.Render(pass, r)),
+				edit.Delete(m.State["if"].(ast.Node)))))
+	}
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }

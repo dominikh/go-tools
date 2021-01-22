@@ -14,6 +14,7 @@ func TestAll(t *testing.T) {
 		"QF1003": {{Dir: "CheckIfElseToSwitch"}},
 		"QF1004": {{Dir: "CheckStringsReplaceAll"}},
 		"QF1005": {{Dir: "CheckMathPow"}},
+		"QF1006": {{Dir: "CheckForLoopIfBreak"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)
