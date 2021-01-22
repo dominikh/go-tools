@@ -438,7 +438,7 @@ func (tok Token) Match(m *Matcher, node interface{}) (interface{}, bool) {
 }
 
 func (Nil) Match(m *Matcher, node interface{}) (interface{}, bool) {
-	return nil, isNil(node)
+	return nil, isNil(node) || reflect.ValueOf(node).IsNil()
 }
 
 func (builtin Builtin) Match(m *Matcher, node interface{}) (interface{}, bool) {
