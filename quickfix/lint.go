@@ -64,6 +64,7 @@ func CheckStringsIndexByte(pass *analysis.Pass) (interface{}, error) {
 				replacement = "LastIndex"
 			}
 
+			var rPattern pattern.Pattern
 			lit := matcher.State["lit"].(*ast.BasicLit).Value
 			var newLit string
 			if isString {
@@ -71,8 +72,10 @@ func CheckStringsIndexByte(pass *analysis.Pass) (interface{}, error) {
 					return
 				}
 				newLit = "'" + lit[1:len(lit)-1] + "'"
+				rPattern = stringsIndexR
 			} else {
 				newLit = `"` + lit[1:len(lit)-1] + `"`
+				rPattern = stringsIndexByteR
 			}
 
 			state := pattern.State{
@@ -81,7 +84,7 @@ func CheckStringsIndexByte(pass *analysis.Pass) (interface{}, error) {
 				"replacement": replacement,
 			}
 			report.Report(pass, node, fmt.Sprintf("could use strings.%s instead of %s", replacement, fn),
-				report.Fixes(edit.Fix(fmt.Sprintf("Use strings.%s instead of %s", replacement, fn), edit.ReplaceWithPattern(pass, stringsIndexR, state, node))))
+				report.Fixes(edit.Fix(fmt.Sprintf("Use strings.%s instead of %s", replacement, fn), edit.ReplaceWithPattern(pass, rPattern, state, node))))
 		} else if matcher, ok := code.Match(pass, bytesIndexQ, node); ok {
 			var replacement string
 			fn := typeutil.FuncName(matcher.State["fn"].(*types.Func))
