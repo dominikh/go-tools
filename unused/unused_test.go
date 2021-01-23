@@ -170,7 +170,7 @@ func TestAll(t *testing.T) {
 		"variables",
 	}
 
-	results := analysistest.Run(t, analysistest.TestData(), Analyzer, dirs...)
+	results := analysistest.Run(t, analysistest.TestData(), Analyzer.Analyzer, dirs...)
 	for _, res := range results {
 		check(t, res)
 	}

@@ -3,7 +3,8 @@ package testutil
 import (
 	"testing"
 
-	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/analysis/lint"
+
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -12,22 +13,22 @@ type Test struct {
 	Version string
 }
 
-func Run(t *testing.T, analyzers map[string]*analysis.Analyzer, tests map[string][]Test) {
+func Run(t *testing.T, analyzers map[string]*lint.Analyzer, tests map[string][]Test) {
 	for _, a := range analyzers {
 		a := a
-		t.Run(a.Name, func(t *testing.T) {
+		t.Run(a.Analyzer.Name, func(t *testing.T) {
 			t.Parallel()
-			tt, ok := tests[a.Name]
+			tt, ok := tests[a.Analyzer.Name]
 			if !ok {
-				t.Fatalf("no tests for analyzer %s", a.Name)
+				t.Fatalf("no tests for analyzer %s", a.Analyzer.Name)
 			}
 			for _, test := range tt {
 				if test.Version != "" {
-					if err := a.Flags.Lookup("go").Value.Set(test.Version); err != nil {
+					if err := a.Analyzer.Flags.Lookup("go").Value.Set(test.Version); err != nil {
 						t.Fatal(err)
 					}
 				}
-				analysistest.RunWithSuggestedFixes(t, analysistest.TestData(), a, test.Dir)
+				analysistest.RunWithSuggestedFixes(t, analysistest.TestData(), a.Analyzer, test.Dir)
 			}
 		})
 	}

@@ -2,7 +2,7 @@ package quickfix
 
 import "honnef.co/go/tools/analysis/lint"
 
-var Docs = map[string]*lint.Documentation{
+var Docs = lint.Markdownify(map[string]*lint.Documentation{
 	"QF1000": {
 		Title: "Use byte-specific indexing function",
 		Since: "Unreleased",
@@ -69,8 +69,8 @@ After:
 		Since: "Unreleased",
 	},
 	"QF1005": {
-		Title: "Expand call to math.Pow",
-		Text: `Some uses of math.Pow can be simplified to basic multiplication.
+		Title: "Expand call to `math.Pow`",
+		Text: `Some uses of \'math.Pow\' can be simplified to basic multiplication.
 
 Before:
 
@@ -116,4 +116,4 @@ After:
 `,
 		Since: "Unreleased",
 	},
-}
+})

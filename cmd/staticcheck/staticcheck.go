@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/lintcmd"
 	"honnef.co/go/tools/quickfix"
 	"honnef.co/go/tools/simple"
@@ -20,7 +20,7 @@ func main() {
 	qf := fs.Bool("debug.run-quickfix-analyzers", false, "Run quickfix analyzers")
 	fs.Parse(os.Args[1:])
 
-	var cs []*analysis.Analyzer
+	var cs []*lint.Analyzer
 	for _, v := range simple.Analyzers {
 		cs = append(cs, v)
 	}

@@ -13,12 +13,67 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+type Analyzer struct {
+	// The analyzer's documentation. Unlike go/analysis.Analyzer.Doc,
+	// this field is structured, providing access to severity, options
+	// etc.
+	Doc      *Documentation
+	Analyzer *analysis.Analyzer
+}
+
+func (a *Analyzer) initialize() {
+	a.Analyzer.Doc = fmt.Sprintf("%s\nOnline documentation\n    https://staticcheck.io/docs/checks#%s", a.Doc.String(), a.Analyzer.Name)
+	if a.Analyzer.Flags.Usage == nil {
+		fs := flag.NewFlagSet("", flag.PanicOnError)
+		fs.Var(newVersionFlag(), "go", "Target Go version")
+		a.Analyzer.Flags = *fs
+	}
+}
+
+func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) map[string]*Analyzer {
+	out := make(map[string]*Analyzer, len(analyzers))
+	for k, v := range analyzers {
+		v.Name = k
+		a := &Analyzer{
+			Doc:      docs[k],
+			Analyzer: v,
+		}
+		a.initialize()
+		out[k] = a
+	}
+	return out
+}
+
+type Severity int
+
+const (
+	SeverityNone Severity = iota
+	SeverityError
+	SeverityDeprecated
+	SeverityWarning
+	SeverityInfo
+	SeverityHint
+)
+
 type Documentation struct {
 	Title      string
 	Text       string
 	Since      string
 	NonDefault bool
 	Options    []string
+	Severity   Severity
+}
+
+func Markdownify(m map[string]*Documentation) map[string]*Documentation {
+	for _, v := range m {
+		v.Title = toMarkdown(v.Title)
+		v.Text = toMarkdown(v.Text)
+	}
+	return m
+}
+
+func toMarkdown(s string) string {
+	return strings.ReplaceAll(s, `\'`, "`")
 }
 
 func (doc *Documentation) String() string {
@@ -80,27 +135,6 @@ func (v *VersionFlag) Set(s string) error {
 
 func (v *VersionFlag) Get() interface{} {
 	return int(*v)
-}
-
-func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) map[string]*analysis.Analyzer {
-	out := make(map[string]*analysis.Analyzer, len(analyzers))
-	for k, v := range analyzers {
-		vc := *v
-		out[k] = &vc
-
-		vc.Name = k
-		doc, ok := docs[k]
-		if !ok {
-			panic(fmt.Sprintf("missing documentation for check %s", k))
-		}
-		vc.Doc = fmt.Sprintf("%s\nOnline documentation\n    https://staticcheck.io/docs/checks#%s", doc.String(), k)
-		if vc.Flags.Usage == nil {
-			fs := flag.NewFlagSet("", flag.PanicOnError)
-			fs.Var(newVersionFlag(), "go", "Target Go version")
-			vc.Flags = *fs
-		}
-	}
-	return out
 }
 
 // ExhaustiveTypeSwitch panics when called. It can be used to ensure

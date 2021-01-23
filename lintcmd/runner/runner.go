@@ -147,7 +147,7 @@ type Diagnostic struct {
 	Category string
 	Message  string
 
-	SuggestedFixed []SuggestedFix
+	SuggestedFixes []SuggestedFix
 	Related        []RelatedInformation
 }
 
@@ -840,7 +840,7 @@ func (ar *analyzerRunner) do(act action) error {
 							NewText:  edit.NewText,
 						})
 					}
-					d.SuggestedFixed = append(d.SuggestedFixed, s)
+					d.SuggestedFixes = append(d.SuggestedFixes, s)
 				}
 				for _, rel := range diag.Related {
 					d.Related = append(d.Related, RelatedInformation{

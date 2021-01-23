@@ -2,7 +2,7 @@ package simple
 
 import "honnef.co/go/tools/analysis/lint"
 
-var Docs = map[string]*lint.Documentation{
+var Docs = lint.Markdownify(map[string]*lint.Documentation{
 	"S1000": {
 		Title: `Use plain channel send or receive instead of single-case select`,
 		Text: `Select statements with a single case can be replaced with a simple
@@ -24,7 +24,7 @@ After:
 
 	"S1001": {
 		Title: `Replace for loop with call to copy`,
-		Text: `Use copy() for copying elements from one slice to another.
+		Text: `Use \'copy()\' for copying elements from one slice to another.
 
 Before:
 
@@ -51,7 +51,7 @@ After:
 	},
 
 	"S1003": {
-		Title: `Replace call to strings.Index with strings.Contains`,
+		Title: "Replace call to `strings.Index` with `strings.Contains`",
 		Text: `Before:
 
     if strings.Index(x, y) != -1 {}
@@ -63,7 +63,7 @@ After:
 	},
 
 	"S1004": {
-		Title: `Replace call to bytes.Compare with bytes.Equal`,
+		Title: "Replace call to `bytes.Compare` with `bytes.Equal`",
 		Text: `Before:
 
     if bytes.Compare(x, y) == 0 {}
@@ -93,15 +93,15 @@ After:
 	},
 
 	"S1006": {
-		Title: `Use for { ... } for infinite loops`,
-		Text:  `For infinite loops, using for { ... } is the most idiomatic choice.`,
+		Title: "Use `for { ... }` for infinite loops",
+		Text:  `For infinite loops, using \'for { ... }\' is the most idiomatic choice.`,
 		Since: "2017.1",
 	},
 
 	"S1007": {
 		Title: `Simplify regular expression by using raw string literal`,
-		Text: `Raw string literals use ` + "`" + ` instead of " and do not support
-any escape sequences. This means that the backslash (\) can be used
+		Text: `Raw string literals use \' instead of " and do not support
+any escape sequences. This means that the backslash (\'\\') can be used
 freely, without the need of escaping.
 
 Since regular expressions have their own escape sequences, raw strings
@@ -134,7 +134,7 @@ After:
 
 	"S1009": {
 		Title: `Omit redundant nil check on slices`,
-		Text: `The len function is defined for all slices, even nil ones, which have
+		Text: `The \'len\' function is defined for all slices, even nil ones, which have
 a length of zero. It is not necessary to check if a slice is not nil
 before checking that its length is not zero.
 
@@ -151,12 +151,12 @@ After:
 	"S1010": {
 		Title: `Omit default slice index`,
 		Text: `When slicing, the second index defaults to the length of the value,
-making s[n:len(s)] and s[n:] equivalent.`,
+making \'s[n:len(s)]\' and \'s[n:]\' equivalent.`,
 		Since: "2017.1",
 	},
 
 	"S1011": {
-		Title: `Use a single append to concatenate two slices`,
+		Title: "Use a single `append` to concatenate two slices",
 		Text: `Before:
 
     for _, e := range y {
@@ -170,8 +170,8 @@ After:
 	},
 
 	"S1012": {
-		Title: `Replace time.Now().Sub(x) with time.Since(x)`,
-		Text: `The time.Since helper has the same effect as using time.Now().Sub(x)
+		Title: "Replace `time.Now().Sub(x)` with `time.Since(x)`",
+		Text: `The \'time.Since\' helper has the same effect as using \'time.Now().Sub(x)\'
 but is easier to read.
 
 Before:
@@ -208,10 +208,10 @@ After:
 	},
 
 	"S1017": {
-		Title: `Replace manual trimming with strings.TrimPrefix`,
-		Text: `Instead of using strings.HasPrefix and manual slicing, use the
-strings.TrimPrefix function. If the string doesn't start with the
-prefix, the original string will be returned. Using strings.TrimPrefix
+		Title: "Replace manual trimming with `strings.TrimPrefix`",
+		Text: `Instead of using \'strings.HasPrefix\' and manual slicing, use the
+\'strings.TrimPrefix\' function. If the string doesn't start with the
+prefix, the original string will be returned. Using \'strings.TrimPrefix\'
 reduces complexity, and avoids common bugs, such as off-by-one
 mistakes.
 
@@ -228,8 +228,8 @@ After:
 	},
 
 	"S1018": {
-		Title: `Use copy for sliding elements`,
-		Text: `copy() permits using the same source and destination slice, even with
+		Title: "Use `copy` for sliding elements",
+		Text: `\'copy()\' permits using the same source and destination slice, even with
 overlapping ranges. This makes it ideal for sliding elements in a
 slice.
 
@@ -246,8 +246,8 @@ After:
 	},
 
 	"S1019": {
-		Title: `Simplify make call by omitting redundant arguments`,
-		Text: `The make function has default values for the length and capacity
+		Title: "Simplify `make` call by omitting redundant arguments",
+		Text: `The \'make\' function has default values for the length and capacity
 arguments. For channels and maps, the length defaults to zero.
 Additionally, for slices the capacity defaults to the length.`,
 		Since: "2017.1",
@@ -290,8 +290,8 @@ statement in a case block.`,
 	},
 
 	"S1024": {
-		Title: `Replace x.Sub(time.Now()) with time.Until(x)`,
-		Text: `The time.Until helper has the same effect as using x.Sub(time.Now())
+		Title: "Replace `x.Sub(time.Now())` with `time.Until(x)`",
+		Text: `The \'time.Until\' helper has the same effect as using \'x.Sub(time.Now())\'
 but is easier to read.
 
 Before:
@@ -305,7 +305,7 @@ After:
 	},
 
 	"S1025": {
-		Title: `Don't use fmt.Sprintf("%s", x) unnecessarily`,
+		Title: "Don't use `fmt.Sprintf(\"%s\", x)` unnecessarily",
 		Text: `In many instances, there are easier and more efficient ways of getting
 a value's string representation. Whenever a value's underlying type is
 a string already, or the type has a String method, they should be used
@@ -337,7 +337,7 @@ to
 	},
 
 	"S1028": {
-		Title: `Simplify error construction with fmt.Errorf`,
+		Title: "Simplify error construction with `fmt.Errorf`",
 		Text: `Before:
 
     errors.New(fmt.Sprintf(...))
@@ -367,13 +367,13 @@ After:
 	},
 
 	"S1030": {
-		Title: `Use bytes.Buffer.String or bytes.Buffer.Bytes`,
-		Text: `bytes.Buffer has both a String and a Bytes method. It is almost never
-necessary to use string(buf.Bytes()) or []byte(buf.String()) – simply
+		Title: "Use `bytes.Buffer.String` or `bytes.Buffer.Bytes`",
+		Text: `\'bytes.Buffer\' has both a \'String\' and a \'Bytes\' method. It is almost never
+necessary to use \'string(buf.Bytes())\' or \'[]byte(buf.String())\' – simply
 use the other method.
 
 The only exception to this are map lookups. Due to a compiler optimization,
-m[string(buf.Bytes())] is more efficient than m[buf.String()].
+\'m[string(buf.Bytes())]\' is more efficient than \'m[buf.String()]\'.
 `,
 		Since: "2017.1",
 	},
@@ -401,10 +401,10 @@ After:
 	},
 
 	"S1032": {
-		Title: `Use sort.Ints(x), sort.Float64s(x), and sort.Strings(x)`,
-		Text: `The sort.Ints, sort.Float64s and sort.Strings functions are easier to
-read than sort.Sort(sort.IntSlice(x)), sort.Sort(sort.Float64Slice(x))
-and sort.Sort(sort.StringSlice(x)).
+		Title: "Use `sort.Ints(x)`, `sort.Float64s(x)`, and `sort.Strings(x)`",
+		Text: `The \'sort.Ints\', \'sort.Float64s\' and \'sort.Strings\' functions are easier to
+read than \'sort.Sort(sort.IntSlice(x))\', \'sort.Sort(sort.Float64Slice(x))\'
+and \'sort.Sort(sort.StringSlice(x))\'.
 
 Before:
 
@@ -417,8 +417,8 @@ After:
 	},
 
 	"S1033": {
-		Title: `Unnecessary guard around call to delete`,
-		Text:  `Calling delete on a nil map is a no-op.`,
+		Title: "Unnecessary guard around call to `delete`",
+		Text:  `Calling \'delete\' on a nil map is a no-op.`,
 		Since: "2019.2",
 	},
 
@@ -428,8 +428,8 @@ After:
 	},
 
 	"S1035": {
-		Title: `Redundant call to net/http.CanonicalHeaderKey in method call on net/http.Header`,
-		Text: `The methods on net/http.Header, namely Add, Del, Get and Set, already
+		Title: "Redundant call to `net/http.CanonicalHeaderKey` in method call on `net/http.Header`",
+		Text: `The methods on \'net/http.Header\', namely \'Add\', \'Del\', \'Get\' and \'Set\', already
 canonicalize the given header name.`,
 		Since: "2020.1",
 	},
@@ -470,30 +470,30 @@ can be simplified to
 	"S1037": {
 		Title: `Elaborate way of sleeping`,
 		Text: `Using a select statement with a single case receiving
-from the result of time.After is a very elaborate way of sleeping that
+from the result of \'time.After\' is a very elaborate way of sleeping that
 can much simpler be expressed with a simple call to time.Sleep.`,
 		Since: "2020.1",
 	},
 
 	"S1038": {
 		Title: "Unnecessarily complex way of printing formatted string",
-		Text:  `Instead of using fmt.Print(fmt.Sprintf(...)), one can use fmt.Printf(...).`,
+		Text:  `Instead of using \'fmt.Print(fmt.Sprintf(...))\', one can use \'fmt.Printf(...)\'.`,
 		Since: "2020.1",
 	},
 
 	"S1039": {
-		Title: "Unnecessary use of fmt.Sprint",
-		Text:  `Calling fmt.Sprint with a single string argument is unnecessary and identical to using the string directly.`,
+		Title: "Unnecessary use of `fmt.Sprint`",
+		Text:  `Calling \'fmt.Sprint\' with a single string argument is unnecessary and identical to using the string directly.`,
 		Since: "2020.1",
 	},
 	"S1040": {
 		Title: "Type assertion to current type",
-		Text: `The type assertion 'x.(SomeInterface)', when 'x' already has type
-'SomeInterface', can only fail if 'x' is nil. Usually, this is
-left-over code from when 'x' had a different type and you can safely
-delete the type assertion. If you want to check that 'x' is not nil,
-consider being explicit and using an actual 'if x == nil' comparison
+		Text: `The type assertion \'x.(SomeInterface)\', when \'x\' already has type
+\'SomeInterface\', can only fail if \'x\' is nil. Usually, this is
+left-over code from when \'x\' had a different type and you can safely
+delete the type assertion. If you want to check that \'x\' is not nil,
+consider being explicit and using an actual \'if x == nil\' comparison
 instead of relying on the type assertion panicking.`,
 		Since: "Unreleased",
 	},
-}
+})

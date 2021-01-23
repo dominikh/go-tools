@@ -127,7 +127,7 @@ func (p *problem) String() string {
 
 // A linter lints Go source code.
 type linter struct {
-	Checkers []*analysis.Analyzer
+	Checkers []*lint.Analyzer
 	Config   config.Config
 	Runner   *runner.Runner
 }
@@ -287,7 +287,11 @@ func newLinter(cfg config.Config) (*linter, error) {
 }
 
 func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []problem, warnings []string, err error) {
-	results, err := l.Runner.Run(cfg, l.Checkers, patterns)
+	cs := make([]*analysis.Analyzer, len(l.Checkers))
+	for i, a := range l.Checkers {
+		cs[i] = a.Analyzer
+	}
+	results, err := l.Runner.Run(cfg, cs, patterns)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -302,7 +306,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 
 	analyzerNames := make([]string, len(l.Checkers))
 	for i, a := range l.Checkers {
-		analyzerNames[i] = a.Name
+		analyzerNames[i] = a.Analyzer.Name
 	}
 
 	used := map[unusedKey]bool{}
@@ -536,16 +540,16 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-func findCheck(cs []*analysis.Analyzer, check string) (*analysis.Analyzer, bool) {
+func findCheck(cs []*lint.Analyzer, check string) (*lint.Analyzer, bool) {
 	for _, c := range cs {
-		if c.Name == check {
+		if c.Analyzer.Name == check {
 			return c, true
 		}
 	}
 	return nil, false
 }
 
-func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
+func ProcessFlagSet(cs []*lint.Analyzer, fs *flag.FlagSet) {
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(string)
@@ -620,18 +624,19 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 
 	if listChecks {
-		titles := make(map[string]string)
-		names := make([]string, len(cs))
-		for i, c := range cs {
-			titles[c.Name] = strings.SplitN(c.Doc, "\n", 2)[0]
-			names[i] = c.Name
-		}
+		// We sort a copy of the slice to avoid modifying what the API
+		// user passed in. It's not necessary now, because we exit
+		// immediately afterwards, but safeguard against future
+		// changes.
+		csp := make([]*lint.Analyzer, len(cs))
+		copy(csp, cs)
 
-		sort.Strings(names)
-		for _, n := range names {
-			fmt.Fprintf(os.Stderr, "%s %s\n", n, titles[n])
+		sort.Slice(csp, func(i, j int) bool {
+			return csp[i].Analyzer.Name < csp[j].Analyzer.Name
+		})
+		for _, c := range csp {
+			fmt.Fprintf(os.Stderr, "%s %s\n", c.Analyzer.Name, c.Doc.Title)
 		}
-
 		exit(0)
 	}
 
@@ -650,14 +655,12 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 
 	if explain != "" {
-		var haystack []*analysis.Analyzer
-		haystack = append(haystack, cs...)
-		check, ok := findCheck(haystack, explain)
+		check, ok := findCheck(cs, explain)
 		if !ok {
 			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
 			exit(1)
 		}
-		if check.Doc == "" {
+		if check.Analyzer.Doc == "" {
 			fmt.Fprintln(os.Stderr, explain, "has no documentation")
 			exit(1)
 		}
@@ -673,6 +676,8 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 		f = &stylishFormatter{W: os.Stdout}
 	case "json":
 		f = jsonFormatter{W: os.Stdout}
+	case "sarif":
+		f = &sarifFormatter{}
 	case "null":
 		f = nullFormatter{}
 	default:
@@ -705,11 +710,15 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	fail := *fs.Lookup("fail").Value.(*list)
 	analyzerNames := make([]string, len(cs))
 	for i, a := range cs {
-		analyzerNames[i] = a.Name
+		analyzerNames[i] = a.Analyzer.Name
 	}
 	shouldExit := filterAnalyzerNames(analyzerNames, fail)
 	shouldExit["staticcheck"] = true
 	shouldExit["compile"] = true
+
+	if f, ok := f.(complexFormatter); ok {
+		f.Start(cs)
+	}
 
 	for _, p := range ps {
 		if p.Category == "compile" && debugNoCompile {
@@ -729,6 +738,10 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	}
 	if f, ok := f.(statter); ok {
 		f.Stats(len(ps), numErrors, numWarnings, numIgnored)
+	}
+
+	if f, ok := f.(complexFormatter); ok {
+		f.End()
 	}
 
 	if numErrors > 0 {
@@ -766,7 +779,7 @@ func computeSalt() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func doLint(cs []*analysis.Analyzer, paths []string, opt *options) ([]problem, []string, error) {
+func doLint(cs []*lint.Analyzer, paths []string, opt *options) ([]problem, []string, error) {
 	salt, err := computeSalt()
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not compute salt for cache: %s", err)

@@ -415,12 +415,17 @@ type SerializedResult struct {
 	Unused []SerializedObject
 }
 
-var Analyzer = &analysis.Analyzer{
-	Name:       "U1000",
-	Doc:        "Unused code",
-	Run:        run,
-	Requires:   []*analysis.Analyzer{buildir.Analyzer, facts.Generated, facts.Directives},
-	ResultType: reflect.TypeOf(Result{}),
+var Analyzer = &lint.Analyzer{
+	Doc: &lint.Documentation{
+		Title: "Unused code",
+	},
+	Analyzer: &analysis.Analyzer{
+		Name:       "U1000",
+		Doc:        "Unused code",
+		Run:        run,
+		Requires:   []*analysis.Analyzer{buildir.Analyzer, facts.Generated, facts.Directives},
+		ResultType: reflect.TypeOf(Result{}),
+	},
 }
 
 type SerializedObject struct {
