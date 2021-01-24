@@ -975,6 +975,15 @@ https://blog.digitalocean.com/how-to-efficiently-compare-strings-in-go/`,
 		Severity: lint.SeverityWarning,
 	},
 
+	"SA6006": {
+		Title: `Using io.WriteString to write bytes to a writer w`,
+		Text: `w.Write([]byte) should be used instead of io.writeString
+
+		string([]byte) allocates a buffer to create the string because of the
+		immutable nature of strings in go`,
+		Since: "2020.2",
+	},
+
 	"SA9001": {
 		Title:    `Defers in range loops may not run when you expect them to`,
 		Since:    "2017.1",
