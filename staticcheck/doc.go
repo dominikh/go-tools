@@ -1107,6 +1107,19 @@ https://blog.digitalocean.com/how-to-efficiently-compare-strings-in-go/`,
 		MergeIf:  lint.MergeIfAny,
 	},
 
+	"SA6006": {
+		Title: `Using io.WriteString to write \'[]byte\'`,
+		Text: `Using io.WriteString to write a slice of bytes, as in
+
+    io.WriteString(w, string(b))
+
+is both unnecessary and inefficient. Converting from \'[]byte\' to \'string\'
+has to allocate and copy the data, and we could simply use \'w.Write(b)\'
+instead.`,
+
+		Since: "Unreleased",
+	},
+
 	"SA9001": {
 		Title:    `Defers in range loops may not run when you expect them to`,
 		Since:    "2017.1",

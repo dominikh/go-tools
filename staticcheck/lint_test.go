@@ -115,6 +115,7 @@ func TestAll(t *testing.T) {
 		"SA6002": {{Dir: "example.com/CheckSyncPoolValue"}},
 		"SA6003": {{Dir: "example.com/CheckRangeStringRunes"}},
 		"SA6005": {{Dir: "example.com/CheckToLowerToUpperComparison"}},
+		"SA6006": {{Dir: "example.com/CheckByteSliceInIOWriteString"}},
 		"SA9001": {{Dir: "example.com/CheckDubiousDeferInChannelRangeLoop"}},
 		"SA9002": {{Dir: "example.com/CheckNonOctalFileMode"}},
 		"SA9003": {{Dir: "example.com/CheckEmptyBranch"}},

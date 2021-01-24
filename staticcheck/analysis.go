@@ -296,6 +296,11 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 
+	"SA6006": {
+		Run:      CheckByteSliceInIOWriteString,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
+
 	"SA9001": {
 		Run:      CheckDubiousDeferInChannelRangeLoop,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
