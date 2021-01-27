@@ -473,7 +473,7 @@ func negate(expr ast.Expr) ast.Expr {
 			out.Op = token.LSS
 		}
 		return &out
-	case *ast.Ident, *ast.CallExpr, *ast.IndexExpr:
+	case *ast.Ident, *ast.CallExpr, *ast.IndexExpr, *ast.StarExpr:
 		return &ast.UnaryExpr{
 			Op: token.NOT,
 			X:  expr,
@@ -482,14 +482,18 @@ func negate(expr ast.Expr) ast.Expr {
 		if expr.Op == token.NOT {
 			return expr.X
 		}
+		return &ast.UnaryExpr{
+			Op: token.NOT,
+			X:  expr,
+		}
+	default:
+		return &ast.UnaryExpr{
+			Op: token.NOT,
+			X: &ast.ParenExpr{
+				X: expr,
+			},
+		}
 	}
-	return &ast.UnaryExpr{
-		Op: token.NOT,
-		X: &ast.ParenExpr{
-			X: expr,
-		},
-	}
-
 }
 
 // CheckRedundantNilCheckWithLen checks for the following redundant nil-checks:
