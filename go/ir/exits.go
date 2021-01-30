@@ -58,6 +58,19 @@ func (b *builder) buildExits(fn *Function) {
 				// via the first argument. We don't currently support
 				// call-site-specific exit information.
 			}
+		case "github.com/golang/glog":
+			switch obj.(*types.Func).FullName() {
+			case "github.com/golang/glog.Exit",
+				"github.com/golang/glog.ExitDepth",
+				"github.com/golang/glog.Exitf",
+				"github.com/golang/glog.Exitln",
+				"github.com/golang/glog.Fatal",
+				"github.com/golang/glog.FatalDepth",
+				"github.com/golang/glog.Fatalf",
+				"github.com/golang/glog.Fatalln":
+				// all of these call os.Exit after logging
+				fn.NoReturn = AlwaysExits
+			}
 		}
 	}
 
