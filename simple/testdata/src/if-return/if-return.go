@@ -100,3 +100,35 @@ func fn14(a, b int) bool {
 	}
 	return true
 }
+
+func fn15() bool {
+	if !fn() { // want `should use 'return fn\(\)'`
+		return false
+	}
+	return true
+}
+
+func fn16() <-chan bool {
+	x := make(chan bool, 1)
+	x <- true
+	return x
+}
+
+func fn17() bool {
+	if <-fn16() { // want `should use 'return !<-fn16\(\)'`
+		return false
+	}
+	return true
+}
+
+func fn18() *bool {
+	x := true
+	return &x
+}
+
+func fn19() bool {
+	if *fn18() { // want `should use 'return !\*fn18\(\)'`
+		return false
+	}
+	return true
+}

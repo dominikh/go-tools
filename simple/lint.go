@@ -472,7 +472,15 @@ func negate(expr ast.Expr) ast.Expr {
 			out.Op = token.LSS
 		}
 		return &out
-	case *ast.Ident, *ast.CallExpr, *ast.IndexExpr:
+	case *ast.Ident, *ast.CallExpr, *ast.IndexExpr, *ast.StarExpr:
+		return &ast.UnaryExpr{
+			Op: token.NOT,
+			X:  expr,
+		}
+	case *ast.UnaryExpr:
+		if expr.Op == token.NOT {
+			return expr.X
+		}
 		return &ast.UnaryExpr{
 			Op: token.NOT,
 			X:  expr,
