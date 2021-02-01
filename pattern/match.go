@@ -455,7 +455,7 @@ func (builtin Builtin) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	if obj != types.Universe.Lookup(ident.Name) {
 		return nil, false
 	}
-	return ident.Name, true
+	return ident, true
 }
 
 func (obj Object) Match(m *Matcher, node interface{}) (interface{}, bool) {
