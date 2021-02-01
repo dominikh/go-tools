@@ -122,7 +122,7 @@ Tokens are also represented as double-quoted string literals, but are converted 
 such as in (BinaryExpr x "<" y), where "<" is transparently converted to token.LSS during matching.
 The keyword 'nil' denotes the nil value, which represents the absence of any value.
 
-We also defines the (List head tail) node, which is used to represent sequences of elements as a singly linked list.
+We also define the (List head tail) node, which is used to represent sequences of elements as a singly linked list.
 The head is a single element, and the tail is the remainder of the list.
 For example,
 
