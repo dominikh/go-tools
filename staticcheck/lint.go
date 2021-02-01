@@ -4461,8 +4461,8 @@ func CheckBuiltinZeroComparison(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		builtin := matcher.State["builtin"].(string)
-		report.Report(pass, node, fmt.Sprintf("builtin function %s does not return negative values", builtin))
+		builtin := matcher.State["builtin"].(*ast.Ident)
+		report.Report(pass, node, fmt.Sprintf("builtin function %s does not return negative values", builtin.Name))
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 
