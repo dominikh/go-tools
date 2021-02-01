@@ -581,6 +581,25 @@ Example:
 		Since: `Unreleased`,
 	},
 
+	"SA4025": {
+		Title: "Integer division of literals that results in zero",
+		Text: `When dividing two integer constants, the result will
+also be an integer. Thus, a division such as '2 / 3' results in '0'.
+This is true for all of the following examples:
+
+	_ = 2 / 3
+	const _ = 2 / 3
+	const _ float64 = 2 / 3
+	_ = float64(2 / 3)
+
+Staticcheck will flag such divisions if both sides of the division are
+integer literals, as it is highly unlikely that the division was
+intended to truncate to zero. Staticcheck will not flag integer
+division involving named constants, to avoid noisy positives.
+`,
+		Since: "Unreleased",
+	},
+
 	"SA5000": {
 		Title: `Assignment to nil map`,
 		Since: "2017.1",

@@ -89,6 +89,7 @@ func TestAll(t *testing.T) {
 			{Dir: "CheckTypedNilInterface/i35217"},
 		},
 		"SA4024": {{Dir: "CheckBuiltinZeroComparison"}},
+		"SA4025": {{Dir: "CheckIntegerDivisionEqualsZero"}},
 		"SA5000": {{Dir: "CheckNilMaps"}},
 		"SA5001": {{Dir: "CheckEarlyDefer"}},
 		"SA5002": {{Dir: "CheckInfiniteEmptyLoop"}},

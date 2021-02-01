@@ -198,6 +198,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckBuiltinZeroComparison,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"SA4025": {
+		Run:      CheckIntegerDivisionEqualsZero,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,

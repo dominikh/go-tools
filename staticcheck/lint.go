@@ -4468,3 +4468,39 @@ func CheckBuiltinZeroComparison(pass *analysis.Pass) (interface{}, error) {
 
 	return nil, nil
 }
+
+var integerDivisionQ = pattern.MustParse(`(BinaryExpr (BasicLit "INT" x) "/" (BasicLit "INT" y))`)
+
+func CheckIntegerDivisionEqualsZero(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		matcher, ok := code.Match(pass, integerDivisionQ, node)
+		if !ok {
+			return
+		}
+
+		x := constant.MakeFromLiteral(matcher.State["x"].(string), token.INT, 0)
+		y := constant.MakeFromLiteral(matcher.State["y"].(string), token.INT, 0)
+		// QUO_ASSIGN to force integer division
+		div := constant.BinaryOp(x, token.QUO_ASSIGN, y)
+
+		if v, ok := constant.Int64Val(div); ok && v == 0 {
+			report.Report(pass, node, fmt.Sprintf("the integer division '%s' results in zero", report.Render(pass, node)))
+		}
+
+		// TODO: we could offer a suggested fix here, but I am not
+		// sure what it should be. There are many options to choose
+		// from.
+
+		// Note: we experimented with flagging divisions that truncate
+		// (e.g. 4 / 3), but it ran into false positives in Go's
+		// 'time' package, which does this, deliberately:
+		//
+		//   unixToInternal int64 = (1969*365 + 1969/4 - 1969/100 + 1969/400) * secondsPerDay
+		//
+		// The check also found a real bug in other code, but I don't
+		// think we can outright ban this kind of division.
+	}
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+
+	return nil, nil
+}
