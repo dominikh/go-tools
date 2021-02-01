@@ -446,22 +446,24 @@ func (Nil) Match(m *Matcher, node interface{}) (interface{}, bool) {
 }
 
 func (builtin Builtin) Match(m *Matcher, node interface{}) (interface{}, bool) {
-	ident, ok := node.(*ast.Ident)
+	r, ok := match(m, Ident(builtin), node)
 	if !ok {
 		return nil, false
 	}
+	ident := r.(*ast.Ident)
 	obj := m.TypesInfo.ObjectOf(ident)
 	if obj != types.Universe.Lookup(ident.Name) {
 		return nil, false
 	}
-	return match(m, builtin.Name, ident.Name)
+	return ident.Name, true
 }
 
 func (obj Object) Match(m *Matcher, node interface{}) (interface{}, bool) {
-	ident, ok := node.(*ast.Ident)
+	r, ok := match(m, Ident(obj), node)
 	if !ok {
 		return nil, false
 	}
+	ident := r.(*ast.Ident)
 
 	id := m.TypesInfo.ObjectOf(ident)
 	_, ok = match(m, obj.Name, ident.Name)
@@ -471,9 +473,15 @@ func (obj Object) Match(m *Matcher, node interface{}) (interface{}, bool) {
 func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	var name string
 	var obj types.Object
-	switch node := node.(type) {
+
+	r, ok := match(m, Or{Nodes: []Node{Ident{Any{}}, SelectorExpr{Any{}, Any{}}}}, node)
+	if !ok {
+		return nil, false
+	}
+
+	switch r := r.(type) {
 	case *ast.Ident:
-		obj = m.TypesInfo.ObjectOf(node)
+		obj = m.TypesInfo.ObjectOf(r)
 		switch obj := obj.(type) {
 		case *types.Func:
 			// OPT(dh): optimize this similar to code.FuncName
@@ -485,16 +493,16 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 		}
 	case *ast.SelectorExpr:
 		var ok bool
-		obj, ok = m.TypesInfo.ObjectOf(node.Sel).(*types.Func)
+		obj, ok = m.TypesInfo.ObjectOf(r.Sel).(*types.Func)
 		if !ok {
 			return nil, false
 		}
 		// OPT(dh): optimize this similar to code.FuncName
 		name = obj.(*types.Func).FullName()
 	default:
-		return nil, false
+		panic("unreachable")
 	}
-	_, ok := match(m, fn.Name, name)
+	_, ok = match(m, fn.Name, name)
 	return obj, ok
 }
 
