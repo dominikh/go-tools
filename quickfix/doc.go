@@ -100,4 +100,20 @@ After:
 	}`,
 		Since: "Unreleased",
 	},
+
+	"QF1007": {
+		Title: "Merge conditional assignment into variable declaration",
+		Text: `Before:
+
+	x := false
+	if someCondition {
+		x = true
+	}
+
+After:
+
+	x := someCondition
+`,
+		Since: "Unreleased",
+	},
 }
