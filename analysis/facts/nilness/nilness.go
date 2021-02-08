@@ -94,7 +94,7 @@ func (n neverNilness) String() string {
 	}
 }
 
-func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{}) (out []neverNilness) {
+func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{}) []neverNilness {
 	if fn.Object() == nil {
 		// TODO(dh): support closures
 		return nil
@@ -114,14 +114,6 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 	}
 
 	seenFns[fn] = struct{}{}
-	defer func() {
-		for i, v := range out {
-			if typeutil.IsPointerLike(fn.Signature.Results().At(i).Type()) && v != nilly {
-				pass.ExportObjectFact(fn.Object(), &neverReturnsNilFact{out})
-				break
-			}
-		}
-	}()
 
 	seen := map[ir.Value]struct{}{}
 
@@ -234,9 +226,17 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 		}
 	}
 	ret := fn.Exit.Control().(*ir.Return)
-	out = make([]neverNilness, len(ret.Results))
+	out := make([]neverNilness, len(ret.Results))
+	export := false
 	for i, v := range ret.Results {
-		out[i] = mightReturnNil(v)
+		v := mightReturnNil(v)
+		out[i] = v
+		if v != nilly && typeutil.IsPointerLike(fn.Signature.Results().At(i).Type()) {
+			export = true
+		}
+	}
+	if export {
+		pass.ExportObjectFact(fn.Object(), &neverReturnsNilFact{out})
 	}
 	return out
 }
