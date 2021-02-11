@@ -608,6 +608,9 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		default:
 			return
 		}
+		if arg >= len(call.Args) {
+			return
+		}
 		lit, ok := call.Args[arg].(*ast.BasicLit)
 		if !ok {
 			return

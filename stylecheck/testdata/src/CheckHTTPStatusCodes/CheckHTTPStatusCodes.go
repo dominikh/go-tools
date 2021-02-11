@@ -18,4 +18,8 @@ func fn() {
 
 	// Don't flag items on the whitelist (well known codes)
 	http.StatusText(404)
+
+	http.Error(fn2())
 }
+
+func fn2() (http.ResponseWriter, string, int) { return nil, "", 0 }
