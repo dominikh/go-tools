@@ -3179,7 +3179,16 @@ func checkCalls(pass *analysis.Pass, rules map[string]CallCheck) (interface{}, e
 		for idx, arg := range call.Args {
 			for _, e := range arg.invalids {
 				if astcall != nil {
-					report.Report(pass, astcall.Args[idx], e)
+					if idx < len(astcall.Args) {
+						report.Report(pass, astcall.Args[idx], e)
+					} else {
+						// this is an instance of fn1(fn2()) where fn2
+						// returns multiple values. Report the error
+						// at the next-best position that we have, the
+						// first argument. An example of a check that
+						// triggers this is checkEncodingBinaryRules.
+						report.Report(pass, astcall.Args[0], e)
+					}
 				} else {
 					report.Report(pass, site, e)
 				}

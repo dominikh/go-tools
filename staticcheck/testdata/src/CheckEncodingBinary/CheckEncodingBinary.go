@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"encoding/binary"
+	"io"
 	"io/ioutil"
 	"log"
 )
@@ -54,4 +55,9 @@ func fn() {
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x14)) // want `cannot be used with binary\.Write`
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x15))
 	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x15))
+	log.Println(binary.Write(fn2())) // want `cannot be used with binary\.Write`
+	log.Println(binary.Write(fn3()))
 }
+
+func fn2() (io.Writer, binary.ByteOrder, int)    { return nil, binary.LittleEndian, 0 }
+func fn3() (io.Writer, binary.ByteOrder, uint32) { return nil, binary.LittleEndian, 0 }
