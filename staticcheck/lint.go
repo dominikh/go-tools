@@ -2814,19 +2814,12 @@ func isIota(obj types.Object) bool {
 func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
-		sig, ok := pass.TypesInfo.TypeOf(call.Fun).(*types.Signature)
-		if !ok {
-			return
-		}
-		n := sig.Params().Len()
-		for i := 0; i < n; i++ {
-			typ := sig.Params().At(i).Type()
-			if !typeutil.IsType(typ, "os.FileMode") {
+		for _, arg := range call.Args {
+			lit, ok := arg.(*ast.BasicLit)
+			if !ok {
 				continue
 			}
-
-			lit, ok := call.Args[i].(*ast.BasicLit)
-			if !ok {
+			if !typeutil.IsType(pass.TypesInfo.TypeOf(lit), "os.FileMode") {
 				continue
 			}
 			if len(lit.Value) == 3 &&
@@ -2839,8 +2832,8 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 				if err != nil {
 					continue
 				}
-				report.Report(pass, call.Args[i], fmt.Sprintf("file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value),
-					report.Fixes(edit.Fix("fix octal literal", edit.ReplaceWithString(pass.Fset, call.Args[i], "0"+lit.Value))))
+				report.Report(pass, arg, fmt.Sprintf("file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value),
+					report.Fixes(edit.Fix("fix octal literal", edit.ReplaceWithString(pass.Fset, arg, "0"+lit.Value))))
 			}
 		}
 	}
