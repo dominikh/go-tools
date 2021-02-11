@@ -19,4 +19,7 @@ func fn(s string) {
 	fmt.Printf(fn2(), "")
 	fmt.Printf("")
 	fmt.Printf("%s", "")
+	fmt.Printf(fn3())
 }
+
+func fn3() (string, int) { return "", 0 }
