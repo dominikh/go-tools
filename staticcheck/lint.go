@@ -1485,6 +1485,13 @@ func CheckUnsafePrintf(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
+		if _, ok := pass.TypesInfo.TypeOf(call.Args[arg]).(*types.Tuple); ok {
+			// the called function returns multiple values and got
+			// splatted into the call. for all we know, it is
+			// returning good arguments.
+			return
+		}
+
 		alt := name[:len(name)-1]
 		report.Report(pass, call,
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
