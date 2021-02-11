@@ -1607,6 +1607,7 @@ func CheckSortHelpers(pass *analysis.Pass) (interface{}, error) {
 				return false
 			}
 			call := node.(*ast.CallExpr)
+			// isPermissibleSort guarantees that this type assertion will succeed
 			typeconv := call.Args[knowledge.Arg("sort.Sort.data")].(*ast.CallExpr)
 			sel := typeconv.Fun.(*ast.SelectorExpr)
 			name := code.SelectorName(pass, sel)
