@@ -2290,6 +2290,7 @@ func (b *builder) buildFunction(fn *Function) {
 		defer logStack("build function %s @ %s", fn, fn.Prog.Fset.Position(fn.Pos()))()
 	}
 	fn.blocksets = b.blocksets
+	fn.Blocks = make([]*BasicBlock, 0, avgBlocks)
 	fn.startBody()
 	fn.createSyntacticParams(recvField, functype)
 	fn.exitBlock()

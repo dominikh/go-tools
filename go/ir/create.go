@@ -18,6 +18,12 @@ import (
 	"honnef.co/go/tools/go/types/typeutil"
 )
 
+// measured on the standard library and rounded up to powers of two,
+// on average there are 8 blocks and 16 instructions per block in a
+// function.
+const avgBlocks = 8
+const avgInstructionsPerBlock = 16
+
 // NewProgram returns a new IR Program.
 //
 // mode controls diagnostics and checking during IR construction.
@@ -98,7 +104,14 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 		if syntax == nil {
 			fn.Synthetic = SyntheticLoadedFromExportData
 		} else {
-			fn.functionBody = new(functionBody)
+			// Note: we initialize fn.Blocks in
+			// (*builder).buildFunction and not here because Blocks
+			// being nil is used to indicate that building of the
+			// function hasn't started yet.
+
+			fn.functionBody = &functionBody{
+				scratchInstructions: make([]Instruction, avgBlocks*avgInstructionsPerBlock),
+			}
 		}
 
 		pkg.values[obj] = fn

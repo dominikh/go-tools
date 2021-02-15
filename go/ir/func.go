@@ -376,7 +376,19 @@ func buildReferrers(f *Function) {
 			for _, rand := range rands {
 				if r := *rand; r != nil {
 					if ref := r.Referrers(); ref != nil {
-						*ref = append(*ref, instr)
+						if len(*ref) == 0 {
+							// per median, each value has two referrers, so we can avoid one call into growslice
+							//
+							// Note: we experimented with allocating
+							// sequential scratch space, but we
+							// couldn't find a value that gave better
+							// performance than making many individual
+							// allocations
+							*ref = make([]Instruction, 1, 2)
+							(*ref)[0] = instr
+						} else {
+							*ref = append(*ref, instr)
+						}
 					}
 				}
 			}
@@ -917,10 +929,19 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 // comment is an optional string for more readable debugging output.
 //
 func (f *Function) newBasicBlock(comment string) *BasicBlock {
+	var instrs []Instruction
+	if len(f.functionBody.scratchInstructions) > 0 {
+		instrs = f.functionBody.scratchInstructions[0:0:avgInstructionsPerBlock]
+		f.functionBody.scratchInstructions = f.functionBody.scratchInstructions[avgInstructionsPerBlock:]
+	} else {
+		instrs = make([]Instruction, 0, avgInstructionsPerBlock)
+	}
+
 	b := &BasicBlock{
 		Index:   len(f.Blocks),
 		Comment: comment,
 		parent:  f,
+		Instrs:  instrs,
 	}
 	b.Succs = b.succs2[:0]
 	f.Blocks = append(f.Blocks, b)

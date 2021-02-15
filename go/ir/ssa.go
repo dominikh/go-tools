@@ -388,6 +388,10 @@ type functionBody struct {
 	fakeExits       BlockSet
 	blocksets       [5]BlockSet
 	hasDefer        bool
+
+	// a contiguous block of instructions that will be used by blocks,
+	// to avoid making multiple allocations.
+	scratchInstructions []Instruction
 }
 
 func (fn *Function) results() []*Alloc {
