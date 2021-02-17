@@ -2819,7 +2819,8 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				continue
 			}
-			if !typeutil.IsType(pass.TypesInfo.TypeOf(lit), "os.FileMode") {
+			if !typeutil.IsType(pass.TypesInfo.TypeOf(lit), "os.FileMode") &&
+				!typeutil.IsType(pass.TypesInfo.TypeOf(lit), "io/fs.FileMode") {
 				continue
 			}
 			if len(lit.Value) == 3 &&
