@@ -11,6 +11,7 @@
 	  <li><a href="#checks-changed">Changed checks</a></li>
   </ul></li>
   <li><a href="#2020.2.1">Staticcheck 2020.2.1 release notes</a></li>
+  <li><a href="#2020.2.2">Staticcheck 2020.2.2 release notes</a></li>
 </ul>
 
 <h2 id="performance-improvements">Performance improvements</h2>
@@ -578,4 +579,17 @@ We've made some minor improvements to the output and behavior of the <code>stati
 	Note that to be fully safe, you will also have to update your installation of Go.
 	See the <a href="https://blog.golang.org/path-security">Command PATH security in Go</a> article by the Go authors for more information on this potential vulnerability.
   </li>
+</ul>
+
+<h2 id="2020.2.2">Staticcheck 2020.2.2 release notes</h2>
+
+<p>
+  This release fixes a rare crash in Staticcheck, reduces the number of false positives, and adds support for Go 1.16's <code>io/fs.FileMode</code> type.
+</p>
+
+<ul>
+  <li>{{ check "SA9002" }} now supports the new <code>io/fs.FileMode</code> type in addition to <code>os.FileMode</code>.</li>
+  <li>Various checks no longer crash when analyzing nested function calls involving multiple return values.</li>
+  <li>{{ check "SA1006" }} no longer flags <code>Printf</code> calls of the form <code>Printf(fn())</code> when <code>fn</code> has multiple return values.</li>
+  <li>Staticcheck now understands the effects of <code>github.com/golang/glog</code> on a function's control flow. </li>
 </ul>
