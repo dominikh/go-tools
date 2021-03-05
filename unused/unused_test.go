@@ -155,6 +155,7 @@ func TestAll(t *testing.T) {
 		"nocopy",
 		"nocopy-main",
 		"pointer-type-embedding",
+		"pointers",
 		"quiet",
 		"selectors",
 		"switch_interface",
