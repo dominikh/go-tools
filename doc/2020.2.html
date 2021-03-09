@@ -12,6 +12,7 @@
   </ul></li>
   <li><a href="#2020.2.1">Staticcheck 2020.2.1 release notes</a></li>
   <li><a href="#2020.2.2">Staticcheck 2020.2.2 release notes</a></li>
+  <li><a href="#2020.2.3">Staticcheck 2020.2.3 release notes</a></li>
 </ul>
 
 <h2 id="performance-improvements">Performance improvements</h2>
@@ -593,3 +594,9 @@ We've made some minor improvements to the output and behavior of the <code>stati
   <li>{{ check "SA1006" }} no longer flags <code>Printf</code> calls of the form <code>Printf(fn())</code> when <code>fn</code> has multiple return values.</li>
   <li>Staticcheck now understands the effects of <code>github.com/golang/glog</code> on a function's control flow. </li>
 </ul>
+
+<h2 id="2020.2.3">Staticcheck 2020.2.3 release notes</h2>
+
+<p>
+  This release fixes a false positive in U1000. See <a href="https://github.com/dominikh/go-tools/issues/942">issue 942</a> for an example.
+</p>
