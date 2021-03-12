@@ -511,6 +511,7 @@ func FlagSet(name string) *flag.FlagSet {
 	flags.Bool("show-ignored", false, "Don't filter ignored problems")
 	flags.String("f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
 	flags.String("explain", "", "Print description of `check`")
+	flags.Bool("list-checks", false, "List all available checks")
 
 	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
 	flags.String("debug.memprofile", "", "Write memory profile to `file`")
@@ -552,6 +553,7 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
 	explain := fs.Lookup("explain").Value.(flag.Getter).Get().(string)
+	listChecks := fs.Lookup("list-checks").Value.(flag.Getter).Get().(bool)
 
 	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
 	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
@@ -614,6 +616,22 @@ func ProcessFlagSet(cs []*analysis.Analyzer, fs *flag.FlagSet) {
 
 	if debugVersion {
 		version.Verbose()
+		exit(0)
+	}
+
+	if listChecks {
+		titles := make(map[string]string)
+		names := make([]string, len(cs))
+		for i, c := range cs {
+			titles[c.Name] = strings.SplitN(c.Doc, "\n", 2)[0]
+			names[i] = c.Name
+		}
+
+		sort.Strings(names)
+		for _, n := range names {
+			fmt.Fprintf(os.Stderr, "%s %s\n", n, titles[n])
+		}
+
 		exit(0)
 	}
 
