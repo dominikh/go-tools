@@ -423,6 +423,10 @@ func printDomTreeDot(buf io.Writer, f *Function) {
 		for _, pred := range b.Preds {
 			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"dotted\",weight=0];\n", pred.dom.pre, v.pre)
 		}
+
+		if f.fakeExits.Has(b) {
+			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"dotted\",weight=0,color=red];\n", b.dom.pre, f.Exit.dom.pre)
+		}
 	}
 	fmt.Fprintln(buf, "}")
 }
@@ -455,6 +459,10 @@ func printPostDomTreeDot(buf io.Writer, f *Function) {
 		// CFG edges.
 		for _, pred := range b.Preds {
 			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"dotted\",weight=0];\n", pred.pdom.pre, v.pre)
+		}
+
+		if f.fakeExits.Has(b) {
+			fmt.Fprintf(buf, "\tn%d -> n%d [style=\"dotted\",weight=0,color=red];\n", b.dom.pre, f.Exit.dom.pre)
 		}
 	}
 	fmt.Fprintln(buf, "}")
