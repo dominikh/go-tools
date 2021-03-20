@@ -79,8 +79,16 @@ func (df domFrontier) add(u, v *BasicBlock) {
 // the DF -> IDF step.
 func (df domFrontier) build(fn *Function) {
 	for _, b := range fn.Blocks {
-		if len(b.Preds) >= 2 {
-			for _, p := range b.Preds {
+		preds := b.Preds[0:len(b.Preds):len(b.Preds)]
+		if b == fn.Exit {
+			for i, v := range fn.fakeExits.values {
+				if v {
+					preds = append(preds, fn.Blocks[i])
+				}
+			}
+		}
+		if len(preds) >= 2 {
+			for _, p := range preds {
 				runner := p
 				for runner != b.dom.idom {
 					df.add(runner, b)
@@ -105,8 +113,12 @@ func (rdf postDomFrontier) add(u, v *BasicBlock) {
 
 func (rdf postDomFrontier) build(fn *Function) {
 	for _, b := range fn.Blocks {
-		if len(b.Succs) >= 2 {
-			for _, s := range b.Succs {
+		succs := b.Succs[0:len(b.Succs):len(b.Succs)]
+		if fn.fakeExits.Has(b) {
+			succs = append(succs, fn.Exit)
+		}
+		if len(succs) >= 2 {
+			for _, s := range succs {
 				runner := s
 				for runner != b.pdom.idom {
 					rdf.add(runner, b)

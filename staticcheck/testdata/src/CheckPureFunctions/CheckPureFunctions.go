@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -35,4 +36,13 @@ func fn3() {
 	empty()
 	stubPointer()
 	stubInt()
+}
+
+func fn4() error {
+	// Test for https://github.com/dominikh/go-tools/issues/949
+	if true {
+		return fmt.Errorf("")
+	}
+	for {
+	}
 }
