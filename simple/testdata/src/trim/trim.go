@@ -139,3 +139,14 @@ func fn() {
 		println(id1)
 	}
 }
+
+func fn2() {
+	var s string
+	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
+		s = strings.TrimSuffix(s, ".json")
+	}
+
+	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
+		s = s[:len(s)-len(".json")]
+	}
+}

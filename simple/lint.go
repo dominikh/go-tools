@@ -938,6 +938,8 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 			return node1.Obj == node2.(*ast.Ident).Obj
 		case *ast.SelectorExpr, *ast.IndexExpr:
 			return astutil.Equal(node1, node2)
+		case *ast.BasicLit:
+			return astutil.Equal(node1, node2)
 		}
 		return false
 	}
