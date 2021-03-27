@@ -1051,31 +1051,8 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				}
 				switch index := slice.Low.(type) {
 				case *ast.CallExpr:
-					if !code.IsCallTo(pass, index, "len") {
+					if !isLenOnIdent(index, condCall.Args[1]) {
 						return
-					}
-					if len(index.Args) != 1 {
-						return
-					}
-					id3 := index.Args[knowledge.Arg("len.v")]
-					switch oid3 := condCall.Args[1].(type) {
-					case *ast.BasicLit:
-						if pkg != "strings" {
-							return
-						}
-						lit, ok := id3.(*ast.BasicLit)
-						if !ok {
-							return
-						}
-						s1, ok1 := code.ExprToString(pass, lit)
-						s2, ok2 := code.ExprToString(pass, condCall.Args[1])
-						if !ok1 || !ok2 || s1 != s2 {
-							return
-						}
-					default:
-						if !sameNonDynamic(id3, oid3) {
-							return
-						}
 					}
 				case *ast.BasicLit:
 					if pkg != "strings" {
@@ -1087,9 +1064,9 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 						// was a string literal.
 						return
 					}
-					string, ok1 := code.ExprToString(pass, condCall.Args[1])
-					int, ok2 := code.ExprToInt(pass, slice.Low)
-					if !ok1 || !ok2 || int != int64(len(string)) {
+					s, ok1 := code.ExprToString(pass, condCall.Args[1])
+					n, ok2 := code.ExprToInt(pass, index)
+					if !ok1 || !ok2 || n != int64(len(s)) {
 						return
 					}
 				default:
