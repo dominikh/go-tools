@@ -1030,7 +1030,6 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				condCallName == "bytes.Contains" && rhsName == "bytes.Replace" {
 				report.Report(pass, ifstmt, fmt.Sprintf("should replace this if statement with an unconditional %s", rhsName), report.FilterGenerated())
 			}
-			return
 		case *ast.SliceExpr:
 			slice := rhs
 			if !ok {
@@ -1042,7 +1041,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 			if !sameNonDynamic(slice.X, condCall.Args[0]) {
 				return
 			}
-			var index ast.Expr
+
 			switch fun {
 			case "HasPrefix":
 				// TODO(dh) We could detect a High that is len(s), but another
@@ -1050,7 +1049,46 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				if slice.High != nil {
 					return
 				}
-				index = slice.Low
+				switch index := slice.Low.(type) {
+				case *ast.CallExpr:
+					if !code.IsCallTo(pass, index, "len") {
+						return
+					}
+					if len(index.Args) != 1 {
+						return
+					}
+					id3 := index.Args[knowledge.Arg("len.v")]
+					switch oid3 := condCall.Args[1].(type) {
+					case *ast.BasicLit:
+						if pkg != "strings" {
+							return
+						}
+						lit, ok := id3.(*ast.BasicLit)
+						if !ok {
+							return
+						}
+						s1, ok1 := code.ExprToString(pass, lit)
+						s2, ok2 := code.ExprToString(pass, condCall.Args[1])
+						if !ok1 || !ok2 || s1 != s2 {
+							return
+						}
+					default:
+						if !sameNonDynamic(id3, oid3) {
+							return
+						}
+					}
+				case *ast.BasicLit, *ast.Ident:
+					if pkg != "strings" {
+						return
+					}
+					string, ok1 := code.ExprToString(pass, condCall.Args[1])
+					int, ok2 := code.ExprToInt(pass, slice.Low)
+					if !ok1 || !ok2 || int != int64(len(string)) {
+						return
+					}
+				default:
+					return
+				}
 			case "HasSuffix":
 				if slice.Low != nil {
 					n, ok := code.ExprToInt(pass, slice.Low)
@@ -1058,61 +1096,16 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 						return
 					}
 				}
-				index = slice.High
-			}
-
-			switch index := index.(type) {
-			case *ast.CallExpr:
-				if fun != "HasPrefix" {
-					return
-				}
-				if !code.IsCallTo(pass, index, "len") {
-					return
-				}
-				if len(index.Args) != 1 {
-					return
-				}
-				id3 := index.Args[knowledge.Arg("len.v")]
-				switch oid3 := condCall.Args[1].(type) {
-				case *ast.BasicLit:
-					if pkg != "strings" {
+				switch index := slice.High.(type) {
+				case *ast.BinaryExpr:
+					if index.Op != token.SUB {
 						return
 					}
-					lit, ok := id3.(*ast.BasicLit)
-					if !ok {
-						return
-					}
-					s1, ok1 := code.ExprToString(pass, lit)
-					s2, ok2 := code.ExprToString(pass, condCall.Args[1])
-					if !ok1 || !ok2 || s1 != s2 {
+					if !isLenOnIdent(index.X, condCall.Args[0]) ||
+						!isLenOnIdent(index.Y, condCall.Args[1]) {
 						return
 					}
 				default:
-					if !sameNonDynamic(id3, oid3) {
-						return
-					}
-				}
-			case *ast.BasicLit, *ast.Ident:
-				if fun != "HasPrefix" {
-					return
-				}
-				if pkg != "strings" {
-					return
-				}
-				string, ok1 := code.ExprToString(pass, condCall.Args[1])
-				int, ok2 := code.ExprToInt(pass, slice.Low)
-				if !ok1 || !ok2 || int != int64(len(string)) {
-					return
-				}
-			case *ast.BinaryExpr:
-				if fun != "HasSuffix" {
-					return
-				}
-				if index.Op != token.SUB {
-					return
-				}
-				if !isLenOnIdent(index.X, condCall.Args[0]) ||
-					!isLenOnIdent(index.Y, condCall.Args[1]) {
 					return
 				}
 			default:

@@ -138,6 +138,10 @@ func fn() {
 		id1 = id1[len(s1):]
 		println(id1)
 	}
+
+	if strings.Contains(id1, s1) {
+		id1 = id1[:]
+	}
 }
 
 func fn2() {
