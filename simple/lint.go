@@ -1077,8 +1077,14 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 							return
 						}
 					}
-				case *ast.BasicLit, *ast.Ident:
+				case *ast.BasicLit:
 					if pkg != "strings" {
+						return
+					}
+					if _, ok := condCall.Args[1].(*ast.BasicLit); !ok {
+						// Only allow manual slicing with an integer
+						// literal if the second argument to HasPrefix
+						// was a string literal.
 						return
 					}
 					string, ok1 := code.ExprToString(pass, condCall.Args[1])

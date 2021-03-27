@@ -60,11 +60,11 @@ func fn() {
 		id1 = id1[4:]
 	}
 
-	if strings.HasPrefix(id1, s1) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, s1) { // not allowed, 14 and s1 aren't obviously connected
 		id1 = id1[14:]
 	}
 
-	if strings.HasPrefix(id1, s1) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, s1) { // not allowed, s1 and n aren't obviously connected
 		id1 = id1[n:]
 	}
 
