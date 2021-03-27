@@ -942,7 +942,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return false
 		}
-		if fn, ok := call.Fun.(*ast.Ident); !ok || fn.Name != "len" {
+		if !code.IsCallTo(pass, call, "len") {
 			return false
 		}
 		if len(call.Args) != 1 {
@@ -1059,7 +1059,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				if fun != "HasPrefix" {
 					return
 				}
-				if fn, ok := index.Fun.(*ast.Ident); !ok || fn.Name != "len" {
+				if !code.IsCallTo(pass, index, "len") {
 					return
 				}
 				if len(index.Args) != 1 {

@@ -139,3 +139,17 @@ func fn() {
 		println(id1)
 	}
 }
+
+func fn3() {
+	const s1 = "a string value"
+
+	var id1 = "a string value"
+	len := func(string) int { return 0 } // don't accept non-builtin definition of len
+	if strings.HasPrefix(id1, s1) {
+		id1 = id1[len(s1):]
+	}
+
+	if strings.HasSuffix(id1, s1) {
+		id1 = id1[:len(id1)-len(s1)]
+	}
+}
