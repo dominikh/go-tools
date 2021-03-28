@@ -146,12 +146,26 @@ func fn() {
 
 func fn2() {
 	var s string
+	const id = ".json"
+
 	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
 		s = strings.TrimSuffix(s, ".json")
 	}
 
 	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
 		s = s[:len(s)-len(".json")]
+	}
+
+	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
+		s = s[:len(s)-5]
+	}
+
+	if strings.HasSuffix(s, id) {
+		s = s[:len(s)-5] // second argument of HasSuffix it not a string literal
+	}
+
+	if strings.HasSuffix(s, ".json") {
+		s = s[:len(s)-4] // wrong length
 	}
 }
 

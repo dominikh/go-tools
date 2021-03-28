@@ -1042,6 +1042,31 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 
+			validateOffset := func(off ast.Expr) bool {
+				switch off := off.(type) {
+				case *ast.CallExpr:
+					return isLenOnIdent(off, condCall.Args[1])
+				case *ast.BasicLit:
+					if pkg != "strings" {
+						return false
+					}
+					if _, ok := condCall.Args[1].(*ast.BasicLit); !ok {
+						// Only allow manual slicing with an integer
+						// literal if the second argument to HasPrefix
+						// was a string literal.
+						return false
+					}
+					s, ok1 := code.ExprToString(pass, condCall.Args[1])
+					n, ok2 := code.ExprToInt(pass, off)
+					if !ok1 || !ok2 || n != int64(len(s)) {
+						return false
+					}
+					return true
+				default:
+					return false
+				}
+			}
+
 			switch fun {
 			case "HasPrefix":
 				// TODO(dh) We could detect a High that is len(s), but another
@@ -1049,27 +1074,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 				if slice.High != nil {
 					return
 				}
-				switch index := slice.Low.(type) {
-				case *ast.CallExpr:
-					if !isLenOnIdent(index, condCall.Args[1]) {
-						return
-					}
-				case *ast.BasicLit:
-					if pkg != "strings" {
-						return
-					}
-					if _, ok := condCall.Args[1].(*ast.BasicLit); !ok {
-						// Only allow manual slicing with an integer
-						// literal if the second argument to HasPrefix
-						// was a string literal.
-						return
-					}
-					s, ok1 := code.ExprToString(pass, condCall.Args[1])
-					n, ok2 := code.ExprToInt(pass, index)
-					if !ok1 || !ok2 || n != int64(len(s)) {
-						return
-					}
-				default:
+				if !validateOffset(slice.Low) {
 					return
 				}
 			case "HasSuffix":
@@ -1084,8 +1089,10 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 					if index.Op != token.SUB {
 						return
 					}
-					if !isLenOnIdent(index.X, condCall.Args[0]) ||
-						!isLenOnIdent(index.Y, condCall.Args[1]) {
+					if !isLenOnIdent(index.X, condCall.Args[0]) {
+						return
+					}
+					if !validateOffset(index.Y) {
 						return
 					}
 				default:
