@@ -129,6 +129,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckIneffectiveLoop,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"SA4005": {
+		Run:      CheckIneffectiveFieldAssignments,
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
+	},
 	"SA4006": {
 		Run:      CheckUnreadVariableValues,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, facts.Generated},

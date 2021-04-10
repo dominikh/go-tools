@@ -62,6 +62,7 @@ func TestAll(t *testing.T) {
 		"SA4001": {{Dir: "CheckIneffectiveCopy"}},
 		"SA4003": {{Dir: "CheckExtremeComparison"}},
 		"SA4004": {{Dir: "CheckIneffectiveLoop"}},
+		"SA4005": {{Dir: "CheckIneffectiveFieldAssignments"}},
 		"SA4006": {{Dir: "CheckUnreadVariableValues"}},
 		"SA4008": {{Dir: "CheckLoopCondition"}},
 		"SA4009": {{Dir: "CheckArgOverwritten"}},
