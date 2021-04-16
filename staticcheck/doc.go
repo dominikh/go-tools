@@ -612,6 +612,20 @@ division involving named constants, to avoid noisy positives.
 		Since: "Unreleased",
 	},
 
+	"SA4026": {
+		Title: "Go constants cannot express negative zero",
+		Text: `In IEEE 754 floating point math, zero has a sign and can be positive
+or negative. This can be useful in certain numerical code.
+
+Go constants, however, cannot express negative zero. This means that
+the literals \'-0.0\' and \'0.0\' have the same ideal value (zero) and
+will both represent positive zero at runtime.
+
+To explicitly and reliably create a negative zero, you can use the
+\'math.Copysign\' function: \'math.Copysign(0, -1)\'.`,
+		Since: "Unreleased",
+	},
+
 	"SA5000": {
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",

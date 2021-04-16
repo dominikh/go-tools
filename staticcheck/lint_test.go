@@ -91,6 +91,7 @@ func TestAll(t *testing.T) {
 		},
 		"SA4024": {{Dir: "CheckBuiltinZeroComparison"}},
 		"SA4025": {{Dir: "CheckIntegerDivisionEqualsZero"}},
+		"SA4026": {{Dir: "CheckNegativeZeroFloat"}},
 		"SA5000": {{Dir: "CheckNilMaps"}},
 		"SA5001": {{Dir: "CheckEarlyDefer"}},
 		"SA5002": {{Dir: "CheckInfiniteEmptyLoop"}},
