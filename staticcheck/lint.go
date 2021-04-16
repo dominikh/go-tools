@@ -4668,3 +4668,30 @@ func CheckNegativeZeroFloat(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil), (*ast.CallExpr)(nil))
 	return nil, nil
 }
+
+var ineffectiveURLQueryAddQ = pattern.MustParse(`(CallExpr (SelectorExpr (CallExpr (SelectorExpr recv (Ident "Query")) []) (Ident meth)) _)`)
+
+func CheckIneffectiveURLQueryModification(pass *analysis.Pass) (interface{}, error) {
+	// TODO(dh): We could make this check more complex and detect
+	// pointless modifications of net/url.Values in general, but that
+	// requires us to get the state machine correct, else we'll cause
+	// false positives.
+
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, ineffectiveURLQueryAddQ, node)
+		if !ok {
+			return
+		}
+		if !code.IsOfType(pass, m.State["recv"].(ast.Expr), "*net/url.URL") {
+			return
+		}
+		switch m.State["meth"].(string) {
+		case "Add", "Del", "Set":
+		default:
+			return
+		}
+		report.Report(pass, node, "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL")
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}

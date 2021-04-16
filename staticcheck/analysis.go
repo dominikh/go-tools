@@ -210,6 +210,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckNegativeZeroFloat,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"SA4027": {
+		Run:      CheckIneffectiveURLQueryModification,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,

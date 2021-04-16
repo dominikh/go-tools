@@ -625,6 +625,17 @@ To explicitly and reliably create a negative zero, you can use the
 \'math.Copysign\' function: \'math.Copysign(0, -1)\'.`,
 		Since: "Unreleased",
 	},
+	"SA4027": {
+		Title: "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL",
+		Text: `\'(*net/url.URL).Query\' parses the current value of \'net/url.URL.RawQuery\'
+and returns it as a map of type \'net/url.Values\'. Subsequent changes to
+this map will not affect the URL unless the map gets encoded and
+assigned to the URL's \'RawQuery\'.
+
+As a consequence, the following code pattern is an expensive no-op:
+\'u.Query().Add(key, value)\'.`,
+		Since: "Unreleased",
+	},
 
 	"SA5000": {
 		Title:    `Assignment to nil map`,
