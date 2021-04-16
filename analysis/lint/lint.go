@@ -77,6 +77,10 @@ func toMarkdown(s string) string {
 }
 
 func (doc *Documentation) String() string {
+	if doc == nil {
+		return "Error: No documentation."
+	}
+
 	b := &strings.Builder{}
 	fmt.Fprintf(b, "%s\n\n", doc.Title)
 	if doc.Text != "" {
