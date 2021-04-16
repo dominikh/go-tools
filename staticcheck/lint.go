@@ -4695,3 +4695,38 @@ func CheckIneffectiveURLQueryModification(pass *analysis.Pass) (interface{}, err
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
+
+func CheckXXX(pass *analysis.Pass) (interface{}, error) {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, b := range fn.Blocks {
+			for _, ins := range b.Instrs {
+				ins, ok := ins.(*ir.Defer)
+				if !ok {
+					continue
+				}
+				var sig *types.Signature
+				if ins.Call.IsInvoke() {
+					sig = ins.Call.Method.Type().(*types.Signature)
+				} else {
+					fnc, ok := ins.Call.Value.(*ir.Function)
+					if !ok {
+						continue
+					}
+					sig = fnc.Signature
+				}
+
+				if sig.Results().Len() != 1 {
+					continue
+				}
+
+				// TODO(dh): should we check the underlying type instead? Would that introduce additional false positives?
+				if _, ok := sig.Results().At(0).Type().(*types.Signature); !ok {
+					continue
+				}
+
+				report.Report(pass, ins, "the deferred function returns a function; were you meant to defer the return value instead?")
+			}
+		}
+	}
+	return nil, nil
+}
