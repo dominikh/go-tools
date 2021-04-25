@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/format"
 	"go/token"
@@ -44,7 +45,10 @@ func Fixes(fixes ...analysis.SuggestedFix) Option {
 
 func Related(node Positioner, message string) Option {
 	return func(opts *Options) {
-		pos, end := getRange(node, opts.ShortRange)
+		pos, end, ok := getRange(node, opts.ShortRange)
+		if !ok {
+			return
+		}
 		r := analysis.RelatedInformation{
 			Pos:     pos,
 			End:     end,
@@ -126,21 +130,26 @@ func shortRange(node ast.Node) (pos, end token.Pos) {
 	}
 }
 
-func getRange(node Positioner, short bool) (pos, end token.Pos) {
-	switch node := node.(type) {
+func getRange(node Positioner, short bool) (pos, end token.Pos, ok bool) {
+	switch n := node.(type) {
 	case sourcer:
-		s := node.Source()
-		if short {
-			return shortRange(s)
+		s := n.Source()
+		if s == nil {
+			return 0, 0, false
 		}
-		return s.Pos(), s.End()
+		if short {
+			p, e := shortRange(s)
+			return p, e, true
+		}
+		return s.Pos(), s.End(), true
 	case fullPositioner:
 		if short {
-			return shortRange(node)
+			p, e := shortRange(n)
+			return p, e, true
 		}
-		return node.Pos(), node.End()
+		return n.Pos(), n.End(), true
 	default:
-		return node.Pos(), token.NoPos
+		return n.Pos(), token.NoPos, true
 	}
 }
 
@@ -158,7 +167,10 @@ func Report(pass *analysis.Pass, node Positioner, message string, opts ...Option
 		}
 	}
 
-	pos, end := getRange(node, cfg.ShortRange)
+	pos, end, ok := getRange(node, cfg.ShortRange)
+	if !ok {
+		panic(fmt.Sprintf("no valid position for reporting node %v", node))
+	}
 	d := analysis.Diagnostic{
 		Pos:            pos,
 		End:            end,
