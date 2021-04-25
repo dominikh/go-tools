@@ -130,6 +130,17 @@ func shortRange(node ast.Node) (pos, end token.Pos) {
 	}
 }
 
+func HasRange(node Positioner) bool {
+	// we don't know if getRange will be called with shortRange set to
+	// true, so make sure that both work.
+	_, _, ok := getRange(node, false)
+	if !ok {
+		return false
+	}
+	_, _, ok = getRange(node, true)
+	return ok
+}
+
 func getRange(node Positioner, short bool) (pos, end token.Pos, ok bool) {
 	switch n := node.(type) {
 	case sourcer:

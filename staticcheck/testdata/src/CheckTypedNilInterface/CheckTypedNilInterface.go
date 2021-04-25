@@ -204,4 +204,7 @@ func test() {
 	_ = gen20() == nil
 	_ = gen21() == nil
 	_ = gen22() == nil // want `never true`
+
+	var v1 interface{} = 0
+	_ = v1 == nil // want `never true; the lhs`
 }
