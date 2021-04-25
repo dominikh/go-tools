@@ -4306,8 +4306,13 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 					default:
 						panic("unreachable")
 					}
-					report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
-						report.Related(x.X, "the lhs of the comparison gets its value from here and has a concrete type"))
+					if report.HasRange(x.X) {
+						report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
+							report.Related(x.X, "the lhs of the comparison gets its value from here and has a concrete type"))
+					} else {
+						// we can't generate related information for this, so make the diagnostic itself slightly more useful
+						report.Report(pass, binop, fmt.Sprintf("this comparison is %s true; the lhs of the comparison has been assigned a concretely typed value", qualifier))
+					}
 					continue
 				}
 				if obj == nil {
