@@ -1,0 +1,21 @@
+This package is a copy of golang.org/x/tools/go/internal/gcimporter,
+imported from commit 33e937220d8f91f1d242ad15aebc3e245aca5515.
+We use it to more directly and efficiently load Go packages from export data.
+The alternative would be to use golang.org/x/tools/go/gcexportdata.
+
+The following upstream changes have since been incorporated:
+655248709eb08403f2cd91d1d0b783f4d5db38d1
+
+The following upstream changes have explicitly been skipped:
+None.
+
+The last upstream commit we've looked at was:
+655248709eb08403f2cd91d1d0b783f4d5db38d1
+
+The following custom changes have been made:
+- allow reuse of byte slices in GetExportData
+- remove support for old export data formats
+- only read type information from archives, skipping object code
+- read directly from an os.File when possible, skipping the indirection through a buffered reader
+- remove support for writing export data
+- use unsafe for a more efficient implementation of (*token.File).SetLines
