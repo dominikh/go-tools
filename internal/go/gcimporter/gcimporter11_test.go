@@ -7,6 +7,7 @@
 package gcimporter
 
 import (
+	"go/constant"
 	"go/types"
 	"runtime"
 	"strings"
@@ -46,26 +47,11 @@ func TestImportedTypes(t *testing.T) {
 	}
 
 	for _, test := range importedObjectTests {
-		s := strings.Split(test.name, ".")
-		if len(s) != 2 {
-			t.Fatal("inconsistent test data")
-		}
-		importPath := s[0]
-		objName := s[1]
-
-		pkg, err := Import(make(map[string]*types.Package), importPath, ".", nil)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-
-		obj := pkg.Scope().Lookup(objName)
+		obj := importObject(t, test.name)
 		if obj == nil {
-			t.Errorf("%s: object not found", test.name)
-			continue
+			continue // error reported elsewhere
 		}
-
-		got := types.ObjectString(obj, types.RelativeTo(pkg))
+		got := types.ObjectString(obj, types.RelativeTo(obj.Pkg()))
 		if got != test.want {
 			t.Errorf("%s: got %q; want %q", test.name, got, test.want)
 		}
@@ -74,6 +60,53 @@ func TestImportedTypes(t *testing.T) {
 			verifyInterfaceMethodRecvs(t, named, 0)
 		}
 	}
+}
+
+func TestImportedConsts(t *testing.T) {
+	skipSpecialPlatforms(t)
+
+	tests := []struct {
+		name string
+		want constant.Kind
+	}{
+		{"math.Pi", constant.Float},
+		{"math.MaxFloat64", constant.Float},
+		{"math.MaxInt64", constant.Int},
+	}
+
+	for _, test := range tests {
+		obj := importObject(t, test.name)
+		if got := obj.(*types.Const).Val().Kind(); got != test.want {
+			t.Errorf("%s: imported as constant.Kind(%v), want constant.Kind(%v)", test.name, got, test.want)
+		}
+	}
+}
+
+// importObject imports the object specified by a name of the form
+// <import path>.<object name>, e.g. go/types.Type.
+//
+// If any errors occur they are reported via t and the resulting object will
+// be nil.
+func importObject(t *testing.T, name string) types.Object {
+	s := strings.Split(name, ".")
+	if len(s) != 2 {
+		t.Fatal("inconsistent test data")
+	}
+	importPath := s[0]
+	objName := s[1]
+
+	pkg, err := Import(make(map[string]*types.Package), importPath, ".", nil)
+	if err != nil {
+		t.Error(err)
+		return nil
+	}
+
+	obj := pkg.Scope().Lookup(objName)
+	if obj == nil {
+		t.Errorf("%s: object not found", name)
+		return nil
+	}
+	return obj
 }
 
 // verifyInterfaceMethodRecvs verifies that method receiver types
