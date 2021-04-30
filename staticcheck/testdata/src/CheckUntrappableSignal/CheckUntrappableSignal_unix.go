@@ -1,3 +1,4 @@
+//go:build android || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
 // +build android darwin dragonfly freebsd linux netbsd openbsd solaris
 
 package main
