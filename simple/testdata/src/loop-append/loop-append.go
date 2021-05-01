@@ -17,6 +17,17 @@ func fn1() {
 		b = append(b, v)
 	}
 
+	var a2, b2 []int
+	for i := range a2 { // want `should replace loop`
+		b2 = append(b2, a2[i])
+	}
+
+	var a3, b3 []int
+	for i := range a3 { // want `should replace loop`
+		v := a3[i]
+		b3 = append(b3, v)
+	}
+
 	var m map[string]int
 	var c []int
 	for _, v := range m {
