@@ -13,6 +13,7 @@
   <li><a href="#2020.2.1">Staticcheck 2020.2.1 release notes</a></li>
   <li><a href="#2020.2.2">Staticcheck 2020.2.2 release notes</a></li>
   <li><a href="#2020.2.3">Staticcheck 2020.2.3 release notes</a></li>
+  <li><a href="#2020.2.4">Staticcheck 2020.2.4 release notes</a></li>
 </ul>
 
 <h2 id="performance-improvements">Performance improvements</h2>
@@ -600,3 +601,21 @@ We've made some minor improvements to the output and behavior of the <code>stati
 <p>
   This release fixes a false positive in U1000. See <a href="https://github.com/dominikh/go-tools/issues/942">issue 942</a> for an example.
 </p>
+
+<h2 id="2020.2.4">Staticcheck 2020.2.4 release notes</h2>
+
+<p>
+  This release fixes the following issues:
+</p>
+
+<ul>
+  <li>A false positive in {{ check "S1017" }} when the <code>len</code> function has been shadowed</li>
+  <li>
+	A bug in Staticcheck's intermediate representation
+	that would lead to nonsensical reports claiming that a value isn't being used
+	when it is definitely being used
+	(see issues <a href="https://github.com/dominikh/go-tools/issues/949">949</a> and
+	<a href="https://github.com/dominikh/go-tools/issues/981">981</a> for more information)
+  </li>
+  <li>A rare crash (see issue <a href="https://github.com/dominikh/go-tools/issues/972">972</a> for more information)</li>
+</ul>
