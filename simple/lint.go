@@ -767,12 +767,26 @@ func refersTo(pass *analysis.Pass, expr ast.Expr, ident types.Object) bool {
 }
 
 var checkLoopAppendQ = pattern.MustParse(`
+(Or
 	(RangeStmt
 		(Ident "_")
 		val@(Object _)
 		_
 		x
-		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]) `)
+		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])])
+	(RangeStmt
+		key
+		nil
+		_
+		x
+		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs (IndexExpr val@(Object _) key)])])])
+	(RangeStmt
+		key
+		nil
+		_
+		x
+		[(AssignStmt val@(Object _) ":=" (IndexExpr x key))
+		(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]))`)
 
 func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {

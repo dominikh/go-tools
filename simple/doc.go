@@ -137,7 +137,17 @@ making \'s[n:len(s)]\' and \'s[n:]\' equivalent.`,
 		Before: `
 for _, e := range y {
     x = append(x, e)
+}
+
+for i := range y {
+    x = append(x, y[i])
+}
+
+for i := range y {
+    v := y[i]
+    x = append(x, v)
 }`,
+
 		After: `x = append(x, y...)`,
 		Since: "2017.1",
 		// MergeIfAll because y might not be a slice under all build tags.
@@ -267,9 +277,9 @@ Given the following shared definitions
 
     type T1 string
     type T2 int
-    
+
     func (T2) String() string { return "Hello, world" }
-    
+
     var x string
     var y T1
     var z T2

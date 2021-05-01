@@ -15,6 +15,12 @@ func fn1() {
 	var a, b []int
 	b = append(b, a...)
 
+	var a2, b2 []int
+	b2 = append(b2, a2...)
+
+	var a3, b3 []int
+	b3 = append(b3, a3...)
+
 	var m map[string]int
 	var c []int
 	for _, v := range m {
