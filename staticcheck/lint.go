@@ -2794,45 +2794,6 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
-	// FIXME(dh): what happened here?
-	if false {
-		for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-			for _, block := range fn.Blocks {
-				for _, ins := range block.Instrs {
-					ins, ok := ins.(*ir.BinOp)
-					if !ok {
-						continue
-					}
-
-					if c, ok := ins.Y.(*ir.Const); !ok || c.Value == nil || c.Value.Kind() != constant.Int || c.Uint64() != 0 {
-						continue
-					}
-					switch ins.Op {
-					case token.AND, token.OR, token.XOR:
-					default:
-						// we do not flag shifts because too often, x<<0 is part
-						// of a pattern, x<<0, x<<8, x<<16, ...
-						continue
-					}
-					path, _ := astutil.PathEnclosingInterval(code.File(pass, ins), ins.Pos(), ins.Pos())
-					if len(path) == 0 {
-						continue
-					}
-
-					if node, ok := path[0].(*ast.BinaryExpr); !ok || !astutil.IsIntLiteral(node.Y, "0") {
-						continue
-					}
-
-					switch ins.Op {
-					case token.AND:
-						report.Report(pass, ins, "x & 0 always equals 0")
-					case token.OR, token.XOR:
-						report.Report(pass, ins, fmt.Sprintf("x %s 0 always equals x", ins.Op))
-					}
-				}
-			}
-		}
-	}
 	fn := func(node ast.Node) {
 		binop := node.(*ast.BinaryExpr)
 		b, ok := pass.TypesInfo.TypeOf(binop).Underlying().(*types.Basic)
