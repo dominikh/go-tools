@@ -13,6 +13,7 @@ import (
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
+	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ast/astutil"
@@ -767,22 +768,44 @@ func refersTo(pass *analysis.Pass, expr ast.Expr, ident types.Object) bool {
 }
 
 var checkLoopAppendQ = pattern.MustParse(`
+(Or
 	(RangeStmt
 		(Ident "_")
 		val@(Object _)
 		_
 		x
-		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]) `)
+		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])])
+	(RangeStmt
+		idx@(Ident _)
+		nil
+		_
+		x
+		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs (IndexExpr x idx)])])])
+	(RangeStmt
+		idx@(Ident _)
+		nil
+		_
+		x
+		[(AssignStmt val@(Object _) ":=" (IndexExpr x idx))
+		(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]))`)
 
 func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
+	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
+
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, checkLoopAppendQ, node)
 		if !ok {
 			return
 		}
 
-		val := m.State["val"].(types.Object)
-		if refersTo(pass, m.State["lhs"].(ast.Expr), val) {
+		val, ok := m.State["val"].(types.Object)
+		if ok && refersTo(pass, m.State["lhs"].(ast.Expr), val) {
+			return
+		}
+
+		if m.State["idx"] != nil && code.MayHaveSideEffects(pass, m.State["x"].(ast.Expr), pure) {
+			// When using an index-based loop, x gets evaluated repeatedly and thus should be pure.
+			// This doesn't matter for value-based loops, because x only gets evaluated once.
 			return
 		}
 

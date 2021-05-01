@@ -15,6 +15,17 @@ func fn1() {
 	var a, b []int
 	b = append(b, a...)
 
+	var a2, b2 []int
+	b2 = append(b2, a2...)
+
+	var a3, b3 []int
+	b3 = append(b3, a3...)
+
+	var a4 []int
+	for i := range fn6() {
+		a4 = append(a4, fn6()[i])
+	}
+
 	var m map[string]int
 	var c []int
 	for _, v := range m {
@@ -73,4 +84,18 @@ func fn5() {
 		out = append(m2[tt.F], tt)
 	}
 	_ = out
+}
+
+func fn6() []int {
+	return []int{1, 2, 3}
+}
+
+func fn7() {
+	var x []int
+	x = append(x, fn6()...)
+
+	for i := range fn6() {
+		// Purity does matter here
+		x = append(x, fn6()[i])
+	}
 }

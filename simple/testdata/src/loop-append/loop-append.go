@@ -17,6 +17,22 @@ func fn1() {
 		b = append(b, v)
 	}
 
+	var a2, b2 []int
+	for i := range a2 { // want `should replace loop`
+		b2 = append(b2, a2[i])
+	}
+
+	var a3, b3 []int
+	for i := range a3 { // want `should replace loop`
+		v := a3[i]
+		b3 = append(b3, v)
+	}
+
+	var a4 []int
+	for i := range fn6() {
+		a4 = append(a4, fn6()[i])
+	}
+
 	var m map[string]int
 	var c []int
 	for _, v := range m {
@@ -75,4 +91,21 @@ func fn5() {
 		out = append(m2[tt.F], tt)
 	}
 	_ = out
+}
+
+func fn6() []int {
+	return []int{1, 2, 3}
+}
+
+func fn7() {
+	var x []int
+	for _, v := range fn6() { // want `should replace loop`
+		// Purity doesn't matter here
+		x = append(x, v)
+	}
+
+	for i := range fn6() {
+		// Purity does matter here
+		x = append(x, fn6()[i])
+	}
 }
