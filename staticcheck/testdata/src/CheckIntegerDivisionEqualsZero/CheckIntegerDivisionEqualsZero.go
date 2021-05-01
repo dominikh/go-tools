@@ -1,5 +1,7 @@
 package pkg
 
+func foo(x float64) {}
+
 func fn() {
 	_ = 2 / 3 // want `results in zero`
 	_ = 4 / 2
@@ -11,4 +13,6 @@ func fn() {
 	const _ = 2 / 3         // want `results in zero`
 	const _ float64 = 2 / 3 // want `results in zero`
 	_ = float64(2 / 3)      // want `results in zero`
+
+	foo(1 / 2) // want `results in zero`
 }

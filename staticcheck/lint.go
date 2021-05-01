@@ -4484,21 +4484,17 @@ func CheckBuiltinZeroComparison(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var integerDivisionQ = pattern.MustParse(`(BinaryExpr (BasicLit "INT" x) "/" (BasicLit "INT" y))`)
+var integerDivisionQ = pattern.MustParse(`(BinaryExpr (BasicLit "INT" _) "/" (BasicLit "INT" _))`)
 
 func CheckIntegerDivisionEqualsZero(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		matcher, ok := code.Match(pass, integerDivisionQ, node)
+		_, ok := code.Match(pass, integerDivisionQ, node)
 		if !ok {
 			return
 		}
 
-		x := constant.MakeFromLiteral(matcher.State["x"].(string), token.INT, 0)
-		y := constant.MakeFromLiteral(matcher.State["y"].(string), token.INT, 0)
-		// QUO_ASSIGN to force integer division
-		div := constant.BinaryOp(x, token.QUO_ASSIGN, y)
-
-		if v, ok := constant.Int64Val(div); ok && v == 0 {
+		val := constant.ToInt(pass.TypesInfo.Types[node.(ast.Expr)].Value)
+		if v, ok := constant.Uint64Val(val); ok && v == 0 {
 			report.Report(pass, node, fmt.Sprintf("the integer division '%s' results in zero", report.Render(pass, node)))
 		}
 
