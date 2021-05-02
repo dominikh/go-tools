@@ -864,7 +864,7 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 				return
 			}
 		}
-		arg.Invalid("struct doesn't have any exported fields, nor custom marshaling")
+		arg.Invalid(fmt.Sprintf("struct type '%s' doesn't have any exported fields, nor custom marshaling", typeutil.Dereference(T)))
 	}
 }
 
