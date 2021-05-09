@@ -1553,7 +1553,7 @@ func (g *graph) instructions(fn *ir.Function) {
 			case *ir.Slice:
 				// nothing to do, handled generically by operands
 			case *ir.RunDefers:
-				// nothing to do, the deferred functions are already marked use by defering them.
+				// nothing to do, the deferred functions are already marked use by deferring them.
 			case *ir.Convert:
 				// to unsafe.Pointer
 				if typ, ok := instr.Type().(*types.Basic); ok && typ.Kind() == types.UnsafePointer {

@@ -644,7 +644,7 @@ As a consequence, the following code pattern is an expensive no-op:
 	},
 
 	"SA5001": {
-		Title: "Defering `Close` before checking for a possible error",
+		Title: "Deferring `Close` before checking for a possible error",
 		Since: "2017.1",
 	},
 
