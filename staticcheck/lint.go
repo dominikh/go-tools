@@ -2998,7 +2998,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			return true
 		}
 		if depr, ok := deprs.Objects[obj]; ok {
-			// Note: gopls dosn't correctly run analyzers on
+			// Note: gopls doesn't correctly run analyzers on
 			// dependencies, so we'll never be able to find deprecated
 			// objects in imported code. We've experimented with
 			// lifting the stdlib handling out of the general check,
