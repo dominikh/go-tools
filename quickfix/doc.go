@@ -116,4 +116,9 @@ After:
 `,
 		Since: "Unreleased",
 	},
+
+	"QF1008": {
+		Title: "Omit embedded fields from selector expression",
+		Since: "Unreleased",
+	},
 })

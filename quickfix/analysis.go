@@ -1,6 +1,7 @@
 package quickfix
 
 import (
+	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/analysis/lint"
 
 	"golang.org/x/tools/go/analysis"
@@ -39,5 +40,9 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"QF1007": {
 		Run:      CheckConditionalAssignment,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
+	"QF1008": {
+		Run:      CheckExplicitEmbeddedSelector,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.TokenFile},
 	},
 })

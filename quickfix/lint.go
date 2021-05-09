@@ -722,3 +722,92 @@ func CheckConditionalAssignment(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.FuncDecl)(nil), (*ast.FuncLit)(nil))
 	return nil, nil
 }
+
+func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
+	type Selector struct {
+		Node   *ast.SelectorExpr
+		X      ast.Expr
+		Fields []*ast.Ident
+	}
+
+	// extractSelectors extracts uninterrupted sequences of selector expressions.
+	// For example, for a.b.c().d.e[0].f.g three sequences will be returned: (X=a, X.b.c), (X=a.b.c(), X.d.e), and (X=a.b.c().d.e[0], X.f.g)
+	//
+	// It returns nil if the provided selector expression is not the root of a set of sequences.
+	// For example, for a.b.c, if node is b.c, no selectors will be returned.
+	extractSelectors := func(expr *ast.SelectorExpr) []Selector {
+		path, _ := astutil.PathEnclosingInterval(code.File(pass, expr), expr.Pos(), expr.Pos())
+		for i := len(path) - 1; i >= 0; i-- {
+			if el, ok := path[i].(*ast.SelectorExpr); ok {
+				if el != expr {
+					// this expression is a subset of the entire chain, don't look at it.
+					return nil
+				}
+				break
+			}
+		}
+
+		inChain := false
+		var out []Selector
+		for _, el := range path {
+			if expr, ok := el.(*ast.SelectorExpr); ok {
+				if !inChain {
+					inChain = true
+					out = append(out, Selector{X: expr.X})
+				}
+				sel := &out[len(out)-1]
+				sel.Fields = append(sel.Fields, expr.Sel)
+				sel.Node = expr
+			} else if inChain {
+				inChain = false
+			}
+		}
+		return out
+	}
+
+	fn := func(node ast.Node) {
+		expr := node.(*ast.SelectorExpr)
+
+		if _, ok := expr.X.(*ast.SelectorExpr); !ok {
+			// Avoid the expensive call to PathEnclosingInterval for the common 1-level deep selector, which cannot be shortened.
+			return
+		}
+
+		sels := extractSelectors(expr)
+		if len(sels) == 0 {
+			return
+		}
+
+		var edits []analysis.TextEdit
+		for _, sel := range sels {
+			for base, fields := pass.TypesInfo.TypeOf(sel.X), sel.Fields; len(fields) >= 2; {
+				hop1 := fields[0]
+				hop2 := fields[1]
+
+				// We set addressable to true unconditionally because we've already successfully type-checked the program,
+				// which means either the selector doesn't need addressability, or it is addressable.
+				obj1, _, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop1.Name)
+				obj2, _, _ := types.LookupFieldOrMethod(obj1.Type(), true, pass.Pkg, hop2.Name)
+				obj3, _, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop2.Name)
+				if obj2 == obj3 {
+					e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
+					edits = append(edits, e)
+					report.Report(pass, hop1, fmt.Sprintf("could remove anonymous field %q from selector", hop1.Name),
+						report.Fixes(edit.Fix(fmt.Sprintf("Remove unnecessary selector %q", hop1.Name), e)))
+				}
+
+				base = obj1.Type()
+				fields = fields[1:]
+			}
+		}
+
+		// Offer to simplify all selector expressions at once
+		if len(edits) > 1 {
+			// Hack to prevent gopls from applying the Unnecessary tag to the diagnostic. It applies the tag when all edits are deletions.
+			edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{node.Pos(), node.Pos()}, ""))
+			report.Report(pass, node, "could simplify selectors", report.Fixes(edit.Fix("Remove all unnecessary selectors", edits...)))
+		}
+	}
+	code.Preorder(pass, fn, (*ast.SelectorExpr)(nil))
+	return nil, nil
+}
