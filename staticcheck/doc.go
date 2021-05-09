@@ -164,7 +164,7 @@ return all results, specify a negative number.`,
 
 	"SA1016": {
 		Title: `Trapping a signal that cannot be trapped`,
-		Text: `Not all signals can be intercepted by a process. Speficially, on
+		Text: `Not all signals can be intercepted by a process. Specifically, on
 UNIX-like systems, the \'syscall.SIGKILL\' and \'syscall.SIGSTOP\' signals are
 never passed to the process, but instead handled directly by the
 kernel. It is therefore pointless to try and handle these signals.`,
