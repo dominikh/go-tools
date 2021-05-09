@@ -1041,7 +1041,7 @@ For instance:
 
 will always result in 0.
 
-This check flags bit shifiting operations on fixed size integer values only.
+This check flags bit shifting operations on fixed size integer values only.
 That is, int, uint and uintptr are never flagged to avoid potential false
 positives in somewhat exotic but valid bit twiddling tricks:
 
