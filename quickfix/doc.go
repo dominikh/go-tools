@@ -41,7 +41,7 @@ After:
 	},
 	"QF1003": {
 		Title: "Convert if/else-if chain to tagged switch",
-		Text: ` A series of if/else-if checks comparing the same variable against values can be replaced with a tagged switch.
+		Text: `A series of if/else-if checks comparing the same variable against values can be replaced with a tagged switch.
 
 Before:
 
