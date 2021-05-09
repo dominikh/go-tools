@@ -137,7 +137,7 @@ var Debug io.Writer
 
 - (11.1) anonymous struct types use all their fields. we cannot
   deduplicate struct types, as that leads to order-dependent
-  reportings. we can't not deduplicate struct types while still
+  reports. we can't not deduplicate struct types while still
   tracking fields, because then each instance of the unnamed type in
   the data flow chain will get its own fields, causing false
   positives. Thus, we only accurately track fields of named struct
