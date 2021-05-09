@@ -4191,7 +4191,7 @@ func findIndirectSliceLenChecks(pass *analysis.Pass) {
 					// parameter, because Params is not populated for
 					// external functions. In our modular analysis.
 					// any function in any package that isn't the
-					// current package is consided "external", as it
+					// current package is considered "external", as it
 					// has been loaded from export data only.
 					sigParams := callee.Signature.Params()
 
