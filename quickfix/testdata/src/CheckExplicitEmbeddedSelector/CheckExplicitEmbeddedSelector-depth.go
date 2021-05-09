@@ -13,6 +13,6 @@ func fnDepth() {
 
 	var v T1
 	_ = v.F
-	_ = v.T2.F // want `could remove anonymous field "T2" from selector`
+	_ = v.T2.F // want `could remove embedded field "T2" from selector`
 	_ = v.T3.F
 }

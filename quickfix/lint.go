@@ -816,7 +816,7 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 					continue fieldLoop
 				}
 
-				// Make sure that omitting the anonymous field will take the same path to the final object.
+				// Make sure that omitting the embedded field will take the same path to the final object.
 				// Multiple paths involving different fields may lead to the same type-checker object, causing different runtime behavior.
 				for i := range directPath {
 					if i < len(leftLeg) {
@@ -832,8 +832,8 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 
 				e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
 				edits = append(edits, e)
-				report.Report(pass, hop1, fmt.Sprintf("could remove anonymous field %q from selector", hop1.Name),
-					report.Fixes(edit.Fix(fmt.Sprintf("Remove unnecessary selector %q", hop1.Name), e)))
+				report.Report(pass, hop1, fmt.Sprintf("could remove embedded field %q from selector", hop1.Name),
+					report.Fixes(edit.Fix(fmt.Sprintf("Remove embedded field %q from selector", hop1.Name), e)))
 			}
 		}
 
@@ -841,7 +841,7 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 		if len(edits) > 1 {
 			// Hack to prevent gopls from applying the Unnecessary tag to the diagnostic. It applies the tag when all edits are deletions.
 			edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{node.Pos(), node.Pos()}, ""))
-			report.Report(pass, node, "could simplify selectors", report.Fixes(edit.Fix("Remove all unnecessary selectors", edits...)))
+			report.Report(pass, node, "could simplify selectors", report.Fixes(edit.Fix("Remove all embedded fields from selector", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.SelectorExpr)(nil))

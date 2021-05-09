@@ -1,4 +1,4 @@
--- Remove unnecessary selector "BasicOuter" --
+-- Remove embedded field "BasicOuter" from selector --
 package pkg
 
 type PartialMultiLevel struct{ F3 MultiLevel }
@@ -9,16 +9,16 @@ type PartialMultiLevel2Inner2 struct{ F7 int }
 
 func fnPartialMulti() {
 	var partialMulti PartialMultiLevel
-	_ = partialMulti.F3.F1            // want `could remove anonymous field "BasicOuter" from selector`
-	_ = partialMulti.F3.BasicInner.F1 // want `could remove anonymous field "BasicOuter" from selector` `could remove anonymous field "BasicInner" from selector` `could simplify selectors`
+	_ = partialMulti.F3.F1            // want `could remove embedded field "BasicOuter" from selector`
+	_ = partialMulti.F3.BasicInner.F1 // want `could remove embedded field "BasicOuter" from selector` `could remove embedded field "BasicInner" from selector` `could simplify selectors`
 	_ = partialMulti.F3.F1            // minimal form
 
 	var partialMulti2 PartialMultiLevel2Outer
-	_ = partialMulti2.PartialMultiLevel2Inner.F6.PartialMultiLevel2Inner2.F7 // want `could remove anonymous field "PartialMultiLevel2Inner2" from selector` `could remove anonymous field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
+	_ = partialMulti2.PartialMultiLevel2Inner.F6.PartialMultiLevel2Inner2.F7 // want `could remove embedded field "PartialMultiLevel2Inner2" from selector` `could remove embedded field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
 	_ = partialMulti2.F6.F7                                                  // minimal form
 }
 
--- Remove unnecessary selector "BasicInner" --
+-- Remove embedded field "BasicInner" from selector --
 package pkg
 
 type PartialMultiLevel struct{ F3 MultiLevel }
@@ -29,16 +29,16 @@ type PartialMultiLevel2Inner2 struct{ F7 int }
 
 func fnPartialMulti() {
 	var partialMulti PartialMultiLevel
-	_ = partialMulti.F3.BasicOuter.F1 // want `could remove anonymous field "BasicOuter" from selector`
-	_ = partialMulti.F3.BasicOuter.F1 // want `could remove anonymous field "BasicOuter" from selector` `could remove anonymous field "BasicInner" from selector` `could simplify selectors`
+	_ = partialMulti.F3.BasicOuter.F1 // want `could remove embedded field "BasicOuter" from selector`
+	_ = partialMulti.F3.BasicOuter.F1 // want `could remove embedded field "BasicOuter" from selector` `could remove embedded field "BasicInner" from selector` `could simplify selectors`
 	_ = partialMulti.F3.F1            // minimal form
 
 	var partialMulti2 PartialMultiLevel2Outer
-	_ = partialMulti2.PartialMultiLevel2Inner.F6.PartialMultiLevel2Inner2.F7 // want `could remove anonymous field "PartialMultiLevel2Inner2" from selector` `could remove anonymous field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
+	_ = partialMulti2.PartialMultiLevel2Inner.F6.PartialMultiLevel2Inner2.F7 // want `could remove embedded field "PartialMultiLevel2Inner2" from selector` `could remove embedded field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
 	_ = partialMulti2.F6.F7                                                  // minimal form
 }
 
--- Remove unnecessary selector "PartialMultiLevel2Inner2" --
+-- Remove embedded field "PartialMultiLevel2Inner2" from selector --
 package pkg
 
 type PartialMultiLevel struct{ F3 MultiLevel }
@@ -49,16 +49,16 @@ type PartialMultiLevel2Inner2 struct{ F7 int }
 
 func fnPartialMulti() {
 	var partialMulti PartialMultiLevel
-	_ = partialMulti.F3.BasicOuter.F1            // want `could remove anonymous field "BasicOuter" from selector`
-	_ = partialMulti.F3.BasicOuter.BasicInner.F1 // want `could remove anonymous field "BasicOuter" from selector` `could remove anonymous field "BasicInner" from selector` `could simplify selectors`
+	_ = partialMulti.F3.BasicOuter.F1            // want `could remove embedded field "BasicOuter" from selector`
+	_ = partialMulti.F3.BasicOuter.BasicInner.F1 // want `could remove embedded field "BasicOuter" from selector` `could remove embedded field "BasicInner" from selector` `could simplify selectors`
 	_ = partialMulti.F3.F1                       // minimal form
 
 	var partialMulti2 PartialMultiLevel2Outer
-	_ = partialMulti2.PartialMultiLevel2Inner.F6.F7 // want `could remove anonymous field "PartialMultiLevel2Inner2" from selector` `could remove anonymous field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
+	_ = partialMulti2.PartialMultiLevel2Inner.F6.F7 // want `could remove embedded field "PartialMultiLevel2Inner2" from selector` `could remove embedded field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
 	_ = partialMulti2.F6.F7                         // minimal form
 }
 
--- Remove unnecessary selector "PartialMultiLevel2Inner" --
+-- Remove embedded field "PartialMultiLevel2Inner" from selector --
 package pkg
 
 type PartialMultiLevel struct{ F3 MultiLevel }
@@ -69,16 +69,16 @@ type PartialMultiLevel2Inner2 struct{ F7 int }
 
 func fnPartialMulti() {
 	var partialMulti PartialMultiLevel
-	_ = partialMulti.F3.BasicOuter.F1            // want `could remove anonymous field "BasicOuter" from selector`
-	_ = partialMulti.F3.BasicOuter.BasicInner.F1 // want `could remove anonymous field "BasicOuter" from selector` `could remove anonymous field "BasicInner" from selector` `could simplify selectors`
+	_ = partialMulti.F3.BasicOuter.F1            // want `could remove embedded field "BasicOuter" from selector`
+	_ = partialMulti.F3.BasicOuter.BasicInner.F1 // want `could remove embedded field "BasicOuter" from selector` `could remove embedded field "BasicInner" from selector` `could simplify selectors`
 	_ = partialMulti.F3.F1                       // minimal form
 
 	var partialMulti2 PartialMultiLevel2Outer
-	_ = partialMulti2.F6.PartialMultiLevel2Inner2.F7 // want `could remove anonymous field "PartialMultiLevel2Inner2" from selector` `could remove anonymous field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
+	_ = partialMulti2.F6.PartialMultiLevel2Inner2.F7 // want `could remove embedded field "PartialMultiLevel2Inner2" from selector` `could remove embedded field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
 	_ = partialMulti2.F6.F7                          // minimal form
 }
 
--- Remove all unnecessary selectors --
+-- Remove all embedded fields from selector --
 package pkg
 
 type PartialMultiLevel struct{ F3 MultiLevel }
@@ -89,11 +89,11 @@ type PartialMultiLevel2Inner2 struct{ F7 int }
 
 func fnPartialMulti() {
 	var partialMulti PartialMultiLevel
-	_ = partialMulti.F3.BasicOuter.F1 // want `could remove anonymous field "BasicOuter" from selector`
-	_ = partialMulti.F3.F1            // want `could remove anonymous field "BasicOuter" from selector` `could remove anonymous field "BasicInner" from selector` `could simplify selectors`
+	_ = partialMulti.F3.BasicOuter.F1 // want `could remove embedded field "BasicOuter" from selector`
+	_ = partialMulti.F3.F1            // want `could remove embedded field "BasicOuter" from selector` `could remove embedded field "BasicInner" from selector` `could simplify selectors`
 	_ = partialMulti.F3.F1            // minimal form
 
 	var partialMulti2 PartialMultiLevel2Outer
-	_ = partialMulti2.F6.F7 // want `could remove anonymous field "PartialMultiLevel2Inner2" from selector` `could remove anonymous field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
+	_ = partialMulti2.F6.F7 // want `could remove embedded field "PartialMultiLevel2Inner2" from selector` `could remove embedded field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
 	_ = partialMulti2.F6.F7 // minimal form
 }
