@@ -104,7 +104,7 @@ package runner
 // of time.
 //
 // We would likely need to do extensive benchmarking to figure out how
-// long to keep data around to find a sweetspot where we reduce CPU
+// long to keep data around to find a sweet spot where we reduce CPU
 // load without increasing memory usage.
 //
 // We can probably populate the cache after we've analyzed a package,
