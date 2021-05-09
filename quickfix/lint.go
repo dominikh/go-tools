@@ -784,19 +784,22 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 				hop1 := fields[0]
 				hop2 := fields[1]
 
-				// We set addressable to true unconditionally because we've already successfully type-checked the program,
-				// which means either the selector doesn't need addressability, or it is addressable.
-				obj1, _, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop1.Name)
-				obj2, _, _ := types.LookupFieldOrMethod(obj1.Type(), true, pass.Pkg, hop2.Name)
-				obj3, _, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop2.Name)
-				if obj2 == obj3 {
-					e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
-					edits = append(edits, e)
-					report.Report(pass, hop1, fmt.Sprintf("could remove anonymous field %q from selector", hop1.Name),
-						report.Fixes(edit.Fix(fmt.Sprintf("Remove unnecessary selector %q", hop1.Name), e)))
+				// the selector expression might be a qualified identifier, which cannot be simplified
+				if base != types.Typ[types.Invalid] {
+					// Check if we can skip a field in the chain of selectors.
+					// We can skip a field 'b' if a.b.c and a.c resolve to the same object.
+					//
+					// We set addressable to true unconditionally because we've already successfully type-checked the program,
+					// which means either the selector doesn't need addressability, or it is addressable.
+					obj, _, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop2.Name)
+					if obj == pass.TypesInfo.ObjectOf(hop2) {
+						e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
+						edits = append(edits, e)
+						report.Report(pass, hop1, fmt.Sprintf("could remove anonymous field %q from selector", hop1.Name),
+							report.Fixes(edit.Fix(fmt.Sprintf("Remove unnecessary selector %q", hop1.Name), e)))
+					}
 				}
-
-				base = obj1.Type()
+				base = pass.TypesInfo.ObjectOf(hop1).Type()
 				fields = fields[1:]
 			}
 		}
