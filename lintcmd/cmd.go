@@ -217,7 +217,7 @@ func success(allowedChecks map[string]bool, res runner.ResultData) []problem {
 }
 
 func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers map[string]bool) ([]problem, error) {
-	couldveMatched := func(ig *lineIgnore) bool {
+	couldHaveMatched := func(ig *lineIgnore) bool {
 		for _, c := range ig.Checks {
 			if c == "U1000" {
 				// We never want to flag ignores for U1000,
@@ -253,7 +253,7 @@ func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers m
 			}
 		}
 
-		if ig, ok := ig.(*lineIgnore); ok && !ig.Matched && couldveMatched(ig) {
+		if ig, ok := ig.(*lineIgnore); ok && !ig.Matched && couldHaveMatched(ig) {
 			p := problem{
 				Diagnostic: runner.Diagnostic{
 					Position: ig.Pos,

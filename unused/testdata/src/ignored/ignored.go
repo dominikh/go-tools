@@ -41,7 +41,7 @@ type t6 interface { // used
 	foo() // used
 }
 
-//lint:ignore U1000 cpnsider yourself used
+//lint:ignore U1000 consider yourself used
 type t7 = struct { // used
 	z int // used
 }

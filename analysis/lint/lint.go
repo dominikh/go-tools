@@ -169,7 +169,7 @@ func parseDirective(s string) (cmd string, args []string) {
 func ParseDirectives(files []*ast.File, fset *token.FileSet) []Directive {
 	var dirs []Directive
 	for _, f := range files {
-		// OPT(dh): in our old code, we skip all the commentmap work if we
+		// OPT(dh): in our old code, we skip all the comment map work if we
 		// couldn't find any directives, benchmark if that's actually
 		// worth doing
 		cm := ast.NewCommentMap(fset, f, f.Comments)

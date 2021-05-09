@@ -164,7 +164,7 @@ return all results, specify a negative number.`,
 
 	"SA1016": {
 		Title: `Trapping a signal that cannot be trapped`,
-		Text: `Not all signals can be intercepted by a process. Speficially, on
+		Text: `Not all signals can be intercepted by a process. Specifically, on
 UNIX-like systems, the \'syscall.SIGKILL\' and \'syscall.SIGSTOP\' signals are
 never passed to the process, but instead handled directly by the
 kernel. It is therefore pointless to try and handle these signals.`,
@@ -644,7 +644,7 @@ As a consequence, the following code pattern is an expensive no-op:
 	},
 
 	"SA5001": {
-		Title: "Defering `Close` before checking for a possible error",
+		Title: "Deferring `Close` before checking for a possible error",
 		Since: "2017.1",
 	},
 
@@ -1041,7 +1041,7 @@ For instance:
 
 will always result in 0.
 
-This check flags bit shifiting operations on fixed size integer values only.
+This check flags bit shifting operations on fixed size integer values only.
 That is, int, uint and uintptr are never flagged to avoid potential false
 positives in somewhat exotic but valid bit twiddling tricks:
 

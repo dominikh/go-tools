@@ -92,12 +92,12 @@ func TestMap(t *testing.T) {
 		}
 	})
 
-	// Setion with key equal to present one.
+	// Section with key equal to present one.
 	if prev := tmap.Set(tPStr2, "*string again"); prev != "*string" {
 		t.Errorf("Set() previous value: got %s, want \"*string\"", prev)
 	}
 
-	// Setion of another association.
+	// Section of another association.
 	if prev := tmap.Set(tChanInt1, "<-chan int"); prev != nil {
 		t.Errorf("Set() previous value: got %s, want nil", prev)
 	}

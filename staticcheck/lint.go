@@ -2998,7 +2998,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			return true
 		}
 		if depr, ok := deprs.Objects[obj]; ok {
-			// Note: gopls dosn't correctly run analyzers on
+			// Note: gopls doesn't correctly run analyzers on
 			// dependencies, so we'll never be able to find deprecated
 			// objects in imported code. We've experimented with
 			// lifting the stdlib handling out of the general check,
@@ -4191,7 +4191,7 @@ func findIndirectSliceLenChecks(pass *analysis.Pass) {
 					// parameter, because Params is not populated for
 					// external functions. In our modular analysis.
 					// any function in any package that isn't the
-					// current package is consided "external", as it
+					// current package is considered "external", as it
 					// has been loaded from export data only.
 					sigParams := callee.Signature.Params()
 

@@ -509,7 +509,7 @@ thisPackage:
 }
 
 func (smith *Smith) materializeGotoLabel() string {
-	// TODO: move lavel up
+	// TODO: move label up
 	id := smith.newId("Label")
 
 	curBlock0 := smith.curBlock

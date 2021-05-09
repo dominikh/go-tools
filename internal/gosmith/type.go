@@ -43,7 +43,7 @@ type Type struct {
 	utyp           *Type   // underlying type
 	styp           []*Type // function arguments
 	rtyp           []*Type // function return values
-	elems          []*Var  // struct fileds and interface methods
+	elems          []*Var  // struct fields and interface methods
 	literal        func() string
 	complexLiteral func() string
 

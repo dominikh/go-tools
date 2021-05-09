@@ -348,18 +348,18 @@ func (smith *Smith) stmtSwitchExpr() {
 	}
 	// TODO: we generate at most one case, because if we generate more,
 	// we can generate two cases with equal constants.
-	fallth := false
+	fallthru := false
 	if smith.rndBool() {
 		smith.enterBlock(true)
 		smith.line("case %v:", smith.rvalue(t))
 		smith.genBlock()
 		smith.leaveBlock()
 		if smith.rndBool() {
-			fallth = true
+			fallthru = true
 			smith.line("fallthrough")
 		}
 	}
-	if fallth || len(vars) > 0 || smith.rndBool() {
+	if fallthru || len(vars) > 0 || smith.rndBool() {
 		smith.enterBlock(true)
 		smith.line("default:")
 		smith.genBlock()
@@ -443,7 +443,7 @@ func (smith *Smith) stmtContinue() {
 }
 
 func (smith *Smith) stmtGoto() {
-	// TODO: suppport goto down
+	// TODO: support goto down
 	id := smith.materializeGotoLabel()
 	smith.line("goto %v", id)
 }
