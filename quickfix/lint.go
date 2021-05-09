@@ -780,27 +780,60 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 
 		var edits []analysis.TextEdit
 		for _, sel := range sels {
-			for base, fields := pass.TypesInfo.TypeOf(sel.X), sel.Fields; len(fields) >= 2; {
+		fieldLoop:
+			for base, fields := pass.TypesInfo.TypeOf(sel.X), sel.Fields; len(fields) >= 2; base, fields = pass.TypesInfo.ObjectOf(fields[0]).Type(), fields[1:] {
 				hop1 := fields[0]
 				hop2 := fields[1]
 
 				// the selector expression might be a qualified identifier, which cannot be simplified
-				if base != types.Typ[types.Invalid] {
-					// Check if we can skip a field in the chain of selectors.
-					// We can skip a field 'b' if a.b.c and a.c resolve to the same object.
-					//
-					// We set addressable to true unconditionally because we've already successfully type-checked the program,
-					// which means either the selector doesn't need addressability, or it is addressable.
-					obj, _, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop2.Name)
-					if obj == pass.TypesInfo.ObjectOf(hop2) {
-						e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
-						edits = append(edits, e)
-						report.Report(pass, hop1, fmt.Sprintf("could remove anonymous field %q from selector", hop1.Name),
-							report.Fixes(edit.Fix(fmt.Sprintf("Remove unnecessary selector %q", hop1.Name), e)))
+				if base == types.Typ[types.Invalid] {
+					continue fieldLoop
+				}
+
+				// Check if we can skip a field in the chain of selectors.
+				// We can skip a field 'b' if a.b.c and a.c resolve to the same object and take the same path.
+				//
+				// We set addressable to true unconditionally because we've already successfully type-checked the program,
+				// which means either the selector doesn't need addressability, or it is addressable.
+				leftObj, leftLeg, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop1.Name)
+
+				// We can't skip fields that aren't embedded
+				if !leftObj.(*types.Var).Embedded() {
+					continue fieldLoop
+				}
+
+				directObj, directPath, _ := types.LookupFieldOrMethod(base, true, pass.Pkg, hop2.Name)
+
+				// Fail fast if omitting the embedded field leads to a different object
+				if directObj != pass.TypesInfo.ObjectOf(hop2) {
+					continue fieldLoop
+				}
+
+				_, rightLeg, _ := types.LookupFieldOrMethod(leftObj.Type(), true, pass.Pkg, hop2.Name)
+
+				// Fail fast if the paths are obviously different
+				if len(directPath) != len(leftLeg)+len(rightLeg) {
+					continue fieldLoop
+				}
+
+				// Make sure that omitting the anonymous field will take the same path to the final object.
+				// Multiple paths involving different fields may lead to the same type-checker object, causing different runtime behavior.
+				for i := range directPath {
+					if i < len(leftLeg) {
+						if leftLeg[i] != directPath[i] {
+							continue fieldLoop
+						}
+					} else {
+						if rightLeg[i-len(leftLeg)] != directPath[i] {
+							continue fieldLoop
+						}
 					}
 				}
-				base = pass.TypesInfo.ObjectOf(hop1).Type()
-				fields = fields[1:]
+
+				e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
+				edits = append(edits, e)
+				report.Report(pass, hop1, fmt.Sprintf("could remove anonymous field %q from selector", hop1.Name),
+					report.Fixes(edit.Fix(fmt.Sprintf("Remove unnecessary selector %q", hop1.Name), e)))
 			}
 		}
 
