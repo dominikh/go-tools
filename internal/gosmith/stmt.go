@@ -443,7 +443,7 @@ func (smith *Smith) stmtContinue() {
 }
 
 func (smith *Smith) stmtGoto() {
-	// TODO: suppport goto down
+	// TODO: support goto down
 	id := smith.materializeGotoLabel()
 	smith.line("goto %v", id)
 }
