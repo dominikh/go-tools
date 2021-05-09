@@ -45,4 +45,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckExplicitEmbeddedSelector,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.TokenFile},
 	},
+	"QF1009": {
+		Run:      CheckTimeEquality,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

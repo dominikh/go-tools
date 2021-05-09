@@ -847,3 +847,24 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.SelectorExpr)(nil))
 	return nil, nil
 }
+
+var timeEqualR = pattern.MustParse(`(CallExpr (SelectorExpr lhs (Ident "Equal")) rhs)`)
+
+func CheckTimeEquality(pass *analysis.Pass) (interface{}, error) {
+	// FIXME(dh): create proper suggested fix for renamed import
+
+	fn := func(node ast.Node) {
+		expr := node.(*ast.BinaryExpr)
+		if expr.Op != token.EQL {
+			return
+		}
+		if !code.IsOfType(pass, expr.X, "time.Time") || !code.IsOfType(pass, expr.Y, "time.Time") {
+			return
+		}
+		report.Report(pass, node, "could use time.Time.Equal instead",
+			report.Fixes(edit.Fix("Use time.Time.Equal method",
+				edit.ReplaceWithPattern(pass, timeEqualR, pattern.State{"lhs": expr.X, "rhs": expr.Y}, node))))
+	}
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+	return nil, nil
+}

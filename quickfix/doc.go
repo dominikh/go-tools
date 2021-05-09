@@ -121,4 +121,9 @@ After:
 		Title: "Omit embedded fields from selector expression",
 		Since: "Unreleased",
 	},
+
+	"QF1009": {
+		Title: `Use time.Time.Equal instead of \'==\' operator`,
+		Since: "Unreleased",
+	},
 })
