@@ -31,7 +31,7 @@
 //
 // The builder initially builds a naive IR form in which all local
 // variables are addresses of stack locations with explicit loads and
-// stores.  Registerisation of eligible locals and φ-node insertion
+// stores.  Registerization of eligible locals and φ-node insertion
 // using dominance and dataflow are then performed as a second pass
 // called "lifting" to improve the accuracy and performance of
 // subsequent analyses; this pass can be skipped by setting the
