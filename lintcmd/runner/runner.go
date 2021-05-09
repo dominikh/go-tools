@@ -644,7 +644,7 @@ func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
 	}
 
 	if len(pkg.Errors) > 0 {
-		// this handles errors that occured during type-checking the
+		// this handles errors that occurred during type-checking the
 		// package in loader.Load
 		for _, err := range pkg.Errors {
 			a.errors = append(a.errors, err)

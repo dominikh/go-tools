@@ -26,7 +26,7 @@ type PackageSpec struct {
 	ID      string
 	Name    string
 	PkgPath string
-	// Errors that occured while building the import graph. These will
+	// Errors that occurred while building the import graph. These will
 	// primarily be parse errors or failure to resolve imports, but
 	// may also be other errors.
 	Errors          []packages.Error
@@ -49,7 +49,7 @@ func (spec *PackageSpec) String() string {
 type Package struct {
 	*PackageSpec
 
-	// Errors that occured while loading the package. These will
+	// Errors that occurred while loading the package. These will
 	// primarily be parse or type errors, but may also be lower-level
 	// failures such as file-system ones.
 	Errors    []packages.Error
