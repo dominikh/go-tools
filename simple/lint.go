@@ -1879,7 +1879,7 @@ var checkSprintLiteralQ = pattern.MustParse(`
 func CheckSprintLiteral(pass *analysis.Pass) (interface{}, error) {
 	// We only flag calls with string literals, not expressions of
 	// type string, because some people use fmt.Sprint(s) as a pattern
-	// for copying strings, which may be useful when extracing a small
+	// for copying strings, which may be useful when extracting a small
 	// substring from a large string.
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, checkSprintLiteralQ, node)
