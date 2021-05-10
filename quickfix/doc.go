@@ -4,13 +4,17 @@ import "honnef.co/go/tools/analysis/lint"
 
 var Docs = lint.Markdownify(map[string]*lint.Documentation{
 	"QF1000": {
-		Title: "Use byte-specific indexing function",
-		Since: "Unreleased",
+		Title:    "Use byte-specific indexing function",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
+
 	"QF1001": {
-		Title: "Apply De Morgan's law",
-		Since: "Unreleased",
+		Title:    "Apply De Morgan's law",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
+
 	"QF1002": {
 		Title: "Convert untagged switch to tagged switch",
 		Text: `An untagged switch that compares a single variable against a series of values can be replaced with a tagged switch.
@@ -37,8 +41,10 @@ After:
 		...
 	}
 `,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
+
 	"QF1003": {
 		Title: "Convert if/else-if chain to tagged switch",
 		Text: `A series of if/else-if checks comparing the same variable against values can be replaced with a tagged switch.
@@ -63,11 +69,15 @@ After:
 	default:
 		...
 	}`,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
+
 	"QF1004": {
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
+
 	"QF1005": {
 		Title: "Expand call to `math.Pow`",
 		Text: `Some uses of \'math.Pow\' can be simplified to basic multiplication.
@@ -79,7 +89,8 @@ Before:
 After:
 
 	x * x`,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
 
 	"QF1006": {
@@ -98,7 +109,8 @@ After:
 	for !done {
 		...
 	}`,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
 
 	"QF1007": {
@@ -114,21 +126,25 @@ After:
 
 	x := someCondition
 `,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
 
 	"QF1008": {
-		Title: "Omit embedded fields from selector expression",
-		Since: "Unreleased",
+		Title:    "Omit embedded fields from selector expression",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
 
 	"QF1009": {
-		Title: `Use time.Time.Equal instead of \'==\' operator`,
-		Since: "Unreleased",
+		Title:    `Use time.Time.Equal instead of \'==\' operator`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
 
 	"QF1010": {
-		Title: "Convert slice of bytes to string when printing it",
-		Since: "Unreleased",
+		Title:    "Convert slice of bytes to string when printing it",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
 	},
 })
