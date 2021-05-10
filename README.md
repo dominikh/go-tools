@@ -45,7 +45,6 @@ tool is accompanied by its own README, describing it in more detail.
 | Tool                                               | Description                                                             |
 |----------------------------------------------------|-------------------------------------------------------------------------|
 | [keyify](cmd/keyify/)                              | Transforms an unkeyed struct literal into a keyed one.                  |
-| [rdeps](cmd/rdeps/)                                | Find all reverse dependencies of a set of packages                      |
 | [staticcheck](cmd/staticcheck/)                    | Go static analysis, detecting bugs, performance issues, and much more. |
 | [structlayout](cmd/structlayout/)                  | Displays the layout (field sizes and padding) of structs.               |
 | [structlayout-optimize](cmd/structlayout-optimize) | Reorders struct fields to minimize the amount of padding.               |
