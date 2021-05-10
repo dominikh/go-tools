@@ -126,4 +126,9 @@ After:
 		Title: `Use time.Time.Equal instead of \'==\' operator`,
 		Since: "Unreleased",
 	},
+
+	"QF1010": {
+		Title: "Convert slice of bytes to string when printing it",
+		Since: "Unreleased",
+	},
 })

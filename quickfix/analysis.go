@@ -49,4 +49,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckTimeEquality,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1010": {
+		Run:      CheckByteSlicePrinting,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })

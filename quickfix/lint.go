@@ -868,3 +868,79 @@ func CheckTimeEquality(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
+
+var byteSlicePrintingQ = pattern.MustParse(`
+	(Or
+		(CallExpr
+			(Function (Or
+				"fmt.Print"
+				"fmt.Println"
+				"fmt.Sprint"
+				"fmt.Sprintln"
+				"log.Fatal"
+				"log.Fatalln"
+				"log.Panic"
+				"log.Panicln"
+				"log.Print"
+				"log.Println"
+				"(*log.Logger).Fatal"
+				"(*log.Logger).Fatalln"
+				"(*log.Logger).Panic"
+				"(*log.Logger).Panicln"
+				"(*log.Logger).Print"
+				"(*log.Logger).Println")) args)
+
+		(CallExpr (Function (Or
+			"fmt.Fprint"
+			"fmt.Fprintln")) _:args))`)
+
+var byteSlicePrintingR = pattern.MustParse(`(CallExpr (Ident "string") [arg])`)
+
+func CheckByteSlicePrinting(pass *analysis.Pass) (interface{}, error) {
+	isStringer := func(T types.Type, ms *types.MethodSet) bool {
+		sel := ms.Lookup(nil, "String")
+		if sel == nil {
+			return false
+		}
+		fn, ok := sel.Obj().(*types.Func)
+		if !ok {
+			// should be unreachable
+			return false
+		}
+		sig := fn.Type().(*types.Signature)
+		if sig.Params().Len() != 0 {
+			return false
+		}
+		if sig.Results().Len() != 1 {
+			return false
+		}
+		if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
+			return false
+		}
+		return true
+	}
+
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, byteSlicePrintingQ, node)
+		if !ok {
+			return
+		}
+		args := m.State["args"].([]ast.Expr)
+		for _, arg := range args {
+			T := pass.TypesInfo.TypeOf(arg)
+			if typeutil.IsType(T.Underlying(), "[]byte") {
+				ms := types.NewMethodSet(T)
+
+				// don't convert arguments that implement fmt.Stringer
+				if isStringer(T, ms) {
+					continue
+				}
+
+				fix := edit.Fix("Convert argument to string", edit.ReplaceWithPattern(pass, byteSlicePrintingR, pattern.State{"arg": arg}, arg))
+				report.Report(pass, arg, "could convert argument to string", report.Fixes(fix))
+			}
+		}
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}
