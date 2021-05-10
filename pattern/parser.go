@@ -408,6 +408,14 @@ func (p *Parser) object() (Node, error) {
 		}
 		return b, nil
 	case itemBlank:
+		if p.peek().typ == itemColon {
+			p.next()
+			tail, err := p.object()
+			if err != nil {
+				return Any{}, err
+			}
+			return List{Head: Any{}, Tail: tail}, nil
+		}
 		return Any{}, nil
 	case itemString:
 		return String(n.val), nil

@@ -7,6 +7,8 @@ import (
 func TestParse(t *testing.T) {
 	inputs := []string{
 		`(Binding "name" _)`,
+		`(Binding "name" _:[])`,
+		`(Binding "name" _:_:[])`,
 	}
 
 	p := Parser{}
