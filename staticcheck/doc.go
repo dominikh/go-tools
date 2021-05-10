@@ -47,7 +47,8 @@ arbitrary durations, for example \'5 * time.Second\' for 5 seconds.
 If you truly meant to sleep for a tiny amount of time, use
 \'n * time.Nanosecond\' to signal to Staticcheck that you did mean to sleep
 for some amount of nanoseconds.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1005": {
@@ -70,7 +71,8 @@ the following – but be aware that not all systems, particularly
 Windows, will have a \'/bin/sh\' program:
 
     exec.Command("/bin/sh", "-c", "ls | grep Awesome")`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1006": {
@@ -94,7 +96,8 @@ Similarly, forming the first parameter via string concatenation with
 user input should be avoided for the same reason. When printing user
 input, either use a variant of fmt.Print, or use the \'%s\' Printf verb
 and pass the string as an argument.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1007": {
@@ -125,14 +128,16 @@ demonstrates one such inconsistency:
 
 The easiest way of obtaining the canonical form of a key is to use
 \'http.CanonicalHeaderKey\'.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1010": {
 		Title: "`(*regexp.Regexp).FindAll` called with `n == 0`, which will always return zero results",
 		Text: `If n >= 0, the function returns at most n matches/submatches. To
 return all results, specify a negative number.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1011": {
@@ -142,13 +147,15 @@ return all results, specify a negative number.`,
 	},
 
 	"SA1012": {
-		Title: "A nil `context.Context` is being passed to a function, consider using `context.TODO` instead",
-		Since: "2017.1",
+		Title:    "A nil `context.Context` is being passed to a function, consider using `context.TODO` instead",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1013": {
-		Title: "`io.Seeker.Seek` is being called with the whence constant as the first argument, but it should be the second",
-		Since: "2017.1",
+		Title:    "`io.Seeker.Seek` is being called with the whence constant as the first argument, but it should be the second",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1014": {
@@ -158,8 +165,9 @@ return all results, specify a negative number.`,
 	},
 
 	"SA1015": {
-		Title: "Using `time.Tick` in a way that will leak. Consider using `time.NewTicker`, and only use `time.Tick` in tests, commands and endless functions",
-		Since: "2017.1",
+		Title:    "Using `time.Tick` in a way that will leak. Consider using `time.NewTicker`, and only use `time.Tick` in tests, commands and endless functions",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1016": {
@@ -168,7 +176,8 @@ return all results, specify a negative number.`,
 UNIX-like systems, the \'syscall.SIGKILL\' and \'syscall.SIGSTOP\' signals are
 never passed to the process, but instead handled directly by the
 kernel. It is therefore pointless to try and handle these signals.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1017": {
@@ -179,14 +188,16 @@ channel is either unbuffered or full, the signal will be dropped. To
 avoid missing signals, the channel should be buffered and of the
 appropriate size. For a channel used for notification of just one
 signal value, a buffer of size 1 is sufficient.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1018": {
 		Title: "`strings.Replace` called with `n == 0`, which does nothing",
 		Text: `With n == 0, zero instances will be replaced. To replace all
 instances, use a negative number, or use strings.ReplaceAll.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1019": {
@@ -208,13 +219,15 @@ length of the slice for an IPv4 address, however, can be either 4 or
 16 bytes long, using different ways of representing IPv4 addresses. In
 order to correctly compare two \'net.IP\'s, the \'net.IP.Equal\' method should
 be used, as it takes both representations into account.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1023": {
-		Title: "Modifying the buffer in an `io.Writer` implementation",
-		Text:  `\'Write\' must not modify the slice data, even temporarily.`,
-		Since: "2017.1",
+		Title:    "Modifying the buffer in an `io.Writer` implementation",
+		Text:     `\'Write\' must not modify the slice data, even temporarily.`,
+		Since:    "2017.1",
+		Severity: lint.SeverityError,
 	},
 
 	"SA1024": {
@@ -229,12 +242,14 @@ will result in the string \'"word"\' – any characters that are 1, 2, 3 or
 4 are cut from the left of the string.
 
 In order to remove one string from another, use \'strings.TrimPrefix\' instead.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1025": {
-		Title: "It is not possible to use `(*time.Timer).Reset`'s return value correctly",
-		Since: "2019.1",
+		Title:    "It is not possible to use `(*time.Timer).Reset`'s return value correctly",
+		Since:    "2019.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1026": {
@@ -252,7 +267,8 @@ can be relied upon to be 64-bit aligned.
 
 You can use the structlayout tool to inspect the alignment of fields
 in a struct.`,
-		Since: "2019.2",
+		Since:    "2019.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1028": {
@@ -273,7 +289,8 @@ To avoid allocating when assigning to an \'interface{}\',
 context keys often have concrete type struct{}. Alternatively,
 exported context key variables' static type should be a pointer or
 interface.`,
-		Since: "2020.1",
+		Since:    "2020.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA1030": {
@@ -285,8 +302,9 @@ the various parsing and formatting functions in \'strconv\'.`,
 	},
 
 	"SA2000": {
-		Title: "`sync.WaitGroup.Add` called inside the goroutine, leading to a race condition",
-		Since: "2017.1",
+		Title:    "`sync.WaitGroup.Add` called inside the goroutine, leading to a race condition",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA2001": {
@@ -307,17 +325,20 @@ simpler ways of achieving the same effect. When that isn't the case,
 the code should be amply commented to avoid confusion. Combining such
 comments with a \'//lint:ignore\' directive can be used to suppress this
 rare false positive.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA2002": {
-		Title: "Called `testing.T.FailNow` or `SkipNow` in a goroutine, which isn't allowed",
-		Since: "2017.1",
+		Title:    "Called `testing.T.FailNow` or `SkipNow` in a goroutine, which isn't allowed",
+		Since:    "2017.1",
+		Severity: lint.SeverityError,
 	},
 
 	"SA2003": {
-		Title: "Deferred `Lock` right after locking, likely meant to defer `Unlock` instead",
-		Since: "2017.1",
+		Title:    "Deferred `Lock` right after locking, likely meant to defer `Unlock` instead",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA3000": {
@@ -328,7 +349,8 @@ it is your responsibility to arrange for this, by calling \'os.Exit\' with
 the correct code. The correct code is returned by \'(*testing.M).Run\', so
 the usual way of implementing TestMain is to end it with
 \'os.Exit(m.Run())\'.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA3001": {
@@ -337,102 +359,122 @@ the usual way of implementing TestMain is to end it with
 benchmarks and uses it in computations to determine the duration of a
 single operation. Benchmark code must not alter \'b.N\' as this would
 falsify results.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityError,
 	},
 
 	"SA4000": {
-		Title: `Boolean expression has identical expressions on both sides`,
-		Since: "2017.1",
+		Title:    `Boolean expression has identical expressions on both sides`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4001": {
-		Title: "`&*x` gets simplified to `x`, it does not copy `x`",
-		Since: "2017.1",
+		Title:    "`&*x` gets simplified to `x`, it does not copy `x`",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4002": {
-		Title: `Comparing strings with known different sizes has predictable results`,
-		Since: "2017.1",
+		Title:    `Comparing strings with known different sizes has predictable results`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4003": {
-		Title: `Comparing unsigned values against negative values is pointless`,
-		Since: "2017.1",
+		Title:    `Comparing unsigned values against negative values is pointless`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4004": {
-		Title: `The loop exits unconditionally after one iteration`,
-		Since: "2017.1",
+		Title:    `The loop exits unconditionally after one iteration`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4005": {
-		Title: `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
-		Since: "2017.1",
+		Title:    `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4006": {
-		Title: `A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?`,
-		Since: "2017.1",
+		Title:    `A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4008": {
-		Title: `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
-		Since: "2017.1",
+		Title:    `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4009": {
-		Title: `A function argument is overwritten before its first use`,
-		Since: "2017.1",
+		Title:    `A function argument is overwritten before its first use`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4010": {
-		Title: "The result of `append` will never be observed anywhere",
-		Since: "2017.1",
+		Title:    "The result of `append` will never be observed anywhere",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4011": {
-		Title: `Break statement with no effect. Did you mean to break out of an outer loop?`,
-		Since: "2017.1",
+		Title:    `Break statement with no effect. Did you mean to break out of an outer loop?`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4012": {
-		Title: `Comparing a value against NaN even though no value is equal to NaN`,
-		Since: "2017.1",
+		Title:    `Comparing a value against NaN even though no value is equal to NaN`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4013": {
-		Title: "Negating a boolean twice (`!!b`) is the same as writing `b`. This is either redundant, or a typo.",
-		Since: "2017.1",
+		Title:    "Negating a boolean twice (`!!b`) is the same as writing `b`. This is either redundant, or a typo.",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4014": {
-		Title: `An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either`,
-		Since: "2017.1",
+		Title:    `An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4015": {
-		Title: "Calling functions like `math.Ceil` on floats converted from integers doesn't do anything useful",
-		Since: "2017.1",
+		Title:    "Calling functions like `math.Ceil` on floats converted from integers doesn't do anything useful",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4016": {
-		Title: "Certain bitwise operations, such as `x ^ 0`, do not do anything useful",
-		Since: "2017.1",
+		Title:    "Certain bitwise operations, such as `x ^ 0`, do not do anything useful",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4017": {
-		Title: `A pure function's return value is discarded, making the call pointless`,
-		Since: "2017.1",
+		Title:    `A pure function's return value is discarded, making the call pointless`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4018": {
-		Title: `Self-assignment of variables`,
-		Since: "2017.1",
+		Title:    `Self-assignment of variables`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4019": {
-		Title: `Multiple, identical build constraints in the same file`,
-		Since: "2017.1",
+		Title:    `Multiple, identical build constraints in the same file`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4020": {
@@ -503,18 +545,21 @@ the following type switch will have an unreachable case clause:
 
 \'T\' will always match before V because they are structurally equivalent
 and therefore \'doSomething()\''s return value implements both.`,
-		Since: "2019.2",
+		Since:    "2019.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4021": {
-		Title: "`x = append(y)` is equivalent to `x = y`",
-		Since: "2019.2",
+		Title:    "`x = append(y)` is equivalent to `x = y`",
+		Since:    "2019.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4022": {
-		Title: `Comparing the address of a variable against nil`,
-		Text:  `Code such as \'if &x == nil\' is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
-		Since: "2020.1",
+		Title:    `Comparing the address of a variable against nil`,
+		Text:     `Code such as \'if &x == nil\' is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
+		Since:    "2020.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4023": {
@@ -576,7 +621,8 @@ Reflection (https://golang.org/doc/articles/laws_of_reflection.html).
 This text has been copied from
 https://golang.org/doc/faq#nil_error, licensed under the Creative
 Commons Attribution 3.0 License.`,
-		Since: "2020.2",
+		Since:    "2020.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4024": {
@@ -590,7 +636,8 @@ Example:
     if len(slice) < 0 {
         fmt.Println("unreachable code")
     }`,
-		Since: `Unreleased`,
+		Since:    `Unreleased`,
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4025": {
@@ -609,7 +656,8 @@ integer literals, as it is highly unlikely that the division was
 intended to truncate to zero. Staticcheck will not flag integer
 division involving named constants, to avoid noisy positives.
 `,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA4026": {
@@ -623,7 +671,8 @@ will both represent positive zero at runtime.
 
 To explicitly and reliably create a negative zero, you can use the
 \'math.Copysign\' function: \'math.Copysign(0, -1)\'.`,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
 	},
 	"SA4027": {
 		Title: "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL",
@@ -634,7 +683,8 @@ assigned to the URL's \'RawQuery\'.
 
 As a consequence, the following code pattern is an expensive no-op:
 \'u.Query().Add(key, value)\'.`,
-		Since: "Unreleased",
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5000": {
@@ -644,13 +694,15 @@ As a consequence, the following code pattern is an expensive no-op:
 	},
 
 	"SA5001": {
-		Title: "Deferring `Close` before checking for a possible error",
-		Since: "2017.1",
+		Title:    "Deferring `Close` before checking for a possible error",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5002": {
-		Title: "The empty for loop (`for {}`) spins and can block the scheduler",
-		Since: "2017.1",
+		Title:    "The empty for loop (`for {}`) spins and can block the scheduler",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5003": {
@@ -658,12 +710,14 @@ As a consequence, the following code pattern is an expensive no-op:
 		Text: `Defers are scoped to the surrounding function, not the surrounding
 block. In a function that never returns, i.e. one containing an
 infinite loop, defers will never execute.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5004": {
-		Title: "`for { select { ...` with an empty default branch spins",
-		Since: "2017.1",
+		Title:    "`for { select { ...` with an empty default branch spins",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5005": {
@@ -679,7 +733,8 @@ and the object will never be collected, leading to a memory leak. That
 is why the finalizer should instead use its first argument to operate
 on the object. That way, the number of references can temporarily go
 to zero before the object is being passed to the finalizer.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5006": {
@@ -699,12 +754,14 @@ exit condition. It can also happen "on purpose". Some languages have
 tail call optimization which makes certain infinite recursive calls
 safe to use. Go, however, does not implement TCO, and as such a loop
 should be used instead.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5008": {
-		Title: `Invalid struct tag`,
-		Since: "2019.2",
+		Title:    `Invalid struct tag`,
+		Since:    "2019.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5009": {
@@ -732,7 +789,8 @@ another. If both interface types contain the same method but with
 different signatures, then the type assertion can never succeed,
 either.`,
 
-		Since: "2020.1",
+		Since:    "2020.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5011": {
@@ -800,7 +858,8 @@ workaround is to modify the definition of Fatal like so:
 We also hard-code functions from common logging packages such as
 logrus. Please file an issue if we're missing support for a
 popular package.`,
-		Since: "2020.1",
+		Since:    "2020.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA5012": {
@@ -814,8 +873,9 @@ and calling it with an odd number of elements would be an error.`,
 	},
 
 	"SA6000": {
-		Title: "Using `regexp.Match` or related in a loop, should use `regexp.Compile`",
-		Since: "2017.1",
+		Title:    "Using `regexp.Match` or related in a loop, should use `regexp.Compile`",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA6001": {
@@ -845,7 +905,8 @@ one does not.
 
 For some history on this optimization, check out commit
 f5f5a8b6209f84961687d993b93ea0d397f5d5bf in the Go repository.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA6002": {
@@ -862,7 +923,8 @@ pointer to the slice instead.
 
 See the comments on https://go-review.googlesource.com/c/go/+/24371
 that discuss this problem.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA6003": {
@@ -884,7 +946,8 @@ Do note that if you are interested in the indices, ranging over a
 string and over a slice of runes will yield different indices. The
 first one yields byte offsets, while the second one yields indices in
 the slice of runes.`,
-		Since: "2017.1",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA6005": {
@@ -908,22 +971,26 @@ been found.
 
 For a more in-depth explanation of this issue, see
 https://blog.digitalocean.com/how-to-efficiently-compare-strings-in-go/`,
-		Since: "2019.2",
+		Since:    "2019.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA9001": {
-		Title: `Defers in range loops may not run when you expect them to`,
-		Since: "2017.1",
+		Title:    `Defers in range loops may not run when you expect them to`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA9002": {
-		Title: "Using a non-octal `os.FileMode` that looks like it was meant to be in octal.",
-		Since: "2017.1",
+		Title:    "Using a non-octal `os.FileMode` that looks like it was meant to be in octal.",
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA9003": {
-		Title: `Empty body in an if or else branch`,
-		Since: "2017.1",
+		Title:    `Empty body in an if or else branch`,
+		Since:    "2017.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA9004": {
@@ -1015,7 +1082,8 @@ This code will output
     2
 
 as \'EnumSecond\' has no explicit type, and thus defaults to \'int\'.`,
-		Since: "2019.1",
+		Since:    "2019.1",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA9005": {
@@ -1027,7 +1095,8 @@ to (un)marshal structs that only consist of unexported fields.
 This check will not flag calls involving types that define custom
 marshaling behavior, e.g. via \'MarshalJSON\' methods. It will also not
 flag empty structs.`,
-		Since: "2019.2",
+		Since:    "2019.2",
+		Severity: lint.SeverityWarning,
 	},
 
 	"SA9006": {
@@ -1051,6 +1120,7 @@ positives in somewhat exotic but valid bit twiddling tricks:
         v = v << 32
         return i-v
     }`,
-		Since: "2020.2",
+		Since:    "2020.2",
+		Severity: lint.SeverityWarning,
 	},
 })
