@@ -861,7 +861,7 @@ func CheckTimeEquality(pass *analysis.Pass) (interface{}, error) {
 		if !code.IsOfType(pass, expr.X, "time.Time") || !code.IsOfType(pass, expr.Y, "time.Time") {
 			return
 		}
-		report.Report(pass, node, "could use time.Time.Equal instead",
+		report.Report(pass, node, "probably want to use time.Time.Equal instead",
 			report.Fixes(edit.Fix("Use time.Time.Equal method",
 				edit.ReplaceWithPattern(pass, timeEqualR, pattern.State{"lhs": expr.X, "rhs": expr.Y}, node))))
 	}

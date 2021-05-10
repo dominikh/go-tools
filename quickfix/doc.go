@@ -139,7 +139,7 @@ After:
 	"QF1009": {
 		Title:    `Use time.Time.Equal instead of \'==\' operator`,
 		Since:    "Unreleased",
-		Severity: lint.SeverityHint,
+		Severity: lint.SeverityInfo,
 	},
 
 	"QF1010": {
