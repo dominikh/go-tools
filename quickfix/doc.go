@@ -70,7 +70,7 @@ After:
 		...
 	}`,
 		Since:    "Unreleased",
-		Severity: lint.SeverityHint,
+		Severity: lint.SeverityInfo,
 	},
 
 	"QF1004": {
