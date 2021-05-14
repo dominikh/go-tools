@@ -228,4 +228,10 @@ information on how to write good documentation.`,
 		Since:      "2020.1",
 		NonDefault: true,
 	},
+
+	"ST1023": {
+		Title:      "Redundant type in variable declaration",
+		Since:      "Unreleased",
+		NonDefault: true,
+	},
 })

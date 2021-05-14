@@ -147,4 +147,10 @@ After:
 		Since:    "Unreleased",
 		Severity: lint.SeverityHint,
 	},
+
+	"QF1011": {
+		Title:    "Omit redundant type from variable declaration",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
+	},
 })

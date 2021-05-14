@@ -157,7 +157,7 @@ func (c Config) String() string {
 }
 
 var DefaultConfig = Config{
-	Checks: []string{"all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"},
+	Checks: []string{"all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-ST1023"},
 	Initialisms: []string{
 		"ACL", "API", "ASCII", "CPU", "CSS", "DNS",
 		"EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID",

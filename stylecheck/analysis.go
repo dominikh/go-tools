@@ -5,6 +5,7 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/internal/passes/buildir"
+	"honnef.co/go/tools/internal/sharedcheck"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -78,4 +79,5 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckExportedVarDocs,
 		Requires: []*analysis.Analyzer{facts.Generated, inspect.Analyzer},
 	},
+	"ST1023": sharedcheck.RedundantTypeInDeclarationChecker("should", false),
 })

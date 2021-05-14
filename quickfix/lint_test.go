@@ -19,6 +19,7 @@ func TestAll(t *testing.T) {
 		"QF1008": {{Dir: "CheckExplicitEmbeddedSelector"}},
 		"QF1009": {{Dir: "CheckTimeEquality"}},
 		"QF1010": {{Dir: "CheckByteSlicePrinting"}},
+		"QF1011": {{Dir: "CheckRedundantTypeInDeclaration"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)

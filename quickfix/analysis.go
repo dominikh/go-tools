@@ -3,6 +3,7 @@ package quickfix
 import (
 	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/internal/sharedcheck"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -53,4 +54,5 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckByteSlicePrinting,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"QF1011": sharedcheck.RedundantTypeInDeclarationChecker("could", true),
 })
