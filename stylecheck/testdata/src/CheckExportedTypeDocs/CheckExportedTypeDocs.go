@@ -33,3 +33,25 @@ func fn() {
 	// Some type
 	type T1 struct{}
 }
+
+//
+type T10 struct{} // this is fine, because "no comment" and "empty comment" are treated the same
+
+//
+// T11 is amazing.
+//
+// godoc allows this style, because ast.CommentGroup.Text strips whitespace.
+// We currently make no effort to flag it.
+//
+type T11 struct{}
+
+//some:directive
+type T12 struct{} // we pretend that directives aren't part of the doc string, just like godoc in Go 1.15+ does
+
+//some:directive
+// T13 is amazing
+type T13 struct{}
+
+//some:directive // want `comment on exported type`
+// Whatever
+type T14 struct{}
