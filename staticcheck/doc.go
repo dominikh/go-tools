@@ -981,7 +981,7 @@ https://blog.digitalocean.com/how-to-efficiently-compare-strings-in-go/`,
 
 		string([]byte) allocates a buffer to create the string because of the
 		immutable nature of strings in go`,
-		Since: "2020.2",
+		Since: "Unreleased",
 	},
 
 	"SA9001": {
