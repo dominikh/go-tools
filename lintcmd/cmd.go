@@ -665,6 +665,7 @@ func ProcessFlagSet(cs []*lint.Analyzer, fs *flag.FlagSet) {
 			exit(1)
 		}
 		fmt.Println(check.Doc)
+		fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
 		exit(0)
 	}
 

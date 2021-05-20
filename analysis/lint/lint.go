@@ -22,7 +22,7 @@ type Analyzer struct {
 }
 
 func (a *Analyzer) initialize() {
-	a.Analyzer.Doc = fmt.Sprintf("%s\nOnline documentation\n    https://staticcheck.io/docs/checks#%s", a.Doc.String(), a.Analyzer.Name)
+	a.Analyzer.Doc = a.Doc.String()
 	if a.Analyzer.Flags.Usage == nil {
 		fs := flag.NewFlagSet("", flag.PanicOnError)
 		fs.Var(newVersionFlag(), "go", "Target Go version")
