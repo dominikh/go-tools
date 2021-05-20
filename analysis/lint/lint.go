@@ -133,8 +133,11 @@ func (v *VersionFlag) Set(s string) error {
 		return fmt.Errorf("invalid Go version: %q", s)
 	}
 	i, err := strconv.Atoi(s[2:])
+	if err != nil {
+		return fmt.Errorf("invalid Go version: %q", s)
+	}
 	*v = VersionFlag(i)
-	return err
+	return nil
 }
 
 func (v *VersionFlag) Get() interface{} {

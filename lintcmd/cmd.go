@@ -571,11 +571,30 @@ func flagSet(name string) *flag.FlagSet {
 
 	checks := list{"inherit"}
 	fail := list{"all"}
+	version := versionFlag("module")
 	flags.Var(&checks, "checks", "Comma-separated list of `checks` to enable.")
 	flags.Var(&fail, "fail", "Comma-separated list of `checks` that can cause a non-zero exit status.")
-
-	flags.String("go", "module", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
+	flags.Var(&version, "go", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
 	return flags
+}
+
+type versionFlag string
+
+func (v *versionFlag) String() string {
+	return fmt.Sprintf("%q", string(*v))
+}
+
+func (v *versionFlag) Set(s string) error {
+	if s == "module" {
+		*v = "module"
+	} else {
+		var vf lint.VersionFlag
+		if err := vf.Set(s); err != nil {
+			return err
+		}
+		*v = versionFlag(s)
+	}
+	return nil
 }
 
 func (cmd *Command) ParseFlags(args []string) {
@@ -586,7 +605,7 @@ func (cmd *Command) Run() {
 	fs := cmd.flags
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
-	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(string)
+	goVersion := string(*fs.Lookup("go").Value.(*versionFlag))
 	theFormatter := fs.Lookup("f").Value.(flag.Getter).Get().(string)
 	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
 	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
