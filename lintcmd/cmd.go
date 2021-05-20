@@ -574,13 +574,6 @@ func flagSet(name string) *flag.FlagSet {
 	flags.Var(&checks, "checks", "Comma-separated list of `checks` to enable.")
 	flags.Var(&fail, "fail", "Comma-separated list of `checks` that can cause a non-zero exit status.")
 
-	tags := build.Default.ReleaseTags
-	v := tags[len(tags)-1][2:]
-	version := new(lint.VersionFlag)
-	if err := version.Set(v); err != nil {
-		panic(fmt.Sprintf("internal error: %s", err))
-	}
-
 	flags.String("go", "module", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
 	return flags
 }
