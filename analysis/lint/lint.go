@@ -30,8 +30,8 @@ func (a *Analyzer) initialize() {
 	}
 }
 
-func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) map[string]*Analyzer {
-	out := make(map[string]*Analyzer, len(analyzers))
+func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) []*Analyzer {
+	out := make([]*Analyzer, 0, len(analyzers))
 	for k, v := range analyzers {
 		v.Name = k
 		a := &Analyzer{
@@ -39,7 +39,7 @@ func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*a
 			Analyzer: v,
 		}
 		a.initialize()
-		out[k] = a
+		out = append(out, a)
 	}
 	return out
 }

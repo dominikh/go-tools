@@ -506,7 +506,52 @@ func (list *list) Set(s string) error {
 	return nil
 }
 
-func FlagSet(name string) *flag.FlagSet {
+type Command struct {
+	name      string
+	flags     *flag.FlagSet
+	analyzers map[string]*lint.Analyzer
+}
+
+func NewCommand(name string) *Command {
+	return &Command{
+		name:      name,
+		flags:     flagSet(name),
+		analyzers: map[string]*lint.Analyzer{},
+	}
+}
+
+func (cmd *Command) FlagSet() *flag.FlagSet {
+	return cmd.flags
+}
+
+func (cmd *Command) AddAnalyzers(as ...*lint.Analyzer) {
+	for _, a := range as {
+		cmd.analyzers[a.Analyzer.Name] = a
+	}
+}
+
+func (cmd *Command) AddBareAnalyzers(as ...*analysis.Analyzer) {
+	for _, a := range as {
+		var title, text string
+		if idx := strings.Index(a.Doc, "\n\n"); idx > -1 {
+			title = a.Doc[:idx]
+			text = a.Doc[idx+2:]
+		}
+
+		doc := &lint.Documentation{
+			Title:    title,
+			Text:     text,
+			Severity: lint.SeverityWarning,
+		}
+
+		cmd.analyzers[a.Name] = &lint.Analyzer{
+			Doc:      doc,
+			Analyzer: a,
+		}
+	}
+}
+
+func flagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
 	flags.Usage = usage(name, flags)
 	flags.String("tags", "", "List of `build tags`")
@@ -540,16 +585,12 @@ func FlagSet(name string) *flag.FlagSet {
 	return flags
 }
 
-func findCheck(cs []*lint.Analyzer, check string) (*lint.Analyzer, bool) {
-	for _, c := range cs {
-		if c.Analyzer.Name == check {
-			return c, true
-		}
-	}
-	return nil, false
+func (cmd *Command) ParseFlags(args []string) {
+	cmd.flags.Parse(args)
 }
 
-func ProcessFlagSet(cs []*lint.Analyzer, fs *flag.FlagSet) {
+func (cmd *Command) Run() {
+	fs := cmd.flags
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
 	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
 	goVersion := fs.Lookup("go").Value.(flag.Getter).Get().(string)
@@ -623,19 +664,21 @@ func ProcessFlagSet(cs []*lint.Analyzer, fs *flag.FlagSet) {
 		exit(0)
 	}
 
-	if listChecks {
-		// We sort a copy of the slice to avoid modifying what the API
-		// user passed in. It's not necessary now, because we exit
-		// immediately afterwards, but safeguard against future
-		// changes.
-		csp := make([]*lint.Analyzer, len(cs))
-		copy(csp, cs)
+	cs := make([]*lint.Analyzer, 0, len(cmd.analyzers))
+	for _, a := range cmd.analyzers {
+		cs = append(cs, a)
+	}
 
-		sort.Slice(csp, func(i, j int) bool {
-			return csp[i].Analyzer.Name < csp[j].Analyzer.Name
+	if listChecks {
+		sort.Slice(cs, func(i, j int) bool {
+			return cs[i].Analyzer.Name < cs[j].Analyzer.Name
 		})
-		for _, c := range csp {
-			fmt.Fprintf(os.Stderr, "%s %s\n", c.Analyzer.Name, c.Doc.Title)
+		for _, c := range cs {
+			var title string
+			if c.Doc != nil {
+				title = c.Doc.Title
+			}
+			fmt.Fprintf(os.Stderr, "%s %s\n", c.Analyzer.Name, title)
 		}
 		exit(0)
 	}
@@ -655,7 +698,7 @@ func ProcessFlagSet(cs []*lint.Analyzer, fs *flag.FlagSet) {
 	}
 
 	if explain != "" {
-		check, ok := findCheck(cs, explain)
+		check, ok := cmd.analyzers[explain]
 		if !ok {
 			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
 			exit(1)

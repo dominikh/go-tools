@@ -13,7 +13,7 @@ type Test struct {
 	Version string
 }
 
-func Run(t *testing.T, analyzers map[string]*lint.Analyzer, tests map[string][]Test) {
+func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 	for _, a := range analyzers {
 		a := a
 		t.Run(a.Analyzer.Name, func(t *testing.T) {
