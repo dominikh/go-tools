@@ -1,3 +1,5 @@
+// Package lintcmd implements the frontend of an analysis runner.
+// It serves as the entry-point for the staticcheck command, and can also be used to implement custom linters that behave like staticcheck.
 package lintcmd
 
 import (
@@ -564,12 +566,14 @@ func (list *list) Set(s string) error {
 	return nil
 }
 
+// Command represents a linter command line tool.
 type Command struct {
 	name      string
 	flags     *flag.FlagSet
 	analyzers map[string]*lint.Analyzer
 }
 
+// NewCommand returns a new Command.
 func NewCommand(name string) *Command {
 	return &Command{
 		name:      name,
@@ -578,16 +582,23 @@ func NewCommand(name string) *Command {
 	}
 }
 
+// FlagSet returns the command's flag set.
+// This can be used to add additional command line arguments.
 func (cmd *Command) FlagSet() *flag.FlagSet {
 	return cmd.flags
 }
 
+// AddAnalyzers adds analyzers to the command.
+// These are lint.Analyzer analyzers, which wrap analysis.Analyzer analyzers, bundling them with structured documentation.
+//
+// To add analysis.Analyzer analyzers without providing structured documentation, use AddBareAnalyzers.
 func (cmd *Command) AddAnalyzers(as ...*lint.Analyzer) {
 	for _, a := range as {
 		cmd.analyzers[a.Analyzer.Name] = a
 	}
 }
 
+// AddBareAnalyzers adds bare analyzers to the command.
 func (cmd *Command) AddBareAnalyzers(as ...*analysis.Analyzer) {
 	for _, a := range as {
 		var title, text string
@@ -655,10 +666,19 @@ func (v *versionFlag) Set(s string) error {
 	return nil
 }
 
+// ParseFlags parses command line flags.
+// It must be called before calling Run.
+// After calling ParseFlags, the values of flags can be accessed.
+//
+// Example:
+//
+// 	cmd.ParseFlags(os.Args[1:])
 func (cmd *Command) ParseFlags(args []string) {
 	cmd.flags.Parse(args)
 }
 
+// Run runs all registered analyzers and reports their findings.
+// It always calls os.Exit and does not return.
 func (cmd *Command) Run() {
 	fs := cmd.flags
 	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
