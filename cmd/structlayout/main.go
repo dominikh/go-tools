@@ -32,7 +32,7 @@ func main() {
 	flag.Parse()
 
 	if fVersion {
-		version.Print()
+		version.Print(version.Version, version.MachineVersion)
 		os.Exit(0)
 	}
 

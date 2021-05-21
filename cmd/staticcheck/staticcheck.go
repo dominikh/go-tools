@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"honnef.co/go/tools/lintcmd"
+	"honnef.co/go/tools/lintcmd/version"
 	"honnef.co/go/tools/quickfix"
 	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
@@ -15,6 +16,7 @@ import (
 
 func main() {
 	cmd := lintcmd.NewCommand("staticcheck")
+	cmd.SetVersion(version.Version, version.MachineVersion)
 
 	fs := cmd.FlagSet()
 	debug := fs.String("debug.unused-graph", "", "Write unused's object graph to `file`")

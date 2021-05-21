@@ -568,18 +568,33 @@ func (list *list) Set(s string) error {
 
 // Command represents a linter command line tool.
 type Command struct {
-	name      string
-	flags     *flag.FlagSet
-	analyzers map[string]*lint.Analyzer
+	name           string
+	flags          *flag.FlagSet
+	analyzers      map[string]*lint.Analyzer
+	version        string
+	machineVersion string
 }
 
 // NewCommand returns a new Command.
 func NewCommand(name string) *Command {
 	return &Command{
-		name:      name,
-		flags:     flagSet(name),
-		analyzers: map[string]*lint.Analyzer{},
+		name:           name,
+		flags:          flagSet(name),
+		analyzers:      map[string]*lint.Analyzer{},
+		version:        "devel",
+		machineVersion: "devel",
 	}
+}
+
+// SetVersion sets the command's version.
+// It is divided into a human part and a machine part.
+// For example, Staticcheck 2020.2.1 had the human version "2020.2.1" and the machine version "v0.1.1".
+// If you only use Semver, you can set both parts to the same value.
+//
+// Calling this method is optional. Both versions default to "devel", and we'll attempt to deduce more version information from the Go module.
+func (cmd *Command) SetVersion(human, machine string) {
+	cmd.version = human
+	cmd.machineVersion = machine
 }
 
 // FlagSet returns the command's flag set.
@@ -750,7 +765,7 @@ func (cmd *Command) Run() {
 	}
 
 	if debugVersion {
-		version.Verbose()
+		version.Verbose(cmd.version, cmd.machineVersion)
 		exit(0)
 	}
 
@@ -774,7 +789,7 @@ func (cmd *Command) Run() {
 	}
 
 	if printVersion {
-		version.Print()
+		version.Print(cmd.version, cmd.machineVersion)
 		exit(0)
 	}
 

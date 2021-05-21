@@ -10,7 +10,6 @@ import (
 	"text/tabwriter"
 
 	"honnef.co/go/tools/analysis/lint"
-	"honnef.co/go/tools/lintcmd/version"
 	"honnef.co/go/tools/sarif"
 )
 
@@ -174,11 +173,11 @@ func (o *sarifFormatter) Start(checks []*lint.Analyzer) {
 			Driver: sarif.ToolComponent{
 				Name: "Staticcheck",
 				// XXX version.Version is useless when it's "devel"
-				Version: version.Version,
+				// Version: version.Version, // XXX pass this through from the command
 				// XXX SemanticVersion is useless when it's "devel"
 				// XXX SemanticVersion shouldn't have the leading "v"
-				SemanticVersion: version.MachineVersion,
-				InformationURI:  "https://staticcheck.io",
+				// SemanticVersion: version.MachineVersion, // XXX pass this through from the command
+				InformationURI: "https://staticcheck.io",
 			},
 		},
 		Invocations: []sarif.Invocation{{
