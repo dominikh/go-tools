@@ -35,8 +35,9 @@ type OutputID [HashSize]byte
 
 // A Cache is a package cache, backed by a file system directory tree.
 type Cache struct {
-	dir string
-	now func() time.Time
+	dir  string
+	now  func() time.Time
+	salt []byte
 }
 
 // Open opens and returns the cache in the given directory.
@@ -70,6 +71,10 @@ func Open(dir string) (*Cache, error) {
 		now: time.Now,
 	}
 	return c, nil
+}
+
+func (c *Cache) SetSalt(b []byte) {
+	c.salt = b
 }
 
 // fileName returns the name of the file corresponding to the given id.

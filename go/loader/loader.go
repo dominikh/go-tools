@@ -64,7 +64,7 @@ type Package struct {
 // syntax trees.
 //
 // The provided config can set any setting with the exception of Mode.
-func Graph(cfg *packages.Config, patterns ...string) ([]*PackageSpec, error) {
+func Graph(c *cache.Cache, cfg *packages.Config, patterns ...string) ([]*PackageSpec, error) {
 	var dcfg packages.Config
 	if cfg != nil {
 		dcfg = *cfg
@@ -109,7 +109,7 @@ func Graph(cfg *packages.Config, patterns ...string) ([]*PackageSpec, error) {
 		} else {
 			spec.Config = config.DefaultConfig
 		}
-		spec.Hash, err = computeHash(spec)
+		spec.Hash, err = computeHash(c, spec)
 		if err != nil {
 			spec.Errors = append(spec.Errors, convertError(err)...)
 		}

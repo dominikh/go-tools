@@ -27,19 +27,6 @@ type Hash struct {
 	buf  *bytes.Buffer // for verify
 }
 
-// hashSalt is a salt string added to the beginning of every hash
-// created by NewHash. Using the Staticcheck version makes sure that different
-// versions of the command do not address the same cache
-// entries, so that a bug in one version does not affect the execution
-// of other versions. This salt will result in additional ActionID files
-// in the cache, but not additional copies of the large output files,
-// which are still addressed by unsalted SHA256.
-var hashSalt []byte
-
-func SetSalt(b []byte) {
-	hashSalt = b
-}
-
 // Subkey returns an action ID corresponding to mixing a parent
 // action ID with a string description of the subkey.
 func Subkey(parent ActionID, desc string) ActionID {
@@ -62,12 +49,12 @@ func Subkey(parent ActionID, desc string) ActionID {
 
 // NewHash returns a new Hash.
 // The caller is expected to Write data to it and then call Sum.
-func NewHash(name string) *Hash {
+func (c *Cache) NewHash(name string) *Hash {
 	h := &Hash{h: sha256.New(), name: name}
 	if debugHash {
 		fmt.Fprintf(os.Stderr, "HASH[%s]\n", h.name)
 	}
-	h.Write(hashSalt)
+	h.Write(c.salt)
 	if verify {
 		h.buf = new(bytes.Buffer)
 	}

@@ -354,18 +354,14 @@ type subrunner struct {
 	analyzers     []*analysis.Analyzer
 	factAnalyzers []*analysis.Analyzer
 	analyzerNames string
+	cache         *cache.Cache
 }
 
 // New returns a new Runner.
-func New(cfg config.Config) (*Runner, error) {
-	cache, err := cache.Default()
-	if err != nil {
-		return nil, err
-	}
-
+func New(cfg config.Config, c *cache.Cache) (*Runner, error) {
 	return &Runner{
 		cfg:       cfg,
-		cache:     cache,
+		cache:     c,
 		semaphore: tsync.NewSemaphore(runtime.GOMAXPROCS(0)),
 	}, nil
 }
@@ -388,6 +384,7 @@ func newSubrunner(r *Runner, analyzers []*analysis.Analyzer) *subrunner {
 		analyzers:     analyzers,
 		factAnalyzers: factAnalyzers,
 		analyzerNames: strings.Join(analyzerNames, ","),
+		cache:         r.cache,
 	}
 }
 
@@ -483,7 +480,7 @@ func (r *subrunner) do(act action) error {
 
 	// compute hash of action
 	a.cfg = a.Package.Config.Merge(r.cfg)
-	h := cache.NewHash("staticcheck " + a.Package.PkgPath)
+	h := r.cache.NewHash("staticcheck " + a.Package.PkgPath)
 
 	// Note that we do not filter the list of analyzers by the
 	// package's configuration. We don't allow configuration to
@@ -1110,7 +1107,7 @@ func (r *Runner) Run(cfg *packages.Config, analyzers []*analysis.Analyzer, patte
 	registerGobTypes(analyzers)
 
 	r.Stats.setState(StateLoadPackageGraph)
-	lpkgs, err := loader.Graph(cfg, patterns...)
+	lpkgs, err := loader.Graph(r.cache, cfg, patterns...)
 	if err != nil {
 		return nil, err
 	}

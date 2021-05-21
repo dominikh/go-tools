@@ -278,7 +278,16 @@ func defaultGoVersion() string {
 }
 
 func newLinter(cfg config.Config) (*linter, error) {
-	r, err := runner.New(cfg)
+	c, err := cache.Default()
+	if err != nil {
+		return nil, err
+	}
+	salt, err := computeSalt()
+	if err != nil {
+		return nil, fmt.Errorf("could not compute salt for cache: %s", err)
+	}
+	c.SetSalt(salt)
+	r, err := runner.New(cfg, c)
 	if err != nil {
 		return nil, err
 	}
@@ -926,12 +935,6 @@ func computeSalt() ([]byte, error) {
 }
 
 func doLint(cs []*lint.Analyzer, paths []string, opt *options) ([]problem, []string, error) {
-	salt, err := computeSalt()
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not compute salt for cache: %s", err)
-	}
-	cache.SetSalt(salt)
-
 	if opt == nil {
 		opt = &options{}
 	}

@@ -12,13 +12,8 @@ import (
 )
 
 func TestHash(t *testing.T) {
-	oldSalt := hashSalt
-	hashSalt = nil
-	defer func() {
-		hashSalt = oldSalt
-	}()
-
-	h := NewHash("alice")
+	c := &Cache{}
+	h := c.NewHash("alice")
 	h.Write([]byte("hello world"))
 	sum := fmt.Sprintf("%x", h.Sum())
 	want := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
