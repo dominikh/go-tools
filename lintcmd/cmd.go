@@ -480,13 +480,14 @@ func parsePos(pos string) (token.Position, int, error) {
 
 func usage(name string, flags *flag.FlagSet) func() {
 	return func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", name)
-		fmt.Fprintf(os.Stderr, "\t%s [flags] # runs on package in current directory\n", name)
-		fmt.Fprintf(os.Stderr, "\t%s [flags] packages\n", name)
-		fmt.Fprintf(os.Stderr, "\t%s [flags] directory\n", name)
-		fmt.Fprintf(os.Stderr, "\t%s [flags] files... # must be a single package\n", name)
-		fmt.Fprintf(os.Stderr, "Flags:\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [packages]\n", name)
+
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
 		flags.PrintDefaults()
+
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "For help about specifying packages, see 'go help packages'")
 	}
 }
 
