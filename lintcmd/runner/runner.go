@@ -498,6 +498,8 @@ func (r *subrunner) do(act action) error {
 
 	// Config used for constructing the hash; this config doesn't have
 	// Checks populated, because we always run all checks.
+	//
+	// This even works for users who add custom checks, because we include the binary's hash.
 	hashCfg := a.cfg
 	hashCfg.Checks = nil
 	// note that we don't hash staticcheck's version; it is set as the

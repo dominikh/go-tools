@@ -816,9 +816,6 @@ type options struct {
 }
 
 func computeSalt() ([]byte, error) {
-	if version.Version != "devel" {
-		return []byte(version.Version), nil
-	}
 	p, err := os.Executable()
 	if err != nil {
 		return nil, err
