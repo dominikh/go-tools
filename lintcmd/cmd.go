@@ -690,7 +690,7 @@ func (cmd *Command) Run() {
 			if c.Doc != nil {
 				title = c.Doc.Title
 			}
-			fmt.Fprintf(os.Stderr, "%s %s\n", c.Analyzer.Name, title)
+			fmt.Printf("%s %s\n", c.Analyzer.Name, title)
 		}
 		exit(0)
 	}
