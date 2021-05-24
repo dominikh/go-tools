@@ -5,7 +5,7 @@ import "honnef.co/go/tools/analysis/lint"
 var Docs = lint.Markdownify(map[string]*lint.Documentation{
 	"QF1001": {
 		Title:    "Apply De Morgan's law",
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
@@ -35,7 +35,7 @@ After:
 		...
 	}
 `,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
@@ -63,12 +63,12 @@ After:
 	default:
 		...
 	}`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},
 
 	"QF1004": {
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
@@ -83,7 +83,7 @@ Before:
 After:
 
 	x * x`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
@@ -103,7 +103,7 @@ After:
 	for !done {
 		...
 	}`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
@@ -120,31 +120,31 @@ After:
 
 	x := someCondition
 `,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1008": {
 		Title:    "Omit embedded fields from selector expression",
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1009": {
 		Title:    `Use time.Time.Equal instead of \'==\' operator`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},
 
 	"QF1010": {
 		Title:    "Convert slice of bytes to string when printing it",
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1011": {
 		Title:    "Omit redundant type from variable declaration",
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 })

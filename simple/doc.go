@@ -494,6 +494,6 @@ left-over code from when \'x\' had a different type and you can safely
 delete the type assertion. If you want to check that \'x\' is not nil,
 consider being explicit and using an actual \'if x == nil\' comparison
 instead of relying on the type assertion panicking.`,
-		Since: "Unreleased",
+		Since: "2021.1",
 	},
 })

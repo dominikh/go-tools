@@ -297,7 +297,7 @@ interface.`,
 		Title: "Invalid argument in call to a `strconv` function",
 		Text: `This check validates the format, number base and bit size arguments of
 the various parsing and formatting functions in \'strconv\'.`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityError,
 	},
 
@@ -395,7 +395,7 @@ falsify results.`,
 
 	"SA4005": {
 		Title:    `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
-		Since:    "2017.1",
+		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 	},
 
@@ -636,7 +636,7 @@ Example:
     if len(slice) < 0 {
         fmt.Println("unreachable code")
     }`,
-		Since:    `Unreleased`,
+		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 	},
 
@@ -656,7 +656,7 @@ integer literals, as it is highly unlikely that the division was
 intended to truncate to zero. Staticcheck will not flag integer
 division involving named constants, to avoid noisy positives.
 `,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 	},
 
@@ -671,7 +671,7 @@ will both represent positive zero at runtime.
 
 To explicitly and reliably create a negative zero, you can use the
 \'math.Copysign\' function: \'math.Copysign(0, -1)\'.`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 	},
 	"SA4027": {
@@ -683,7 +683,7 @@ assigned to the URL's \'RawQuery\'.
 
 As a consequence, the following code pattern is an expensive no-op:
 \'u.Query().Add(key, value)\'.`,
-		Since:    "Unreleased",
+		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 	},
 
