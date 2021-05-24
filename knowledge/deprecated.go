@@ -10,6 +10,9 @@ type Deprecation struct {
 	AlternativeAvailableSince int
 }
 
+// go/importer.ForCompiler contains "Deprecated:", but it refers to a single argument, not the whole function.
+// Luckily, the notice starts in the middle of a paragraph, and as such isn't detected by us.
+
 var StdlibDeprecations = map[string]Deprecation{
 	// FIXME(dh): AllowBinary isn't being detected as deprecated
 	// because the comment has a newline right after "Deprecated:"
@@ -30,6 +33,7 @@ var StdlibDeprecations = map[string]Deprecation{
 	"compress/flate.WriteError":                 {6, DeprecatedUseNoLonger},
 	"path/filepath.HasPrefix":                   {0, DeprecatedNeverUse},
 	"(net/http.Transport).Dial":                 {7, 7},
+	"(net/http.Transport).DialTLS":              {14, 14},
 	"(*net/http.Transport).CancelRequest":       {6, 5},
 	"net/http.ErrWriteAfterFlush":               {7, DeprecatedUseNoLonger},
 	"net/http.ErrHeaderTooLong":                 {8, DeprecatedUseNoLonger},
@@ -72,7 +76,7 @@ var StdlibDeprecations = map[string]Deprecation{
 	"(net.Dialer).DualStack":                    {12, 12},
 	"net/http.ErrUnexpectedTrailer":             {12, DeprecatedUseNoLonger},
 	"net/http.CloseNotifier":                    {11, 7},
-	// This is hairy. The notice says "Not all errors in the http package related to protocol errors are of type ProtocolError", but doesn't that imply that
+	// This is hairy. The notice says "Not all errors in the http package related to protocol errors are of type ProtocolError", but doesn't that imply that some errors do?
 	"net/http.ProtocolError":                      {8, DeprecatedUseNoLonger},
 	"(crypto/x509.CertificateRequest).Attributes": {5, 3},
 
@@ -134,7 +138,80 @@ var StdlibDeprecations = map[string]Deprecation{
 	"syscall.InterfaceAnnounceMessage":      {7, 0},
 	"syscall.InterfaceMulticastAddrMessage": {7, 0},
 	"syscall.FormatMessage":                 {5, 0},
+	"syscall.PostQueuedCompletionStatus":    {17, 0},
+	"syscall.GetQueuedCompletionStatus":     {17, 0},
+	"syscall.CreateIoCompletionPort":        {17, 0},
 
 	// Not marked as deprecated with a recognizable header, but deprecated nonetheless.
 	"io/ioutil": {16, 16},
 }
+
+// Last imported from Go at 32b73ae18026e8a9dc4c5aa49999b1ea445bc68c with the following numbers of deprecations:
+//
+// chulak go@master ./src $ rg -c "Deprecated: "
+// vendor/golang.org/x/crypto/curve25519/curve25519.go:1
+// vendor/golang.org/x/text/transform/transform.go:1
+// cmd/compile/internal/types/sym.go:2
+// syscall/route_netbsd.go:1
+// syscall/route_bsd.go:7
+// syscall/lsf_linux.go:6
+// syscall/exec_unix.go:1
+// syscall/route_darwin.go:1
+// syscall/route_freebsd.go:2
+// syscall/route_dragonfly.go:2
+// syscall/bpf_darwin.go:18
+// syscall/route_openbsd.go:1
+// syscall/syscall_windows.go:6
+// syscall/syscall.go:3
+// syscall/bpf_bsd.go:18
+// cmd/compile/internal/types2/type.go:2
+// syscall/exec_plan9.go:1
+// cmd/internal/obj/textflag.go:1
+// cmd/internal/obj/link.go:5
+// cmd/vendor/golang.org/x/sys/unix/zsysnum_darwin_arm64.go:1
+// cmd/vendor/golang.org/x/mod/semver/semver.go:1
+// cmd/vendor/golang.org/x/sys/windows/syscall_windows.go:2
+// cmd/vendor/golang.org/x/sys/unix/zsysnum_darwin_amd64.go:1
+// cmd/vendor/golang.org/x/mod/modfile/rule.go:2
+// cmd/vendor/golang.org/x/sys/windows/security_windows.go:1
+// cmd/go/internal/modcmd/edit.go:1
+// cmd/go/testdata/mod/example.com_deprecated_a_v1.9.0.txt:2
+// cmd/go/testdata/mod/example.com_undeprecated_v1.0.0.txt:2
+// cmd/go/testdata/mod/example.com_deprecated_b_v1.9.0.txt:2
+// encoding/csv/reader.go:2
+// encoding/json/decode.go:1
+// encoding/json/encode.go:1
+// cmd/go/testdata/script/mod_list_deprecated.txt:2
+// cmd/go/testdata/script/mod_deprecate_message.txt:4
+// cmd/go/testdata/script/mod_list_deprecated_replace.txt:1
+// runtime/cpuprof.go:1
+// cmd/go/testdata/script/mod_edit.txt:1
+// crypto/tls/common.go:6
+// crypto/rc4/rc4.go:1
+// crypto/dsa/dsa.go:1
+// path/filepath/path_unix.go:1
+// path/filepath/path_windows.go:1
+// path/filepath/path_plan9.go:1
+// regexp/regexp.go:1
+// crypto/x509/pem_decrypt.go:3
+// crypto/x509/x509.go:1
+// archive/zip/struct.go:6
+// archive/tar/common.go:2
+// debug/gosym/pclntab.go:2
+// compress/flate/inflate.go:2
+// image/geom.go:2
+// image/jpeg/reader.go:1
+// os/file.go:1
+// net/dial.go:2
+// net/http/server.go:2
+// net/http/socks_bundle.go:1
+// net/http/httputil/persist.go:8
+// net/http/request.go:6
+// net/http/transport.go:3
+// net/http/httptest/recorder.go:1
+// go/doc/doc.go:1
+// go/types/errorcodes.go:1
+// go/types/type.go:2
+// database/sql/driver/driver.go:6
+// text/template/parse/node.go:5
+// go/importer/importer.go:2
