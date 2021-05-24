@@ -3,12 +3,6 @@ package quickfix
 import "honnef.co/go/tools/analysis/lint"
 
 var Docs = lint.Markdownify(map[string]*lint.Documentation{
-	"QF1000": {
-		Title:    "Use byte-specific indexing function",
-		Since:    "Unreleased",
-		Severity: lint.SeverityHint,
-	},
-
 	"QF1001": {
 		Title:    "Apply De Morgan's law",
 		Since:    "Unreleased",
