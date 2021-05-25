@@ -68,6 +68,7 @@ After:
 	},
 
 	"QF1004": {
+		Title:    "Use `strings.ReplaceAll` instead of `strings.Replace` with `n == 1`",
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
