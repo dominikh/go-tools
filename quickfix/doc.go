@@ -15,25 +15,25 @@ var Docs = lint.Markdownify(map[string]*lint.Documentation{
 
 Before:
 
-	switch {
-	case x == 1 || x == 2, x == 3:
-		...
-	case x == 4:
-		...
-	default:
-		...
-	}
+    switch {
+    case x == 1 || x == 2, x == 3:
+        ...
+    case x == 4:
+        ...
+    default:
+        ...
+    }
 
 After:
 
-	switch x {
-	case 1, 2, 3:
-		...
-	case 4:
-		...
-	default:
-		...
-	}
+    switch x {
+    case 1, 2, 3:
+        ...
+    case 4:
+        ...
+    default:
+        ...
+    }
 `,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
@@ -45,24 +45,24 @@ After:
 
 Before:
 
-	if x == 1 || x == 2 {
-		...
-	} else if x == 3 {
-		...
-	} else {
-		...
-	}
+    if x == 1 || x == 2 {
+        ...
+    } else if x == 3 {
+        ...
+    } else {
+        ...
+    }
 
 After:
 
-	switch x {
-	case 1, 2:
-		...
-	case 3:
-		...
-	default:
-		...
-	}`,
+    switch x {
+    case 1, 2:
+        ...
+    case 3:
+        ...
+    default:
+        ...
+    }`,
 		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},
@@ -78,11 +78,11 @@ After:
 
 Before:
 
-	math.Pow(x, 2)
+    math.Pow(x, 2)
 
 After:
 
-	x * x`,
+    x * x`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
@@ -91,18 +91,18 @@ After:
 		Title: "Lift if+break into loop condition",
 		Text: `Before:
 
-	for {
-		if done {
-			break
-		}
-		...
-	}
+    for {
+        if done {
+            break
+        }
+        ...
+    }
 
 After:
 
-	for !done {
-		...
-	}`,
+    for !done {
+        ...
+    }`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
@@ -111,14 +111,14 @@ After:
 		Title: "Merge conditional assignment into variable declaration",
 		Text: `Before:
 
-	x := false
-	if someCondition {
-		x = true
-	}
+    x := false
+    if someCondition {
+        x = true
+    }
 
 After:
 
-	x := someCondition
+    x := someCondition
 `,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
