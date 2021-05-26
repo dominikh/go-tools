@@ -33,7 +33,8 @@ func docText(doc *ast.CommentGroup) (string, bool) {
 	if doc == nil {
 		return "", false
 	}
-	text := doc.Text()
+	// We trim spaces primarily because of /**/ style comments, which often have leading space.
+	text := strings.TrimSpace(doc.Text())
 	return text, text != ""
 }
 
