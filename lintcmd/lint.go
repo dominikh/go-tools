@@ -18,6 +18,7 @@ import (
 
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/go/buildid"
 	"honnef.co/go/tools/go/loader"
 	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/lintcmd/runner"
@@ -39,16 +40,23 @@ func computeSalt() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.Open(p)
-	if err != nil {
-		return nil, err
+
+	if id, err := buildid.ReadFile(p); err == nil {
+		return []byte(id), nil
+	} else {
+		// For some reason we couldn't read the build id from the executable.
+		// Fall back to hashing the entire executable.
+		f, err := os.Open(p)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			return nil, err
+		}
+		return h.Sum(nil), nil
 	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return nil, err
-	}
-	return h.Sum(nil), nil
 }
 
 func newLinter(cfg config.Config) (*linter, error) {
