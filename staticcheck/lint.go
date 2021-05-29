@@ -1135,7 +1135,7 @@ func CheckInfiniteEmptyLoop(pass *analysis.Pass) (interface{}, error) {
 			}
 			report.Report(pass, loop, "loop condition never changes or has a race condition")
 		}
-		report.Report(pass, loop, "this loop will spin, using 100%% CPU", report.ShortRange())
+		report.Report(pass, loop, "this loop will spin, using 100% CPU", report.ShortRange())
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
