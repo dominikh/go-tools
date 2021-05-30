@@ -212,9 +212,6 @@ func (cmd *Command) Run() {
 		}
 	}
 
-	cfg := config.Config{}
-	cfg.Checks = cmd.flags.checks
-
 	exit := func(code int) {
 		if cmd.flags.debugCpuprofile != "" {
 			pprof.StopCPUProfile()
@@ -318,10 +315,12 @@ func (cmd *Command) Run() {
 	}
 
 	ps, warnings, err := doLint(cs, cmd.flags.fs.Args(), &options{
-		Tags:                     cmd.flags.tags,
-		LintTests:                cmd.flags.tests,
-		GoVersion:                string(cmd.flags.goVersion),
-		Config:                   cfg,
+		Tags:      cmd.flags.tags,
+		LintTests: cmd.flags.tests,
+		GoVersion: string(cmd.flags.goVersion),
+		Config: config.Config{
+			Checks: cmd.flags.checks,
+		},
 		PrintAnalyzerMeasurement: measureAnalyzers,
 	})
 	if err != nil {
