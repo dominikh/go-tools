@@ -150,3 +150,16 @@ func init() {
 
 // Ensure we can locate variables in initializer expressions.
 var global = /*@MakeMap*/ (make(map[string]string))
+
+type t1 struct {
+	x int
+}
+type t2 struct {
+	x int `tag`
+}
+
+func main() {
+	var tv1 t1
+	var tv2 t2 = /*@ChangeType*/ (t2(tv1))
+	_ = tv2
+}

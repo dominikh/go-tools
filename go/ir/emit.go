@@ -155,7 +155,7 @@ func emitCompare(f *Function, op token.Token, x, y Value, source ast.Node) Value
 //
 func isValuePreserving(ut_src, ut_dst types.Type) bool {
 	// Identical underlying types?
-	if structTypesIdentical(ut_dst, ut_src) {
+	if types.IdenticalIgnoreTags(ut_dst, ut_src) {
 		return true
 	}
 
