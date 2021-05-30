@@ -31,7 +31,6 @@ import (
 // A linter lints Go source code.
 type linter struct {
 	Checkers []*lint.Analyzer
-	Config   config.Config
 	Runner   *runner.Runner
 }
 
@@ -75,7 +74,6 @@ func newLinter(cfg config.Config) (*linter, error) {
 	}
 	r.FallbackGoVersion = defaultGoVersion()
 	return &linter{
-		Config: cfg,
 		Runner: r,
 	}, nil
 }
