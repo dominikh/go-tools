@@ -43,7 +43,10 @@ func fn(a int, s []int, f1 float64, f2 Float, fs Floats, is Ints, t1 T1, t2 T2) 
 	if f1 != f1 {
 		println()
 	}
-	if f1 > f1 { // want `identical expressions`
+	if f1 > f1 {
+		println()
+	}
+	if f1-f1 == 0 {
 		println()
 	}
 	if f2 == f2 {
