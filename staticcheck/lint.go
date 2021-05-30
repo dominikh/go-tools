@@ -1364,15 +1364,17 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 		op := node.(*ast.BinaryExpr)
 		switch op.Op {
 		case token.EQL, token.NEQ:
-			if isFloat(pass.TypesInfo.TypeOf(op.X)) {
-				// f == f and f != f might be used to check for NaN
-				return
-			}
 		case token.SUB, token.QUO, token.AND, token.REM, token.OR, token.XOR, token.AND_NOT,
 			token.LAND, token.LOR, token.LSS, token.GTR, token.LEQ, token.GEQ:
 		default:
 			// For some ops, such as + and *, it can make sense to
 			// have identical operands
+			return
+		}
+
+		if isFloat(pass.TypesInfo.TypeOf(op.X)) {
+			// 'float <op> float' makes sense for several operators.
+			// We've tried keeping an exact list of operators to allow, but floats keep surprising us. Let's just give up instead.
 			return
 		}
 
