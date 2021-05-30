@@ -28,21 +28,44 @@ import (
 // Command represents a linter command line tool.
 type Command struct {
 	name           string
-	flags          *flag.FlagSet
 	analyzers      map[string]*lint.Analyzer
 	version        string
 	machineVersion string
+
+	flags struct {
+		fs *flag.FlagSet
+
+		tags         string
+		tests        bool
+		printVersion bool
+		showIgnored  bool
+		formatter    string
+		explain      string
+		listChecks   bool
+
+		debugCpuprofile       string
+		debugMemprofile       string
+		debugVersion          bool
+		debugNoCompileErrors  bool
+		debugMeasureAnalyzers string
+		debugTrace            string
+
+		checks    list
+		fail      list
+		goVersion versionFlag
+	}
 }
 
 // NewCommand returns a new Command.
 func NewCommand(name string) *Command {
-	return &Command{
+	cmd := &Command{
 		name:           name,
-		flags:          flagSet(name),
 		analyzers:      map[string]*lint.Analyzer{},
 		version:        "devel",
 		machineVersion: "devel",
 	}
+	cmd.initFlagSet(name)
+	return cmd
 }
 
 // SetVersion sets the command's version.
@@ -59,7 +82,7 @@ func (cmd *Command) SetVersion(human, machine string) {
 // FlagSet returns the command's flag set.
 // This can be used to add additional command line arguments.
 func (cmd *Command) FlagSet() *flag.FlagSet {
-	return cmd.flags
+	return cmd.flags.fs
 }
 
 // AddAnalyzers adds analyzers to the command.
@@ -94,31 +117,32 @@ func (cmd *Command) AddBareAnalyzers(as ...*analysis.Analyzer) {
 	}
 }
 
-func flagSet(name string) *flag.FlagSet {
+func (cmd *Command) initFlagSet(name string) {
 	flags := flag.NewFlagSet("", flag.ExitOnError)
+	cmd.flags.fs = flags
 	flags.Usage = usage(name, flags)
-	flags.String("tags", "", "List of `build tags`")
-	flags.Bool("tests", true, "Include tests")
-	flags.Bool("version", false, "Print version and exit")
-	flags.Bool("show-ignored", false, "Don't filter ignored problems")
-	flags.String("f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
-	flags.String("explain", "", "Print description of `check`")
-	flags.Bool("list-checks", false, "List all available checks")
 
-	flags.String("debug.cpuprofile", "", "Write CPU profile to `file`")
-	flags.String("debug.memprofile", "", "Write memory profile to `file`")
-	flags.Bool("debug.version", false, "Print detailed version information about this program")
-	flags.Bool("debug.no-compile-errors", false, "Don't print compile errors")
-	flags.String("debug.measure-analyzers", "", "Write analysis measurements to `file`. `file` will be opened for appending if it already exists.")
-	flags.String("debug.trace", "", "Write trace to `file`")
+	flags.StringVar(&cmd.flags.tags, "tags", "", "List of `build tags`")
+	flags.BoolVar(&cmd.flags.tests, "tests", true, "Include tests")
+	flags.BoolVar(&cmd.flags.printVersion, "version", false, "Print version and exit")
+	flags.BoolVar(&cmd.flags.showIgnored, "show-ignored", false, "Don't filter ignored problems")
+	flags.StringVar(&cmd.flags.formatter, "f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
+	flags.StringVar(&cmd.flags.explain, "explain", "", "Print description of `check`")
+	flags.BoolVar(&cmd.flags.listChecks, "list-checks", false, "List all available checks")
 
-	checks := list{"inherit"}
-	fail := list{"all"}
-	version := versionFlag("module")
-	flags.Var(&checks, "checks", "Comma-separated list of `checks` to enable.")
-	flags.Var(&fail, "fail", "Comma-separated list of `checks` that can cause a non-zero exit status.")
-	flags.Var(&version, "go", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
-	return flags
+	flags.StringVar(&cmd.flags.debugCpuprofile, "debug.cpuprofile", "", "Write CPU profile to `file`")
+	flags.StringVar(&cmd.flags.debugMemprofile, "debug.memprofile", "", "Write memory profile to `file`")
+	flags.BoolVar(&cmd.flags.debugVersion, "debug.version", false, "Print detailed version information about this program")
+	flags.BoolVar(&cmd.flags.debugNoCompileErrors, "debug.no-compile-errors", false, "Don't print compile errors")
+	flags.StringVar(&cmd.flags.debugMeasureAnalyzers, "debug.measure-analyzers", "", "Write analysis measurements to `file`. `file` will be opened for appending if it already exists.")
+	flags.StringVar(&cmd.flags.debugTrace, "debug.trace", "", "Write trace to `file`")
+
+	cmd.flags.checks = list{"inherit"}
+	cmd.flags.fail = list{"all"}
+	cmd.flags.goVersion = versionFlag("module")
+	flags.Var(&cmd.flags.checks, "checks", "Comma-separated list of `checks` to enable.")
+	flags.Var(&cmd.flags.fail, "fail", "Comma-separated list of `checks` that can cause a non-zero exit status.")
+	flags.Var(&cmd.flags.goVersion, "go", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
 }
 
 type list []string
@@ -164,30 +188,14 @@ func (v *versionFlag) Set(s string) error {
 //
 // 	cmd.ParseFlags(os.Args[1:])
 func (cmd *Command) ParseFlags(args []string) {
-	cmd.flags.Parse(args)
+	cmd.flags.fs.Parse(args)
 }
 
 // Run runs all registered analyzers and reports their findings.
 // It always calls os.Exit and does not return.
 func (cmd *Command) Run() {
-	fs := cmd.flags
-	tags := fs.Lookup("tags").Value.(flag.Getter).Get().(string)
-	tests := fs.Lookup("tests").Value.(flag.Getter).Get().(bool)
-	goVersion := string(*fs.Lookup("go").Value.(*versionFlag))
-	theFormatter := fs.Lookup("f").Value.(flag.Getter).Get().(string)
-	printVersion := fs.Lookup("version").Value.(flag.Getter).Get().(bool)
-	showIgnored := fs.Lookup("show-ignored").Value.(flag.Getter).Get().(bool)
-	explain := fs.Lookup("explain").Value.(flag.Getter).Get().(string)
-	listChecks := fs.Lookup("list-checks").Value.(flag.Getter).Get().(bool)
-
-	cpuProfile := fs.Lookup("debug.cpuprofile").Value.(flag.Getter).Get().(string)
-	memProfile := fs.Lookup("debug.memprofile").Value.(flag.Getter).Get().(string)
-	debugVersion := fs.Lookup("debug.version").Value.(flag.Getter).Get().(bool)
-	debugNoCompile := fs.Lookup("debug.no-compile-errors").Value.(flag.Getter).Get().(bool)
-	traceOut := fs.Lookup("debug.trace").Value.(flag.Getter).Get().(string)
-
 	var measureAnalyzers func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
-	if path := fs.Lookup("debug.measure-analyzers").Value.(flag.Getter).Get().(string); path != "" {
+	if path := cmd.flags.debugMeasureAnalyzers; path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			log.Fatal(err)
@@ -205,41 +213,41 @@ func (cmd *Command) Run() {
 	}
 
 	cfg := config.Config{}
-	cfg.Checks = *fs.Lookup("checks").Value.(*list)
+	cfg.Checks = cmd.flags.checks
 
 	exit := func(code int) {
-		if cpuProfile != "" {
+		if cmd.flags.debugCpuprofile != "" {
 			pprof.StopCPUProfile()
 		}
-		if memProfile != "" {
-			f, err := os.Create(memProfile)
+		if path := cmd.flags.debugMemprofile; path != "" {
+			f, err := os.Create(path)
 			if err != nil {
 				panic(err)
 			}
 			runtime.GC()
 			pprof.WriteHeapProfile(f)
 		}
-		if traceOut != "" {
+		if cmd.flags.debugTrace != "" {
 			trace.Stop()
 		}
 		os.Exit(code)
 	}
-	if cpuProfile != "" {
-		f, err := os.Create(cpuProfile)
+	if path := cmd.flags.debugCpuprofile; path != "" {
+		f, err := os.Create(path)
 		if err != nil {
 			log.Fatal(err)
 		}
 		pprof.StartCPUProfile(f)
 	}
-	if traceOut != "" {
-		f, err := os.Create(traceOut)
+	if path := cmd.flags.debugTrace; path != "" {
+		f, err := os.Create(path)
 		if err != nil {
 			log.Fatal(err)
 		}
 		trace.Start(f)
 	}
 
-	if debugVersion {
+	if cmd.flags.debugVersion {
 		version.Verbose(cmd.version, cmd.machineVersion)
 		exit(0)
 	}
@@ -249,7 +257,7 @@ func (cmd *Command) Run() {
 		cs = append(cs, a)
 	}
 
-	if listChecks {
+	if cmd.flags.listChecks {
 		sort.Slice(cs, func(i, j int) bool {
 			return cs[i].Analyzer.Name < cs[j].Analyzer.Name
 		})
@@ -263,7 +271,7 @@ func (cmd *Command) Run() {
 		exit(0)
 	}
 
-	if printVersion {
+	if cmd.flags.printVersion {
 		version.Print(cmd.version, cmd.machineVersion)
 		exit(0)
 	}
@@ -272,12 +280,12 @@ func (cmd *Command) Run() {
 	// doesn't detect malformed build flags and returns unhelpful
 	// errors.
 	tf := buildutil.TagsFlag{}
-	if err := tf.Set(tags); err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", tags, err))
+	if err := tf.Set(cmd.flags.tags); err != nil {
+		fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", cmd.flags.tags, err))
 		exit(1)
 	}
 
-	if explain != "" {
+	if explain := cmd.flags.explain; explain != "" {
 		check, ok := cmd.analyzers[explain]
 		if !ok {
 			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
@@ -293,7 +301,7 @@ func (cmd *Command) Run() {
 	}
 
 	var f formatter
-	switch theFormatter {
+	switch cmd.flags.formatter {
 	case "text":
 		f = textFormatter{W: os.Stdout}
 	case "stylish":
@@ -305,14 +313,14 @@ func (cmd *Command) Run() {
 	case "null":
 		f = nullFormatter{}
 	default:
-		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", theFormatter)
+		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", cmd.flags.formatter)
 		exit(2)
 	}
 
-	ps, warnings, err := doLint(cs, fs.Args(), &options{
-		Tags:                     tags,
-		LintTests:                tests,
-		GoVersion:                goVersion,
+	ps, warnings, err := doLint(cs, cmd.flags.fs.Args(), &options{
+		Tags:                     cmd.flags.tags,
+		LintTests:                cmd.flags.tests,
+		GoVersion:                string(cmd.flags.goVersion),
 		Config:                   cfg,
 		PrintAnalyzerMeasurement: measureAnalyzers,
 	})
@@ -331,7 +339,7 @@ func (cmd *Command) Run() {
 		numIgnored  int
 	)
 
-	fail := *fs.Lookup("fail").Value.(*list)
+	fail := cmd.flags.fail
 	analyzerNames := make([]string, len(cs))
 	for i, a := range cs {
 		analyzerNames[i] = a.Analyzer.Name
@@ -345,10 +353,10 @@ func (cmd *Command) Run() {
 	}
 
 	for _, p := range ps {
-		if p.Category == "compile" && debugNoCompile {
+		if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
 			continue
 		}
-		if p.Severity == severityIgnored && !showIgnored {
+		if p.Severity == severityIgnored && !cmd.flags.showIgnored {
 			numIgnored++
 			continue
 		}
