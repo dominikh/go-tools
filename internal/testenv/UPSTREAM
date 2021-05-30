@@ -1,0 +1,4 @@
+This package is a copy of golang.org/x/tools/internal/testenv,
+imported from commit 33e937220d8f91f1d242ad15aebc3e245aca5515.
+
+The last upstream commit we've looked at was: 33e937220d8f91f1d242ad15aebc3e245aca5515
