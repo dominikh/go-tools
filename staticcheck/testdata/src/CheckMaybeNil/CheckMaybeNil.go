@@ -10,6 +10,15 @@ func fn1(x *int) {
 	if x != nil {
 		return
 	}
+	println()
+}
+
+func fn1_1(x *int) {
+	// this doesn't get flagged because the conditional return gets optimized away
+	_ = *x
+	if x != nil {
+		return
+	}
 }
 
 func fn2(x *int) {
@@ -129,5 +138,16 @@ func fn14(x *int) {
 	if x == nil {
 		fn13(true)
 	}
+	_ = *x
+}
+
+func assert(b bool) {
+	if b {
+		panic("meh")
+	}
+}
+
+func fn15(x *int) {
+	assert(x != nil)
 	_ = *x
 }
