@@ -4073,14 +4073,18 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 		maybeNil := map[ir.Value]ir.Instruction{}
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
-				if instr, ok := instr.(*ir.BinOp); ok {
-					var ptr ir.Value
-					if isNilConst(instr.X) {
-						ptr = instr.Y
-					} else if isNilConst(instr.Y) {
-						ptr = instr.X
+				// Originally we looked at all ir.BinOp, but that would lead to calls like 'assert(x != nil)' causing false positives.
+				// Restrict ourselves to actual if statements, as these are more likely to affect control flow in a way we can observe.
+				if instr, ok := instr.(*ir.If); ok {
+					if cond, ok := instr.Cond.(*ir.BinOp); ok {
+						var ptr ir.Value
+						if isNilConst(cond.X) {
+							ptr = cond.Y
+						} else if isNilConst(cond.Y) {
+							ptr = cond.X
+						}
+						maybeNil[ptr] = cond
 					}
-					maybeNil[ptr] = instr
 				}
 			}
 		}
