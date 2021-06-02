@@ -191,13 +191,14 @@ type lblock struct {
 // specified label, creating it if needed.
 //
 func (f *Function) labelledBlock(label *ast.Ident) *lblock {
-	lb := f.lblocks[label.Obj]
+	obj := f.Pkg.objectOf(label)
+	lb := f.lblocks[obj]
 	if lb == nil {
 		lb = &lblock{_goto: f.newBasicBlock(label.Name)}
 		if f.lblocks == nil {
-			f.lblocks = make(map[*ast.Object]*lblock)
+			f.lblocks = make(map[types.Object]*lblock)
 		}
-		f.lblocks[label.Obj] = lb
+		f.lblocks[obj] = lb
 	}
 	return lb
 }
