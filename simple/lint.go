@@ -180,11 +180,11 @@ func CheckBytesBufferConversions(pass *analysis.Pass) (interface{}, error) {
 
 			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRs, m.State, node))))
+				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, checkBytesBufferConversionsRs, m.State, node))))
 		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).String") {
 			report.Report(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass, checkBytesBufferConversionsRb, m.State, node))))
+				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, checkBytesBufferConversionsRb, m.State, node))))
 		}
 
 	}
@@ -303,9 +303,9 @@ func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		var fix analysis.SuggestedFix
 		switch tok := m.State["op"].(token.Token); tok {
 		case token.EQL:
-			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass, checkBytesCompareRe, m.State, node))
+			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, checkBytesCompareRe, m.State, node))
 		case token.NEQ:
-			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass, checkBytesCompareRn, m.State, node))
+			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, checkBytesCompareRn, m.State, node))
 		default:
 			panic(fmt.Sprintf("unexpected token %v", tok))
 		}
@@ -1724,7 +1724,7 @@ func CheckSimplifyTypeSwitch(pass *analysis.Pass) (interface{}, error) {
 				report.Render(pass, ident), report.Render(pass, ident))
 			if canSuggestFix {
 				var edits []analysis.TextEdit
-				edits = append(edits, edit.ReplaceWithPattern(pass, checkSimplifyTypeSwitchR, m.State, expr))
+				edits = append(edits, edit.ReplaceWithPattern(pass.Fset, checkSimplifyTypeSwitchR, m.State, expr))
 				for _, offender := range allOffenders {
 					edits = append(edits, edit.ReplaceWithNode(pass.Fset, offender, offender.X))
 				}
@@ -1807,7 +1807,7 @@ func CheckElaborateSleep(pass *analysis.Pass) (interface{}, error) {
 				report.Report(pass, node, "should use time.Sleep instead of elaborate way of sleeping",
 					report.ShortRange(),
 					report.FilterGenerated(),
-					report.Fixes(edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass, checkElaborateSleepR, m.State, node))))
+					report.Fixes(edit.Fix("Use time.Sleep", edit.ReplaceWithPattern(pass.Fset, checkElaborateSleepR, m.State, node))))
 			} else {
 				// TODO(dh): we could make a suggested fix if the body
 				// doesn't declare or shadow any identifiers

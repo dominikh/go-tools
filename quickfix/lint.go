@@ -757,7 +757,7 @@ func CheckTimeEquality(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, node, "probably want to use time.Time.Equal instead",
 			report.Fixes(edit.Fix("Use time.Time.Equal method",
-				edit.ReplaceWithPattern(pass, timeEqualR, pattern.State{"lhs": expr.X, "rhs": expr.Y}, node))))
+				edit.ReplaceWithPattern(pass.Fset, timeEqualR, pattern.State{"lhs": expr.X, "rhs": expr.Y}, node))))
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
@@ -830,7 +830,7 @@ func CheckByteSlicePrinting(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				fix := edit.Fix("Convert argument to string", edit.ReplaceWithPattern(pass, byteSlicePrintingR, pattern.State{"arg": arg}, arg))
+				fix := edit.Fix("Convert argument to string", edit.ReplaceWithPattern(pass.Fset, byteSlicePrintingR, pattern.State{"arg": arg}, arg))
 				report.Report(pass, arg, "could convert argument to string", report.Fixes(fix))
 			}
 		}

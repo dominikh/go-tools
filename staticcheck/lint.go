@@ -1071,8 +1071,8 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 
 		report.Report(pass, lit,
 			fmt.Sprintf("sleeping for %d nanoseconds is probably a bug; be explicit if it isn't", n), report.Fixes(
-				edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit}, lit)),
-				edit.Fix("use seconds", edit.ReplaceWithPattern(pass, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}, lit))))
+				edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass.Fset, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit}, lit)),
+				edit.Fix("use seconds", edit.ReplaceWithPattern(pass.Fset, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}, lit))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
