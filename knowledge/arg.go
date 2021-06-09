@@ -55,6 +55,11 @@ var Args = map[string]int{
 	"xml.Unmarshal.v":                      1,
 }
 
+// Arg turns the name of an argument into an argument index.
+// Indices are zero-based and method receivers do not count as arguments.
+//
+// Arg refers to a manually compiled mapping (see the Args variable.)
+// Modify the knowledge package to add new arguments.
 func Arg(name string) int {
 	n, ok := Args[name]
 	if !ok {

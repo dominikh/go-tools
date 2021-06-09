@@ -1,18 +1,26 @@
 package knowledge
 
 const (
-	DeprecatedNeverUse    = -1
+	// DeprecatedNeverUse indicates that an API should never be used, regardless of Go version.
+	DeprecatedNeverUse = -1
+	// DeprecatedUseNoLonger indicates that an API has no use anymore.
 	DeprecatedUseNoLonger = -2
 )
 
+// Deprecation describes when a Go API has been deprecated.
 type Deprecation struct {
-	DeprecatedSince           int
+	// The minor Go version since which this API has been deprecated.
+	DeprecatedSince int
+	// The minor Go version since which an alternative API has been available.
+	// May also be one of DeprecatedNeverUse or DeprecatedUseNoLonger.
 	AlternativeAvailableSince int
 }
 
 // go/importer.ForCompiler contains "Deprecated:", but it refers to a single argument, not the whole function.
 // Luckily, the notice starts in the middle of a paragraph, and as such isn't detected by us.
 
+// StdlibDeprecations contains a mapping of Go API (such as variables, methods, or fields, among others)
+// to information about when it has been deprecated.
 var StdlibDeprecations = map[string]Deprecation{
 	// FIXME(dh): AllowBinary isn't being detected as deprecated
 	// because the comment has a newline right after "Deprecated:"
