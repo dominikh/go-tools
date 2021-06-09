@@ -1,3 +1,4 @@
+// Package unused contains code for finding unused code.
 package unused
 
 import (

@@ -1,4 +1,3 @@
-// Package simple contains a linter for Go source code.
 package simple
 
 import (

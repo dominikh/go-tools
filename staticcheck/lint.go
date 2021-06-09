@@ -1,4 +1,3 @@
-// Package staticcheck contains a linter for Go source code.
 package staticcheck
 
 import (
