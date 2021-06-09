@@ -40,13 +40,13 @@ func ReplaceWithNode(fset *token.FileSet, old Ranger, new ast.Node) analysis.Tex
 	}
 }
 
-func ReplaceWithPattern(fset *token.FileSet, after pattern.Pattern, state pattern.State, node Ranger) analysis.TextEdit {
-	r := pattern.NodeToAST(after.Root, state)
+func ReplaceWithPattern(fset *token.FileSet, old Ranger, new pattern.Pattern, state pattern.State) analysis.TextEdit {
+	r := pattern.NodeToAST(new.Root, state)
 	buf := &bytes.Buffer{}
 	format.Node(buf, fset, r)
 	return analysis.TextEdit{
-		Pos:     node.Pos(),
-		End:     node.End(),
+		Pos:     old.Pos(),
+		End:     old.End(),
 		NewText: buf.Bytes(),
 	}
 }
