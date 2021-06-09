@@ -1,6 +1,6 @@
 package knowledge
 
-var args = map[string]int{
+var Args = map[string]int{
 	"(*encoding/json.Decoder).Decode.v":    0,
 	"(*encoding/json.Encoder).Encode.v":    0,
 	"(*encoding/xml.Decoder).Decode.v":     0,
@@ -56,7 +56,7 @@ var args = map[string]int{
 }
 
 func Arg(name string) int {
-	n, ok := args[name]
+	n, ok := Args[name]
 	if !ok {
 		panic("unknown argument " + name)
 	}
