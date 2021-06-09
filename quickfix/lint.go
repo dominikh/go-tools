@@ -191,14 +191,14 @@ func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
 		// simplifyParentheses might have rebalanced trees without
 		// affecting the rendered form.
 		var fixes []analysis.SuggestedFix
-		fixes = append(fixes, edit.Fix("Apply De Morgan's law", edit.ReplaceWithString(pass.Fset, node, bn)))
+		fixes = append(fixes, edit.Fix("Apply De Morgan's law", edit.ReplaceWithString(node, bn)))
 		if bn != bns {
-			fixes = append(fixes, edit.Fix("Apply De Morgan's law & simplify", edit.ReplaceWithString(pass.Fset, node, bns)))
+			fixes = append(fixes, edit.Fix("Apply De Morgan's law & simplify", edit.ReplaceWithString(node, bns)))
 		}
 		if bn != bnr {
-			fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively", edit.ReplaceWithString(pass.Fset, node, bnr)))
+			fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively", edit.ReplaceWithString(node, bnr)))
 			if bnr != bnrs {
-				fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively & simplify", edit.ReplaceWithString(pass.Fset, node, bnrs)))
+				fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively & simplify", edit.ReplaceWithString(node, bnrs)))
 			}
 		}
 
@@ -289,10 +289,10 @@ func CheckTaglessSwitch(pass *analysis.Pass) (interface{}, error) {
 				values = append(values, report.Render(pass, y))
 			}
 
-			edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{stmt.List[0].Pos(), stmt.Colon}, strings.Join(values, ", ")))
+			edits = append(edits, edit.ReplaceWithString(edit.Range{stmt.List[0].Pos(), stmt.Colon}, strings.Join(values, ", ")))
 		}
 		pos := swtch.Switch + token.Pos(len("switch"))
-		edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{pos, pos}, " "+report.Render(pass, x)))
+		edits = append(edits, edit.ReplaceWithString(edit.Range{pos, pos}, " "+report.Render(pass, x)))
 		report.Report(pass, swtch, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)))
 	}
@@ -389,14 +389,14 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 			}
 			sconds := strings.Join(conds, ", ")
 			edits = append(edits,
-				edit.ReplaceWithString(pass.Fset, edit.Range{item.If, item.Body.Lbrace + 1}, "case "+sconds+":"),
+				edit.ReplaceWithString(edit.Range{item.If, item.Body.Lbrace + 1}, "case "+sconds+":"),
 				edit.Delete(edit.Range{item.Body.Rbrace, end}))
 
 			switch els := item.Else.(type) {
 			case *ast.IfStmt:
 				item = els
 			case *ast.BlockStmt:
-				edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{els.Lbrace, els.Lbrace + 1}, "default:"))
+				edits = append(edits, edit.ReplaceWithString(edit.Range{els.Lbrace, els.Lbrace + 1}, "default:"))
 				item = nil
 			case nil:
 				item = nil
@@ -405,7 +405,7 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 		// FIXME this forces the first case to begin in column 0. try to fix the indentation
-		edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
+		edits = append(edits, edit.ReplaceWithString(edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
 		report.Report(pass, ifstmt, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)),
 			report.ShortRange())
@@ -454,7 +454,7 @@ func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
 		call := node.(*ast.CallExpr)
 		report.Report(pass, call.Fun, fmt.Sprintf("could use %s instead", replacement),
 			report.Fixes(edit.Fix(fmt.Sprintf("Use %s instead", replacement),
-				edit.ReplaceWithString(pass.Fset, call.Fun, replacement),
+				edit.ReplaceWithString(call.Fun, replacement),
 				edit.Delete(matcher.State["lit"].(ast.Node)))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
@@ -554,7 +554,7 @@ func CheckForLoopIfBreak(pass *analysis.Pass) (interface{}, error) {
 		// is followed by a comment, or Windows newlines.
 		report.Report(pass, m.State["if"].(ast.Node), "could lift into loop condition",
 			report.Fixes(edit.Fix("Lift into loop condition",
-				edit.ReplaceWithString(pass.Fset, edit.Range{pos, pos}, " "+report.Render(pass, r)),
+				edit.ReplaceWithString(edit.Range{pos, pos}, " "+report.Render(pass, r)),
 				edit.Delete(m.State["if"].(ast.Node)))))
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
@@ -734,7 +734,7 @@ func CheckExplicitEmbeddedSelector(pass *analysis.Pass) (interface{}, error) {
 		// Offer to simplify all selector expressions at once
 		if len(edits) > 1 {
 			// Hack to prevent gopls from applying the Unnecessary tag to the diagnostic. It applies the tag when all edits are deletions.
-			edits = append(edits, edit.ReplaceWithString(pass.Fset, edit.Range{node.Pos(), node.Pos()}, ""))
+			edits = append(edits, edit.ReplaceWithString(edit.Range{node.Pos(), node.Pos()}, ""))
 			report.Report(pass, node, "could simplify selectors", report.Fixes(edit.Fix("Remove all embedded fields from selector", edits...)))
 		}
 	}

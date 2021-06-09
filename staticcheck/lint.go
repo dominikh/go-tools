@@ -1496,7 +1496,7 @@ func CheckUnsafePrintf(pass *analysis.Pass) (interface{}, error) {
 		alt := name[:len(name)-1]
 		report.Report(pass, call,
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
-			report.Fixes(edit.Fix(fmt.Sprintf("use %s instead of %s", alt, name), edit.ReplaceWithString(pass.Fset, call.Fun, alt))))
+			report.Fixes(edit.Fix(fmt.Sprintf("use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
@@ -1705,7 +1705,7 @@ func CheckCanonicalHeaderKey(pass *analysis.Pass) (interface{}, error) {
 		var fix analysis.SuggestedFix
 		switch op.Index.(type) {
 		case *ast.BasicLit:
-			fix = edit.Fix("canonicalize header key", edit.ReplaceWithString(pass.Fset, op.Index, strconv.Quote(canonical)))
+			fix = edit.Fix("canonicalize header key", edit.ReplaceWithString(op.Index, strconv.Quote(canonical)))
 		case *ast.Ident:
 			call := &ast.CallExpr{
 				Fun:  edit.Selector("http", "CanonicalHeaderKey"),
@@ -3024,7 +3024,7 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				report.Report(pass, arg, fmt.Sprintf("file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value),
-					report.Fixes(edit.Fix("fix octal literal", edit.ReplaceWithString(pass.Fset, arg, "0"+lit.Value))))
+					report.Fixes(edit.Fix("fix octal literal", edit.ReplaceWithString(arg, "0"+lit.Value))))
 			}
 		}
 	}
@@ -4745,12 +4745,12 @@ func CheckNegativeZeroFloat(pass *analysis.Pass) (interface{}, error) {
 					report.Render(pass, node),
 					conv.Name(),
 					report.Render(pass, m.State["lit"])),
-				report.Fixes(edit.Fix("use math.Copysign to create negative zero", edit.ReplaceWithString(pass.Fset, node, replacement))))
+				report.Fixes(edit.Fix("use math.Copysign to create negative zero", edit.ReplaceWithString(node, replacement))))
 		} else {
 			const replacement = `math.Copysign(0, -1)`
 			report.Report(pass, node,
 				"in Go, the floating-point literal '-0.0' is the same as '0.0', it does not produce a negative zero",
-				report.Fixes(edit.Fix("use math.Copysign to create negative zero", edit.ReplaceWithString(pass.Fset, node, replacement))))
+				report.Fixes(edit.Fix("use math.Copysign to create negative zero", edit.ReplaceWithString(node, replacement))))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil), (*ast.CallExpr)(nil))

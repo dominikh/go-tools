@@ -20,7 +20,7 @@ type Range [2]token.Pos
 func (r Range) Pos() token.Pos { return r[0] }
 func (r Range) End() token.Pos { return r[1] }
 
-func ReplaceWithString(fset *token.FileSet, old Ranger, new string) analysis.TextEdit {
+func ReplaceWithString(old Ranger, new string) analysis.TextEdit {
 	return analysis.TextEdit{
 		Pos:     old.Pos(),
 		End:     old.End(),
