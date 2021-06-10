@@ -172,7 +172,7 @@ type TextEdit struct {
 // A Result describes the result of analyzing a single package.
 //
 // It holds references to cached diagnostics and directives. They can
-// be loaded on demand with Diagnostics and Directives respectively.
+// be loaded on demand with the Load method.
 type Result struct {
 	Package *loader.PackageSpec
 	Config  config.Config
