@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"honnef.co/go/tools/go/buildid"
-	"honnef.co/go/tools/internal/cache"
+	"honnef.co/go/tools/lintcmd/cache"
 )
 
 // computeHash computes a package's hash. The hash is based on all Go

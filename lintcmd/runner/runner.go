@@ -130,8 +130,8 @@ import (
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/go/loader"
-	"honnef.co/go/tools/internal/cache"
 	tsync "honnef.co/go/tools/internal/sync"
+	"honnef.co/go/tools/lintcmd/cache"
 	"honnef.co/go/tools/unused"
 
 	"golang.org/x/tools/go/analysis"

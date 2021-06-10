@@ -20,7 +20,7 @@ import (
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/go/buildid"
 	"honnef.co/go/tools/go/loader"
-	"honnef.co/go/tools/internal/cache"
+	"honnef.co/go/tools/lintcmd/cache"
 	"honnef.co/go/tools/lintcmd/runner"
 	"honnef.co/go/tools/unused"
 

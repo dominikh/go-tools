@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"honnef.co/go/tools/config"
-	"honnef.co/go/tools/internal/cache"
 	"honnef.co/go/tools/internal/go/gcimporter"
+	"honnef.co/go/tools/lintcmd/cache"
 
 	"golang.org/x/tools/go/packages"
 )
