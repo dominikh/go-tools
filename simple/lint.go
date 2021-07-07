@@ -1210,7 +1210,7 @@ var (
 					(AssignStmt [(Ident "_") ok@(Object _)] _ [(TypeAssertExpr lhs _)])
 					ok
 					_
-					_)
+					nil)
 			]
 			nil)`)
 )

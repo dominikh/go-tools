@@ -16,6 +16,19 @@ func fn(i interface{}, x interface{}) {
 		}
 	}
 	if i != nil {
+		// This gets flagged because of https://github.com/dominikh/go-tools/issues/1047
+		if _, ok := i.(string); ok { // want `when ok is true, i can't be nil`
+		} else {
+			//
+		}
+	}
+	if i != nil {
+		if _, ok := i.(string); ok {
+		} else {
+			println()
+		}
+	}
+	if i != nil {
 		if _, ok := i.(string); ok {
 		}
 		println(i)
