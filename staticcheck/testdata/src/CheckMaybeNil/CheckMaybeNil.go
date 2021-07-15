@@ -151,3 +151,36 @@ func fn15(x *int) {
 	assert(x != nil)
 	_ = *x
 }
+
+func fn16() {
+	var xs []int
+	if xs == nil {
+		println()
+	}
+
+	for _, x := range xs {
+		_ = x
+	}
+
+	var xs2 *[1]int
+	if xs2 == nil {
+		println()
+	}
+	for _, x := range xs2 { // want `possible nil pointer dereference`
+		_ = x
+	}
+
+	var xs3 *[]int
+	if xs3 == nil {
+		println()
+	}
+	for _, x := range *xs3 { // want `possible nil pointer dereference`
+		_ = x
+	}
+
+	var xs4 []int
+	if xs4 == nil {
+		println()
+	}
+	_ = xs4[0]
+}
