@@ -128,6 +128,9 @@ func (cfg Config) Merge(ocfg Config) Config {
 	if ocfg.HTTPStatusCodeWhitelist != nil {
 		cfg.HTTPStatusCodeWhitelist = mergeLists(cfg.HTTPStatusCodeWhitelist, ocfg.HTTPStatusCodeWhitelist)
 	}
+	if ocfg.ErrorFunctions != nil {
+		cfg.ErrorFunctions = mergeLists(cfg.ErrorFunctions, ocfg.ErrorFunctions)
+	}
 	return cfg
 }
 
@@ -143,6 +146,7 @@ type Config struct {
 	Initialisms             []string `toml:"initialisms"`
 	DotImportWhitelist      []string `toml:"dot_import_whitelist"`
 	HTTPStatusCodeWhitelist []string `toml:"http_status_code_whitelist"`
+	ErrorFunctions          []string `toml:"error_functions"`
 }
 
 func (c Config) String() string {
@@ -151,7 +155,8 @@ func (c Config) String() string {
 	fmt.Fprintf(buf, "Checks: %#v\n", c.Checks)
 	fmt.Fprintf(buf, "Initialisms: %#v\n", c.Initialisms)
 	fmt.Fprintf(buf, "DotImportWhitelist: %#v\n", c.DotImportWhitelist)
-	fmt.Fprintf(buf, "HTTPStatusCodeWhitelist: %#v", c.HTTPStatusCodeWhitelist)
+	fmt.Fprintf(buf, "HTTPStatusCodeWhitelist: %#v\n", c.HTTPStatusCodeWhitelist)
+	fmt.Fprintf(buf, "ErrorFunctions: %#v\n", c.ErrorFunctions)
 
 	return buf.String()
 }
@@ -169,6 +174,7 @@ var DefaultConfig = Config{
 	},
 	DotImportWhitelist:      []string{},
 	HTTPStatusCodeWhitelist: []string{"200", "400", "404", "500"},
+	ErrorFunctions:          []string{"errors.New", "fmt.Errorf"},
 }
 
 const ConfigName = "staticcheck.conf"
@@ -240,6 +246,7 @@ func Load(dir string) (Config, error) {
 	conf.Initialisms = normalizeList(conf.Initialisms)
 	conf.DotImportWhitelist = normalizeList(conf.DotImportWhitelist)
 	conf.HTTPStatusCodeWhitelist = normalizeList(conf.HTTPStatusCodeWhitelist)
+	conf.ErrorFunctions = normalizeList(conf.ErrorFunctions)
 
 	return conf, nil
 }

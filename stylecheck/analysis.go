@@ -25,7 +25,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"ST1005": {
 		Run:      CheckErrorStrings,
-		Requires: []*analysis.Analyzer{buildir.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, config.Analyzer},
 	},
 	"ST1006": {
 		Run:      CheckReceiverNames,
@@ -40,7 +40,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	"ST1012": {
-		Run: CheckErrorVarNames,
+		Run:      CheckErrorVarNames,
+		Requires: []*analysis.Analyzer{config.Analyzer},
 	},
 	"ST1013": {
 		Run: CheckHTTPStatusCodes,
