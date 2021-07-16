@@ -4788,5 +4788,29 @@ func CheckIneffectiveURLQueryModification(pass *analysis.Pass) (interface{}, err
 		report.Report(pass, node, "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL")
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+
+	return nil, nil
+}
+
+func CheckByteSliceInIOWriteString(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		call := node.(*ast.CallExpr)
+		if !code.IsCallTo(pass, call, "io.WriteString") {
+			return
+		}
+		arg := call.Args[1]
+		if conv, ok := arg.(*ast.CallExpr); ok && isName(pass, conv.Fun, "string") {
+			bt, ok := pass.TypesInfo.TypeOf(conv.Args[0]).Underlying().(*types.Slice)
+			if !ok {
+				return
+			}
+
+			if typeutil.IsType(bt.Elem().Underlying(), "byte") {
+				report.Report(pass, call, "Use writer Write function instead of WriteString")
+			}
+		}
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+
 	return nil, nil
 }
