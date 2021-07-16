@@ -166,6 +166,15 @@ making \'s[n:len(s)]\' and \'s[n:]\' equivalent.`,
         x = append(x, e)
     }
 
+    for i := range y {
+        x = append(x, y[i])
+    }
+
+    for i := range y {
+        v := y[i]
+        x = append(x, v)
+    }
+
 After:
 
     x = append(x, y...)`,
