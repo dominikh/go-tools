@@ -6,6 +6,7 @@
 
 // Incomplete source tree on Android.
 
+//go:build !android
 // +build !android
 
 package ir_test
