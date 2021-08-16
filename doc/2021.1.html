@@ -9,6 +9,7 @@
   <li><a href="#documentation">Restructured documentation</a></li>
   <li><a href="#gopls">Better integration with gopls</a></li>
   <li><a href="#rdeps">Deletion of rdeps</a></li>
+  <li><a href="#2021.1.1">Staticcheck 2021.1.1 release notes</a></li>
 </ul>
 
 <h2 id="ui-improvements">UI improvements</h2>
@@ -92,3 +93,29 @@
   This was a GOPATH-centric tool that allowed finding all reverse dependencies of a Go package.
   Both the move to Go modules as well as the emergence of much better tooling for inspecting dependencies (such as <a href="https://github.com/loov/goda">goda</a>) has made rdeps redundant.
 </p>
+
+<h2 id="2021.1.1">Staticcheck 2021.1.1 release notes</h2>
+
+<p>
+  This release adds support for new language features in Go 1.17,
+  namely conversions from slices to array pointers,
+  the unsafe.Add function,
+  and the unsafe.Slice function.
+</p>
+
+<p>
+  Additionally, it fixes the following false positives:
+</p>
+
+<ul>
+  <li>{{ check "ST1000" }} no longer flags package docs that start with whitespace if they're otherwise well-formed.</li>
+  <li>{{ check "SA5002" }} no longer prints one too many percent signs in its message.</li>
+  <li>{{ check "SA4000" }} no longer flags comparisons between floats.</li>
+  <li>{{ check "SA4010" }} no longer flags appends to slices that might share their backing array with other slices.</li>
+  <li>{{ check "SA5011" }} no longer infers possible nil pointer dereferences from comparisons done outside of control flow constructs.
+	This avoids false positives when using <code>assert</code>-style functions.
+	See <a href="https://staticcheck.io/issues/1022">issue 1022</a> for a concrete example.</li>
+  <li>{{ check "S1020" }} no longer flags nested if statements when the inner statement has an else branch.</li>
+  <li>{{ check "SA5011" }} no longer claims that indexing a nil slice will cause a nil pointer dereference.</li>
+</ul>
+
