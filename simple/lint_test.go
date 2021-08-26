@@ -3,7 +3,7 @@ package simple
 import (
 	"testing"
 
-	"honnef.co/go/tools/lint/testutil"
+	"honnef.co/go/tools/analysis/lint/testutil"
 )
 
 func TestAll(t *testing.T) {
