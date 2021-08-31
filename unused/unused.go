@@ -1206,6 +1206,17 @@ func (g *graph) entry(pkg *pkg) {
 
 					// use methods and fields of ignored types
 					if obj, ok := obj.(*types.TypeName); ok {
+						if obj.IsAlias() {
+							if typ, ok := obj.Type().(*types.Named); ok && typ.Obj().Pkg() != obj.Pkg() {
+								// This is an alias of a named type in another package.
+								// Don't walk its fields or methods; we don't have to,
+								// and it breaks an assertion in graph.use because we're using an object that we haven't seen before.
+								//
+								// For aliases to types in the same package, we do want to ignore the fields and methods,
+								// because ignoring the alias should ignore the aliased type.
+								continue
+							}
+						}
 						if typ, ok := obj.Type().(*types.Named); ok {
 							for i := 0; i < typ.NumMethods(); i++ {
 								g.use(typ.Method(i), nil, edgeIgnored)
