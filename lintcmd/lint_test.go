@@ -73,10 +73,10 @@ func TestErrors(t *testing.T) {
 				Position: token.Position{
 					Filename: "broken_typeerror/pkg.go",
 					Offset:   0,
-					Line:     5,
-					Column:   10,
+					Line:     6,
+					Column:   6,
 				},
-				Message:  "cannot convert \"\" (untyped string constant) to int",
+				Message:  "invalid operation: mismatched types int and string",
 				Category: "compile",
 			},
 			Severity: 0,
