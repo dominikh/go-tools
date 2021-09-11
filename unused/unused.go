@@ -1662,8 +1662,10 @@ func (g *graph) instructions(fn *ir.Function) {
 				// nothing to do
 			case *ir.ConstantSwitch:
 				// nothing to do
+			case *ir.SliceToArrayPointer:
+				// nothing to do
 			default:
-				panic(fmt.Sprintf("unreachable: %T", instr))
+				lint.ExhaustiveTypeSwitch(instr)
 			}
 		}
 	}
