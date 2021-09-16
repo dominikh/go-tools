@@ -149,7 +149,7 @@ return all results, specify a negative number.`,
 	},
 
 	"SA1012": {
-		Title:    "A nil `context.Context` is being passed to a function, consider using `context.TODO` instead",
+		Title:    "`nil` is being passed to a function expecting a `context.Context`, consider using `context.TODO` instead",
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
