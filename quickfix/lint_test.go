@@ -20,6 +20,7 @@ func TestAll(t *testing.T) {
 		"QF1009": {{Dir: "CheckTimeEquality"}},
 		"QF1010": {{Dir: "CheckByteSlicePrinting"}},
 		"QF1011": {{Dir: "CheckRedundantTypeInDeclaration"}},
+		"QF1012": {{Dir: "CheckWriteBytesSprintf"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)
