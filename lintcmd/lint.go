@@ -88,7 +88,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 		return nil, nil, err
 	}
 
-	if len(results) == 0 && err == nil {
+	if len(results) == 0 {
 		// TODO(dh): emulate Go's behavior more closely once we have
 		// access to go list's Match field.
 		for _, pattern := range patterns {
