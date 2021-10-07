@@ -4019,6 +4019,11 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 	// 	if x == nil { println(x) }
 	// 	_ = *x
 	//
+	// but we can flag this, because the if's body doesn't use x:
+	//
+	// 	if x == nil { println("this is bad") }
+	//  _ = *x
+	//
 	// nor many other variations of conditional uses of or assignments to x.
 	//
 	// However, even this trivial implementation finds plenty of
