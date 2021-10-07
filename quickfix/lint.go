@@ -838,3 +838,58 @@ func CheckByteSlicePrinting(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
+
+var (
+	checkWriteBytesSprintfQ = pattern.MustParse(`
+	(CallExpr
+		sel@(SelectorExpr _ (Ident "Write"))
+		(CallExpr (ArrayType _ (Ident "byte"))
+			(CallExpr
+				fn@(Or
+					(Function "fmt.Sprint")
+					(Function "fmt.Sprintf")
+					(Function "fmt.Sprintln"))
+				args)
+	))`)
+
+	writerInterface = types.NewInterfaceType([]*types.Func{
+		types.NewFunc(token.NoPos, nil, "Write", types.NewSignature(nil,
+			types.NewTuple(types.NewVar(token.NoPos, nil, "", types.NewSlice(types.Typ[types.Byte]))),
+			types.NewTuple(
+				types.NewVar(token.NoPos, nil, "", types.Typ[types.Int]),
+				types.NewVar(token.NoPos, nil, "", types.Universe.Lookup("error").Type()),
+			),
+			false,
+		)),
+	}, nil).Complete()
+)
+
+func CheckWriteBytesSprintf(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, checkWriteBytesSprintfQ, node)
+		if !ok {
+			return
+		}
+		writer := m.State["sel"].(*ast.SelectorExpr).X
+		writerType := pass.TypesInfo.TypeOf(writer)
+		if !types.Implements(writerType, writerInterface) {
+			return
+		}
+
+		name := m.State["fn"].(*types.Func).Name()
+		newName := "F" + strings.TrimPrefix(name, "S")
+		msg := fmt.Sprintf("should use fmt.%s(...) instead of []byte(fmt.%s(...))", newName, name)
+
+		args := m.State["args"].([]ast.Expr)
+		fix := edit.Fix(msg, edit.ReplaceWithNode(pass.Fset, node, &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   ast.NewIdent("fmt"),
+				Sel: ast.NewIdent(newName),
+			},
+			Args: append([]ast.Expr{writer}, args...),
+		}))
+		report.Report(pass, node, msg, report.Fixes(fix))
+	}
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}

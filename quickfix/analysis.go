@@ -51,4 +51,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	"QF1011": sharedcheck.RedundantTypeInDeclarationChecker("could", true),
+	"QF1012": {
+		Run:      CheckWriteBytesSprintf,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 })
