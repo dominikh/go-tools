@@ -896,7 +896,7 @@ func CheckWriteBytesSprintf(pass *analysis.Pass) (interface{}, error) {
 
 			name := m.State["fn"].(*types.Func).Name()
 			newName := "F" + strings.TrimPrefix(name, "S")
-			msg := fmt.Sprintf("should use fmt.%s(...) instead of []byte(fmt.%s(...))", newName, name)
+			msg := fmt.Sprintf("Use fmt.%s(...) instead of Write([]byte(fmt.%s(...)))", newName, name)
 
 			args := m.State["args"].([]ast.Expr)
 			fix := edit.Fix(msg, edit.ReplaceWithNode(pass.Fset, node, &ast.CallExpr{
@@ -921,7 +921,7 @@ func CheckWriteBytesSprintf(pass *analysis.Pass) (interface{}, error) {
 
 			name := m.State["fn"].(*types.Func).Name()
 			newName := "F" + strings.TrimPrefix(name, "S")
-			msg := fmt.Sprintf("should use fmt.%s(...) instead of foo.WriteString(fmt.%s(...))", newName, name)
+			msg := fmt.Sprintf("Use fmt.%s(...) instead of WriteString(fmt.%s(...))", newName, name)
 
 			args := m.State["args"].([]ast.Expr)
 			fix := edit.Fix(msg, edit.ReplaceWithNode(pass.Fset, node, &ast.CallExpr{
