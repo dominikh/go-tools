@@ -6,13 +6,22 @@ import (
 	"io"
 )
 
-func _(w io.Writer) {
+type NotAWriter struct{}
+
+func (NotAWriter) Write(b []byte) {}
+
+func fn1() {
+	var w io.Writer
+	var w2 NotAWriter
+
 	w.Write([]byte(fmt.Sprint("abc", "de")))   // want `should use fmt.Fprint`
 	w.Write([]byte(fmt.Sprintf("%T", w)))      // want `should use fmt.Fprintf`
 	w.Write([]byte(fmt.Sprintln("abc", "de"))) // want `should use fmt.Fprintln`
+
+	w2.Write([]byte(fmt.Sprint("abc", "de")))
 }
 
-func fn() {
+func fn2() {
 	buf := new(bytes.Buffer)
 	var sw io.StringWriter
 
