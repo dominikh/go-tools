@@ -20,7 +20,7 @@ func fn() {
 func fn2(t *T) {
 	addr := &t.C
 	if true {
-		atomic.LoadUint64(addr) // want `address of non 64-bit`
+		atomic.LoadInt64(addr) // want `address of non 64-bit`
 	} else {
 		_ = addr
 	}
