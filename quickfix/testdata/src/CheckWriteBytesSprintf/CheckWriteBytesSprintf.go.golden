@@ -14,9 +14,9 @@ func fn1() {
 	var w io.Writer
 	var w2 NotAWriter
 
-	fmt.Fprint(w, "abc", "de")   // want `should use fmt.Fprint`
-	fmt.Fprintf(w, "%T", w)      // want `should use fmt.Fprintf`
-	fmt.Fprintln(w, "abc", "de") // want `should use fmt.Fprintln`
+	fmt.Fprint(w, "abc", "de")   // want `Use fmt.Fprint`
+	fmt.Fprintf(w, "%T", w)      // want `Use fmt.Fprintf`
+	fmt.Fprintln(w, "abc", "de") // want `Use fmt.Fprintln`
 
 	w2.Write([]byte(fmt.Sprint("abc", "de")))
 }
@@ -25,9 +25,9 @@ func fn2() {
 	buf := new(bytes.Buffer)
 	var sw io.StringWriter
 
-	fmt.Fprint(buf, "abc", "de")   // want `should use fmt.Fprint`
-	fmt.Fprintf(buf, "%T", 0)      // want `should use fmt.Fprintf`
-	fmt.Fprintln(buf, "abc", "de") // want `should use fmt.Fprintln`
+	fmt.Fprint(buf, "abc", "de")   // want `Use fmt.Fprint`
+	fmt.Fprintf(buf, "%T", 0)      // want `Use fmt.Fprintf`
+	fmt.Fprintln(buf, "abc", "de") // want `Use fmt.Fprintln`
 
 	// We can't suggest fmt.Fprint here. We don't know if sw implements io.Writer.
 	sw.WriteString(fmt.Sprint("abc", "de"))
