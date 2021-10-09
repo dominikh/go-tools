@@ -842,8 +842,8 @@ func CheckByteSlicePrinting(pass *analysis.Pass) (interface{}, error) {
 var (
 	checkWriteBytesSprintfQ = pattern.MustParse(`
 	(CallExpr
-		sel@(SelectorExpr _ (Ident "Write"))
-		(CallExpr (ArrayType _ (Ident "byte"))
+		(SelectorExpr recv (Ident "Write"))
+		(CallExpr (ArrayType nil (Ident "byte"))
 			(CallExpr
 				fn@(Or
 					(Function "fmt.Sprint")
@@ -870,9 +870,9 @@ func CheckWriteBytesSprintf(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		writer := m.State["sel"].(*ast.SelectorExpr).X
-		writerType := pass.TypesInfo.TypeOf(writer)
-		if !types.Implements(writerType, writerInterface) {
+		recv := m.State["recv"].(ast.Expr)
+		recvT := pass.TypesInfo.TypeOf(recv)
+		if !types.Implements(recvT, writerInterface) {
 			return
 		}
 
@@ -886,7 +886,7 @@ func CheckWriteBytesSprintf(pass *analysis.Pass) (interface{}, error) {
 				X:   ast.NewIdent("fmt"),
 				Sel: ast.NewIdent(newName),
 			},
-			Args: append([]ast.Expr{writer}, args...),
+			Args: append([]ast.Expr{recv}, args...),
 		}))
 		report.Report(pass, node, msg, report.Fixes(fix))
 	}
