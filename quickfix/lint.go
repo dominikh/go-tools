@@ -852,9 +852,30 @@ var (
 				args)
 	))`)
 
+	checkWriteStringSprintfQ = pattern.MustParse(`
+	(CallExpr
+		(SelectorExpr recv (Ident "WriteString"))
+		(CallExpr
+			fn@(Or
+				(Function "fmt.Sprint")
+				(Function "fmt.Sprintf")
+				(Function "fmt.Sprintln"))
+			args))`)
+
 	writerInterface = types.NewInterfaceType([]*types.Func{
 		types.NewFunc(token.NoPos, nil, "Write", types.NewSignature(nil,
 			types.NewTuple(types.NewVar(token.NoPos, nil, "", types.NewSlice(types.Typ[types.Byte]))),
+			types.NewTuple(
+				types.NewVar(token.NoPos, nil, "", types.Typ[types.Int]),
+				types.NewVar(token.NoPos, nil, "", types.Universe.Lookup("error").Type()),
+			),
+			false,
+		)),
+	}, nil).Complete()
+
+	stringWriterInterface = types.NewInterfaceType([]*types.Func{
+		types.NewFunc(token.NoPos, nil, "WriteString", types.NewSignature(nil,
+			types.NewTuple(types.NewVar(token.NoPos, nil, "", types.Universe.Lookup("string").Type())),
 			types.NewTuple(
 				types.NewVar(token.NoPos, nil, "", types.Typ[types.Int]),
 				types.NewVar(token.NoPos, nil, "", types.Universe.Lookup("error").Type()),
@@ -866,29 +887,52 @@ var (
 
 func CheckWriteBytesSprintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkWriteBytesSprintfQ, node)
-		if !ok {
-			return
-		}
-		recv := m.State["recv"].(ast.Expr)
-		recvT := pass.TypesInfo.TypeOf(recv)
-		if !types.Implements(recvT, writerInterface) {
-			return
-		}
+		if m, ok := code.Match(pass, checkWriteBytesSprintfQ, node); ok {
+			recv := m.State["recv"].(ast.Expr)
+			recvT := pass.TypesInfo.TypeOf(recv)
+			if !types.Implements(recvT, writerInterface) {
+				return
+			}
 
-		name := m.State["fn"].(*types.Func).Name()
-		newName := "F" + strings.TrimPrefix(name, "S")
-		msg := fmt.Sprintf("should use fmt.%s(...) instead of []byte(fmt.%s(...))", newName, name)
+			name := m.State["fn"].(*types.Func).Name()
+			newName := "F" + strings.TrimPrefix(name, "S")
+			msg := fmt.Sprintf("should use fmt.%s(...) instead of []byte(fmt.%s(...))", newName, name)
 
-		args := m.State["args"].([]ast.Expr)
-		fix := edit.Fix(msg, edit.ReplaceWithNode(pass.Fset, node, &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent("fmt"),
-				Sel: ast.NewIdent(newName),
-			},
-			Args: append([]ast.Expr{recv}, args...),
-		}))
-		report.Report(pass, node, msg, report.Fixes(fix))
+			args := m.State["args"].([]ast.Expr)
+			fix := edit.Fix(msg, edit.ReplaceWithNode(pass.Fset, node, &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X:   ast.NewIdent("fmt"),
+					Sel: ast.NewIdent(newName),
+				},
+				Args: append([]ast.Expr{recv}, args...),
+			}))
+			report.Report(pass, node, msg, report.Fixes(fix))
+		} else if m, ok := code.Match(pass, checkWriteStringSprintfQ, node); ok {
+			recv := m.State["recv"].(ast.Expr)
+			recvT := pass.TypesInfo.TypeOf(recv)
+			if !types.Implements(recvT, stringWriterInterface) {
+				return
+			}
+			// The type needs to implement both StringWriter and Writer.
+			// If it doesn't implement Writer, then we cannot pass it to fmt.Fprint.
+			if !types.Implements(recvT, writerInterface) {
+				return
+			}
+
+			name := m.State["fn"].(*types.Func).Name()
+			newName := "F" + strings.TrimPrefix(name, "S")
+			msg := fmt.Sprintf("should use fmt.%s(...) instead of foo.WriteString(fmt.%s(...))", newName, name)
+
+			args := m.State["args"].([]ast.Expr)
+			fix := edit.Fix(msg, edit.ReplaceWithNode(pass.Fset, node, &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X:   ast.NewIdent("fmt"),
+					Sel: ast.NewIdent(newName),
+				},
+				Args: append([]ast.Expr{recv}, args...),
+			}))
+			report.Report(pass, node, msg, report.Fixes(fix))
+		}
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
