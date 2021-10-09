@@ -1360,6 +1360,9 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 	// happily flags fn() == fn() – so far, we've had nobody complain
 	// about a false positive, and it's caught several bugs in real
 	// code.
+	//
+	// We special case functions from the math/rand package. Someone ran
+	// into the following false positive: "rand.Intn(2) - rand.Intn(2), which I wrote to generate values {-1, 0, 1} with {0.25, 0.5, 0.25} probability."
 	fn := func(node ast.Node) {
 		op := node.(*ast.BinaryExpr)
 		switch op.Op {
@@ -1399,6 +1402,38 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 			// 0 == 0 are slim.
 			return
 		}
+
+		if expr, ok := op.X.(*ast.CallExpr); ok {
+			call := code.CallName(pass, expr)
+			switch call {
+			case "math/rand.Int",
+				"math/rand.Int31",
+				"math/rand.Int31n",
+				"math/rand.Int63",
+				"math/rand.Int63n",
+				"math/rand.Intn",
+				"math/rand.Uint32",
+				"math/rand.Uint64",
+				"math/rand.ExpFloat64",
+				"math/rand.Float32",
+				"math/rand.Float64",
+				"math/rand.NormFloat64",
+				"(*math/rand.Rand).Int",
+				"(*math/rand.Rand).Int31",
+				"(*math/rand.Rand).Int31n",
+				"(*math/rand.Rand).Int63",
+				"(*math/rand.Rand).Int63n",
+				"(*math/rand.Rand).Intn",
+				"(*math/rand.Rand).Uint32",
+				"(*math/rand.Rand).Uint64",
+				"(*math/rand.Rand).ExpFloat64",
+				"(*math/rand.Rand).Float32",
+				"(*math/rand.Rand).Float64",
+				"(*math/rand.Rand).NormFloat64":
+				return
+			}
+		}
+
 		report.Report(pass, op, fmt.Sprintf("identical expressions on the left and right side of the '%s' operator", op.Op))
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))

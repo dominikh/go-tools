@@ -1,5 +1,7 @@
 package pkg
 
+import "math/rand"
+
 type Float float64
 
 type Floats [5]float64
@@ -64,4 +66,35 @@ func fn(a int, s []int, f1 float64, f2 Float, fs Floats, is Ints, t1 T1, t2 T2) 
 	if t2 == t2 { // want `identical expressions`
 		println()
 	}
+}
+
+func fn2() {
+	_ = rand.Int() - rand.Int()
+	_ = rand.Int31() - rand.Int31()
+	_ = rand.Int31n(0) - rand.Int31n(0)
+	_ = rand.Int63() - rand.Int63()
+	_ = rand.Int63n(0) - rand.Int63n(0)
+	_ = rand.Intn(0) - rand.Intn(0)
+	_ = rand.Uint32() - rand.Uint32()
+	_ = rand.Uint64() - rand.Uint64()
+	_ = rand.ExpFloat64() - rand.ExpFloat64()
+	_ = rand.Float32() - rand.Float32()
+	_ = rand.Float64() - rand.Float64()
+	_ = rand.NormFloat64() - rand.NormFloat64()
+
+	var rng *rand.Rand
+	_ = rng.Int() - rng.Int()
+	_ = rng.Int31() - rng.Int31()
+	_ = rng.Int31n(0) - rng.Int31n(0)
+	_ = rng.Int63() - rng.Int63()
+	_ = rng.Int63n(0) - rng.Int63n(0)
+	_ = rng.Intn(0) - rng.Intn(0)
+	_ = rng.Uint32() - rng.Uint32()
+	_ = rng.Uint64() - rng.Uint64()
+	_ = rng.ExpFloat64() - rng.ExpFloat64()
+	_ = rng.Float32() - rng.Float32()
+	_ = rng.Float64() - rng.Float64()
+	_ = rng.NormFloat64() - rng.NormFloat64()
+
+	_ = rand.NewSource(0) == rand.NewSource(0) // want `identical expressions`
 }
