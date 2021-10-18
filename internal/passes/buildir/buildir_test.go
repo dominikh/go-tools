@@ -14,8 +14,7 @@ import (
 )
 
 func Test(t *testing.T) {
-	testdata := analysistest.TestData()
-	result := analysistest.Run(t, testdata, buildir.Analyzer, "a")[0].Result
+	result := analysistest.Run(t, analysistest.TestData(), buildir.Analyzer, "a")[0].Result
 
 	irinfo := result.(*buildir.IR)
 	got := fmt.Sprint(irinfo.SrcFuncs)
