@@ -2,26 +2,17 @@ package lintcmd
 
 import (
 	"go/token"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/lintcmd/runner"
 
+	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/packages"
 )
-
-func testdata() string {
-	testdata, err := filepath.Abs("testdata")
-	if err != nil {
-		log.Fatal(err)
-	}
-	return testdata
-}
 
 func lintPackage(t *testing.T, name string) []problem {
 	l, err := newLinter(config.Config{})
@@ -29,7 +20,7 @@ func lintPackage(t *testing.T, name string) []problem {
 		t.Fatal(err)
 	}
 	cfg := &packages.Config{
-		Env: append(os.Environ(), "GOPATH="+testdata(), "GO111MODULE=off"),
+		Env: append(os.Environ(), "GOPATH="+analysistest.TestData(), "GO111MODULE=off"),
 	}
 	ps, _, err := l.Lint(cfg, []string{name})
 	if err != nil {
@@ -38,11 +29,13 @@ func lintPackage(t *testing.T, name string) []problem {
 	return ps
 }
 
-func trimPosition(pos *token.Position) {
-	idx := strings.Index(pos.Filename, "/testdata/src/")
-	if idx >= 0 {
-		pos.Filename = pos.Filename[idx+len("/testdata/src/"):]
+func trimPosition(t *testing.T, pos *token.Position) {
+	t.Helper()
+	file, err := filepath.Rel(filepath.Join(analysistest.TestData(), "src"), pos.Filename)
+	if err != nil {
+		t.Fatal(err)
 	}
+	pos.Filename = file
 }
 
 func TestErrors(t *testing.T) {
@@ -67,7 +60,7 @@ func TestErrors(t *testing.T) {
 		if len(ps) != 1 {
 			t.Fatalf("got %d problems, want 1", len(ps))
 		}
-		trimPosition(&ps[0].Position)
+		trimPosition(t, &ps[0].Position)
 		want := problem{
 			Diagnostic: runner.Diagnostic{
 				Position: token.Position{
@@ -99,7 +92,7 @@ func TestErrors(t *testing.T) {
 			t.Fatalf("got %d problems, want 1", len(ps))
 		}
 
-		trimPosition(&ps[0].Position)
+		trimPosition(t, &ps[0].Position)
 		want := problem{
 			Diagnostic: runner.Diagnostic{
 				Position: token.Position{

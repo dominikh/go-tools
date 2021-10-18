@@ -17,6 +17,7 @@ import (
 	"go/types"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -25,6 +26,7 @@ import (
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
 
+	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/expect"
 	"golang.org/x/tools/go/loader"
 )
@@ -35,12 +37,12 @@ func TestObjValueLookup(t *testing.T) {
 	}
 
 	conf := loader.Config{ParserMode: parser.ParseComments}
-	src, err := ioutil.ReadFile("testdata/objlookup.go")
+	src, err := ioutil.ReadFile(filepath.Join(analysistest.TestData(), "objlookup.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	readFile := func(filename string) ([]byte, error) { return src, nil }
-	f, err := conf.ParseFile("testdata/objlookup.go", src)
+	f, err := conf.ParseFile(filepath.Join(analysistest.TestData(), "objlookup.go"), src)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +228,7 @@ func checkVarValue(t *testing.T, prog *ir.Program, pkg *ir.Package, ref []ast.No
 // Ensure that, in debug mode, we can determine the ir.Value
 // corresponding to every ast.Expr.
 func TestValueForExpr(t *testing.T) {
-	testValueForExpr(t, "testdata/valueforexpr.go")
+	testValueForExpr(t, filepath.Join(analysistest.TestData(), "valueforexpr.go"))
 }
 
 func testValueForExpr(t *testing.T, testfile string) {
