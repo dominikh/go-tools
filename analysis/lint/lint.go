@@ -58,6 +58,8 @@ const (
 type Documentation struct {
 	Title      string
 	Text       string
+	Before     string
+	After      string
 	Since      string
 	NonDefault bool
 	Options    []string
@@ -66,8 +68,10 @@ type Documentation struct {
 
 func Markdownify(m map[string]*Documentation) map[string]*Documentation {
 	for _, v := range m {
-		v.Title = toMarkdown(v.Title)
-		v.Text = toMarkdown(v.Text)
+		v.Title = strings.TrimSpace(toMarkdown(v.Title))
+		v.Text = strings.TrimSpace(toMarkdown(v.Text))
+		v.Before = strings.TrimSpace(v.Before)
+		v.After = strings.TrimSpace(v.After)
 	}
 	return m
 }
@@ -86,6 +90,22 @@ func (doc *Documentation) String() string {
 	if doc.Text != "" {
 		fmt.Fprintf(b, "%s\n\n", doc.Text)
 	}
+
+	if doc.Before != "" {
+		fmt.Fprintln(b, "Before:")
+		fmt.Fprintln(b, "")
+		for _, line := range strings.Split(doc.Before, "\n") {
+			fmt.Fprint(b, "    ", line, "\n")
+		}
+		fmt.Fprintln(b, "")
+		fmt.Fprintln(b, "After:")
+		fmt.Fprintln(b, "")
+		for _, line := range strings.Split(doc.After, "\n") {
+			fmt.Fprint(b, "    ", line, "\n")
+		}
+		fmt.Fprintln(b, "")
+	}
+
 	fmt.Fprint(b, "Available since\n    ")
 	if doc.Since == "" {
 		fmt.Fprint(b, "unreleased")

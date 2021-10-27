@@ -1,0 +1,3 @@
+# Fix a typo in Docsy (although we don't currently use the print support)
+[print_printable_section]
+other = "This is the multi-page printable view of this section."

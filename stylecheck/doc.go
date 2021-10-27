@@ -28,7 +28,7 @@ imports.
 
 Quoting Go Code Review Comments:
 
-> The import . form can be useful in tests that, due to circular
+> The \'import .\' form can be useful in tests that, due to circular
 > dependencies, cannot be made part of the package being tested:
 > 
 >     package foo_test
@@ -39,11 +39,11 @@ Quoting Go Code Review Comments:
 >     )
 > 
 > In this case, the test file cannot be in package foo because it
-> uses bar/testutil, which imports foo. So we use the 'import .'
+> uses \'bar/testutil\', which imports \'foo\'. So we use the \'import .\'
 > form to let the file pretend to be part of package foo even though
-> it is not. Except for this one case, do not use import . in your
+> it is not. Except for this one case, do not use \'import .\' in your
 > programs. It makes the programs much harder to read because it is
-> unclear whether a name like Quux is a top-level identifier in the
+> unclear whether a name like \'Quux\' is a top-level identifier in the
 > current package or in an imported package.`,
 		Since:   "2019.1",
 		Options: []string{"dot_import_whitelist"},
@@ -74,8 +74,8 @@ Quoting Go Code Review Comments:
 > Error strings should not be capitalized (unless beginning with
 > proper nouns or acronyms) or end with punctuation, since they are
 > usually printed following other context. That is, use
-> fmt.Errorf("something bad") not fmt.Errorf("Something bad"), so
-> that log.Printf("Reading %s: %v", filename, err) formats without a
+> \'fmt.Errorf("something bad")\' not \'fmt.Errorf("Something bad")\', so
+> that \'log.Printf("Reading %s: %v", filename, err)\' formats without a
 > spurious capital letter mid-message.`,
 		Since: "2019.1",
 	},
@@ -109,8 +109,8 @@ Quoting Go Code Review Comments:
 		Text: `\'time.Duration\' values represent an amount of time, which is represented
 as a count of nanoseconds. An expression like \'5 * time.Microsecond\'
 yields the value \'5000\'. It is therefore not appropriate to suffix a
-variable of type \'time.Duration\' with any time unit, such as \'Msec or
-Milli\'.`,
+variable of type \'time.Duration\' with any time unit, such as \'Msec\' or
+\'Milli\'.`,
 		Since: `2019.1`,
 	},
 
@@ -165,12 +165,12 @@ bug, we prefer the more idiomatic \'if x == 42\'.`,
 different import aliases are being used. That is, the following
 bit of code is valid:
 
-	import (
-	    "fmt"
-	    fumpt "fmt"
-	    format "fmt"
-	    _ "fmt"
-	)
+    import (
+        "fmt"
+        fumpt "fmt"
+        format "fmt"
+        _ "fmt"
+    )
 
 However, this is very rarely done on purpose. Usually, it is a
 sign of code that got refactored, accidentally adding duplicate
@@ -193,7 +193,7 @@ should be a one-sentence summary that starts with the name being
 declared.
 
 If every doc comment begins with the name of the item it describes,
-you can use the doc subcommand of the go tool and run the output
+you can use the \'doc\' subcommand of the \'go\' tool and run the output
 through grep.
 
 See https://golang.org/doc/effective_go.html#commentary for more
@@ -227,7 +227,7 @@ should be a one-sentence summary that starts with the name being
 declared.
 
 If every doc comment begins with the name of the item it describes,
-you can use the doc subcommand of the go tool and run the output
+you can use the \'doc\' subcommand of the \'go\' tool and run the output
 through grep.
 
 See https://golang.org/doc/effective_go.html#commentary for more

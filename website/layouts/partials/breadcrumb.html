@@ -1,0 +1,35 @@
+<!-- Copied from Docsy and modified to emit schema.org metadata -->
+
+{{ .Scratch.Set "breadcrumbMaxDepth" 0 }}
+{{ template "breadcrumbcount" (dict "p1" . "scratch" .Scratch) }}
+{{ define "breadcrumbcount" }}
+  {{ .scratch.Set "breadcrumbMaxDepth" (add 1 (.scratch.Get "breadcrumbMaxDepth")) }}
+  {{ if .p1.Parent }}
+    {{ if not .p1.Parent.IsHome }}
+      {{ template "breadcrumbcount" (dict "p1" .p1.Parent "scratch" .scratch) }}
+    {{ end }}
+  {{ else if not .IsHome }}
+      {{ template "breadcrumbcount" (dict "p1" .p1.Site.Home "scratch" .scratch) }}
+  {{ end }}
+{{ end }}
+
+<nav aria-label="breadcrumb" class="d-none d-md-block d-print-none">
+	<ol class="breadcrumb spb-1" itemscope itemtype="https://schema.org/BreadcrumbList">
+		{{ template "breadcrumbnav" (dict "p1" . "p2" . "depth" 0 "scratch" .Scratch) }}
+	</ol>
+</nav	>
+{{ define "breadcrumbnav" }}
+  {{ if .p1.Parent }}
+    {{ if not .p1.Parent.IsHome }}
+      {{ template "breadcrumbnav" (dict "p1" .p1.Parent "p2" .p2 "depth" (add .depth 1) "scratch" .scratch )  }}
+    {{ end }}
+  {{ else if not .p1.IsHome }}
+    {{ template "breadcrumbnav" (dict "p1" .p1.Site.Home "p2" .p2 "depth" (add .depth 1) "scratch" .scratch) }}
+  {{ end }}
+  {{ $isActive :=  eq .p1 .p2  }}
+<li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem" class="breadcrumb-item{{ if $isActive }} active{{ end }}" {{ if $isActive }}aria-current="page"{{ end }}>
+  <a itemprop="item" href="{{ .p1.Permalink }}"><span itemprop="name">{{ .p1.LinkTitle }}</span></a>
+  <meta itemprop="position" content="{{ sub (.scratch.Get "breadcrumbMaxDepth") .depth }} " />
+</li>
+{{ end }}
+

@@ -1,0 +1,192 @@
+---
+title: "Checks"
+description: "Explanations for all checks in Staticcheck"
+---
+{{< all-checks.inline >}}
+{{ define "category-list" }}
+{{ range $name := index $.p.Site.Data.checks.ByCategory $.cat }}
+{{ $check := index $.p.Site.Data.checks.Checks $name }}
+<tr>
+	<td><a href="#{{ $name }}">{{ $name }}</a></td>
+	<td>{{ $check.Title | markdownify }}</td>
+</tr>
+{{ end }}
+{{ end }}
+
+
+{{ define "category" }}
+{{ range $name := index $.p.Site.Data.checks.ByCategory .cat }}
+{{ $check := index $.p.Site.Data.checks.Checks $name }}
+<h4 id="{{ $name }}">{{ $name }} - {{ $check.Title | markdownify }}{{ if $check.NonDefault }} <span class="badge badge-primary">non-default</span>{{ end }}</h4>
+{{ $check.Text | $.p.Page.RenderString (dict "display" "block") }}
+
+{{ if $check.Before }}
+<p class="before-after"><strong>Before:</strong></p>
+{{ highlight $check.Before "go" "" }}
+{{ end }}
+
+{{ if $check.After }}
+<p class="before-after"><strong>After:</strong></p>
+{{ highlight $check.After "go" "" }}
+{{ end }}
+
+
+<dl>
+  <dt>Available since</dt>
+  <dd>{{ $check.Since }}</dd>
+
+  {{ if $check.Options }}
+  <dt>Options</dt>
+  <dd>
+	<ul>
+	  {{ range $opt := $check.Options -}}
+	  <li><a href="{{ relref $.p (printf "/docs/configuration/options#%s" $opt) }}">{{ $opt  }}</a></li>
+	  {{ end }}
+	</ul>
+  </dd>
+  {{ end }}
+</dl>
+{{ end }}
+{{ end }}
+
+{{ $categoryNames := slice "SA" "SA1" "SA2" "SA3" "SA4" "SA5" "SA6" "S" "S1" "ST" "ST1" "QF" "QF1" }}
+{{ $categories := dict
+  "SA"  (dict "name" "SA"  "title" "<code>staticcheck</code>")
+  "SA1" (dict "name" "SA1" "title" "Various misuses of the standard library")
+  "SA2" (dict "name" "SA2" "title" "Concurrency issues")
+  "SA3" (dict "name" "SA3" "title" "Testing issues")
+  "SA4" (dict "name" "SA4" "title" "Code that isn't really doing anything")
+  "SA5" (dict "name" "SA5" "title" "Correctness issues")
+  "SA6" (dict "name" "SA6" "title" "Performance issues")
+  "SA9" (dict "name" "SA9" "title" "Dubious code constructs that have a high probability of being wrong")
+
+  "S"   (dict "name" "S" "title" "<code>simple</code>")
+  "S1"  (dict "name" "S1" "title" "Code simplifications")
+
+  "ST"  (dict "name" "ST" "title" "<code>stylecheck</code>")
+  "ST1" (dict "name" "ST1" "title" "Stylistic issues")
+
+  "QF"  (dict "name" "QF" "title" "<code>quickfix</code>")
+  "QF1" (dict "name" "QF1" "title" "Quickfixes")
+}}
+
+<table>
+  <thead>
+	<tr>
+	  <th>Check</th>
+	  <th>Short description</th>
+	</tr>
+  </thead>
+
+  <tbody>
+  {{ range $name := $categoryNames }}
+  {{ $cat := index $categories $name }}
+	<tr><th><a href="#{{ $name }}">{{ $cat.name }}</a></th><th>{{ $cat.title }}</th></tr>
+	{{ template "category-list" (dict "p" $ "cat" $cat.name) }}
+  {{ end }}
+  </tbody>
+</tr>
+</table>
+
+{{ define "category-header" }}
+<h2 id="{{ .name }}">{{ .name }} – {{ .title }}</h2>
+{{ end }}
+
+{{ define "subcategory-header" }}
+<h3 id="{{ .name }}">{{ .name }} – {{ .title }}</h3>
+{{ end }}
+
+{{ template "category-header" (index $categories "SA") }}
+<p>
+  The SA category of checks, codenamed <code>staticcheck</code>, contains all checks that are concerned with the correctness of code.
+</p>
+{{ template "subcategory-header" (index $categories "SA1") }}
+<p>
+  Checks in this category deal with misuses of the standard library.
+  This tends to involve incorrect function arguments
+  or violating other invariants laid out by the standard library's documentation.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA1") }}
+
+
+{{ template "subcategory-header" (index $categories "SA2") }}
+<p>
+  Checks in this category find concurrency bugs.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA2") }}
+
+
+{{ template "subcategory-header" (index $categories "SA3") }}
+<p>
+  Checks in this category find issues in tests and benchmarks.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA3") }}
+
+
+{{ template "subcategory-header" (index $categories "SA4") }}
+<p>
+  Checks in this category point out code that doesn't have any meaningful effect on a program's execution.
+  Usually this means that the programmer thought the code would do one thing while in reality it does something else.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA4") }}
+
+
+{{ template "subcategory-header" (index $categories "SA5") }}
+<p>
+  Checks in this category find assorted bugs and crashes.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA5") }}
+
+
+{{ template "subcategory-header" (index $categories "SA6") }}
+<p>
+  Checks in this category find code that can be trivially made faster.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA6") }}
+
+
+{{ template "subcategory-header" (index $categories "SA9") }}
+<p>
+  Checks in this category find code that is probably wrong.
+  Unlike checks in the other <code>SA</code> categories,
+  checks in <code>SA9</code> have a slight chance of reporting false positives.
+  However, even false positives will point at code that is confusing and that should probably be refactored.
+</p>
+{{ template "category" (dict "p" $ "cat" "SA9") }}
+
+{{ template "category-header" (index $categories "S") }}
+<p>
+  The S category of checks, codenamed <code>simple</code>, contains all checks that are concerned with simplifying code.
+</p>
+
+{{ template "subcategory-header" (index $categories "S1") }}
+<p>
+  Checks in this category find code that is unnecessarily complex and that can be trivially simplified.
+</p>
+{{ template "category" (dict "p" $ "cat" "S1") }}
+
+{{ template "category-header" (index $categories "ST") }}
+<p>
+  The ST category of checks, codenamed <code>stylecheck</code>, contains all checks that are concerned with stylistic issues.
+</p>
+
+{{ template "subcategory-header" (index $categories "ST1") }}
+<p>
+  The rules contained in this category are primarily derived from the <a href="https://github.com/golang/go/wiki/CodeReviewComments">Go wiki</a> and represent community consensus.
+</p>
+
+<p>
+  Some checks are very pedantic and disabled by default.
+  You may want to <a href="{{ relref . "/docs/configuration/options#checks" }}">tweak which checks from this category run</a>, based on your project's needs.
+</p>
+{{ template "category" (dict "p" $ "cat" "ST1") }}
+
+{{ template "category-header" (index $categories "QF") }}
+<p>
+  The QF category of checks, codenamed <code>quickfix</code>, contains checks that are used as part of _gopls_ for automatic refactorings.
+  In the context of gopls, diagnostics of these checks will usually show up as hints, sometimes as information-level diagnostics.
+</p>
+{{ template "subcategory-header" (index $categories "QF1") }}
+{{ template "category" (dict "p" $ "cat" "QF1") }}
+
+{{< /all-checks.inline >}}

@@ -17,58 +17,51 @@ var Docs = lint.Markdownify(map[string]*lint.Documentation{
 
 	"QF1002": {
 		Title: "Convert untagged switch to tagged switch",
-		Text: `An untagged switch that compares a single variable against a series of values can be replaced with a tagged switch.
+		Text:  `An untagged switch that compares a single variable against a series of values can be replaced with a tagged switch.`,
+		Before: `
+switch {
+case x == 1 || x == 2, x == 3:
+    ...
+case x == 4:
+    ...
+default:
+    ...
+}`,
 
-Before:
-
-    switch {
-    case x == 1 || x == 2, x == 3:
-        ...
-    case x == 4:
-        ...
-    default:
-        ...
-    }
-
-After:
-
-    switch x {
-    case 1, 2, 3:
-        ...
-    case 4:
-        ...
-    default:
-        ...
-    }
-`,
+		After: `
+switch x {
+case 1, 2, 3:
+    ...
+case 4:
+    ...
+default:
+    ...
+}`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1003": {
 		Title: "Convert if/else-if chain to tagged switch",
-		Text: `A series of if/else-if checks comparing the same variable against values can be replaced with a tagged switch.
+		Text:  `A series of if/else-if checks comparing the same variable against values can be replaced with a tagged switch.`,
+		Before: `
+if x == 1 || x == 2 {
+    ...
+} else if x == 3 {
+    ...
+} else {
+    ...
+}`,
 
-Before:
-
-    if x == 1 || x == 2 {
-        ...
-    } else if x == 3 {
-        ...
-    } else {
-        ...
-    }
-
-After:
-
-    switch x {
-    case 1, 2:
-        ...
-    case 3:
-        ...
-    default:
-        ...
-    }`,
+		After: `
+switch x {
+case 1, 2:
+    ...
+case 3:
+    ...
+default:
+    ...
+}`,
 		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},
@@ -80,53 +73,40 @@ After:
 	},
 
 	"QF1005": {
-		Title: "Expand call to `math.Pow`",
-		Text: `Some uses of \'math.Pow\' can be simplified to basic multiplication.
-
-Before:
-
-    math.Pow(x, 2)
-
-After:
-
-    x * x`,
+		Title:    "Expand call to `math.Pow`",
+		Text:     `Some uses of \'math.Pow\' can be simplified to basic multiplication.`,
+		Before:   `math.Pow(x, 2)`,
+		After:    `x * x`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1006": {
 		Title: "Lift if+break into loop condition",
-		Text: `Before:
-
-    for {
-        if done {
-            break
-        }
-        ...
+		Before: `
+for {
+    if done {
+        break
     }
+    ...
+}`,
 
-After:
-
-    for !done {
-        ...
-    }`,
+		After: `
+for !done {
+    ...
+}`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1007": {
 		Title: "Merge conditional assignment into variable declaration",
-		Text: `Before:
-
-    x := false
-    if someCondition {
-        x = true
-    }
-
-After:
-
-    x := someCondition
-`,
+		Before: `
+x := false
+if someCondition {
+    x = true
+}`,
+		After:    `x := someCondition`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},

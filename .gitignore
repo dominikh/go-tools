@@ -1,0 +1,12 @@
+/cmd/keyify/keyify
+/cmd/staticcheck/staticcheck
+/cmd/structlayout-optimize/structlayout-optimize
+/cmd/structlayout-pretty/structlayout-pretty
+/cmd/structlayout/structlayout
+/dist/20??.?.?/
+/dist/20??.?/
+/internal/cmd/irdump/irdump
+/website/public
+/website/resources
+/website/assets/img/sponsors
+/website/data/sponsors.toml

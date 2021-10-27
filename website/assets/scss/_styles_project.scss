@@ -1,0 +1,119 @@
+// prevent footer from being drawn off-screen on short pages, and prevent the "menu sliding out of view" effect on long pages
+.td-sidebar__inner {
+	height: auto;
+}
+aside.td-sidebar-toc {
+	height: unset;
+	position: unset;
+	overflow: unset;
+}
+aside.td-sidebar-toc > .td-toc {
+	height: auto;
+	top: 6rem;
+	position: sticky;
+}
+body > div.td-outer > div.td-main > div.row.flex-xl-nowrap {
+	height: 100%;
+}
+
+.before-after {
+	margin-bottom: 0;
+}
+
+.before-after + .highlight {
+	margin-top: 0;
+}
+
+:target {
+	background-color: #ffa;
+}
+
+@include media-breakpoint-up(md) {
+	html {
+		scroll-padding-top: 5rem;
+	}
+
+	.td-offset-anchor {
+		scroll-margin-top: -1rem
+	}
+}
+
+
+// Undo Docsy's "Adjust anchors vs the fixed menu."
+@include media-breakpoint-up(md) {
+	.td-offset-anchor:target {
+		display: unset;
+		position: unset;
+		top: unset;
+		visibility: unset;
+	}
+
+	h2[id]:before,
+	h3[id]:before,
+	h4[id]:before,
+	h5[id]:before {
+		display: unset;
+		content: unset;
+		margin-top: unset;
+		height: unset;
+		visibility: unset;
+	}
+}
+
+// Undo Docsy limiting the width of headers
+.td-content {
+	> h1, >h2 {
+		@include media-breakpoint-up(lg) {
+			max-width: unset;
+		}
+	}
+}
+
+// Always show the navbar, no matter the screen size
+.td-sidebar-nav {
+	display: block !important;
+}
+button[data-toggle="collapse"][data-target="#td-section-nav"] {
+	display: none;
+}
+
+// Properly indent nested lists even on mobile layouts. Why is Docsy limiting this to the desktop version?
+.td-sidebar-nav__section .ul-1 ul {
+	padding-left: 1.5em;
+}
+
+#sponsors-bar {
+	color: #fff;
+	background-color: #F9F9F9;
+
+	div.sponsor {
+		margin: 12px;
+
+		img {
+			width: 160px;
+		}
+	}
+}
+
+.td-sidebar-nav .td-sidebar-link__page {
+	// use the same weight and color for sections and pages. this is
+	// fine because we never collapse sections.
+	color: unset;
+	font-weight: $font-weight-medium;
+}
+
+.td-toc #TableOfContents a {
+	// The ToC is already feint enough with it's font-weight, let's
+	// not make it even harder to read
+	color: unset;
+}
+
+@include media-breakpoint-up(md) {
+	dl {
+		columns: 3;
+	}
+
+	dd {
+		break-before: avoid;
+	}
+}

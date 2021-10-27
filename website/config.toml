@@ -1,0 +1,47 @@
+baseURL = "https://staticcheck.io"
+languageCode = 'en-us'
+title = 'Staticcheck'
+theme = 'docsy'
+navbar_logo = false
+disableKinds = ['taxonomy', 'term']
+disableAliases = true
+enableInlineShortcodes = true
+
+[outputs]
+home = ["HTML", "REDIR"]
+section = ["HTML"]
+
+[mediaTypes]
+[mediaTypes."text/netlify"]
+delimiter = ""
+
+[outputFormats]
+[outputFormats.REDIR]
+mediaType = "text/netlify"
+baseName = "_redirects"
+isPlainText = true
+notAlternative = true
+
+[markup.goldmark.renderer]
+unsafe = true
+
+[menu]
+[[menu.main]]
+  name = 'GitHub'
+  pre = "<i class='fab fa-github'></i>"
+  url = 'https://github.com/dominikh/go-tools'
+  weight = 999
+
+[markup]
+  [markup.highlight]
+      style = "tango"
+
+[params]
+copyrights = [
+  "© 2019 Dominik Honnef All Rights Reserved.",
+  "© 2018 Google LLC All rights reserved. Google and the Google logo are registered trademarks of Google LLC.",
+  "The Staticcheck logo was designed by <a href='https://egonelbre.com/'>Egon Elbre</a> and is based on the Go gopher, which was designed by <a href='http://reneefrench.blogspot.com/'>Renee French</a> and is licensed under the Creative Commons 3.0 Attributions license.",
+]
+description = 'Staticcheck is a state of the art linter for the Go programming language'
+images = ['/img/logo.webp']
+title = 'Staticcheck'
