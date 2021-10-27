@@ -283,12 +283,12 @@ in a struct.`,
 	"SA1029": {
 		Title: "Inappropriate key in call to `context.WithValue`",
 		Text: `The provided key must be comparable and should not be
-of type string or any other built-in type to avoid collisions between
+of type \'string\' or any other built-in type to avoid collisions between
 packages using context. Users of \'WithValue\' should define their own
 types for keys.
 
 To avoid allocating when assigning to an \'interface{}\',
-context keys often have concrete type struct{}. Alternatively,
+context keys often have concrete type \'struct{}\'. Alternatively,
 exported context key variables' static type should be a pointer or
 interface.`,
 		Since:    "2020.1",
@@ -677,7 +677,7 @@ To explicitly and reliably create a negative zero, you can use the
 		Severity: lint.SeverityWarning,
 	},
 	"SA4027": {
-		Title: "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL",
+		Title: "`(*net/url.URL).Query` returns a copy, modifying it doesn't change the URL",
 		Text: `\'(*net/url.URL).Query\' parses the current value of \'net/url.URL.RawQuery\'
 and returns it as a map of type \'net/url.Values\'. Subsequent changes to
 this map will not affect the URL unless the map gets encoded and

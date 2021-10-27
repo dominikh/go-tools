@@ -1,0 +1,84 @@
+<!-- This is a copy of Docsy's footer, with the following changes: -->
+<!-- - added a sponsor bar on top of the footer -->
+<!-- - removed target=_blank from external links -->
+<!-- - add support for multiple copyright notices -->
+<!-- - align footer text on the left -->
+<!-- - remove icons/links from footer -->
+
+
+{{ define "partials/sponsor-logo-resize" }}
+{{- if gt .img.Width .width -}}
+{{- $rimg := .img.Resize (printf "%dx" .width) -}}
+{{- $rimg.RelPermalink }} {{ $rimg.Width -}}w,
+{{- end -}}
+{{ end }}
+
+{{ define "partials/sponsor-logo" }}
+{{ $img := resources.Get .logo }}
+
+<div class="sponsor">
+  <a href="{{ .url }}" >
+	<!-- We'd prefer using $img.ResourceType, but that seems to be "image" even when it's a "genericResource" -->
+	<img
+	  alt="Logo of {{ .name }}"
+	  title="{{ .name }}"
+	  importance="low"
+	  src="{{ $img.RelPermalink }}"
+	  {{ if eq $img.MediaType.String "image/webp" }}
+	  srcset="{{ $img.RelPermalink }} {{ $img.Width }}w,
+{{ partial "partials/sponsor-logo-resize" (dict "img" $img "width" 1200) }}
+{{ partial "partials/sponsor-logo-resize" (dict "img" $img "width" 800)  }}
+{{ partial "partials/sponsor-logo-resize" (dict "img" $img "width" 400)  }}
+{{ partial "partials/sponsor-logo-resize" (dict "img" $img "width" 200)  }}
+{{ partial "partials/sponsor-logo-resize" (dict "img" $img "width" 100)  }}
+{{ partial "partials/sponsor-logo-resize" (dict "img" $img "width" 50)   }}"
+	  sizes="160px"
+	  {{ else }}
+	  data-foo="{{$img.MediaType}}"
+	  {{ end }}
+	  >
+  </a>
+</div>
+{{ end }}
+
+
+{{ with $sponsors := $.Site.Data.sponsors.sponsors }}
+<section id="sponsors-bar"  class="row td-box td-box--gradient td-box--height-auto d-print-none">
+  <h1 class="text-center col-12"><a href="/sponsors">Sponsors</a></h1>
+  <div class="row section" style="margin-left: auto; margin-right: auto;">
+	<div class="row align-items-center justify-content-center h-100">
+	  {{ range $sponsor := sort $sponsors "name" "asc" }}
+	  {{ partial "sponsor-logo" (dict "name" $sponsor.name "url" $sponsor.url "logo" $sponsor.logo) }}
+	  {{ end }}
+	</div>
+  </div>
+</section>
+{{ end }}
+
+{{ $links := .Site.Params.links }}
+<footer class="bg-dark py-5 row d-print-none">
+  <div class="container-fluid mx-sm-5">
+	<div class="row">
+	  <div class="col-12">
+		{{ range $cp := .Site.Params.copyrights }}
+		<small class="text-white">{{ $cp | safeHTML }}</small><br>
+		{{ end }}
+		{{ with .Site.Params.privacy_policy }}<small class="ml-1"><a href="{{ . }}">{{ T "footer_privacy_policy" }}</a></small>{{ end }}
+		{{ if not .Site.Params.ui.footer_about_disable }}
+		{{ with .Site.GetPage "about" }}<p class="mt-2"><a href="{{ .RelPermalink }}">{{ .Title }}</a></p>{{ end }}
+		{{ end }}
+	  </div>
+	</div>
+  </div>
+</footer>
+{{ define "footer-links-block" }}
+<ul class="list-inline mb-0">
+  {{ range . }}
+  <li class="list-inline-item mx-2 h3" data-toggle="tooltip" data-placement="top" title="{{ .name }}" aria-label="{{ .name }}">
+	<a class="text-white" href="{{ .url }}" aria-label="{{ .name }}">
+	  <i class="{{ .icon }}"></i>
+	</a>
+  </li>
+  {{ end }}
+</ul>
+{{ end }}

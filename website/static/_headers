@@ -1,0 +1,19 @@
+/img/*
+  cache-control: public
+  cache-control: max-age=604800
+  cache-control: immutable
+
+/webfonts/*
+  cache-control: public
+  cache-control: max-age=604800
+  cache-control: immutable
+
+/scss/*.css
+  cache-control: public
+  cache-control: max-age=604800
+  cache-control: immutable
+
+/js/*.js
+  cache-control: public
+  cache-control: max-age=604800
+  cache-control: immutable
