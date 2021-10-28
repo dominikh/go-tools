@@ -71,6 +71,19 @@ func (b *builder) buildExits(fn *Function) {
 				// all of these call os.Exit after logging
 				fn.NoReturn = AlwaysExits
 			}
+		case "k8s.io/klog":
+			switch obj.(*types.Func).FullName() {
+			case "k8s.io/klog.Exit",
+				"k8s.io/klog.ExitDepth",
+				"k8s.io/klog.Exitf",
+				"k8s.io/klog.Exitln",
+				"k8s.io/klog.Fatal",
+				"k8s.io/klog.FatalDepth",
+				"k8s.io/klog.Fatalf",
+				"k8s.io/klog.Fatalln":
+				// all of these call os.Exit after logging
+				fn.NoReturn = AlwaysExits
+			}
 		}
 	}
 
