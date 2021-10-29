@@ -4,7 +4,7 @@ title: Staticcheck
 
 
 {{< blocks/lead type="section" color="primary" >}}
-<img style="height: 300px" src="/img/logo.svg" alt="Our mascot, the engineer" />
+<img style="height: auto; width: auto; max-height: 300px; max-width: 100%" src="/img/logo.svg" alt="Our mascot, the engineer" />
 
 Staticcheck is a state of the art linter for the Go programming language.
 Using static analysis, it finds bugs and performance issues, offers simplifications, and enforces style rules.
