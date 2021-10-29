@@ -3,7 +3,7 @@ title: "Supporting Staticcheck's open source development"
 linkTitle: "Sponsors"
 menu:
   main:
-    weight: 2
+    weight: 4
     pre: <i class='fas fa-heart'></i>
 ---
 

@@ -2,7 +2,7 @@
 title: "Contact"
 menu:
   main:
-    weight: 2
+    weight: 3
     pre: <i class='fas fa-envelope'></i>
 ---
 
