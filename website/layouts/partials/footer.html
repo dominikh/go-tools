@@ -58,26 +58,26 @@
 {{ $links := .Site.Params.links }}
 <footer class="bg-dark py-5 row d-print-none">
   <div class="container-fluid mx-sm-5">
-    <div class="row">
-      <div class="col-12">
+	<div class="row">
+	  <div class="col-12">
 		{{ range $cp := .Site.Params.copyrights }}
-		  <small class="text-white">{{ $cp | safeHTML }}</small><br>
+		<small class="text-white">{{ $cp | safeHTML }}</small><br>
 		{{ end }}
-        {{ with .Site.Params.privacy_policy }}<small class="ml-1"><a href="{{ . }}">{{ T "footer_privacy_policy" }}</a></small>{{ end }}
-	{{ if not .Site.Params.ui.footer_about_disable }}
+		{{ with .Site.Params.privacy_policy }}<small class="ml-1"><a href="{{ . }}">{{ T "footer_privacy_policy" }}</a></small>{{ end }}
+		{{ if not .Site.Params.ui.footer_about_disable }}
 		{{ with .Site.GetPage "about" }}<p class="mt-2"><a href="{{ .RelPermalink }}">{{ .Title }}</a></p>{{ end }}
-	{{ end }}
-      </div>
-    </div>
+		{{ end }}
+	  </div>
+	</div>
   </div>
 </footer>
 {{ define "footer-links-block" }}
 <ul class="list-inline mb-0">
   {{ range . }}
   <li class="list-inline-item mx-2 h3" data-toggle="tooltip" data-placement="top" title="{{ .name }}" aria-label="{{ .name }}">
-    <a class="text-white" href="{{ .url }}" aria-label="{{ .name }}">
-      <i class="{{ .icon }}"></i>
-    </a>
+	<a class="text-white" href="{{ .url }}" aria-label="{{ .name }}">
+	  <i class="{{ .icon }}"></i>
+	</a>
   </li>
   {{ end }}
 </ul>
