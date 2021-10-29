@@ -1,1 +1,2 @@
 *.golden -text
+*.svg binary
