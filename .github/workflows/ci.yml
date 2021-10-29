@@ -7,7 +7,7 @@ jobs:
     strategy:
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-        go: ["1.15.x", "1.16.x"]
+        go: ["1.16.x", "1.17.x"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v1
@@ -24,7 +24,7 @@ jobs:
     steps:
     - uses: WillAbides/setup-go-faster@v1.5.0
       with:
-        go-version: "1.15.x"
+        go-version: "1.16.x"
     - run: "GO111MODULE=on go get honnef.co/go/tools/cmd/staticcheck"
     - uses: actions/checkout@v1
       with:
@@ -36,4 +36,4 @@ jobs:
         restore-keys: |
           staticcheck-
     - run: "go vet ./..."
-    - run: "$(go env GOPATH)/bin/staticcheck -go 1.15 ./..."
+    - run: "$(go env GOPATH)/bin/staticcheck -go 1.16 ./..."
