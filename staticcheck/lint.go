@@ -8,6 +8,7 @@ import (
 	"go/types"
 	htmltemplate "html/template"
 	"net/http"
+	"os"
 	"reflect"
 	"regexp"
 	"regexp/syntax"
@@ -4828,5 +4829,68 @@ func CheckIneffectiveURLQueryModification(pass *analysis.Pass) (interface{}, err
 		report.Report(pass, node, "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL")
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}
+
+func CheckBadRemoveAll(pass *analysis.Pass) (interface{}, error) {
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				call, ok := instr.(ir.CallInstruction)
+				if !ok {
+					continue
+				}
+				if !irutil.IsCallTo(call.Common(), "os.RemoveAll") {
+					continue
+				}
+
+				kind := ""
+				ex := ""
+				callName := ""
+				arg := irutil.Flatten(call.Common().Args[0])
+				switch arg := arg.(type) {
+				case *ir.Call:
+					callName = irutil.CallName(&arg.Call)
+					if callName != "os.TempDir" {
+						continue
+					}
+					kind = "temporary"
+					ex = os.TempDir()
+				case *ir.Extract:
+					if arg.Index != 0 {
+						continue
+					}
+					first, ok := arg.Tuple.(*ir.Call)
+					if !ok {
+						continue
+					}
+					callName = irutil.CallName(&first.Call)
+					switch callName {
+					case "os.UserCacheDir":
+						kind = "cache"
+						ex, _ = os.UserCacheDir()
+					case "os.UserConfigDir":
+						kind = "config"
+						ex, _ = os.UserConfigDir()
+					case "os.UserHomeDir":
+						kind = "home"
+						ex, _ = os.UserHomeDir()
+					default:
+						continue
+					}
+				default:
+					continue
+				}
+
+				if ex == "" {
+					report.Report(pass, call, fmt.Sprintf("this call to os.RemoveAll deletes the user's entire %s directory, not a subdirectory therein", kind),
+						report.Related(arg, fmt.Sprintf("this call to %s returns the user's %s directory", callName, kind)))
+				} else {
+					report.Report(pass, call, fmt.Sprintf("this call to os.RemoveAll deletes the user's entire %s directory, not a subdirectory therein", kind),
+						report.Related(arg, fmt.Sprintf("this call to %s returns the user's %s directory, for example %s", callName, kind, ex)))
+				}
+			}
+		}
+	}
 	return nil, nil
 }

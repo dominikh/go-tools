@@ -1320,6 +1320,16 @@
 			"Options": null,
 			"Severity": 3
 		},
+		"SA9007": {
+			"Title": "Deleting a directory that shouldn't be deleted",
+			"Text": "It is virtually never correct to delete system directories such as /tmp or the user's home directory.\nHowever, it can be fairly easy to do by mistake, for example by mistakingly using `os.TempDir` instead of `ioutil.TempDir`,\nor by forgetting to add a suffix to the result of `os.UserHomeDir`.\n\nWriting\n\n```go\nd := os.TempDir()\ndefer os.RemoveAll(d)\n```\n\nin your unit tests will have a devastating effect on the stability of your system.\n\nThis check flags attempts at deleting the following directories:\n\n- os.TempDir\n- os.UserCacheDir\n- os.UserConfigDir\n- os.UserHomeDir\n",
+			"Before": "",
+			"After": "",
+			"Since": "Unreleased",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 3
+		},
 		"ST1000": {
 			"Title": "Incorrect or missing package comment",
 			"Text": "Packages must have a package comment that is formatted according to\nthe guidelines laid out in\nhttps://github.com/golang/go/wiki/CodeReviewComments#package-comments.\n",
@@ -1656,7 +1666,8 @@
 			"SA9003",
 			"SA9004",
 			"SA9005",
-			"SA9006"
+			"SA9006",
+			"SA9007"
 		],
 		"ST1": [
 			"ST1000",

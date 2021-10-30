@@ -299,4 +299,8 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckStaticBitShift,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"SA9007": {
+		Run:      CheckBadRemoveAll,
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
+	},
 })

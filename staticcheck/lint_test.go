@@ -116,6 +116,7 @@ func TestAll(t *testing.T) {
 		"SA9004": {{Dir: "CheckMissingEnumTypesInDeclaration"}},
 		"SA9005": {{Dir: "CheckNoopMarshal"}},
 		"SA9006": {{Dir: "CheckStaticBitShift"}},
+		"SA9007": {{Dir: "CheckBadRemoveAll"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)

@@ -1125,4 +1125,29 @@ positives in somewhat exotic but valid bit twiddling tricks:
 		Since:    "2020.2",
 		Severity: lint.SeverityWarning,
 	},
+
+	"SA9007": {
+		Title: "Deleting a directory that shouldn't be deleted",
+		Text: `
+It is virtually never correct to delete system directories such as /tmp or the user's home directory.
+However, it can be fairly easy to do by mistake, for example by mistakingly using \'os.TempDir\' instead of \'ioutil.TempDir\',
+or by forgetting to add a suffix to the result of \'os.UserHomeDir\'.
+
+Writing
+
+    d := os.TempDir()
+    defer os.RemoveAll(d)
+
+in your unit tests will have a devastating effect on the stability of your system.
+
+This check flags attempts at deleting the following directories:
+
+- os.TempDir
+- os.UserCacheDir
+- os.UserConfigDir
+- os.UserHomeDir
+`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+	},
 })
