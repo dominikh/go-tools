@@ -26,6 +26,8 @@ Note, however, that you might not always get new releases in a timely manner.
 
 What follows is a non-exhaustive list of the package names in various package repositories.
 
+<div id="getting-started-distribution-packages">
+
 Arch Linux
 : [staticcheck](https://archlinux.org/packages/community/x86_64/staticcheck/)
 
@@ -44,6 +46,7 @@ MacPorts
 NixOS
 : go-tools
 
+</div>
 
 ## Running Staticcheck
 
