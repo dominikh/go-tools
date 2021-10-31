@@ -34,6 +34,7 @@ import (
 	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
 	"honnef.co/go/tools/printf"
+	"honnef.co/go/tools/staticcheck/fakejson"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -254,9 +255,9 @@ var (
 	}
 
 	checkUnsupportedMarshal = map[string]CallCheck{
-		"encoding/json.Marshal":           checkUnsupportedMarshalImpl(knowledge.Arg("json.Marshal.v"), "json", "MarshalJSON", "MarshalText"),
+		"encoding/json.Marshal":           checkUnsupportedMarshalJSON,
 		"encoding/xml.Marshal":            checkUnsupportedMarshalImpl(knowledge.Arg("xml.Marshal.v"), "xml", "MarshalXML", "MarshalText"),
-		"(*encoding/json.Encoder).Encode": checkUnsupportedMarshalImpl(knowledge.Arg("(*encoding/json.Encoder).Encode.v"), "json", "MarshalJSON", "MarshalText"),
+		"(*encoding/json.Encoder).Encode": checkUnsupportedMarshalJSON,
 		"(*encoding/xml.Encoder).Encode":  checkUnsupportedMarshalImpl(knowledge.Arg("(*encoding/xml.Encoder).Encode.v"), "xml", "MarshalXML", "MarshalText"),
 	}
 
@@ -865,6 +866,19 @@ func checkNoopMarshalImpl(argN int, meths ...string) CallCheck {
 			}
 		}
 		arg.Invalid(fmt.Sprintf("struct type '%s' doesn't have any exported fields, nor custom marshaling", typeutil.Dereference(T)))
+	}
+}
+
+func checkUnsupportedMarshalJSON(call *Call) {
+	arg := call.Args[0]
+	T := arg.Value.Value.Type()
+	if err := fakejson.Marshal(T); err != nil {
+		typ := types.TypeString(err.Type, types.RelativeTo(arg.Value.Value.Parent().Pkg.Pkg))
+		if err.Path == "x" {
+			arg.Invalid(fmt.Sprintf("trying to marshal unsupported type %s", typ))
+		} else {
+			arg.Invalid(fmt.Sprintf("trying to marshal unsupported type %s, via %s", typ, err.Path))
+		}
 	}
 }
 
