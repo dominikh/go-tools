@@ -27,10 +27,9 @@ type T2 struct {
 	E int `xml:",comment"`
 	F int `xml:",omitempty"`
 	G int `xml:",any"`
-	H int `xml:",unknown"` // want `unknown XML option`
-	I int `xml:",any,any"` // want `duplicate XML option`
+	H int `xml:",unknown"` // want `unknown option`
+	I int `xml:",any,any"` // want `duplicate option`
 	J int `xml:"a>b>c,"`
-	K int `xml:",attr,cdata"` // want `mutually exclusive`
 }
 
 type T3 struct {

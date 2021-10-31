@@ -91,27 +91,32 @@ func fn() {
 
 	xml.Marshal(t1)
 	xml.Marshal(t2)
-	xml.Marshal(t3) // want `trying to marshal chan or func value, field CheckUnsupportedMarshal\.T3\.C`
+	xml.Marshal(t3) // want `unsupported type chan int, via x\.Ch`
 	xml.Marshal(t4)
 	xml.Marshal(t5)
-	xml.Marshal(t6) // want `trying to marshal chan or func value, field CheckUnsupportedMarshal\.T6\.B`
+	xml.Marshal(t6) // want `unsupported type func\(\), via x\.B`
 	(*xml.Encoder)(nil).Encode(t1)
 	(*xml.Encoder)(nil).Encode(t2)
-	(*xml.Encoder)(nil).Encode(t3) // want `trying to marshal chan or func value, field CheckUnsupportedMarshal\.T3\.C`
+	(*xml.Encoder)(nil).Encode(t3) // want `unsupported type chan int, via x\.C`
 	(*xml.Encoder)(nil).Encode(t4)
 	(*xml.Encoder)(nil).Encode(t5)
-	(*xml.Encoder)(nil).Encode(t6) // want `trying to marshal chan or func value, field CheckUnsupportedMarshal\.T6\.B`
+	(*xml.Encoder)(nil).Encode(t6) // want `unsupported type func\(\), via x\.B`
 
 	json.Marshal(t8)  // want `unsupported type chan int, via x\.T7\.T3\.Ch`
 	json.Marshal(t9)  // want `unsupported type PointerMarshaler, via x\.F`
 	json.Marshal(&t9) // this is fine, t9 is addressable, therefore T9.D is, too
 	json.Marshal(t10) // this is fine, T10.F.D is addressable
 
+	xml.Marshal(t8)  // want `unsupported type chan int, via x\.T7\.T3\.Ch`
+	xml.Marshal(t9)  // want `unsupported type PointerMarshaler, via x\.F`
+	xml.Marshal(&t9) // this is fine, t9 is addressable, therefore T9.D is, too
+	xml.Marshal(t10) // this is fine, T10.F.D is addressable
+
 	json.Marshal(t11)
 	xml.Marshal(t11)
 }
 
-func addressability() {
+func addressabilityJSON() {
 	var a PointerMarshaler
 	var b []PointerMarshaler
 	var c struct {
@@ -138,7 +143,25 @@ func addressability() {
 	json.Marshal([]map[string]*PointerMarshaler{m2})
 }
 
-func maps() {
+func addressabilityXML() {
+	var a PointerMarshaler
+	var b []PointerMarshaler
+	var c struct {
+		XMLName xml.Name `json:"foo"`
+		F       PointerMarshaler
+	}
+	var d [4]PointerMarshaler
+	xml.Marshal(a) // want `unsupported type PointerMarshaler$`
+	xml.Marshal(&a)
+	xml.Marshal(b)
+	xml.Marshal(&b)
+	xml.Marshal(c) // want `unsupported type PointerMarshaler, via x\.F`
+	xml.Marshal(&c)
+	xml.Marshal(d) // want `unsupported type PointerMarshaler, via x\[0\]`
+	xml.Marshal(&d)
+}
+
+func mapsJSON() {
 	var good map[int]string
 	var bad map[interface{}]string
 	// the map key has to be statically known good; it must be a number or a string
@@ -176,7 +199,13 @@ func maps() {
 	json.Marshal(m8)
 }
 
-func fieldPriority() {
+func mapsXML() {
+	// encoding/xml doesn't support any maps
+	var bad map[string]string
+	xml.Marshal(bad) // want `unsupported type`
+}
+
+func fieldPriorityJSON() {
 	// In this example, the channel doesn't matter, because T1.F has higher priority than T1.T2.F
 	type lT2 struct {
 		F chan int
@@ -198,7 +227,29 @@ func fieldPriority() {
 	json.Marshal(lT3{}) // want `unsupported type chan int, via x\.lT4\.C`
 }
 
-func longPath() {
+func fieldPriorityXML() {
+	// In this example, the channel doesn't matter, because T1.F has higher priority than T1.T2.F
+	type lT2 struct {
+		F chan int
+	}
+	type lT1 struct {
+		F int
+		lT2
+	}
+	xml.Marshal(lT1{})
+
+	// In this example, it does matter
+	type lT4 struct {
+		C chan int
+	}
+	type lT3 struct {
+		F int
+		lT4
+	}
+	xml.Marshal(lT3{}) // want `unsupported type chan int, via x\.lT4\.C`
+}
+
+func longPathJSON() {
 	var foo struct {
 		Field struct {
 			Field2 []struct {
@@ -209,7 +260,23 @@ func longPath() {
 	json.Marshal(foo) // want `unsupported type chan int, via x\.Field\.Field2\[0\].Map\[k\]`
 }
 
-func otherPackage() {
+func otherPackageJSON() {
 	var x time.Ticker
 	json.Marshal(x) // want `unsupported type <-chan time\.Time, via x\.C`
+}
+
+func longPathXML() {
+	var foo struct {
+		Field struct {
+			Field2 []struct {
+				Map map[string]chan int
+			}
+		}
+	}
+	xml.Marshal(foo) // want `unsupported type map\[string\]chan int, via x\.Field\.Field2\[0\].Map`
+}
+
+func otherPackageXML() {
+	var x time.Ticker
+	xml.Marshal(x) // want `unsupported type <-chan time\.Time, via x\.C`
 }

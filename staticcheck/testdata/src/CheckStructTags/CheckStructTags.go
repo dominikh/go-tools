@@ -1,6 +1,10 @@
 package pkg
 
-import _ "github.com/jessevdk/go-flags"
+import (
+	"encoding/xml"
+
+	_ "github.com/jessevdk/go-flags"
+)
 
 type T1 struct {
 	B int        `foo:"" foo:""` // want `duplicate struct tag`
@@ -27,10 +31,9 @@ type T2 struct {
 	E int `xml:",comment"`
 	F int `xml:",omitempty"`
 	G int `xml:",any"`
-	H int `xml:",unknown"` // want `unknown XML option`
-	I int `xml:",any,any"` // want `duplicate XML option`
+	H int `xml:",unknown"` // want `unknown option`
+	I int `xml:",any,any"` // want `duplicate option`
 	J int `xml:"a>b>c,"`
-	K int `xml:",attr,cdata"` // want `mutually exclusive`
 }
 
 type T3 struct {
@@ -43,4 +46,19 @@ type T4 struct {
 	B []int `optional-value:"foo" optional-value:"bar"`
 	C []int `default:"foo" default:"bar"`
 	D int   `json:"foo" json:"bar"` // want `duplicate struct tag`
+}
+
+func xmlTags() {
+	type T1 struct {
+		A       int      `xml:",attr,innerxml"` // want `invalid combination of options: ",attr,innerxml"`
+		XMLName xml.Name `xml:"ns "`            // want `namespace without name: "ns "`
+		B       int      `xml:"a>"`             // want `trailing '>'`
+		C       int      `xml:"a>b,attr"`       // want `a>b chain not valid with attr flag`
+	}
+	type T6 struct {
+		XMLName xml.Name `xml:"foo"`
+	}
+	type T5 struct {
+		F T6 `xml:"f"` // want `name "f" conflicts with name "foo" in CheckStructTags\.T6\.XMLName`
+	}
 }
