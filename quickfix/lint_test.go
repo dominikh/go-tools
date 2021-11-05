@@ -8,7 +8,6 @@ import (
 
 func TestAll(t *testing.T) {
 	checks := map[string][]testutil.Test{
-		"QF1000": {{Dir: "CheckStringsIndexByte"}},
 		"QF1001": {{Dir: "CheckDeMorgan"}},
 		"QF1002": {{Dir: "CheckTaglessSwitch"}},
 		"QF1003": {{Dir: "CheckIfElseToSwitch"}},
