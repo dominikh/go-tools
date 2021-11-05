@@ -1,12 +1,83 @@
+-- replace control character U+0007 with '\a' --
 // Package pkg ...
 package pkg
 
 var (
-	a = "\a"     // want `Unicode control character U\+0007`
-	b = "\a\x1a" // want `Unicode control characters`
+	a = "\a" // want `Unicode control character U\+0007`
+	b = "" // want `Unicode control characters`
+	c = "Test	test"
+	d = `T
+est`
+	e = `Zero​Width` // want `Unicode format character U\+200B`
+	f = "\u200b"
+)
+
+-- delete control character U+0007 --
+// Package pkg ...
+package pkg
+
+var (
+	a = ""   // want `Unicode control character U\+0007`
+	b = "" // want `Unicode control characters`
+	c = "Test	test"
+	d = `T
+est`
+	e = `Zero​Width` // want `Unicode format character U\+200B`
+	f = "\u200b"
+)
+
+-- delete format character U+200B --
+// Package pkg ...
+package pkg
+
+var (
+	a = ""  // want `Unicode control character U\+0007`
+	b = "" // want `Unicode control characters`
+	c = "Test	test"
+	d = `T
+est`
+	e = `ZeroWidth` // want `Unicode format character U\+200B`
+	f = "\u200b"
+)
+
+-- replace format character U+200B with '\u200b' --
+// Package pkg ...
+package pkg
+
+var (
+	a = ""  // want `Unicode control character U\+0007`
+	b = "" // want `Unicode control characters`
 	c = "Test	test"
 	d = `T
 est`
 	e = `Zero\u200bWidth` // want `Unicode format character U\+200B`
+	f = "\u200b"
+)
+
+-- delete all control characters --
+// Package pkg ...
+package pkg
+
+var (
+	a = "" // want `Unicode control character U\+0007`
+	b = ""  // want `Unicode control characters`
+	c = "Test	test"
+	d = `T
+est`
+	e = `Zero​Width` // want `Unicode format character U\+200B`
+	f = "\u200b"
+)
+
+-- replace all control characters with escape sequences --
+// Package pkg ...
+package pkg
+
+var (
+	a = ""      // want `Unicode control character U\+0007`
+	b = "\a\x1a" // want `Unicode control characters`
+	c = "Test	test"
+	d = `T
+est`
+	e = `Zero​Width` // want `Unicode format character U\+200B`
 	f = "\u200b"
 )
