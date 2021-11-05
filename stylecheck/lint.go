@@ -727,7 +727,7 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 				}},
 			}
 			delete := analysis.SuggestedFix{
-				Message: fmt.Sprintf("delete %s character %U", kind, r),
+				Message: fmt.Sprintf("delete %s character %U", kind, r.r),
 				TextEdits: []analysis.TextEdit{{
 					Pos: lit.Pos() + token.Pos(r.off),
 					End: lit.Pos() + token.Pos(r.off) + token.Pos(utf8.RuneLen(r.r)),
