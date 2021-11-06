@@ -180,7 +180,15 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 				continue
 			}
 
-			for sf, edits := range fixes {
+			var sfs []string
+			for sf := range fixes {
+				sfs = append(sfs, sf)
+			}
+			sort.Slice(sfs, func(i, j int) bool {
+				return sfs[i] < sfs[j]
+			})
+			for _, sf := range sfs {
+				edits := fixes[sf]
 				found := false
 				for _, vf := range ar.Files {
 					if vf.Name == sf {
