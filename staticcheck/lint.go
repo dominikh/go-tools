@@ -3111,6 +3111,16 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 	// Selectors can appear outside of function literals, e.g. when
 	// declaring package level variables.
 
+	isStdlib := func(obj types.Object) bool {
+		// Modules with no dot in the first path element are reserved for the standard library and tooling.
+		// This is the best we can currently do.
+		// Nobody tells us which import paths are part of the standard library.
+		//
+		// We check the entire path instead of just the first path element, because the standard library doesn't contain paths with any dots, anyway.
+
+		return !strings.Contains(obj.Pkg().Path(), ".")
+	}
+
 	var tfn types.Object
 	stack := 0
 	fn := func(node ast.Node, push bool) bool {
@@ -3138,6 +3148,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			// Don't flag stuff in our own package
 			return true
 		}
+
 		if depr, ok := deprs.Objects[obj]; ok {
 			// Note: gopls doesn't correctly run analyzers on
 			// dependencies, so we'll never be able to find deprecated
@@ -3147,6 +3158,12 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			// but we gave up on that, because we wouldn't have access
 			// to the deprecation message.
 			std, ok := knowledge.StdlibDeprecations[code.SelectorName(pass, sel)]
+			if !ok && isStdlib(obj) {
+				// Deprecated object in the standard library, but we don't know the details of the deprecation.
+				// Don't flag it at all, to avoid flagging an object that was deprecated in 1.N when targeting 1.N-1.
+				// See https://staticcheck.io/issues/1108 for the background on this.
+				return true
+			}
 			if ok {
 				switch std.AlternativeAvailableSince {
 				case knowledge.DeprecatedNeverUse:
