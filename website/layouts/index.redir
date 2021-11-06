@@ -3,3 +3,7 @@
 {{ . }} {{ $p.RelPermalink }}
 {{ end }}
 {{- end -}}
+/pricing /sponsors 301
+/docs/staticcheck -> /docs/checks 301
+/docs/gosimple /docs/checks 301
+/issues/* https://github.com/dominikh/go-tools/issues/:splat 301
