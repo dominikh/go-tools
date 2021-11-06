@@ -202,7 +202,7 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 							for _, op := range d {
 								diff += op.String()
 							}
-							t.Errorf("suggested fixes failed for %s:\n%s", file, diff)
+							t.Errorf("suggested fixes failed for %s[%s]:\n%s", file, sf, diff)
 						}
 						break
 					}
