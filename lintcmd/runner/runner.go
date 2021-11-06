@@ -112,6 +112,7 @@ package runner
 // future.
 
 import (
+	"bytes"
 	"encoding/gob"
 	"fmt"
 	"go/token"
@@ -599,16 +600,8 @@ func (r *subrunner) do(act action) error {
 		// change to a package requires re-analyzing all dependents,
 		// even if the vetx data stayed the same. See also the note at
 		// the top of loader/hash.go.
-		//
-		// TODO(dh): why are we using a temporary file for this? Isn't
-		// the data small enough to be held in memory?
-		tf, err := ioutil.TempFile("", "staticcheck")
-		if err != nil {
-			return err
-		}
-		defer tf.Close()
-		os.Remove(tf.Name())
 
+		tf := &bytes.Buffer{}
 		enc := gob.NewEncoder(tf)
 		for _, gf := range result.facts {
 			if err := enc.Encode(gf); err != nil {
@@ -616,10 +609,7 @@ func (r *subrunner) do(act action) error {
 			}
 		}
 
-		if _, err := tf.Seek(0, io.SeekStart); err != nil {
-			return err
-		}
-		a.vetx, err = r.writeCacheReader(a, "vetx", tf)
+		a.vetx, err = r.writeCacheReader(a, "vetx", bytes.NewReader(tf.Bytes()))
 		if err != nil {
 			return err
 		}
