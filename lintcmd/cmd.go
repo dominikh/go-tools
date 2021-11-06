@@ -157,7 +157,11 @@ func (list *list) Set(s string) error {
 		return nil
 	}
 
-	*list = strings.Split(s, ",")
+	elems := strings.Split(s, ",")
+	for i, elem := range elems {
+		elems[i] = strings.TrimSpace(elem)
+	}
+	*list = elems
 	return nil
 }
 
