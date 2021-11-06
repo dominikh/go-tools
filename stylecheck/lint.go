@@ -690,14 +690,21 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 		var invalids []invalid
 		hasFormat := false
 		hasControl := false
+		prev := rune(-1)
+		const zwj = '\u200d'
 		for off, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
-				invalids = append(invalids, invalid{r, off})
-				hasFormat = true
+				// Don't flag joined emojis. These are multiple emojis joined with ZWJ, which some platform render as single composite emojis.
+				// For the purpose of this check, we consider all symbols, including all symbol modifiers, emoji.
+				if r != zwj || (r == zwj && !unicode.Is(unicode.S, prev)) {
+					invalids = append(invalids, invalid{r, off})
+					hasFormat = true
+				}
 			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
 				invalids = append(invalids, invalid{r, off})
 				hasControl = true
 			}
+			prev = r
 		}
 
 		switch len(invalids) {
