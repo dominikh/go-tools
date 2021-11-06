@@ -68,7 +68,11 @@ The following example configuration is the textual representation of Staticcheck
 	"UDP", "UI", "GID", "UID", "UUID", "URI",
 	"URL", "UTF8", "VM", "XML", "XMPP", "XSRF",
 	"XSS", "SIP", "RTP", "AMQP", "DB", "TS"]
-{{< option "dot_import_whitelist" >}} = []
+{{< option "dot_import_whitelist" >}} = [
+    "github.com/mmcloughlin/avo/build",
+    "github.com/mmcloughlin/avo/operand",
+    "github.com/mmcloughlin/avo/reg",
+]
 {{< option "http_status_code_whitelist" >}} = ["200", "400", "404", "500"]
 ```
 

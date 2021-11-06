@@ -167,7 +167,11 @@ var DefaultConfig = Config{
 		"URL", "UTF8", "VM", "XML", "XMPP", "XSRF",
 		"XSS", "SIP", "RTP", "AMQP", "DB", "TS",
 	},
-	DotImportWhitelist:      []string{},
+	DotImportWhitelist: []string{
+		"github.com/mmcloughlin/avo/build",
+		"github.com/mmcloughlin/avo/operand",
+		"github.com/mmcloughlin/avo/reg",
+	},
 	HTTPStatusCodeWhitelist: []string{"200", "400", "404", "500"},
 }
 
