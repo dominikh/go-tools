@@ -377,12 +377,6 @@ falsify results.`,
 		Severity: lint.SeverityWarning,
 	},
 
-	"SA4002": {
-		Title:    `Comparing strings with known different sizes has predictable results`,
-		Since:    "2017.1",
-		Severity: lint.SeverityWarning,
-	},
-
 	"SA4003": {
 		Title:    `Comparing unsigned values against negative values is pointless`,
 		Since:    "2017.1",
@@ -737,12 +731,6 @@ on the object. That way, the number of references can temporarily go
 to zero before the object is being passed to the finalizer.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
-	},
-
-	"SA5006": {
-		Title:    `Slice index out of bounds`,
-		Since:    "2017.1",
-		Severity: lint.SeverityError,
 	},
 
 	"SA5007": {

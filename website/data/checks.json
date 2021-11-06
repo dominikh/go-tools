@@ -830,16 +830,6 @@
 			"Options": null,
 			"Severity": 3
 		},
-		"SA4002": {
-			"Title": "Comparing strings with known different sizes has predictable results",
-			"Text": "\n",
-			"Before": "",
-			"After": "",
-			"Since": "2017.1",
-			"NonDefault": false,
-			"Options": null,
-			"Severity": 3
-		},
 		"SA4003": {
 			"Title": "Comparing unsigned values against negative values is pointless",
 			"Text": "\n",
@@ -1139,16 +1129,6 @@
 			"NonDefault": false,
 			"Options": null,
 			"Severity": 3
-		},
-		"SA5006": {
-			"Title": "Slice index out of bounds",
-			"Text": "\n",
-			"Before": "",
-			"After": "",
-			"Since": "2017.1",
-			"NonDefault": false,
-			"Options": null,
-			"Severity": 1
 		},
 		"SA5007": {
 			"Title": "Infinite recursive call",
@@ -1612,7 +1592,6 @@
 		"SA4": [
 			"SA4000",
 			"SA4001",
-			"SA4002",
 			"SA4003",
 			"SA4004",
 			"SA4005",
@@ -1645,7 +1624,6 @@
 			"SA5003",
 			"SA5004",
 			"SA5005",
-			"SA5006",
 			"SA5007",
 			"SA5008",
 			"SA5009",
