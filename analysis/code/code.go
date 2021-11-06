@@ -73,7 +73,11 @@ func SelectorName(pass *analysis.Pass, expr *ast.SelectorExpr) string {
 		}
 		panic(fmt.Sprintf("unsupported selector: %v", expr))
 	}
-	return fmt.Sprintf("(%s).%s", sel.Recv(), sel.Obj().Name())
+	if v, ok := sel.Obj().(*types.Var); ok && v.IsField() {
+		return fmt.Sprintf("(%s).%s", typeutil.DereferenceR(sel.Recv()), sel.Obj().Name())
+	} else {
+		return fmt.Sprintf("(%s).%s", sel.Recv(), sel.Obj().Name())
+	}
 }
 
 func IsNil(pass *analysis.Pass, expr ast.Expr) bool {

@@ -12,7 +12,7 @@ var _ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
 
 func fn1(err error) {
 	var r *http.Request
-	_ = r.Cancel                    // want `If a Request's Cancel field and context are both`
+	_ = r.Cancel
 	_ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
 	_ = os.SEEK_SET
 	var _ flate.ReadError
