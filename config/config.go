@@ -177,6 +177,11 @@ var DefaultConfig = Config{
 
 const ConfigName = "staticcheck.conf"
 
+type ParseError struct {
+	Filename string
+	toml.ParseError
+}
+
 func parseConfigs(dir string) ([]Config, error) {
 	var out []Config
 
@@ -198,6 +203,12 @@ func parseConfigs(dir string) ([]Config, error) {
 		_, err = toml.DecodeReader(f, &cfg)
 		f.Close()
 		if err != nil {
+			if err, ok := err.(toml.ParseError); ok {
+				return nil, ParseError{
+					Filename:   filepath.Join(dir, ConfigName),
+					ParseError: err,
+				}
+			}
 			return nil, err
 		}
 		out = append(out, cfg)

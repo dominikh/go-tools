@@ -3,7 +3,7 @@ module honnef.co/go/tools
 go 1.17
 
 require (
-	github.com/BurntSushi/toml v0.3.1
+	github.com/BurntSushi/toml v0.4.1
 	golang.org/x/tools v0.1.8-0.20211022200916-316ba0b74098
 )
 
