@@ -253,10 +253,15 @@ func (cmd *Command) Run() {
 		exit(0)
 	}
 
+	defaultChecks := []string{"all"}
 	cs := make([]*lint.Analyzer, 0, len(cmd.analyzers))
 	for _, a := range cmd.analyzers {
 		cs = append(cs, a)
+		if a.Doc.NonDefault {
+			defaultChecks = append(defaultChecks, "-"+a.Analyzer.Name)
+		}
 	}
+	config.DefaultConfig.Checks = defaultChecks
 
 	if cmd.flags.listChecks {
 		sort.Slice(cs, func(i, j int) bool {

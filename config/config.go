@@ -156,8 +156,14 @@ func (c Config) String() string {
 	return buf.String()
 }
 
+// DefaultConfig is the default configuration.
+// Its initial value describes the majority of the default configuration,
+// but the Checks field can be updated at runtime based on the analyzers being used, to disable non-default checks.
+// For cmd/staticcheck, this is handled by (*lintcmd.Command).Run.
+//
+// Note that DefaultConfig shouldn't be modified while analyzers are executing.
 var DefaultConfig = Config{
-	Checks: []string{"all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-ST1023"},
+	Checks: []string{"all"},
 	Initialisms: []string{
 		"ACL", "API", "ASCII", "CPU", "CSS", "DNS",
 		"EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID",
