@@ -110,6 +110,16 @@
 			"Options": null,
 			"Severity": 5
 		},
+		"QF1012": {
+			"Title": "Use `fmt.Fprintf(x, ...)` instead of `x.Write(fmt.Sprintf(...))`",
+			"Text": "\n",
+			"Before": "",
+			"After": "",
+			"Since": "Unreleased",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 5
+		},
 		"S1000": {
 			"Title": "Use plain channel send or receive instead of single-case select",
 			"Text": "Select statements with a single case can be replaced with a simple\nsend or receive.\n",
@@ -1509,7 +1519,8 @@
 			"QF1008",
 			"QF1009",
 			"QF1010",
-			"QF1011"
+			"QF1011",
+			"QF1012"
 		],
 		"S1": [
 			"S1000",

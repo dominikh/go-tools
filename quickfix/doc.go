@@ -134,4 +134,10 @@ if someCondition {
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
+
+	"QF1012": {
+		Title:    "Use `fmt.Fprintf(x, ...)` instead of `x.Write(fmt.Sprintf(...))`",
+		Since:    "Unreleased",
+		Severity: lint.SeverityHint,
+	},
 })
