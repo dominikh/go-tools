@@ -1,3 +1,3 @@
 {{ $name := .Get 0 -}}
-{{ $check := index $.Site.Data.checks $name -}}
+{{ $check := index $.Site.Data.checks.Checks $name -}}
 {{ with .Get 0 }}<a title="{{ $check.Title }}" href="{{ ref $.Page "/docs/checks" }}#{{$name}}">{{$name}}</a>{{ end -}}
