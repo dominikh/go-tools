@@ -29,6 +29,9 @@ func fn() {
 	var h bool = true            // want `should omit type bool`
 	var i string = ""            // want `should omit type string`
 	var j MyInt = gen3()         // want `should omit type MyInt`
+	var k uint8 = Y              // different default type on constant
+	var l uint8 = (Y + Y) / 2    // different default type on rhs
+	var m int = (Y + Y) / 2      // complex expression
 
-	_, _, _, _, _, _, _, _, _, _ = a, b, c, d, e, f, g, h, i, j
+	_, _, _, _, _, _, _, _, _, _, _, _, _ = a, b, c, d, e, f, g, h, i, j, k, l, m
 }
