@@ -8,3 +8,7 @@ func fn4() (error, error)      { return nil, nil }
 func fn5() int                 { return 0 }
 func fn6() (int, error)        { return 0, nil }
 func fn7() (error, int, error) { return nil, 0, nil }
+
+// it's not clear if the error should come first or second in a function that also has a comma-ok return value
+func fn8() (error, bool)      { return nil, false }
+func fn9() (int, error, bool) { return 0, nil, false }
