@@ -81,6 +81,30 @@ func toMarkdown(s string) string {
 }
 
 func (doc *Documentation) String() string {
+	b := &strings.Builder{}
+	b.WriteString(doc.WithoutMetadata())
+
+	fmt.Fprint(b, "Available since\n    ")
+	if doc.Since == "" {
+		fmt.Fprint(b, "unreleased")
+	} else {
+		fmt.Fprintf(b, "%s", doc.Since)
+	}
+	if doc.NonDefault {
+		fmt.Fprint(b, ", non-default")
+	}
+	fmt.Fprint(b, "\n")
+	if len(doc.Options) > 0 {
+		fmt.Fprintf(b, "\nOptions\n")
+		for _, opt := range doc.Options {
+			fmt.Fprintf(b, "    %s", opt)
+		}
+		fmt.Fprint(b, "\n")
+	}
+	return b.String()
+}
+
+func (doc *Documentation) WithoutMetadata() string {
 	if doc == nil {
 		return "Error: No documentation."
 	}
@@ -106,23 +130,6 @@ func (doc *Documentation) String() string {
 		fmt.Fprintln(b, "")
 	}
 
-	fmt.Fprint(b, "Available since\n    ")
-	if doc.Since == "" {
-		fmt.Fprint(b, "unreleased")
-	} else {
-		fmt.Fprintf(b, "%s", doc.Since)
-	}
-	if doc.NonDefault {
-		fmt.Fprint(b, ", non-default")
-	}
-	fmt.Fprint(b, "\n")
-	if len(doc.Options) > 0 {
-		fmt.Fprintf(b, "\nOptions\n")
-		for _, opt := range doc.Options {
-			fmt.Fprintf(b, "    %s", opt)
-		}
-		fmt.Fprint(b, "\n")
-	}
 	return b.String()
 }
 

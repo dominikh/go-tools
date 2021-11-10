@@ -1,7 +1,7 @@
 package sarif
 
 const Version = "2.1.0"
-const Schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.4.json"
+const Schema = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
 
 type Log struct {
 	Version string `json:"version"`
@@ -43,17 +43,17 @@ type Tool struct {
 }
 
 type Invocation struct {
-	CommandLine         string           `json:"commandLine"`
+	CommandLine         string           `json:"commandLine,omitempty"`
 	Arguments           []string         `json:"arguments,omitempty"`
-	WorkingDirectory    ArtifactLocation `json:"workingDirectory"`
+	WorkingDirectory    ArtifactLocation `json:"workingDirectory,omitempty"`
 	ExecutionSuccessful bool             `json:"executionSuccessful"`
 }
 
 type ToolComponent struct {
-	Name            string                `json:"name"`
-	Version         string                `json:"version"`
-	SemanticVersion string                `json:"semanticVersion"`
-	InformationURI  string                `json:"informationUri"`
+	Name            string                `json:"name,omitempty"`
+	Version         string                `json:"version,omitempty"`
+	SemanticVersion string                `json:"semanticVersion,omitempty"`
+	InformationURI  string                `json:"informationUri,omitempty"`
 	Rules           []ReportingDescriptor `json:"rules,omitempty"`
 }
 
@@ -61,21 +61,22 @@ type ReportingDescriptor struct {
 	ID               string  `json:"id"`
 	ShortDescription Message `json:"shortDescription"`
 	// FullDescription  Message `json:"fullDescription"`
-	Help    Message `json:"help"`
-	HelpURI string  `json:"helpUri,omitempty"`
+	Help                 Message                `json:"help"`
+	HelpURI              string                 `json:"helpUri,omitempty"`
+	DefaultConfiguration ReportingConfiguration `json:"defaultConfiguration"`
 }
 
 type ReportingConfiguration struct {
-	Enabled    bool                   `json:"bool"`
-	Level      string                 `json:"level"`
-	Parameters map[string]interface{} `json:"parameters"`
+	Enabled    bool                   `json:"enabled"`
+	Level      string                 `json:"level,omitempty"`
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
 }
 
 type Result struct {
 	RuleID string `json:"ruleId"`
 	// RuleIndex        int        `json:"ruleIndex"`
 	Kind             string        `json:"kind"`
-	Level            string        `json:"level"`
+	Level            string        `json:"level,omitempty"`
 	Message          Message       `json:"message"`
 	Locations        []Location    `json:"locations,omitempty"`
 	RelatedLocations []Location    `json:"relatedLocations,omitempty"`
@@ -124,8 +125,9 @@ type PhysicalLocation struct {
 }
 
 type ArtifactLocation struct {
-	URI   string `json:"uri,omitempty"`
-	Index int    `json:"index,omitempty"`
+	URI       string `json:"uri,omitempty"`
+	Index     int    `json:"index,omitempty"`
+	URIBaseID string `json:"uriBaseId,omitempty"`
 }
 
 type Region struct {
@@ -134,7 +136,3 @@ type Region struct {
 	EndLine     int `json:"endLine,omitempty"`
 	EndColumn   int `json:"endColumn,omitempty"`
 }
-
-// XXX URIs should use actual URI encoding, not just be strings. also, do we have to use the 'file' protocol for relative URIs?
-// XXX columns have to be in one of UTF-16 code units or unicode code points… meanwhile, we track bytes
-// XXX columns in Region are 1-based, but we're probably passing in 0-based offsets

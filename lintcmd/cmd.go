@@ -315,7 +315,15 @@ func (cmd *Command) Run() {
 	case "json":
 		f = jsonFormatter{W: os.Stdout}
 	case "sarif":
-		f = &sarifFormatter{}
+		f = &sarifFormatter{
+			driverName:    cmd.name,
+			driverVersion: cmd.version,
+		}
+		if cmd.name == "staticcheck" {
+			f.(*sarifFormatter).driverName = "Staticcheck"
+			f.(*sarifFormatter).driverWebsite = "https://staticcheck.io"
+		}
+
 	case "null":
 		f = nullFormatter{}
 	default:
@@ -385,7 +393,12 @@ func (cmd *Command) Run() {
 	}
 
 	if numErrors > 0 {
-		exit(1)
+		if _, ok := f.(*sarifFormatter); ok {
+			// When emitting SARIF, finding errors is considered success.
+			exit(0)
+		} else {
+			exit(1)
+		}
 	}
 	exit(0)
 }
