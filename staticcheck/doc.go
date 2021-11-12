@@ -78,7 +78,7 @@ Windows, will have a \'/bin/sh\' program:
 	},
 
 	"SA1006": {
-		Title: `Printf with dynamic first argument and no further arguments`,
+		Title: "`Printf` with dynamic first argument and no further arguments",
 		Text: `Using \'fmt.Printf\' with a dynamic first argument can lead to unexpected
 output. The first argument is a format string, where certain character
 combinations have special meaning. If, for example, a user were to
@@ -96,7 +96,7 @@ it would lead to the following output:
 
 Similarly, forming the first parameter via string concatenation with
 user input should be avoided for the same reason. When printing user
-input, either use a variant of fmt.Print, or use the \'%s\' Printf verb
+input, either use a variant of \'fmt.Print\', or use the \'%s\' Printf verb
 and pass the string as an argument.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
@@ -136,7 +136,7 @@ The easiest way of obtaining the canonical form of a key is to use
 
 	"SA1010": {
 		Title: "`(*regexp.Regexp).FindAll` called with `n == 0`, which will always return zero results",
-		Text: `If n >= 0, the function returns at most n matches/submatches. To
+		Text: `If \'n >= 0\', the function returns at most \'n\' matches/submatches. To
 return all results, specify a negative number.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
@@ -196,8 +196,8 @@ signal value, a buffer of size 1 is sufficient.`,
 
 	"SA1018": {
 		Title: "`strings.Replace` called with `n == 0`, which does nothing",
-		Text: `With n == 0, zero instances will be replaced. To replace all
-instances, use a negative number, or use strings.ReplaceAll.`,
+		Text: `With \'n == 0\', zero instances will be replaced. To replace all
+instances, use a negative number, or use \'strings.ReplaceAll\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -275,7 +275,7 @@ in a struct.`,
 
 	"SA1028": {
 		Title:    "`sort.Slice` can only be used on slices",
-		Text:     `The first argument of sort.Slice must be a slice.`,
+		Text:     `The first argument of \'sort.Slice\' must be a slice.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityError,
 	},
@@ -346,10 +346,10 @@ rare false positive.`,
 	"SA3000": {
 		Title: "`TestMain` doesn't call `os.Exit`, hiding test failures",
 		Text: `Test executables (and in turn \'go test\') exit with a non-zero status
-code if any tests failed. When specifying your own TestMain function,
+code if any tests failed. When specifying your own \'TestMain\' function,
 it is your responsibility to arrange for this, by calling \'os.Exit\' with
 the correct code. The correct code is returned by \'(*testing.M).Run\', so
-the usual way of implementing TestMain is to end it with
+the usual way of implementing \'TestMain\' is to end it with
 \'os.Exit(m.Run())\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
@@ -639,7 +639,7 @@ Example:
 	"SA4025": {
 		Title: "Integer division of literals that results in zero",
 		Text: `When dividing two integer constants, the result will
-also be an integer. Thus, a division such as '2 / 3' results in '0'.
+also be an integer. Thus, a division such as \'2 / 3\' results in \'0\'.
 This is true for all of the following examples:
 
 	_ = 2 / 3
@@ -835,7 +835,7 @@ conditionals. Consider the following example:
         fmt.Println(*x)
     }
 
-Staticcheck will flag the dereference of x, even though it is perfectly
+Staticcheck will flag the dereference of \'x\', even though it is perfectly
 safe. Staticcheck is not able to deduce that a call to
 Fatal will exit the program. For the time being, the easiest
 workaround is to modify the definition of Fatal like so:

@@ -82,7 +82,7 @@ default:
 	},
 
 	"QF1006": {
-		Title: "Lift if+break into loop condition",
+		Title: "Lift `if`+`break` into loop condition",
 		Before: `
 for {
     if done {
@@ -118,7 +118,7 @@ if someCondition {
 	},
 
 	"QF1009": {
-		Title:    `Use time.Time.Equal instead of \'==\' operator`,
+		Title:    "Use `time.Time.Equal` instead of `==` operator",
 		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},
