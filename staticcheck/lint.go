@@ -4939,7 +4939,6 @@ func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 		irfn := ir.EnclosingFunction(irpkg, path)
 
 		shadoweeIR, isAddr := irfn.ValueForExpr(m.State["obj"].(*ast.Ident))
-		fmt.Println(shadoweeIR, isAddr)
 		if shadoweeIR == nil || isAddr {
 			// TODO(dh): is this possible?
 			return
