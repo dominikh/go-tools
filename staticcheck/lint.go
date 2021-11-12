@@ -4913,3 +4913,69 @@ func CheckModuloOne(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
+
+var typeAssertionShadowingElseQ = pattern.MustParse(`(IfStmt (AssignStmt [obj@(Ident _) ok@(Ident _)] ":=" assert@(TypeAssertExpr obj _)) ok _ elseBranch@(List _ _))`)
+
+func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
+	// TODO(dh): without the IR-based verification, this check is able
+	// to find more bugs, but also more prone to false positives. It
+	// would be a good candidate for the 'codereview' category of
+	// checks.
+
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, typeAssertionShadowingElseQ, node)
+		if !ok {
+			return
+		}
+		shadow := pass.TypesInfo.ObjectOf(m.State["obj"].(*ast.Ident))
+		shadowed := m.State["assert"].(*ast.TypeAssertExpr).X
+
+		path, exact := astutil.PathEnclosingInterval(code.File(pass, shadow), shadow.Pos(), shadow.Pos())
+		if !exact {
+			// TODO(dh): when can this happen?
+			return
+		}
+		irfn := ir.EnclosingFunction(irpkg, path)
+
+		shadoweeIR, isAddr := irfn.ValueForExpr(m.State["obj"].(*ast.Ident))
+		fmt.Println(shadoweeIR, isAddr)
+		if shadoweeIR == nil || isAddr {
+			// TODO(dh): is this possible?
+			return
+		}
+
+		for _, stmt := range m.State["elseBranch"].([]ast.Stmt) {
+			ast.Inspect(stmt, func(node ast.Node) bool {
+				ident, ok := node.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				if pass.TypesInfo.ObjectOf(ident) != shadow {
+					return true
+				}
+
+				v, isAddr := irfn.ValueForExpr(ident)
+				if v == nil || isAddr {
+					return true
+				}
+				if irutil.Flatten(v) != shadoweeIR {
+					// Same types.Object, but different IR value. This
+					// either means that the variable has been
+					// assigned to since the type assertion, or that
+					// the variable has escaped to the heap. Either
+					// way, we shouldn't flag reads of it.
+					return true
+				}
+
+				report.Report(pass, ident,
+					fmt.Sprintf("%s refers to the result of a failed type assertion and is a zero value, not the value that was being type-asserted", report.Render(pass, ident)),
+					report.Related(shadow, "this is the variable being read"),
+					report.Related(shadowed, "this is the variable being shadowed"))
+				return true
+			})
+		}
+	}
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
+	return nil, nil
+}

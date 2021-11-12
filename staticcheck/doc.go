@@ -1145,4 +1145,24 @@ This check flags attempts at deleting the following directories:
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
 	},
+
+	"SA9008": {
+		Title: "`else` branch of a type assertion is probably not reading the right value",
+		Text: `
+When declaring variables as part of an \'if\' statement (like in \'if foo := ...; foo {\'), the same variables will also be in the scope of the \'else\' branch.
+This means that in the following example
+
+    if x, ok := x.(int); ok {
+        // ...
+    } else {
+        fmt.Println("unexpected type %T", x)
+    }
+
+\'x\' in the \'else\' branch will refer to the \'x\' from \'x, ok :=\'; it will not refer to the \'x\' that is being type-asserted.
+The result of a failed type assertion is the zero value of the type that is being asserted to,
+so \'x\' in the else branch will always have the value \'0\' and the type \'int\'.
+`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+	},
 })

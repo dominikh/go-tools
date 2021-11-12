@@ -307,4 +307,9 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckBadRemoveAll,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
+
+	"SA9008": {
+		Run:      CheckTypeAssertionShadowingElse,
+		Requires: []*analysis.Analyzer{inspect.Analyzer, buildir.Analyzer, facts.TokenFile},
+	},
 })

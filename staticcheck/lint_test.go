@@ -118,6 +118,7 @@ func TestAll(t *testing.T) {
 		"SA9005": {{Dir: "CheckNoopMarshal"}},
 		"SA9006": {{Dir: "CheckStaticBitShift"}},
 		"SA9007": {{Dir: "CheckBadRemoveAll"}},
+		"SA9008": {{Dir: "CheckTypeAssertionShadowingElse"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)
