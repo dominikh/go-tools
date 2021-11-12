@@ -37,4 +37,10 @@ func fn1(x interface{}) {
 		// No diagnostic because the condition isn't simply 'ok'
 		_ = x
 	}
+
+	if x, ok := x.(*int); ok {
+		_ = x
+	} else if x != nil { // want `x refers to`
+	} else if x == nil { // want `x refers to`
+	}
 }

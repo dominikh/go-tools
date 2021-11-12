@@ -4914,7 +4914,7 @@ func CheckModuloOne(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var typeAssertionShadowingElseQ = pattern.MustParse(`(IfStmt (AssignStmt [obj@(Ident _) ok@(Ident _)] ":=" assert@(TypeAssertExpr obj _)) ok _ elseBranch@(List _ _))`)
+var typeAssertionShadowingElseQ = pattern.MustParse(`(IfStmt (AssignStmt [obj@(Ident _) ok@(Ident _)] ":=" assert@(TypeAssertExpr obj _)) ok _ elseBranch)`)
 
 func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 	// TODO(dh): without the IR-based verification, this check is able
@@ -4944,36 +4944,46 @@ func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		for _, stmt := range m.State["elseBranch"].([]ast.Stmt) {
-			ast.Inspect(stmt, func(node ast.Node) bool {
-				ident, ok := node.(*ast.Ident)
-				if !ok {
-					return true
-				}
-				if pass.TypesInfo.ObjectOf(ident) != shadow {
-					return true
-				}
-
-				v, isAddr := irfn.ValueForExpr(ident)
-				if v == nil || isAddr {
-					return true
-				}
-				if irutil.Flatten(v) != shadoweeIR {
-					// Same types.Object, but different IR value. This
-					// either means that the variable has been
-					// assigned to since the type assertion, or that
-					// the variable has escaped to the heap. Either
-					// way, we shouldn't flag reads of it.
-					return true
-				}
-
-				report.Report(pass, ident,
-					fmt.Sprintf("%s refers to the result of a failed type assertion and is a zero value, not the value that was being type-asserted", report.Render(pass, ident)),
-					report.Related(shadow, "this is the variable being read"),
-					report.Related(shadowed, "this is the variable being shadowed"))
-				return true
-			})
+		var branch ast.Node
+		switch br := m.State["elseBranch"].(type) {
+		case ast.Node:
+			branch = br
+		case []ast.Stmt:
+			branch = &ast.BlockStmt{List: br}
+		case nil:
+			return
+		default:
+			panic(fmt.Sprintf("unexpected type %T", br))
 		}
+
+		ast.Inspect(branch, func(node ast.Node) bool {
+			ident, ok := node.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if pass.TypesInfo.ObjectOf(ident) != shadow {
+				return true
+			}
+
+			v, isAddr := irfn.ValueForExpr(ident)
+			if v == nil || isAddr {
+				return true
+			}
+			if irutil.Flatten(v) != shadoweeIR {
+				// Same types.Object, but different IR value. This
+				// either means that the variable has been
+				// assigned to since the type assertion, or that
+				// the variable has escaped to the heap. Either
+				// way, we shouldn't flag reads of it.
+				return true
+			}
+
+			report.Report(pass, ident,
+				fmt.Sprintf("%s refers to the result of a failed type assertion and is a zero value, not the value that was being type-asserted", report.Render(pass, ident)),
+				report.Related(shadow, "this is the variable being read"),
+				report.Related(shadowed, "this is the variable being shadowed"))
+			return true
+		})
 	}
 	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
