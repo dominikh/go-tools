@@ -404,7 +404,7 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 				}
 				switch s[len(s)-1] {
 				case '.', ':', '!', '\n':
-					report.Report(pass, call, "error strings should not end with punctuation or a newline")
+					report.Report(pass, call, "error strings should not end with punctuation or newlines")
 				}
 				idx := strings.IndexByte(s, ' ')
 				if idx == -1 {

@@ -6,10 +6,10 @@ import "errors"
 func fn() {
 	errors.New("a perfectly fine error")
 	errors.New("Not a great error")       // want `error strings should not be capitalized`
-	errors.New("also not a great error.") // want `error strings should not end with punctuation or a newline`
+	errors.New("also not a great error.") // want `error strings should not end with punctuation or newlines`
 	errors.New("URL is okay")
 	errors.New("SomeFunc is okay")
-	errors.New("URL is okay, but the period is not.") // want `error strings should not end with punctuation or a newline`
+	errors.New("URL is okay, but the period is not.") // want `error strings should not end with punctuation or newlines`
 	errors.New("T must not be nil")
 	errors.New("Foo() failed")
 	errors.New("Foo(bar) failed")
