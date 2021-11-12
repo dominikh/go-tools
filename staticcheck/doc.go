@@ -670,6 +670,7 @@ To explicitly and reliably create a negative zero, you can use the
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 	},
+
 	"SA4027": {
 		Title: "`(*net/url.URL).Query` returns a copy, modifying it doesn't change the URL",
 		Text: `\'(*net/url.URL).Query\' parses the current value of \'net/url.URL.RawQuery\'
@@ -680,6 +681,12 @@ assigned to the URL's \'RawQuery\'.
 As a consequence, the following code pattern is an expensive no-op:
 \'u.Query().Add(key, value)\'.`,
 		Since:    "2021.1",
+		Severity: lint.SeverityWarning,
+	},
+
+	"SA4028": {
+		Title:    "`x % 1` is always zero",
+		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
 	},
 

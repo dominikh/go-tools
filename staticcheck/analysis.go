@@ -214,6 +214,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckIneffectiveURLQueryModification,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"SA4028": {
+		Run:      CheckModuloOne,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,

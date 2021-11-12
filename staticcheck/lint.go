@@ -4895,3 +4895,21 @@ func CheckBadRemoveAll(pass *analysis.Pass) (interface{}, error) {
 	}
 	return nil, nil
 }
+
+func CheckModuloOne(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		binop := node.(*ast.BinaryExpr)
+		if binop.Op != token.REM {
+			return
+		}
+		lit, ok := binop.Y.(*ast.BasicLit)
+		if !ok {
+			return
+		}
+		if lit.Value == "1" {
+			report.Report(pass, binop, "x % 1 is always zero")
+		}
+	}
+	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+	return nil, nil
+}
