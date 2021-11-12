@@ -51,7 +51,7 @@
 			"Severity": 5
 		},
 		"QF1006": {
-			"Title": "Lift if+break into loop condition",
+			"Title": "Lift `if`+`break` into loop condition",
 			"Text": "\n",
 			"Before": "for {\n    if done {\n        break\n    }\n    ...\n}",
 			"After": "for !done {\n    ...\n}",
@@ -81,7 +81,7 @@
 			"Severity": 5
 		},
 		"QF1009": {
-			"Title": "Use time.Time.Equal instead of `==` operator",
+			"Title": "Use `time.Time.Equal` instead of `==` operator",
 			"Text": "\n",
 			"Before": "",
 			"After": "",
@@ -531,8 +531,8 @@
 			"Severity": 3
 		},
 		"SA1006": {
-			"Title": "Printf with dynamic first argument and no further arguments",
-			"Text": "Using `fmt.Printf` with a dynamic first argument can lead to unexpected\noutput. The first argument is a format string, where certain character\ncombinations have special meaning. If, for example, a user were to\nenter a string such as\n\n```go\nInterest rate: 5%\n```\n\nand you printed it with\n\n```go\nfmt.Printf(s)\n```\n\nit would lead to the following output:\n\n```go\nInterest rate: 5%!(NOVERB).\n```\n\nSimilarly, forming the first parameter via string concatenation with\nuser input should be avoided for the same reason. When printing user\ninput, either use a variant of fmt.Print, or use the `%s` Printf verb\nand pass the string as an argument.\n",
+			"Title": "`Printf` with dynamic first argument and no further arguments",
+			"Text": "Using `fmt.Printf` with a dynamic first argument can lead to unexpected\noutput. The first argument is a format string, where certain character\ncombinations have special meaning. If, for example, a user were to\nenter a string such as\n\n```go\nInterest rate: 5%\n```\n\nand you printed it with\n\n```go\nfmt.Printf(s)\n```\n\nit would lead to the following output:\n\n```go\nInterest rate: 5%!(NOVERB).\n```\n\nSimilarly, forming the first parameter via string concatenation with\nuser input should be avoided for the same reason. When printing user\ninput, either use a variant of `fmt.Print`, or use the `%s` Printf verb\nand pass the string as an argument.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
@@ -562,7 +562,7 @@
 		},
 		"SA1010": {
 			"Title": "`(*regexp.Regexp).FindAll` called with `n == 0`, which will always return zero results",
-			"Text": "If n \u003e= 0, the function returns at most n matches/submatches. To\nreturn all results, specify a negative number.\n",
+			"Text": "If `n \u003e= 0`, the function returns at most `n` matches/submatches. To\nreturn all results, specify a negative number.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
@@ -642,7 +642,7 @@
 		},
 		"SA1018": {
 			"Title": "`strings.Replace` called with `n == 0`, which does nothing",
-			"Text": "With n == 0, zero instances will be replaced. To replace all\ninstances, use a negative number, or use strings.ReplaceAll.\n",
+			"Text": "With `n == 0`, zero instances will be replaced. To replace all\ninstances, use a negative number, or use `strings.ReplaceAll`.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
@@ -732,7 +732,7 @@
 		},
 		"SA1028": {
 			"Title": "`sort.Slice` can only be used on slices",
-			"Text": "The first argument of sort.Slice must be a slice.\n",
+			"Text": "The first argument of `sort.Slice` must be a slice.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2020.1",
@@ -802,7 +802,7 @@
 		},
 		"SA3000": {
 			"Title": "`TestMain` doesn't call `os.Exit`, hiding test failures",
-			"Text": "Test executables (and in turn `go test`) exit with a non-zero status\ncode if any tests failed. When specifying your own TestMain function,\nit is your responsibility to arrange for this, by calling `os.Exit` with\nthe correct code. The correct code is returned by `(*testing.M).Run`, so\nthe usual way of implementing TestMain is to end it with\n`os.Exit(m.Run())`.\n",
+			"Text": "Test executables (and in turn `go test`) exit with a non-zero status\ncode if any tests failed. When specifying your own `TestMain` function,\nit is your responsibility to arrange for this, by calling `os.Exit` with\nthe correct code. The correct code is returned by `(*testing.M).Run`, so\nthe usual way of implementing `TestMain` is to end it with\n`os.Exit(m.Run())`.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
@@ -821,7 +821,7 @@
 			"Severity": 1
 		},
 		"SA4000": {
-			"Title": "Boolean expression has identical expressions on both sides",
+			"Title": "Binary operator has identical expressions on both sides",
 			"Text": "\n",
 			"Before": "",
 			"After": "",
@@ -1052,7 +1052,7 @@
 		},
 		"SA4025": {
 			"Title": "Integer division of literals that results in zero",
-			"Text": "When dividing two integer constants, the result will\nalso be an integer. Thus, a division such as '2 / 3' results in '0'.\nThis is true for all of the following examples:\n\n\t_ = 2 / 3\n\tconst _ = 2 / 3\n\tconst _ float64 = 2 / 3\n\t_ = float64(2 / 3)\n\nStaticcheck will flag such divisions if both sides of the division are\ninteger literals, as it is highly unlikely that the division was\nintended to truncate to zero. Staticcheck will not flag integer\ndivision involving named constants, to avoid noisy positives.\n",
+			"Text": "When dividing two integer constants, the result will\nalso be an integer. Thus, a division such as `2 / 3` results in `0`.\nThis is true for all of the following examples:\n\n\t_ = 2 / 3\n\tconst _ = 2 / 3\n\tconst _ float64 = 2 / 3\n\t_ = float64(2 / 3)\n\nStaticcheck will flag such divisions if both sides of the division are\ninteger literals, as it is highly unlikely that the division was\nintended to truncate to zero. Staticcheck will not flag integer\ndivision involving named constants, to avoid noisy positives.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2021.1",
@@ -1076,6 +1076,16 @@
 			"Before": "",
 			"After": "",
 			"Since": "2021.1",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 3
+		},
+		"SA4028": {
+			"Title": "`x % 1` is always zero",
+			"Text": "\n",
+			"Before": "",
+			"After": "",
+			"Since": "Unreleased",
 			"NonDefault": false,
 			"Options": null,
 			"Severity": 3
@@ -1182,7 +1192,7 @@
 		},
 		"SA5011": {
 			"Title": "Possible nil pointer dereference",
-			"Text": "A pointer is being dereferenced unconditionally, while\nalso being checked against nil in another place. This suggests that\nthe pointer may be nil and dereferencing it may panic. This is\ncommonly a result of improperly ordered code or missing return\nstatements. Consider the following examples:\n\n```go\nfunc fn(x *int) {\n    fmt.Println(*x)\n\n    // This nil check is equally important for the previous dereference\n    if x != nil {\n        foo(*x)\n    }\n}\n\nfunc TestFoo(t *testing.T) {\n    x := compute()\n    if x == nil {\n        t.Errorf(\"nil pointer received\")\n    }\n\n    // t.Errorf does not abort the test, so if x is nil, the next line will panic.\n    foo(*x)\n}\n```\n\nStaticcheck tries to deduce which functions abort control flow.\nFor example, it is aware that a function will not continue\nexecution after a call to `panic` or `log.Fatal`. However, sometimes\nthis detection fails, in particular in the presence of\nconditionals. Consider the following example:\n\n```go\nfunc Log(msg string, level int) {\n    fmt.Println(msg)\n    if level == levelFatal {\n        os.Exit(1)\n    }\n}\n\nfunc Fatal(msg string) {\n    Log(msg, levelFatal)\n}\n\nfunc fn(x *int) {\n    if x == nil {\n        Fatal(\"unexpected nil pointer\")\n    }\n    fmt.Println(*x)\n}\n```\n\nStaticcheck will flag the dereference of x, even though it is perfectly\nsafe. Staticcheck is not able to deduce that a call to\nFatal will exit the program. For the time being, the easiest\nworkaround is to modify the definition of Fatal like so:\n\n```go\nfunc Fatal(msg string) {\n    Log(msg, levelFatal)\n    panic(\"unreachable\")\n}\n```\n\nWe also hard-code functions from common logging packages such as\nlogrus. Please file an issue if we're missing support for a\npopular package.\n",
+			"Text": "A pointer is being dereferenced unconditionally, while\nalso being checked against nil in another place. This suggests that\nthe pointer may be nil and dereferencing it may panic. This is\ncommonly a result of improperly ordered code or missing return\nstatements. Consider the following examples:\n\n```go\nfunc fn(x *int) {\n    fmt.Println(*x)\n\n    // This nil check is equally important for the previous dereference\n    if x != nil {\n        foo(*x)\n    }\n}\n\nfunc TestFoo(t *testing.T) {\n    x := compute()\n    if x == nil {\n        t.Errorf(\"nil pointer received\")\n    }\n\n    // t.Errorf does not abort the test, so if x is nil, the next line will panic.\n    foo(*x)\n}\n```\n\nStaticcheck tries to deduce which functions abort control flow.\nFor example, it is aware that a function will not continue\nexecution after a call to `panic` or `log.Fatal`. However, sometimes\nthis detection fails, in particular in the presence of\nconditionals. Consider the following example:\n\n```go\nfunc Log(msg string, level int) {\n    fmt.Println(msg)\n    if level == levelFatal {\n        os.Exit(1)\n    }\n}\n\nfunc Fatal(msg string) {\n    Log(msg, levelFatal)\n}\n\nfunc fn(x *int) {\n    if x == nil {\n        Fatal(\"unexpected nil pointer\")\n    }\n    fmt.Println(*x)\n}\n```\n\nStaticcheck will flag the dereference of `x`, even though it is perfectly\nsafe. Staticcheck is not able to deduce that a call to\nFatal will exit the program. For the time being, the easiest\nworkaround is to modify the definition of Fatal like so:\n\n```go\nfunc Fatal(msg string) {\n    Log(msg, levelFatal)\n    panic(\"unreachable\")\n}\n```\n\nWe also hard-code functions from common logging packages such as\nlogrus. Please file an issue if we're missing support for a\npopular package.\n",
 			"Before": "",
 			"After": "",
 			"Since": "2020.1",
@@ -1313,6 +1323,16 @@
 		"SA9007": {
 			"Title": "Deleting a directory that shouldn't be deleted",
 			"Text": "It is virtually never correct to delete system directories such as /tmp or the user's home directory.\nHowever, it can be fairly easy to do by mistake, for example by mistakingly using `os.TempDir` instead of `ioutil.TempDir`,\nor by forgetting to add a suffix to the result of `os.UserHomeDir`.\n\nWriting\n\n```go\nd := os.TempDir()\ndefer os.RemoveAll(d)\n```\n\nin your unit tests will have a devastating effect on the stability of your system.\n\nThis check flags attempts at deleting the following directories:\n\n- os.TempDir\n- os.UserCacheDir\n- os.UserConfigDir\n- os.UserHomeDir\n",
+			"Before": "",
+			"After": "",
+			"Since": "Unreleased",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 3
+		},
+		"SA9008": {
+			"Title": "`else` branch of a type assertion is probably not reading the right value",
+			"Text": "When declaring variables as part of an `if` statement (like in `if foo := ...; foo {`), the same variables will also be in the scope of the `else` branch.\nThis means that in the following example\n\n```go\nif x, ok := x.(int); ok {\n    // ...\n} else {\n    fmt.Println(\"unexpected type %T\", x)\n}\n```\n\n`x` in the `else` branch will refer to the `x` from `x, ok :=`; it will not refer to the `x` that is being type-asserted.\nThe result of a failed type assertion is the zero value of the type that is being asserted to,\nso `x` in the else branch will always have the value `0` and the type `int`.\n",
 			"Before": "",
 			"After": "",
 			"Since": "Unreleased",
@@ -1626,7 +1646,8 @@
 			"SA4024",
 			"SA4025",
 			"SA4026",
-			"SA4027"
+			"SA4027",
+			"SA4028"
 		],
 		"SA5": [
 			"SA5000",
@@ -1656,7 +1677,8 @@
 			"SA9004",
 			"SA9005",
 			"SA9006",
-			"SA9007"
+			"SA9007",
+			"SA9008"
 		],
 		"ST1": [
 			"ST1000",
