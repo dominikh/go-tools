@@ -96,7 +96,7 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 			}
 		}
 
-		c, err := cache.Default()
+		c, err := cache.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
