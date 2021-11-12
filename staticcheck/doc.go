@@ -366,7 +366,7 @@ falsify results.`,
 	},
 
 	"SA4000": {
-		Title:    `Boolean expression has identical expressions on both sides`,
+		Title:    `Binary operator has identical expressions on both sides`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
