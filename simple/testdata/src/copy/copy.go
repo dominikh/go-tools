@@ -115,3 +115,15 @@ func fn4() {
 		a3[i] = a1p[i]
 	}
 }
+
+func fn5() {
+	var src, dst []byte
+	for i := 0; i < len(src); i++ { // want `should use copy`
+		dst[i] = src[i]
+	}
+
+	len := func([]byte) int { return 0 }
+	for i := 0; i < len(src); i++ {
+		dst[i] = src[i]
+	}
+}

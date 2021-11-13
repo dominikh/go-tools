@@ -64,6 +64,11 @@ var (
 				[(AssignStmt (IndexExpr dst key) "=" value)])
 			(RangeStmt
 				key@(Ident _) nil ":=" src
+				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))])
+			(ForStmt
+				(AssignStmt key@(Ident _) ":=" (BasicLit "INT" "0"))
+				(BinaryExpr key "<" (CallExpr (Function "len") [src]))
+				(IncDecStmt key "++")
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))]))`)
 )
 
@@ -195,7 +200,7 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "should use copy() instead of a loop", opts...)
 		}
 	}
-	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))
+	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.RangeStmt)(nil))
 	return nil, nil
 }
 
