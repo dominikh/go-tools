@@ -278,7 +278,7 @@ func MayHaveSideEffects(pass *analysis.Pass, expr ast.Expr, purity facts.PurityR
 		if MayHaveSideEffects(pass, expr.X, purity) {
 			return true
 		}
-		return expr.Op == token.ARROW
+		return expr.Op == token.ARROW || expr.Op == token.AND
 	case *ast.ParenExpr:
 		return MayHaveSideEffects(pass, expr.X, purity)
 	case nil:
