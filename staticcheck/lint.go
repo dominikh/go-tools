@@ -5030,7 +5030,7 @@ func CheckIneffectiveSort(pass *analysis.Pass) (interface{}, error) {
 				typeName,
 				report.Render(pass, node.(*ast.AssignStmt).Rhs[0]),
 				alternative),
-			report.Fixes(edit.Fix(fmt.Sprintf(""), edit.ReplaceWithNode(pass.Fset, node, r))))
+			report.Fixes(edit.Fix(fmt.Sprintf("replace with call to sort.%s", alternative), edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
 	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
