@@ -690,6 +690,18 @@ As a consequence, the following code pattern is an expensive no-op:
 		Severity: lint.SeverityWarning,
 	},
 
+	"SA4029": {
+		Title: "Ineffective attempt at sorting slice",
+		Text: `
+\'sort.Float64Slice\', \'sort.IntSlice\', and \'sort.StringSlice\' are types, not functions.
+Doing \'x = sort.StringSlice(x)\' does nothing, especially not sort any values.
+The correct usage is \'sort.Sort(sort.StringSlice(x))\' or \'sort.StringSlice(x).Sort()\',
+but there are more convenient helpers, namely \'sort.Float64s\', \'sort.Ints\', and \'sort.Strings\'.
+`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+	},
+
 	"SA5000": {
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",

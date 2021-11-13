@@ -4988,3 +4988,50 @@ func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
+
+var ineffectiveSortQ = pattern.MustParse(`(AssignStmt target@(Ident _) "=" (CallExpr typ@(Function (Or "sort.Float64Slice" "sort.IntSlice" "sort.StringSlice")) [target]))`)
+
+func CheckIneffectiveSort(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, ineffectiveSortQ, node)
+		if !ok {
+			return
+		}
+
+		_, ok = pass.TypesInfo.TypeOf(m.State["target"].(ast.Expr)).(*types.Slice)
+		if !ok {
+			// Avoid flagging 'x = sort.StringSlice(x)' where TypeOf(x) == sort.StringSlice
+			return
+		}
+
+		var alternative string
+		typeName := types.TypeString(m.State["typ"].(*types.TypeName).Type(), nil)
+		switch typeName {
+		case "sort.Float64Slice":
+			alternative = "Float64s"
+		case "sort.IntSlice":
+			alternative = "Ints"
+		case "sort.StringSlice":
+			alternative = "Strings"
+		default:
+			panic(fmt.Sprintf("unreachable: %q", typeName))
+		}
+
+		r := &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   &ast.Ident{Name: "sort"},
+				Sel: &ast.Ident{Name: alternative},
+			},
+			Args: []ast.Expr{m.State["target"].(ast.Expr)},
+		}
+
+		report.Report(pass, node,
+			fmt.Sprintf("%s is a type, not a function, and %s doesn't sort your values; consider using sort.%s instead",
+				typeName,
+				report.Render(pass, node.(*ast.AssignStmt).Rhs[0]),
+				alternative),
+			report.Fixes(edit.Fix(fmt.Sprintf(""), edit.ReplaceWithNode(pass.Fset, node, r))))
+	}
+	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
+	return nil, nil
+}
