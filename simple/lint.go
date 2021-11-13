@@ -60,28 +60,59 @@ var (
 	checkLoopCopyQ = pattern.MustParse(`
 		(Or
 			(RangeStmt
-				key value ":=" src@(Ident _)
+				key@(Ident _) value@(Ident _) ":=" src
 				[(AssignStmt
-					(IndexExpr dst@(Ident _) key)
+					(IndexExpr dst key)
 					"="
 					value)])
 			(RangeStmt
-				key nil ":=" src@(Ident _)
+				key@(Ident _) nil ":=" src
 				[(AssignStmt
-					(IndexExpr dst@(Ident _) key)
+					(IndexExpr dst key)
 					"="
 					(IndexExpr src key))]))`)
 	checkLoopCopyR = pattern.MustParse(`(CallExpr (Ident "copy") [dst src])`)
 )
 
 func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
+	isInvariant := func(k, v types.Object, node ast.Expr) bool {
+		if code.MayHaveSideEffects(pass, node, nil) {
+			return false
+		}
+		invariant := true
+		ast.Inspect(node, func(node ast.Node) bool {
+			if node, ok := node.(*ast.Ident); ok {
+				obj := pass.TypesInfo.ObjectOf(node)
+				if obj == k || obj == v {
+					invariant = false
+					return false
+				}
+			}
+			return true
+		})
+		return invariant
+	}
 	fn := func(node ast.Node) {
 		m, edits, ok := code.MatchAndEdit(pass, checkLoopCopyQ, checkLoopCopyR, node)
 		if !ok {
 			return
 		}
-		t1 := pass.TypesInfo.TypeOf(m.State["src"].(*ast.Ident))
-		t2 := pass.TypesInfo.TypeOf(m.State["dst"].(*ast.Ident))
+
+		k := pass.TypesInfo.ObjectOf(m.State["key"].(*ast.Ident))
+		var v types.Object
+		if value, ok := m.State["value"]; ok {
+			v = pass.TypesInfo.ObjectOf(value.(*ast.Ident))
+		}
+		if !isInvariant(k, v, m.State["dst"].(ast.Expr)) {
+			return
+		}
+		if !isInvariant(k, v, m.State["src"].(ast.Expr)) {
+			// For example: 'for i := range foo()'
+			return
+		}
+
+		t1 := pass.TypesInfo.TypeOf(m.State["src"].(ast.Expr))
+		t2 := pass.TypesInfo.TypeOf(m.State["dst"].(ast.Expr))
 		if _, ok := t1.Underlying().(*types.Slice); !ok {
 			return
 		}

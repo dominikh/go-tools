@@ -28,3 +28,41 @@ func fn() {
 	}
 
 }
+
+func src() []interface{} { return nil }
+
+func fn1() {
+	// Don't flag this, the source is dynamic
+	var dst []interface{}
+	for i := range src() {
+		dst[i] = src()[i]
+	}
+}
+
+func fn2() {
+	type T struct {
+		b []byte
+	}
+
+	var src []byte
+	var dst T
+	for i, v := range src { // want `should use copy`
+		dst.b[i] = v
+	}
+}
+
+func fn3() {
+	var src []byte
+	var dst [][]byte
+	for i, v := range src { // want `should use copy`
+		dst[0][i] = v
+	}
+	for i, v := range src {
+		// Don't flag, destination depends on loop variable
+		dst[i][i] = v
+	}
+	for i, v := range src {
+		// Don't flag, destination depends on loop variable
+		dst[v][i] = v
+	}
+}
