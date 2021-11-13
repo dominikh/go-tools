@@ -488,17 +488,22 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 			name = obj.FullName()
 		case *types.Builtin:
 			name = obj.Name()
+		case *types.TypeName:
+			name = types.TypeString(obj.Type(), nil)
 		default:
 			return nil, false
 		}
 	case *ast.SelectorExpr:
-		var ok bool
-		obj, ok = m.TypesInfo.ObjectOf(r.Sel).(*types.Func)
-		if !ok {
+		obj = m.TypesInfo.ObjectOf(r.Sel)
+		switch obj := obj.(type) {
+		case *types.Func:
+			// OPT(dh): optimize this similar to code.FuncName
+			name = obj.FullName()
+		case *types.TypeName:
+			name = types.TypeString(obj.Type(), nil)
+		default:
 			return nil, false
 		}
-		// OPT(dh): optimize this similar to code.FuncName
-		name = obj.(*types.Func).FullName()
 	default:
 		panic("unreachable")
 	}
