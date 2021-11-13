@@ -24,7 +24,7 @@ fmt.Println(x)
 
 	"S1001": {
 		Title: `Replace for loop with call to copy`,
-		Text:  `Use \'copy()\' for copying elements from one slice to another.`,
+		Text:  `Use \'copy()\' for copying elements from one slice to another. For arrays of identical size, you can use simple assignment.`,
 		Before: `
 for i, x := range src {
     dst[i] = x

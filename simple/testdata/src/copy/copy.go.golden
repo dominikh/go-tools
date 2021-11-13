@@ -56,3 +56,28 @@ func fn3() {
 		dst[v][i] = v
 	}
 }
+
+func fn4() {
+	var b []byte
+	var a1 [5]byte
+	var a2 [10]byte
+	var a3 [5]byte
+
+	copy(a1[:], b)
+	copy(b, a1[:])
+	copy(a2[:], a1[:])
+	a3 = a1
+
+	a1p := &a1
+	a2p := &a2
+	a3p := &a3
+	copy(a1p[:], b)
+	copy(b, a1p[:])
+	copy(a2p[:], a1p[:])
+	*a3p = *a1p
+
+	copy(a2p[:], a1[:])
+	*a3p = a1
+	copy(a2[:], a1p[:])
+	a3 = *a1p
+}

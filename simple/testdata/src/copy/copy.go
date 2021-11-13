@@ -66,3 +66,52 @@ func fn3() {
 		dst[v][i] = v
 	}
 }
+
+func fn4() {
+	var b []byte
+	var a1 [5]byte
+	var a2 [10]byte
+	var a3 [5]byte
+
+	for i := range b { // want `should use copy`
+		a1[i] = b[i]
+	}
+	for i := range a1 { // want `should use copy`
+		b[i] = a1[i]
+	}
+	for i := range a1 { // want `should use copy`
+		a2[i] = a1[i]
+	}
+	for i := range a1 { // want `should copy arrays using assignment`
+		a3[i] = a1[i]
+	}
+
+	a1p := &a1
+	a2p := &a2
+	a3p := &a3
+	for i := range b { // want `should use copy`
+		a1p[i] = b[i]
+	}
+	for i := range a1p { // want `should use copy`
+		b[i] = a1p[i]
+	}
+	for i := range a1p { // want `should use copy`
+		a2p[i] = a1p[i]
+	}
+	for i := range a1p { // want `should copy arrays using assignment`
+		a3p[i] = a1p[i]
+	}
+
+	for i := range a1 { // want `should use copy`
+		a2p[i] = a1[i]
+	}
+	for i := range a1 { // want `should copy arrays using assignment`
+		a3p[i] = a1[i]
+	}
+	for i := range a1p { // want `should use copy`
+		a2[i] = a1p[i]
+	}
+	for i := range a1p { // want `should copy arrays using assignment`
+		a3[i] = a1p[i]
+	}
+}

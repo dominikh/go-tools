@@ -61,17 +61,10 @@ var (
 		(Or
 			(RangeStmt
 				key@(Ident _) value@(Ident _) ":=" src
-				[(AssignStmt
-					(IndexExpr dst key)
-					"="
-					value)])
+				[(AssignStmt (IndexExpr dst key) "=" value)])
 			(RangeStmt
 				key@(Ident _) nil ":=" src
-				[(AssignStmt
-					(IndexExpr dst key)
-					"="
-					(IndexExpr src key))]))`)
-	checkLoopCopyR = pattern.MustParse(`(CallExpr (Ident "copy") [dst src])`)
+				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))]))`)
 )
 
 func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
@@ -84,6 +77,7 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 			if node, ok := node.(*ast.Ident); ok {
 				obj := pass.TypesInfo.ObjectOf(node)
 				if obj == k || obj == v {
+					// don't allow loop bodies like 'a[i][i] = v'
 					invariant = false
 					return false
 				}
@@ -92,43 +86,113 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 		})
 		return invariant
 	}
+
+	var elType func(T types.Type) (el types.Type, isArray bool, isArrayPointer bool, ok bool)
+	elType = func(T types.Type) (el types.Type, isArray bool, isArrayPointer bool, ok bool) {
+		switch typ := T.Underlying().(type) {
+		case *types.Slice:
+			return typ.Elem(), false, false, true
+		case *types.Array:
+			return typ.Elem(), true, false, true
+		case *types.Pointer:
+			el, isArray, _, ok = elType(typ.Elem())
+			return el, isArray, true, ok
+		default:
+			return nil, false, false, false
+		}
+	}
+
 	fn := func(node ast.Node) {
-		m, edits, ok := code.MatchAndEdit(pass, checkLoopCopyQ, checkLoopCopyR, node)
+		m, ok := code.Match(pass, checkLoopCopyQ, node)
 		if !ok {
 			return
 		}
+
+		src := m.State["src"].(ast.Expr)
+		dst := m.State["dst"].(ast.Expr)
 
 		k := pass.TypesInfo.ObjectOf(m.State["key"].(*ast.Ident))
 		var v types.Object
 		if value, ok := m.State["value"]; ok {
 			v = pass.TypesInfo.ObjectOf(value.(*ast.Ident))
 		}
-		if !isInvariant(k, v, m.State["dst"].(ast.Expr)) {
+		if !isInvariant(k, v, dst) {
 			return
 		}
-		if !isInvariant(k, v, m.State["src"].(ast.Expr)) {
+		if !isInvariant(k, v, src) {
 			// For example: 'for i := range foo()'
 			return
 		}
 
-		t1 := pass.TypesInfo.TypeOf(m.State["src"].(ast.Expr))
-		t2 := pass.TypesInfo.TypeOf(m.State["dst"].(ast.Expr))
-		if _, ok := t1.Underlying().(*types.Slice); !ok {
+		Tsrc := pass.TypesInfo.TypeOf(src)
+		Tdst := pass.TypesInfo.TypeOf(dst)
+		TsrcElem, TsrcArray, TsrcPointer, ok := elType(Tsrc)
+		if !ok {
 			return
 		}
-		if !types.Identical(t1, t2) {
+		if TsrcPointer {
+			Tsrc = Tsrc.Underlying().(*types.Pointer).Elem()
+		}
+		TdstElem, TdstArray, TdstPointer, ok := elType(Tdst)
+		if !ok {
+			return
+		}
+		if TdstPointer {
+			Tdst = Tdst.Underlying().(*types.Pointer).Elem()
+		}
+
+		if !types.Identical(TsrcElem, TdstElem) {
 			return
 		}
 
-		tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
-		if err == nil && tv.IsBuiltin() {
-			report.Report(pass, node,
-				"should use copy() instead of a loop",
+		if TsrcArray && TdstArray && types.Identical(Tsrc, Tdst) {
+			if TsrcPointer {
+				src = &ast.StarExpr{
+					X: src,
+				}
+			}
+			if TdstPointer {
+				dst = &ast.StarExpr{
+					X: dst,
+				}
+			}
+			r := &ast.AssignStmt{
+				Lhs: []ast.Expr{dst},
+				Rhs: []ast.Expr{src},
+				Tok: token.ASSIGN,
+			}
+
+			report.Report(pass, node, "should copy arrays using assignment instead of using a loop",
+				report.FilterGenerated(),
+				report.ShortRange(),
+				report.Fixes(edit.Fix("replace loop with assignment", edit.ReplaceWithNode(pass.Fset, node, r))))
+		} else {
+			opts := []report.Option{
 				report.ShortRange(),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("replace loop with call to copy()", edits...)))
-		} else {
-			report.Report(pass, node, "should use copy() instead of a loop", report.FilterGenerated())
+			}
+			tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
+			if err == nil && tv.IsBuiltin() {
+				src := m.State["src"].(ast.Expr)
+				if TsrcArray {
+					src = &ast.SliceExpr{
+						X: src,
+					}
+				}
+				dst := m.State["dst"].(ast.Expr)
+				if TdstArray {
+					dst = &ast.SliceExpr{
+						X: dst,
+					}
+				}
+
+				r := &ast.CallExpr{
+					Fun:  &ast.Ident{Name: "copy"},
+					Args: []ast.Expr{dst, src},
+				}
+				opts = append(opts, report.Fixes(edit.Fix("replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))))
+			}
+			report.Report(pass, node, "should use copy() instead of a loop", opts...)
 		}
 	}
 	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))

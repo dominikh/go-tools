@@ -132,7 +132,7 @@
 		},
 		"S1001": {
 			"Title": "Replace for loop with call to copy",
-			"Text": "Use `copy()` for copying elements from one slice to another.\n",
+			"Text": "Use `copy()` for copying elements from one slice to another. For arrays of identical size, you can use simple assignment.\n",
 			"Before": "for i, x := range src {\n    dst[i] = x\n}",
 			"After": "copy(dst, src)",
 			"Since": "2017.1",
