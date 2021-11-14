@@ -222,6 +222,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckIneffectiveSort,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
+	"SA4030": {
+		Run:      CheckIneffectiveRandInt,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,

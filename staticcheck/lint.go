@@ -5035,3 +5035,31 @@ func CheckIneffectiveSort(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
 }
+
+var ineffectiveRandIntQ = pattern.MustParse(`
+	(CallExpr
+		(Function
+			name@(Or
+				"math/rand.Int31n"
+				"math/rand.Int63n"
+				"math/rand.Intn"
+				"(*math/rand.Rand).Int31n"
+				"(*math/rand.Rand).Int63n"
+				"(*math/rand.Rand).Intn"))
+		[(BasicLit "INT" "1")])`)
+
+func CheckIneffectiveRandInt(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, ineffectiveRandIntQ, node)
+		if !ok {
+			return
+		}
+
+		report.Report(pass, node,
+			fmt.Sprintf("%s(n) generates a random value 0 <= x < n; that is, the generated values don't include n; %s therefore always returns 0",
+				m.State["name"], report.Render(pass, node)))
+	}
+
+	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
+	return nil, nil
+}

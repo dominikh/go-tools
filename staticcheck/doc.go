@@ -702,6 +702,18 @@ but there are more convenient helpers, namely \'sort.Float64s\', \'sort.Ints\', 
 		Severity: lint.SeverityWarning,
 	},
 
+	"SA4030": {
+		Title: "Ineffective attempt at generating random number",
+		Text: `
+Functions in the \'math/rand\' package that accept upper limits, such
+as \'Intn\', generate random numbers in the half-open interval [0,n). In
+other words, the generated numbers will be \'>= 0\' and \'< n\' – they
+don't include \'n\'. \'rand.Intn(1)\' therefore doesn't generate \'0\'
+or \'1\', it always generates \'0\'.`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+	},
+
 	"SA5000": {
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",

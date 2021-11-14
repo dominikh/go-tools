@@ -1100,6 +1100,16 @@
 			"Options": null,
 			"Severity": 3
 		},
+		"SA4030": {
+			"Title": "Ineffective attempt at generating random number",
+			"Text": "Functions in the `math/rand` package that accept upper limits, such\nas `Intn`, generate random numbers in the half-open interval [0,n). In\nother words, the generated numbers will be `\u003e= 0` and `\u003c n` – they\ndon't include `n`. `rand.Intn(1)` therefore doesn't generate `0`\nor `1`, it always generates `0`.\n",
+			"Before": "",
+			"After": "",
+			"Since": "Unreleased",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 3
+		},
 		"SA5000": {
 			"Title": "Assignment to nil map",
 			"Text": "\n",
@@ -1658,7 +1668,8 @@
 			"SA4026",
 			"SA4027",
 			"SA4028",
-			"SA4029"
+			"SA4029",
+			"SA4030"
 		],
 		"SA5": [
 			"SA5000",
