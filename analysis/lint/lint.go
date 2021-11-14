@@ -55,7 +55,7 @@ const (
 	SeverityHint
 )
 
-type Documentation struct {
+type RawDocumentation struct {
 	Title      string
 	Text       string
 	Before     string
@@ -66,53 +66,70 @@ type Documentation struct {
 	Severity   Severity
 }
 
-func Markdownify(m map[string]*Documentation) map[string]*Documentation {
-	for _, v := range m {
-		v.Title = strings.TrimSpace(toMarkdown(v.Title))
-		v.Text = strings.TrimSpace(toMarkdown(v.Text))
-		v.Before = strings.TrimSpace(v.Before)
-		v.After = strings.TrimSpace(v.After)
+type Documentation struct {
+	Title string
+	Text  string
+
+	TitleMarkdown string
+	TextMarkdown  string
+
+	Before     string
+	After      string
+	Since      string
+	NonDefault bool
+	Options    []string
+	Severity   Severity
+}
+
+func Markdownify(m map[string]*RawDocumentation) map[string]*Documentation {
+	out := make(map[string]*Documentation, len(m))
+	for k, v := range m {
+		out[k] = &Documentation{
+			Title: strings.TrimSpace(stripMarkdown(v.Title)),
+			Text:  strings.TrimSpace(stripMarkdown(v.Text)),
+
+			TitleMarkdown: strings.TrimSpace(toMarkdown(v.Title)),
+			TextMarkdown:  strings.TrimSpace(toMarkdown(v.Text)),
+
+			Before:     strings.TrimSpace(v.Before),
+			After:      strings.TrimSpace(v.After),
+			Since:      v.Since,
+			NonDefault: v.NonDefault,
+			Options:    v.Options,
+			Severity:   v.Severity,
+		}
 	}
-	return m
+	return out
 }
 
 func toMarkdown(s string) string {
-	return strings.ReplaceAll(s, `\'`, "`")
+	return strings.NewReplacer(`\'`, "`", `\"`, "`").Replace(s)
 }
 
-func (doc *Documentation) String() string {
-	b := &strings.Builder{}
-	b.WriteString(doc.WithoutMetadata())
+func stripMarkdown(s string) string {
+	return strings.NewReplacer(`\'`, "", `\"`, "'").Replace(s)
+}
 
-	fmt.Fprint(b, "Available since\n    ")
-	if doc.Since == "" {
-		fmt.Fprint(b, "unreleased")
-	} else {
-		fmt.Fprintf(b, "%s", doc.Since)
-	}
-	if doc.NonDefault {
-		fmt.Fprint(b, ", non-default")
-	}
-	fmt.Fprint(b, "\n")
-	if len(doc.Options) > 0 {
-		fmt.Fprintf(b, "\nOptions\n")
-		for _, opt := range doc.Options {
-			fmt.Fprintf(b, "    %s", opt)
+func (doc *Documentation) Format(metadata bool) string {
+	return doc.format(false, metadata)
+}
+
+func (doc *Documentation) FormatMarkdown(metadata bool) string {
+	return doc.format(true, metadata)
+}
+
+func (doc *Documentation) format(markdown bool, metadata bool) string {
+	b := &strings.Builder{}
+	if markdown {
+		fmt.Fprintf(b, "%s\n\n", doc.TitleMarkdown)
+		if doc.Text != "" {
+			fmt.Fprintf(b, "%s\n\n", doc.TextMarkdown)
 		}
-		fmt.Fprint(b, "\n")
-	}
-	return b.String()
-}
-
-func (doc *Documentation) WithoutMetadata() string {
-	if doc == nil {
-		return "Error: No documentation."
-	}
-
-	b := &strings.Builder{}
-	fmt.Fprintf(b, "%s\n\n", doc.Title)
-	if doc.Text != "" {
-		fmt.Fprintf(b, "%s\n\n", doc.Text)
+	} else {
+		fmt.Fprintf(b, "%s\n\n", doc.Title)
+		if doc.Text != "" {
+			fmt.Fprintf(b, "%s\n\n", doc.Text)
+		}
 	}
 
 	if doc.Before != "" {
@@ -130,7 +147,31 @@ func (doc *Documentation) WithoutMetadata() string {
 		fmt.Fprintln(b, "")
 	}
 
+	if metadata {
+		fmt.Fprint(b, "Available since\n    ")
+		if doc.Since == "" {
+			fmt.Fprint(b, "unreleased")
+		} else {
+			fmt.Fprintf(b, "%s", doc.Since)
+		}
+		if doc.NonDefault {
+			fmt.Fprint(b, ", non-default")
+		}
+		fmt.Fprint(b, "\n")
+		if len(doc.Options) > 0 {
+			fmt.Fprintf(b, "\nOptions\n")
+			for _, opt := range doc.Options {
+				fmt.Fprintf(b, "    %s", opt)
+			}
+			fmt.Fprint(b, "\n")
+		}
+	}
+
 	return b.String()
+}
+
+func (doc *Documentation) String() string {
+	return doc.Format(true)
 }
 
 func newVersionFlag() flag.Getter {

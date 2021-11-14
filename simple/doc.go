@@ -5,7 +5,7 @@ package simple
 
 import "honnef.co/go/tools/analysis/lint"
 
-var Docs = lint.Markdownify(map[string]*lint.Documentation{
+var Docs = lint.Markdownify(map[string]*lint.RawDocumentation{
 	"S1000": {
 		Title: `Use plain channel send or receive instead of single-case select`,
 		Text: `Select statements with a single case can be replaced with a simple
@@ -41,14 +41,14 @@ for i, x := range src {
 	},
 
 	"S1003": {
-		Title:  "Replace call to `strings.Index` with `strings.Contains`",
+		Title:  `Replace call to \'strings.Index\' with \'strings.Contains\'`,
 		Before: `if strings.Index(x, y) != -1 {}`,
 		After:  `if strings.Contains(x, y) {}`,
 		Since:  "2017.1",
 	},
 
 	"S1004": {
-		Title:  "Replace call to `bytes.Compare` with `bytes.Equal`",
+		Title:  `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
 		Before: `if bytes.Compare(x, y) == 0 {}`,
 		After:  `if bytes.Equal(x, y) {}`,
 		Since:  "2017.1",
@@ -69,7 +69,7 @@ x = someMap[key]
 	},
 
 	"S1006": {
-		Title: "Use `for { ... }` for infinite loops",
+		Title: `Use \"for { ... }\" for infinite loops`,
 		Text:  `For infinite loops, using \'for { ... }\' is the most idiomatic choice.`,
 		Since: "2017.1",
 	},
@@ -116,7 +116,7 @@ making \'s[n:len(s)]\' and \'s[n:]\' equivalent.`,
 	},
 
 	"S1011": {
-		Title: "Use a single `append` to concatenate two slices",
+		Title: `Use a single \'append\' to concatenate two slices`,
 		Before: `
 for _, e := range y {
     x = append(x, e)
@@ -126,7 +126,7 @@ for _, e := range y {
 	},
 
 	"S1012": {
-		Title: "Replace `time.Now().Sub(x)` with `time.Since(x)`",
+		Title: `Replace \'time.Now().Sub(x)\' with \'time.Since(x)\'`,
 		Text: `The \'time.Since\' helper has the same effect as using \'time.Now().Sub(x)\'
 but is easier to read.`,
 		Before: `time.Now().Sub(x)`,
@@ -154,7 +154,7 @@ y := T2(x)`,
 	},
 
 	"S1017": {
-		Title: "Replace manual trimming with `strings.TrimPrefix`",
+		Title: `Replace manual trimming with \'strings.TrimPrefix\'`,
 		Text: `Instead of using \'strings.HasPrefix\' and manual slicing, use the
 \'strings.TrimPrefix\' function. If the string doesn't start with the
 prefix, the original string will be returned. Using \'strings.TrimPrefix\'
@@ -169,7 +169,7 @@ if strings.HasPrefix(str, prefix) {
 	},
 
 	"S1018": {
-		Title: "Use `copy` for sliding elements",
+		Title: `Use \"copy\" for sliding elements`,
 		Text: `\'copy()\' permits using the same source and destination slice, even with
 overlapping ranges. This makes it ideal for sliding elements in a
 slice.`,
@@ -183,8 +183,8 @@ for i := 0; i < n; i++ {
 	},
 
 	"S1019": {
-		Title: "Simplify `make` call by omitting redundant arguments",
-		Text: `The \'make\' function has default values for the length and capacity
+		Title: `Simplify \"make\" call by omitting redundant arguments`,
+		Text: `The \"make\" function has default values for the length and capacity
 arguments. For channels, the length defaults to zero, and for slices, the capacity defaults to the length.`,
 		Since: "2017.1",
 	},
@@ -217,7 +217,7 @@ statement in a case block.`,
 	},
 
 	"S1024": {
-		Title: "Replace `x.Sub(time.Now())` with `time.Until(x)`",
+		Title: `Replace \'x.Sub(time.Now())\' with \'time.Until(x)\'`,
 		Text: `The \'time.Until\' helper has the same effect as using \'x.Sub(time.Now())\'
 but is easier to read.`,
 		Before: `x.Sub(time.Now())`,
@@ -226,7 +226,7 @@ but is easier to read.`,
 	},
 
 	"S1025": {
-		Title: "Don't use `fmt.Sprintf(\"%s\", x)` unnecessarily",
+		Title: `Don't use \'fmt.Sprintf("%s", x)\' unnecessarily`,
 		Text: `In many instances, there are easier and more efficient ways of getting
 a value's string representation. Whenever a value's underlying type is
 a string already, or the type has a String method, they should be used
@@ -259,7 +259,7 @@ to
 	},
 
 	"S1028": {
-		Title:  "Simplify error construction with `fmt.Errorf`",
+		Title:  `Simplify error construction with \'fmt.Errorf\'`,
 		Before: `errors.New(fmt.Sprintf(...))`,
 		After:  `fmt.Errorf(...)`,
 		Since:  "2017.1",
@@ -278,7 +278,7 @@ slice, the size of which depends on the length of the string.`,
 	},
 
 	"S1030": {
-		Title: "Use `bytes.Buffer.String` or `bytes.Buffer.Bytes`",
+		Title: `Use \'bytes.Buffer.String\' or \'bytes.Buffer.Bytes\'`,
 		Text: `\'bytes.Buffer\' has both a \'String\' and a \'Bytes\' method. It is almost never
 necessary to use \'string(buf.Bytes())\' or \'[]byte(buf.String())\' – simply
 use the other method.
@@ -308,7 +308,7 @@ for _, x := range s {
 	},
 
 	"S1032": {
-		Title: "Use `sort.Ints(x)`, `sort.Float64s(x)`, and `sort.Strings(x)`",
+		Title: `Use \'sort.Ints(x)\', \'sort.Float64s(x)\', and \'sort.Strings(x)\'`,
 		Text: `The \'sort.Ints\', \'sort.Float64s\' and \'sort.Strings\' functions are easier to
 read than \'sort.Sort(sort.IntSlice(x))\', \'sort.Sort(sort.Float64Slice(x))\'
 and \'sort.Sort(sort.StringSlice(x))\'.`,
@@ -318,7 +318,7 @@ and \'sort.Sort(sort.StringSlice(x))\'.`,
 	},
 
 	"S1033": {
-		Title: "Unnecessary guard around call to `delete`",
+		Title: `Unnecessary guard around call to \"delete\"`,
 		Text:  `Calling \'delete\' on a nil map is a no-op.`,
 		Since: "2019.2",
 	},
@@ -329,7 +329,7 @@ and \'sort.Sort(sort.StringSlice(x))\'.`,
 	},
 
 	"S1035": {
-		Title: "Redundant call to `net/http.CanonicalHeaderKey` in method call on `net/http.Header`",
+		Title: `Redundant call to \'net/http.CanonicalHeaderKey\' in method call on \'net/http.Header\'`,
 		Text: `The methods on \'net/http.Header\', namely \'Add\', \'Del\', \'Get\' and \'Set\', already
 canonicalize the given header name.`,
 		Since: "2020.1",
@@ -383,7 +383,7 @@ can much simpler be expressed with a simple call to time.Sleep.`,
 	},
 
 	"S1039": {
-		Title: "Unnecessary use of `fmt.Sprint`",
+		Title: `Unnecessary use of \'fmt.Sprint\'`,
 		Text:  `Calling \'fmt.Sprint\' with a single string argument is unnecessary and identical to using the string directly.`,
 		Since: "2020.1",
 	},

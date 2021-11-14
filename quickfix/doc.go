@@ -8,7 +8,7 @@ package quickfix
 
 import "honnef.co/go/tools/analysis/lint"
 
-var Docs = lint.Markdownify(map[string]*lint.Documentation{
+var Docs = lint.Markdownify(map[string]*lint.RawDocumentation{
 	"QF1001": {
 		Title:    "Apply De Morgan's law",
 		Since:    "2021.1",
@@ -67,13 +67,13 @@ default:
 	},
 
 	"QF1004": {
-		Title:    "Use `strings.ReplaceAll` instead of `strings.Replace` with `n == -1`",
+		Title:    `Use \'strings.ReplaceAll\' instead of \'strings.Replace\' with \'n == -1\'`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
 
 	"QF1005": {
-		Title:    "Expand call to `math.Pow`",
+		Title:    `Expand call to \'math.Pow\'`,
 		Text:     `Some uses of \'math.Pow\' can be simplified to basic multiplication.`,
 		Before:   `math.Pow(x, 2)`,
 		After:    `x * x`,
@@ -82,7 +82,7 @@ default:
 	},
 
 	"QF1006": {
-		Title: "Lift `if`+`break` into loop condition",
+		Title: `Lift \'if\'+\'break\' into loop condition`,
 		Before: `
 for {
     if done {
@@ -118,7 +118,7 @@ if someCondition {
 	},
 
 	"QF1009": {
-		Title:    "Use `time.Time.Equal` instead of `==` operator",
+		Title:    `Use \'time.Time.Equal\' instead of \'==\' operator`,
 		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},
@@ -136,7 +136,7 @@ if someCondition {
 	},
 
 	"QF1012": {
-		Title:    "Use `fmt.Fprintf(x, ...)` instead of `x.Write(fmt.Sprintf(...))`",
+		Title:    `Use \'fmt.Fprintf(x, ...)\' instead of \'x.Write(fmt.Sprintf(...))\'`,
 		Since:    "Unreleased",
 		Severity: lint.SeverityHint,
 	},

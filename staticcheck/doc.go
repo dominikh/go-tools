@@ -4,7 +4,7 @@ package staticcheck
 
 import "honnef.co/go/tools/analysis/lint"
 
-var Docs = lint.Markdownify(map[string]*lint.Documentation{
+var Docs = lint.Markdownify(map[string]*lint.RawDocumentation{
 	"SA1000": {
 		Title:    `Invalid regular expression`,
 		Since:    "2017.1",
@@ -18,13 +18,13 @@ var Docs = lint.Markdownify(map[string]*lint.Documentation{
 	},
 
 	"SA1002": {
-		Title:    "Invalid format in `time.Parse`",
+		Title:    `Invalid format in \'time.Parse\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA1003": {
-		Title: "Unsupported argument to functions in `encoding/binary`",
+		Title: `Unsupported argument to functions in \'encoding/binary\'`,
 		Text: `The \'encoding/binary\' package can only serialize types with known sizes.
 This precludes the use of the \'int\' and \'uint\' types, as their sizes
 differ on different architectures. Furthermore, it doesn't support
@@ -36,7 +36,7 @@ Before Go 1.8, \'bool\' wasn't supported, either.`,
 	},
 
 	"SA1004": {
-		Title: "Suspiciously small untyped constant in `time.Sleep`",
+		Title: `Suspiciously small untyped constant in \'time.Sleep\'`,
 		Text: `The \'time\'.Sleep function takes a \'time.Duration\' as its only argument.
 Durations are expressed in nanoseconds. Thus, calling \'time.Sleep(1)\'
 will sleep for 1 nanosecond. This is a common source of bugs, as sleep
@@ -54,7 +54,7 @@ for some amount of nanoseconds.`,
 	},
 
 	"SA1005": {
-		Title: "Invalid first argument to `exec.Command`",
+		Title: `Invalid first argument to \'exec.Command\'`,
 		Text: `\'os/exec\' runs programs directly (using variants of the fork and exec
 system calls on Unix systems). This shouldn't be confused with running
 a command in a shell. The shell will allow for features such as input
@@ -78,7 +78,7 @@ Windows, will have a \'/bin/sh\' program:
 	},
 
 	"SA1006": {
-		Title: "`Printf` with dynamic first argument and no further arguments",
+		Title: `\'Printf\' with dynamic first argument and no further arguments`,
 		Text: `Using \'fmt.Printf\' with a dynamic first argument can lead to unexpected
 output. The first argument is a format string, where certain character
 combinations have special meaning. If, for example, a user were to
@@ -103,13 +103,13 @@ and pass the string as an argument.`,
 	},
 
 	"SA1007": {
-		Title:    "Invalid URL in `net/url.Parse`",
+		Title:    `Invalid URL in \'net/url.Parse\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA1008": {
-		Title: "Non-canonical key in `http.Header` map",
+		Title: `Non-canonical key in \'http.Header\' map`,
 		Text: `Keys in \'http.Header\' maps are canonical, meaning they follow a specific
 combination of uppercase and lowercase letters. Methods such as
 \'http.Header.Add\' and \'http.Header.Del\' convert inputs into this canonical
@@ -135,7 +135,7 @@ The easiest way of obtaining the canonical form of a key is to use
 	},
 
 	"SA1010": {
-		Title: "`(*regexp.Regexp).FindAll` called with `n == 0`, which will always return zero results",
+		Title: `\'(*regexp.Regexp).FindAll\' called with \'n == 0\', which will always return zero results`,
 		Text: `If \'n >= 0\', the function returns at most \'n\' matches/submatches. To
 return all results, specify a negative number.`,
 		Since:    "2017.1",
@@ -143,31 +143,31 @@ return all results, specify a negative number.`,
 	},
 
 	"SA1011": {
-		Title:    "Various methods in the `strings` package expect valid UTF-8, but invalid input is provided",
+		Title:    `Various methods in the \"strings\" package expect valid UTF-8, but invalid input is provided`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA1012": {
-		Title:    "A nil `context.Context` is being passed to a function, consider using `context.TODO` instead",
+		Title:    `A nil \'context.Context\' is being passed to a function, consider using \'context.TODO\' instead`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
 
 	"SA1013": {
-		Title:    "`io.Seeker.Seek` is being called with the whence constant as the first argument, but it should be the second",
+		Title:    `\'io.Seeker.Seek\' is being called with the whence constant as the first argument, but it should be the second`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
 
 	"SA1014": {
-		Title:    "Non-pointer value passed to `Unmarshal` or `Decode`",
+		Title:    `Non-pointer value passed to \'Unmarshal\' or \'Decode\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA1015": {
-		Title:    "Using `time.Tick` in a way that will leak. Consider using `time.NewTicker`, and only use `time.Tick` in tests, commands and endless functions",
+		Title:    `Using \'time.Tick\' in a way that will leak. Consider using \'time.NewTicker\', and only use \'time.Tick\' in tests, commands and endless functions`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -183,7 +183,7 @@ kernel. It is therefore pointless to try and handle these signals.`,
 	},
 
 	"SA1017": {
-		Title: "Channels used with `os/signal.Notify` should be buffered",
+		Title: `Channels used with \'os/signal.Notify\' should be buffered`,
 		Text: `The \'os/signal\' package uses non-blocking channel sends when delivering
 signals. If the receiving end of the channel isn't ready and the
 channel is either unbuffered or full, the signal will be dropped. To
@@ -195,7 +195,7 @@ signal value, a buffer of size 1 is sufficient.`,
 	},
 
 	"SA1018": {
-		Title: "`strings.Replace` called with `n == 0`, which does nothing",
+		Title: `\'strings.Replace\' called with \'n == 0\', which does nothing`,
 		Text: `With \'n == 0\', zero instances will be replaced. To replace all
 instances, use a negative number, or use \'strings.ReplaceAll\'.`,
 		Since:    "2017.1",
@@ -209,13 +209,13 @@ instances, use a negative number, or use \'strings.ReplaceAll\'.`,
 	},
 
 	"SA1020": {
-		Title:    "Using an invalid host:port pair with a `net.Listen`-related function",
+		Title:    `Using an invalid host:port pair with a \'net.Listen\'-related function`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA1021": {
-		Title: "Using `bytes.Equal` to compare two `net.IP`",
+		Title: `Using \'bytes.Equal\' to compare two \'net.IP\'`,
 		Text: `A \'net.IP\' stores an IPv4 or IPv6 address as a slice of bytes. The
 length of the slice for an IPv4 address, however, can be either 4 or
 16 bytes long, using different ways of representing IPv4 addresses. In
@@ -226,7 +226,7 @@ be used, as it takes both representations into account.`,
 	},
 
 	"SA1023": {
-		Title:    "Modifying the buffer in an `io.Writer` implementation",
+		Title:    `Modifying the buffer in an \'io.Writer\' implementation`,
 		Text:     `\'Write\' must not modify the slice data, even temporarily.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
@@ -249,7 +249,7 @@ In order to remove one string from another, use \'strings.TrimPrefix\' instead.`
 	},
 
 	"SA1025": {
-		Title:    "It is not possible to use `(*time.Timer).Reset`'s return value correctly",
+		Title:    `It is not possible to use \'(*time.Timer).Reset\''s return value correctly`,
 		Since:    "2019.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -274,14 +274,14 @@ in a struct.`,
 	},
 
 	"SA1028": {
-		Title:    "`sort.Slice` can only be used on slices",
+		Title:    `\'sort.Slice\' can only be used on slices`,
 		Text:     `The first argument of \'sort.Slice\' must be a slice.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA1029": {
-		Title: "Inappropriate key in call to `context.WithValue`",
+		Title: `Inappropriate key in call to \'context.WithValue\'`,
 		Text: `The provided key must be comparable and should not be
 of type \'string\' or any other built-in type to avoid collisions between
 packages using context. Users of \'WithValue\' should define their own
@@ -296,7 +296,7 @@ interface.`,
 	},
 
 	"SA1030": {
-		Title: "Invalid argument in call to a `strconv` function",
+		Title: `Invalid argument in call to a \'strconv\' function`,
 		Text: `This check validates the format, number base and bit size arguments of
 the various parsing and formatting functions in \'strconv\'.`,
 		Since:    "2021.1",
@@ -304,7 +304,7 @@ the various parsing and formatting functions in \'strconv\'.`,
 	},
 
 	"SA2000": {
-		Title:    "`sync.WaitGroup.Add` called inside the goroutine, leading to a race condition",
+		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -332,20 +332,20 @@ rare false positive.`,
 	},
 
 	"SA2002": {
-		Title:    "Called `testing.T.FailNow` or `SkipNow` in a goroutine, which isn't allowed",
+		Title:    `Called \'testing.T.FailNow\' or \'SkipNow\' in a goroutine, which isn't allowed`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 	},
 
 	"SA2003": {
-		Title:    "Deferred `Lock` right after locking, likely meant to defer `Unlock` instead",
+		Title:    `Deferred \'Lock\' right after locking, likely meant to defer \'Unlock\' instead`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
 
 	"SA3000": {
-		Title: "`TestMain` doesn't call `os.Exit`, hiding test failures",
-		Text: `Test executables (and in turn \'go test\') exit with a non-zero status
+		Title: `\'TestMain\' doesn't call \'os.Exit\', hiding test failures`,
+		Text: `Test executables (and in turn \"go test\") exit with a non-zero status
 code if any tests failed. When specifying your own \'TestMain\' function,
 it is your responsibility to arrange for this, by calling \'os.Exit\' with
 the correct code. The correct code is returned by \'(*testing.M).Run\', so
@@ -356,7 +356,7 @@ the usual way of implementing \'TestMain\' is to end it with
 	},
 
 	"SA3001": {
-		Title: "Assigning to `b.N` in benchmarks distorts the results",
+		Title: `Assigning to \'b.N\' in benchmarks distorts the results`,
 		Text: `The testing package dynamically sets \'b.N\' to improve the reliability of
 benchmarks and uses it in computations to determine the duration of a
 single operation. Benchmark code must not alter \'b.N\' as this would
@@ -372,7 +372,7 @@ falsify results.`,
 	},
 
 	"SA4001": {
-		Title:    "`&*x` gets simplified to `x`, it does not copy `x`",
+		Title:    `\'&*x\' gets simplified to \'x\', it does not copy \'x\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -414,7 +414,7 @@ falsify results.`,
 	},
 
 	"SA4010": {
-		Title:    "The result of `append` will never be observed anywhere",
+		Title:    `The result of \'append\' will never be observed anywhere`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -432,7 +432,7 @@ falsify results.`,
 	},
 
 	"SA4013": {
-		Title:    "Negating a boolean twice (`!!b`) is the same as writing `b`. This is either redundant, or a typo.",
+		Title:    `Negating a boolean twice (\'!!b\') is the same as writing \'b\'. This is either redundant, or a typo.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -444,13 +444,13 @@ falsify results.`,
 	},
 
 	"SA4015": {
-		Title:    "Calling functions like `math.Ceil` on floats converted from integers doesn't do anything useful",
+		Title:    `Calling functions like \'math.Ceil\' on floats converted from integers doesn't do anything useful`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
 
 	"SA4016": {
-		Title:    "Certain bitwise operations, such as `x ^ 0`, do not do anything useful",
+		Title:    `Certain bitwise operations, such as \'x ^ 0\', do not do anything useful`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -546,14 +546,14 @@ and therefore \'doSomething()\''s return value implements both.`,
 	},
 
 	"SA4021": {
-		Title:    "`x = append(y)` is equivalent to `x = y`",
+		Title:    `\"x = append(y)\" is equivalent to \"x = y\"`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
 	},
 
 	"SA4022": {
 		Title:    `Comparing the address of a variable against nil`,
-		Text:     `Code such as \'if &x == nil\' is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
+		Text:     `Code such as \"if &x == nil\" is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -672,7 +672,7 @@ To explicitly and reliably create a negative zero, you can use the
 	},
 
 	"SA4027": {
-		Title: "`(*net/url.URL).Query` returns a copy, modifying it doesn't change the URL",
+		Title: `\'(*net/url.URL).Query\' returns a copy, modifying it doesn't change the URL`,
 		Text: `\'(*net/url.URL).Query\' parses the current value of \'net/url.URL.RawQuery\'
 and returns it as a map of type \'net/url.Values\'. Subsequent changes to
 this map will not affect the URL unless the map gets encoded and
@@ -685,7 +685,7 @@ As a consequence, the following code pattern is an expensive no-op:
 	},
 
 	"SA4028": {
-		Title:    "`x % 1` is always zero",
+		Title:    `\'x % 1\' is always zero`,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
 	},
@@ -721,13 +721,13 @@ or \'1\', it always generates \'0\'.`,
 	},
 
 	"SA5001": {
-		Title:    "Deferring `Close` before checking for a possible error",
+		Title:    `Deferring \'Close\' before checking for a possible error`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
 
 	"SA5002": {
-		Title:    "The empty for loop (`for {}`) spins and can block the scheduler",
+		Title:    `The empty for loop (\"for {}\") spins and can block the scheduler`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -742,7 +742,7 @@ infinite loop, defers will never execute.`,
 	},
 
 	"SA5004": {
-		Title:    "`for { select { ...` with an empty default branch spins",
+		Title:    `\"for { select { ...\" with an empty default branch spins`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -894,7 +894,7 @@ and calling it with an odd number of elements would be an error.`,
 	},
 
 	"SA6000": {
-		Title:    "Using `regexp.Match` or related in a loop, should use `regexp.Compile`",
+		Title:    `Using \'regexp.Match\' or related in a loop, should use \'regexp.Compile\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -931,7 +931,7 @@ f5f5a8b6209f84961687d993b93ea0d397f5d5bf in the Go repository.`,
 	},
 
 	"SA6002": {
-		Title: "Storing non-pointer values in `sync.Pool` allocates memory",
+		Title: `Storing non-pointer values in \'sync.Pool\' allocates memory`,
 		Text: `A \'sync.Pool\' is used to avoid unnecessary allocations and reduce the
 amount of work the garbage collector has to do.
 
@@ -972,7 +972,7 @@ the slice of runes.`,
 	},
 
 	"SA6005": {
-		Title: "Inefficient string comparison with `strings.ToLower` or `strings.ToUpper`",
+		Title: `Inefficient string comparison with \'strings.ToLower\' or \'strings.ToUpper\'`,
 		Text: `Converting two strings to the same case and comparing them like so
 
     if strings.ToLower(s1) == strings.ToLower(s2) {
@@ -1003,7 +1003,7 @@ https://blog.digitalocean.com/how-to-efficiently-compare-strings-in-go/`,
 	},
 
 	"SA9002": {
-		Title:    "Using a non-octal `os.FileMode` that looks like it was meant to be in octal.",
+		Title:    `Using a non-octal \'os.FileMode\' that looks like it was meant to be in octal.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 	},
@@ -1171,9 +1171,9 @@ This check flags attempts at deleting the following directories:
 	},
 
 	"SA9008": {
-		Title: "`else` branch of a type assertion is probably not reading the right value",
+		Title: `\'else\' branch of a type assertion is probably not reading the right value`,
 		Text: `
-When declaring variables as part of an \'if\' statement (like in \'if foo := ...; foo {\'), the same variables will also be in the scope of the \'else\' branch.
+When declaring variables as part of an \'if\' statement (like in \"if foo := ...; foo {\"), the same variables will also be in the scope of the \'else\' branch.
 This means that in the following example
 
     if x, ok := x.(int); ok {

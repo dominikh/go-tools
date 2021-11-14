@@ -37,21 +37,25 @@ func main() {
 
 	for k, v := range staticcheck.Docs {
 		v.Text = convertText(v.Text)
+		v.TextMarkdown = convertText(v.TextMarkdown)
 		output.Checks[k] = v
 		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
 	}
 	for k, v := range simple.Docs {
 		v.Text = convertText(v.Text)
+		v.TextMarkdown = convertText(v.TextMarkdown)
 		output.Checks[k] = v
 		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
 	}
 	for k, v := range stylecheck.Docs {
 		v.Text = convertText(v.Text)
+		v.TextMarkdown = convertText(v.TextMarkdown)
 		output.Checks[k] = v
 		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
 	}
 	for k, v := range quickfix.Docs {
 		v.Text = convertText(v.Text)
+		v.TextMarkdown = convertText(v.TextMarkdown)
 		output.Checks[k] = v
 		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
 	}
@@ -132,5 +136,5 @@ func convertText(text string) string {
 		fmt.Fprintln(&buf, "```")
 	}
 
-	return buf.String()
+	return strings.TrimSpace(buf.String())
 }

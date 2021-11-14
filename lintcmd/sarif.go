@@ -121,7 +121,7 @@ func (o *sarifFormatter) Start(checks []*lint.Analyzer) {
 				ID: c.Analyzer.Name,
 				ShortDescription: sarif.Message{
 					Text:     c.Doc.Title,
-					Markdown: c.Doc.Title,
+					Markdown: c.Doc.TitleMarkdown,
 				},
 				HelpURI: "https://staticcheck.io/docs/checks#" + c.Analyzer.Name,
 				// We use our markdown as the plain text version, too. We
@@ -129,9 +129,8 @@ func (o *sarifFormatter) Start(checks []*lint.Analyzer) {
 				// indented code blocks and backticks. All of these are
 				// fine as plain text, too.
 				Help: sarif.Message{
-					// OPT(dh): don't compute the string multiple times
-					Text:     sarifFormatText(c.Doc.WithoutMetadata()),
-					Markdown: sarifFormatText(c.Doc.WithoutMetadata()),
+					Text:     sarifFormatText(c.Doc.Format(false)),
+					Markdown: sarifFormatText(c.Doc.FormatMarkdown(false)),
 				},
 				DefaultConfiguration: sarif.ReportingConfiguration{
 					// TODO(dh): we could figure out which checks were disabled globally

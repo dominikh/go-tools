@@ -12,7 +12,7 @@ menu:
 {{ $check := index $.p.Site.Data.checks.Checks $name }}
 <tr>
 	<td><a href="#{{ $name }}">{{ $name }}</a></td>
-	<td>{{ $check.Title | markdownify }}</td>
+	<td>{{ $check.TitleMarkdown | markdownify }}</td>
 </tr>
 {{ end }}
 {{ end }}
@@ -21,8 +21,8 @@ menu:
 {{ define "category" }}
 {{ range $name := index $.p.Site.Data.checks.ByCategory .cat }}
 {{ $check := index $.p.Site.Data.checks.Checks $name }}
-<h4 id="{{ $name }}">{{ $name }} - {{ $check.Title | markdownify }}{{ if $check.NonDefault }} <span class="badge badge-primary">non-default</span>{{ end }}</h4>
-{{ $check.Text | $.p.Page.RenderString (dict "display" "block") }}
+<h4 id="{{ $name }}">{{ $name }} - {{ $check.TitleMarkdown | markdownify }}{{ if $check.NonDefault }} <span class="badge badge-primary">non-default</span>{{ end }}</h4>
+{{ $check.TextMarkdown | $.p.Page.RenderString (dict "display" "block") }}
 
 {{ if $check.Before }}
 <p class="before-after"><strong>Before:</strong></p>

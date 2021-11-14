@@ -9,7 +9,7 @@ package stylecheck
 
 import "honnef.co/go/tools/analysis/lint"
 
-var Docs = lint.Markdownify(map[string]*lint.Documentation{
+var Docs = lint.Markdownify(map[string]*lint.RawDocumentation{
 	"ST1000": {
 		Title: `Incorrect or missing package comment`,
 		Text: `Packages must have a package comment that is formatted according to
@@ -105,7 +105,7 @@ Quoting Go Code Review Comments:
 	},
 
 	"ST1011": {
-		Title: "Poorly chosen name for variable of type `time.Duration`",
+		Title: `Poorly chosen name for variable of type \'time.Duration\'`,
 		Text: `\'time.Duration\' values represent an amount of time, which is represented
 as a count of nanoseconds. An expression like \'5 * time.Microsecond\'
 yields the value \'5000\'. It is therefore not appropriate to suffix a
@@ -146,11 +146,11 @@ readability of your code.`,
 
 	"ST1017": {
 		Title: `Don't use Yoda conditions`,
-		Text: `Yoda conditions are conditions of the kind \'if 42 == x\', where the
+		Text: `Yoda conditions are conditions of the kind \"if 42 == x\", where the
 literal is on the left side of the comparison. These are a common
 idiom in languages in which assignment is an expression, to avoid bugs
-of the kind \'if (x = 42)\'. In Go, which doesn't allow for this kind of
-bug, we prefer the more idiomatic \'if x == 42\'.`,
+of the kind \"if (x = 42)\". In Go, which doesn't allow for this kind of
+bug, we prefer the more idiomatic \"if x == 42\".`,
 		Since: "2019.2",
 	},
 
