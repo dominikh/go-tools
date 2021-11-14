@@ -24,7 +24,9 @@ fmt.Println(x)
 
 	"S1001": {
 		Title: `Replace for loop with call to copy`,
-		Text:  `Use \'copy()\' for copying elements from one slice to another. For arrays of identical size, you can use simple assignment.`,
+		Text: `
+Use \'copy()\' for copying elements from one slice to another. For
+arrays of identical size, you can use simple assignment.`,
 		Before: `
 for i, x := range src {
     dst[i] = x
@@ -185,7 +187,8 @@ for i := 0; i < n; i++ {
 	"S1019": {
 		Title: `Simplify \"make\" call by omitting redundant arguments`,
 		Text: `The \"make\" function has default values for the length and capacity
-arguments. For channels, the length defaults to zero, and for slices, the capacity defaults to the length.`,
+arguments. For channels, the length defaults to zero, and for slices,
+the capacity defaults to the length.`,
 		Since: "2017.1",
 	},
 
@@ -330,16 +333,19 @@ and \'sort.Sort(sort.StringSlice(x))\'.`,
 
 	"S1035": {
 		Title: `Redundant call to \'net/http.CanonicalHeaderKey\' in method call on \'net/http.Header\'`,
-		Text: `The methods on \'net/http.Header\', namely \'Add\', \'Del\', \'Get\' and \'Set\', already
-canonicalize the given header name.`,
+		Text: `
+The methods on \'net/http.Header\', namely \'Add\', \'Del\', \'Get\'
+and \'Set\', already canonicalize the given header name.`,
 		Since: "2020.1",
 	},
 
 	"S1036": {
 		Title: `Unnecessary guard around map access`,
 
-		Text: `When accessing a map key that doesn't exist yet, one
-receives a zero value. Often, the zero value is a suitable value, for example when using append or doing integer math.
+		Text: `
+When accessing a map key that doesn't exist yet, one receives a zero
+value. Often, the zero value is a suitable value, for example when
+using append or doing integer math.
 
 The following
 
@@ -384,7 +390,9 @@ can much simpler be expressed with a simple call to time.Sleep.`,
 
 	"S1039": {
 		Title: `Unnecessary use of \'fmt.Sprint\'`,
-		Text:  `Calling \'fmt.Sprint\' with a single string argument is unnecessary and identical to using the string directly.`,
+		Text: `
+Calling \'fmt.Sprint\' with a single string argument is unnecessary
+and identical to using the string directly.`,
 		Since: "2020.1",
 	},
 	"S1040": {

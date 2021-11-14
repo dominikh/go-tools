@@ -693,10 +693,12 @@ As a consequence, the following code pattern is an expensive no-op:
 	"SA4029": {
 		Title: "Ineffective attempt at sorting slice",
 		Text: `
-\'sort.Float64Slice\', \'sort.IntSlice\', and \'sort.StringSlice\' are types, not functions.
-Doing \'x = sort.StringSlice(x)\' does nothing, especially not sort any values.
-The correct usage is \'sort.Sort(sort.StringSlice(x))\' or \'sort.StringSlice(x).Sort()\',
-but there are more convenient helpers, namely \'sort.Float64s\', \'sort.Ints\', and \'sort.Strings\'.
+\'sort.Float64Slice\', \'sort.IntSlice\', and \'sort.StringSlice\' are
+types, not functions. Doing \'x = sort.StringSlice(x)\' does nothing,
+especially not sort any values. The correct usage is
+\'sort.Sort(sort.StringSlice(x))\' or \'sort.StringSlice(x).Sort()\',
+but there are more convenient helpers, namely \'sort.Float64s\',
+\'sort.Ints\', and \'sort.Strings\'.
 `,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
@@ -1109,7 +1111,8 @@ as \'EnumSecond\' has no explicit type, and thus defaults to \'int\'.`,
 
 	"SA9005": {
 		Title: `Trying to marshal a struct with no public fields nor custom marshaling`,
-		Text: `The \'encoding/json\' and \'encoding/xml\' packages only operate on exported
+		Text: `
+The \'encoding/json\' and \'encoding/xml\' packages only operate on exported
 fields in structs, not unexported ones. It is usually an error to try
 to (un)marshal structs that only consist of unexported fields.
 
@@ -1148,9 +1151,11 @@ positives in somewhat exotic but valid bit twiddling tricks:
 	"SA9007": {
 		Title: "Deleting a directory that shouldn't be deleted",
 		Text: `
-It is virtually never correct to delete system directories such as /tmp or the user's home directory.
-However, it can be fairly easy to do by mistake, for example by mistakingly using \'os.TempDir\' instead of \'ioutil.TempDir\',
-or by forgetting to add a suffix to the result of \'os.UserHomeDir\'.
+It is virtually never correct to delete system directories such as
+/tmp or the user's home directory. However, it can be fairly easy to
+do by mistake, for example by mistakingly using \'os.TempDir\' instead
+of \'ioutil.TempDir\', or by forgetting to add a suffix to the result
+of \'os.UserHomeDir\'.
 
 Writing
 
@@ -1173,8 +1178,9 @@ This check flags attempts at deleting the following directories:
 	"SA9008": {
 		Title: `\'else\' branch of a type assertion is probably not reading the right value`,
 		Text: `
-When declaring variables as part of an \'if\' statement (like in \"if foo := ...; foo {\"), the same variables will also be in the scope of the \'else\' branch.
-This means that in the following example
+When declaring variables as part of an \'if\' statement (like in \"if
+foo := ...; foo {\"), the same variables will also be in the scope of
+the \'else\' branch. This means that in the following example
 
     if x, ok := x.(int); ok {
         // ...
@@ -1182,9 +1188,11 @@ This means that in the following example
         fmt.Println("unexpected type %T", x)
     }
 
-\'x\' in the \'else\' branch will refer to the \'x\' from \'x, ok :=\'; it will not refer to the \'x\' that is being type-asserted.
-The result of a failed type assertion is the zero value of the type that is being asserted to,
-so \'x\' in the else branch will always have the value \'0\' and the type \'int\'.
+\'x\' in the \'else\' branch will refer to the \'x\' from \'x, ok
+:=\'; it will not refer to the \'x\' that is being type-asserted. The
+result of a failed type assertion is the zero value of the type that
+is being asserted to, so \'x\' in the else branch will always have the
+value \'0\' and the type \'int\'.
 `,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,

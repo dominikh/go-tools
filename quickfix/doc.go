@@ -17,7 +17,9 @@ var Docs = lint.Markdownify(map[string]*lint.RawDocumentation{
 
 	"QF1002": {
 		Title: "Convert untagged switch to tagged switch",
-		Text:  `An untagged switch that compares a single variable against a series of values can be replaced with a tagged switch.`,
+		Text: `
+An untagged switch that compares a single variable against a series of
+values can be replaced with a tagged switch.`,
 		Before: `
 switch {
 case x == 1 || x == 2, x == 3:
@@ -43,7 +45,9 @@ default:
 
 	"QF1003": {
 		Title: "Convert if/else-if chain to tagged switch",
-		Text:  `A series of if/else-if checks comparing the same variable against values can be replaced with a tagged switch.`,
+		Text: `
+A series of if/else-if checks comparing the same variable against
+values can be replaced with a tagged switch.`,
 		Before: `
 if x == 1 || x == 2 {
     ...
