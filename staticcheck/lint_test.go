@@ -96,6 +96,7 @@ func TestAll(t *testing.T) {
 		"SA4028": {{Dir: "CheckModuloOne"}},
 		"SA4029": {{Dir: "CheckIneffectiveSort"}},
 		"SA4030": {{Dir: "CheckIneffectiveRandInt"}},
+		"SA4031": {{Dir: "CheckAllocationNilCheck"}},
 		"SA5000": {{Dir: "CheckNilMaps"}},
 		"SA5001": {{Dir: "CheckEarlyDefer"}},
 		"SA5002": {{Dir: "CheckInfiniteEmptyLoop"}},

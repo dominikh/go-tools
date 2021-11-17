@@ -5063,3 +5063,125 @@ func CheckIneffectiveRandInt(pass *analysis.Pass) (interface{}, error) {
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
+
+var allocationNilCheckQ = pattern.MustParse(`(IfStmt _ cond@(BinaryExpr lhs op@(Or "==" "!=") (Builtin "nil")) _ _)`)
+
+func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
+	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+	fn := func(node ast.Node) {
+		m, ok := code.Match(pass, allocationNilCheckQ, node)
+		if !ok {
+			return
+		}
+		cond := m.State["cond"].(ast.Node)
+		if _, ok := code.Match(pass, checkAddressIsNilQ, cond); ok {
+			// Don't duplicate diagnostics reported by SA4022
+			return
+		}
+		lhs := m.State["lhs"].(ast.Expr)
+		path, exact := astutil.PathEnclosingInterval(code.File(pass, lhs), lhs.Pos(), lhs.Pos())
+		if !exact {
+			// TODO(dh): when can this happen?
+			return
+		}
+		irfn := ir.EnclosingFunction(irpkg, path)
+		v, isAddr := irfn.ValueForExpr(lhs)
+		if isAddr {
+			return
+		}
+
+		seen := map[ir.Value]struct{}{}
+		var values []ir.Value
+		var neverNil func(v ir.Value, track bool) bool
+		neverNil = func(v ir.Value, track bool) bool {
+			if _, ok := seen[v]; ok {
+				return true
+			}
+			seen[v] = struct{}{}
+			switch v := v.(type) {
+			case *ir.MakeClosure, *ir.Function:
+				if track {
+					values = append(values, v)
+				}
+				return true
+			case *ir.MakeChan, *ir.MakeMap, *ir.MakeSlice, *ir.Alloc:
+				if track {
+					values = append(values, v)
+				}
+				return true
+			case *ir.Slice:
+				if track {
+					values = append(values, v)
+				}
+				return neverNil(v.X, false)
+			case *ir.FieldAddr:
+				if track {
+					values = append(values, v)
+				}
+				return neverNil(v.X, false)
+			case *ir.Sigma:
+				return neverNil(v.X, true)
+			case *ir.Phi:
+				for _, e := range v.Edges {
+					if !neverNil(e, true) {
+						return false
+					}
+				}
+				return true
+			default:
+				return false
+			}
+		}
+
+		if !neverNil(v, true) {
+			return
+		}
+
+		var qualifier string
+		if op := m.State["op"].(token.Token); op == token.EQL {
+			qualifier = "never"
+		} else {
+			qualifier = "always"
+		}
+		fallback := fmt.Sprintf("this nil check is %s true", qualifier)
+
+		sort.Slice(values, func(i, j int) bool { return values[i].Pos() < values[j].Pos() })
+
+		if ident, ok := m.State["lhs"].(*ast.Ident); ok {
+			if _, ok := pass.TypesInfo.ObjectOf(ident).(*types.Var); ok {
+				var opts []report.Option
+				if v.Parent() == irfn {
+					if len(values) == 1 {
+						opts = append(opts, report.Related(values[0], fmt.Sprintf("this is the value of %s", ident.Name)))
+					} else {
+						for _, vv := range values {
+							opts = append(opts, report.Related(vv, fmt.Sprintf("this is one of the value of %s", ident.Name)))
+						}
+					}
+				}
+
+				switch v.(type) {
+				case *ir.MakeClosure, *ir.Function:
+					report.Report(pass, cond, "the checked variable contains a function and is never nil; did you mean to call it?", opts...)
+				default:
+					report.Report(pass, cond, fallback, opts...)
+				}
+			} else {
+				if _, ok := v.(*ir.Function); ok {
+					report.Report(pass, cond, "functions are never nil; did you mean to call it?")
+				} else {
+					report.Report(pass, cond, fallback)
+				}
+			}
+		} else {
+			if _, ok := v.(*ir.Function); ok {
+				report.Report(pass, cond, "functions are never nil; did you mean to call it?")
+			} else {
+				report.Report(pass, cond, fallback)
+			}
+		}
+
+	}
+	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
+	return nil, nil
+}

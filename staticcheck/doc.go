@@ -716,6 +716,12 @@ or \'1\', it always generates \'0\'.`,
 		Severity: lint.SeverityWarning,
 	},
 
+	"SA4031": {
+		Title:    `Checking never-nil value against nil`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+	},
+
 	"SA5000": {
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",
