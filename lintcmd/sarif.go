@@ -90,55 +90,6 @@ type sarifFormatter struct {
 	driverName    string
 	driverVersion string
 	driverWebsite string
-
-	checks []*lint.Analyzer
-	run    sarif.Run
-}
-
-func (o *sarifFormatter) Start(checks []*lint.Analyzer) {
-	cwd, _ := os.Getwd()
-	o.checks = checks
-	o.run = sarif.Run{
-		Tool: sarif.Tool{
-			Driver: sarif.ToolComponent{
-				Name:           o.driverName,
-				Version:        o.driverVersion,
-				InformationURI: o.driverWebsite,
-			},
-		},
-		Invocations: []sarif.Invocation{{
-			Arguments: os.Args[1:],
-			WorkingDirectory: sarif.ArtifactLocation{
-				URI: sarifURI(cwd),
-			},
-			ExecutionSuccessful: true,
-		}},
-	}
-	for _, c := range checks {
-		o.run.Tool.Driver.Rules = append(o.run.Tool.Driver.Rules,
-			sarif.ReportingDescriptor{
-				// We don't set Name, as Name and ID mustn't be identical.
-				ID: c.Analyzer.Name,
-				ShortDescription: sarif.Message{
-					Text:     c.Doc.Title,
-					Markdown: c.Doc.TitleMarkdown,
-				},
-				HelpURI: "https://staticcheck.io/docs/checks#" + c.Analyzer.Name,
-				// We use our markdown as the plain text version, too. We
-				// use very little markdown, primarily quotations,
-				// indented code blocks and backticks. All of these are
-				// fine as plain text, too.
-				Help: sarif.Message{
-					Text:     sarifFormatText(c.Doc.Format(false)),
-					Markdown: sarifFormatText(c.Doc.FormatMarkdown(false)),
-				},
-				DefaultConfiguration: sarif.ReportingConfiguration{
-					// TODO(dh): we could figure out which checks were disabled globally
-					Enabled: true,
-					Level:   sarifLevel(c.Doc.Severity),
-				},
-			})
-	}
 }
 
 func sarifLevel(severity lint.Severity) string {
@@ -279,98 +230,141 @@ func convertCodeBlocks(text string) string {
 	return buf.String()
 }
 
-func (o *sarifFormatter) Format(p problem) {
+func (o *sarifFormatter) Format(checks []*lint.Analyzer, problems []problem) {
 	// TODO(dh): some problems shouldn't be reported as results. For example, when the user specifies a package on the command line that doesn't exist.
 
-	r := sarif.Result{
-		RuleID: p.Category,
-		Kind:   sarif.Fail,
-		Message: sarif.Message{
-			Text: p.Message,
-		},
-	}
-	r.Locations = []sarif.Location{{
-		PhysicalLocation: sarif.PhysicalLocation{
-			ArtifactLocation: sarifArtifactLocation(p.Position.Filename),
-			Region: sarif.Region{
-				StartLine:   p.Position.Line,
-				StartColumn: p.Position.Column,
-				EndLine:     p.End.Line,
-				EndColumn:   p.End.Column,
+	cwd, _ := os.Getwd()
+	run := sarif.Run{
+		Tool: sarif.Tool{
+			Driver: sarif.ToolComponent{
+				Name:           o.driverName,
+				Version:        o.driverVersion,
+				InformationURI: o.driverWebsite,
 			},
 		},
-	}}
-	for _, fix := range p.SuggestedFixes {
-		sfix := sarif.Fix{
-			Description: sarif.Message{
-				Text: fix.Message,
+		Invocations: []sarif.Invocation{{
+			Arguments: os.Args[1:],
+			WorkingDirectory: sarif.ArtifactLocation{
+				URI: sarifURI(cwd),
+			},
+			ExecutionSuccessful: true,
+		}},
+	}
+	for _, c := range checks {
+		run.Tool.Driver.Rules = append(run.Tool.Driver.Rules,
+			sarif.ReportingDescriptor{
+				// We don't set Name, as Name and ID mustn't be identical.
+				ID: c.Analyzer.Name,
+				ShortDescription: sarif.Message{
+					Text:     c.Doc.Title,
+					Markdown: c.Doc.TitleMarkdown,
+				},
+				HelpURI: "https://staticcheck.io/docs/checks#" + c.Analyzer.Name,
+				// We use our markdown as the plain text version, too. We
+				// use very little markdown, primarily quotations,
+				// indented code blocks and backticks. All of these are
+				// fine as plain text, too.
+				Help: sarif.Message{
+					Text:     sarifFormatText(c.Doc.Format(false)),
+					Markdown: sarifFormatText(c.Doc.FormatMarkdown(false)),
+				},
+				DefaultConfiguration: sarif.ReportingConfiguration{
+					// TODO(dh): we could figure out which checks were disabled globally
+					Enabled: true,
+					Level:   sarifLevel(c.Doc.Severity),
+				},
+			})
+	}
+
+	for _, p := range problems {
+		r := sarif.Result{
+			RuleID: p.Category,
+			Kind:   sarif.Fail,
+			Message: sarif.Message{
+				Text: p.Message,
 			},
 		}
-		// file name -> replacements
-		changes := map[string][]sarif.Replacement{}
-		for _, edit := range fix.TextEdits {
-			changes[edit.Position.Filename] = append(changes[edit.Position.Filename], sarif.Replacement{
-				DeletedRegion: sarif.Region{
-					StartLine:   edit.Position.Line,
-					StartColumn: edit.Position.Column,
-					EndLine:     edit.End.Line,
-					EndColumn:   edit.End.Column,
+		r.Locations = []sarif.Location{{
+			PhysicalLocation: sarif.PhysicalLocation{
+				ArtifactLocation: sarifArtifactLocation(p.Position.Filename),
+				Region: sarif.Region{
+					StartLine:   p.Position.Line,
+					StartColumn: p.Position.Column,
+					EndLine:     p.End.Line,
+					EndColumn:   p.End.Column,
 				},
-				InsertedContent: sarif.ArtifactContent{
-					Text: string(edit.NewText),
-				},
-			})
-		}
-		for path, replacements := range changes {
-			sfix.ArtifactChanges = append(sfix.ArtifactChanges, sarif.ArtifactChange{
-				ArtifactLocation: sarifArtifactLocation(path),
-				Replacements:     replacements,
-			})
-		}
-		r.Fixes = append(r.Fixes, sfix)
-	}
-	for i, related := range p.Related {
-		r.Message.Text += fmt.Sprintf("\n\t[%s](%d)", related.Message, i+1)
-
-		r.RelatedLocations = append(r.RelatedLocations,
-			sarif.Location{
-				ID: i + 1,
-				Message: &sarif.Message{
-					Text: related.Message,
-				},
-				PhysicalLocation: sarif.PhysicalLocation{
-					ArtifactLocation: sarifArtifactLocation(related.Position.Filename),
-					Region: sarif.Region{
-						StartLine:   related.Position.Line,
-						StartColumn: related.Position.Column,
-						EndLine:     related.End.Line,
-						EndColumn:   related.End.Column,
-					},
-				},
-			})
-	}
-
-	if p.Severity == severityIgnored {
-		// Note that GitHub does not support suppressions, which is why Staticcheck still requires the -show-ignored flag to be set for us to emit ignored diagnostics.
-
-		r.Suppressions = []sarif.Suppression{{
-			Kind: "inSource",
-			// TODO(dh): populate the Justification field
+			},
 		}}
-	} else {
-		// We want an empty slice, not nil. SARIF differentiates
-		// between the two. An empty slice means that the problem
-		// wasn't suppressed, while nil means that we don't have the
-		// information available.
-		r.Suppressions = []sarif.Suppression{}
-	}
-	o.run.Results = append(o.run.Results, r)
-}
+		for _, fix := range p.SuggestedFixes {
+			sfix := sarif.Fix{
+				Description: sarif.Message{
+					Text: fix.Message,
+				},
+			}
+			// file name -> replacements
+			changes := map[string][]sarif.Replacement{}
+			for _, edit := range fix.TextEdits {
+				changes[edit.Position.Filename] = append(changes[edit.Position.Filename], sarif.Replacement{
+					DeletedRegion: sarif.Region{
+						StartLine:   edit.Position.Line,
+						StartColumn: edit.Position.Column,
+						EndLine:     edit.End.Line,
+						EndColumn:   edit.End.Column,
+					},
+					InsertedContent: sarif.ArtifactContent{
+						Text: string(edit.NewText),
+					},
+				})
+			}
+			for path, replacements := range changes {
+				sfix.ArtifactChanges = append(sfix.ArtifactChanges, sarif.ArtifactChange{
+					ArtifactLocation: sarifArtifactLocation(path),
+					Replacements:     replacements,
+				})
+			}
+			r.Fixes = append(r.Fixes, sfix)
+		}
+		for i, related := range p.Related {
+			r.Message.Text += fmt.Sprintf("\n\t[%s](%d)", related.Message, i+1)
 
-func (o *sarifFormatter) End() {
+			r.RelatedLocations = append(r.RelatedLocations,
+				sarif.Location{
+					ID: i + 1,
+					Message: &sarif.Message{
+						Text: related.Message,
+					},
+					PhysicalLocation: sarif.PhysicalLocation{
+						ArtifactLocation: sarifArtifactLocation(related.Position.Filename),
+						Region: sarif.Region{
+							StartLine:   related.Position.Line,
+							StartColumn: related.Position.Column,
+							EndLine:     related.End.Line,
+							EndColumn:   related.End.Column,
+						},
+					},
+				})
+		}
+
+		if p.Severity == severityIgnored {
+			// Note that GitHub does not support suppressions, which is why Staticcheck still requires the -show-ignored flag to be set for us to emit ignored diagnostics.
+
+			r.Suppressions = []sarif.Suppression{{
+				Kind: "inSource",
+				// TODO(dh): populate the Justification field
+			}}
+		} else {
+			// We want an empty slice, not nil. SARIF differentiates
+			// between the two. An empty slice means that the problem
+			// wasn't suppressed, while nil means that we don't have the
+			// information available.
+			r.Suppressions = []sarif.Suppression{}
+		}
+		run.Results = append(run.Results, r)
+	}
+
 	json.NewEncoder(os.Stdout).Encode(sarif.Log{
 		Version: sarif.Version,
 		Schema:  sarif.Schema,
-		Runs:    []sarif.Run{o.run},
+		Runs:    []sarif.Run{run},
 	})
 }

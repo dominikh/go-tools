@@ -41,35 +41,32 @@ type statter interface {
 	Stats(total, errors, warnings, ignored int)
 }
 
-type complexFormatter interface {
-	Start(checks []*lint.Analyzer)
-	End()
-}
-
 type formatter interface {
-	Format(p problem)
+	Format(checks []*lint.Analyzer, problems []problem)
 }
 
 type textFormatter struct {
 	W io.Writer
 }
 
-func (o textFormatter) Format(p problem) {
-	fmt.Fprintf(o.W, "%s: %s\n", relativePositionString(p.Position), p.String())
-	for _, r := range p.Related {
-		fmt.Fprintf(o.W, "\t%s: %s\n", relativePositionString(r.Position), r.Message)
+func (o textFormatter) Format(_ []*lint.Analyzer, ps []problem) {
+	for _, p := range ps {
+		fmt.Fprintf(o.W, "%s: %s\n", relativePositionString(p.Position), p.String())
+		for _, r := range p.Related {
+			fmt.Fprintf(o.W, "\t%s: %s\n", relativePositionString(r.Position), r.Message)
+		}
 	}
 }
 
 type nullFormatter struct{}
 
-func (nullFormatter) Format(problem) {}
+func (nullFormatter) Format([]*lint.Analyzer, []problem) {}
 
 type jsonFormatter struct {
 	W io.Writer
 }
 
-func (o jsonFormatter) Format(p problem) {
+func (o jsonFormatter) Format(_ []*lint.Analyzer, ps []problem) {
 	type location struct {
 		File   string `json:"file"`
 		Line   int    `json:"line"`
@@ -80,44 +77,48 @@ func (o jsonFormatter) Format(p problem) {
 		End      location `json:"end"`
 		Message  string   `json:"message"`
 	}
-	jp := struct {
-		Code     string    `json:"code"`
-		Severity string    `json:"severity,omitempty"`
-		Location location  `json:"location"`
-		End      location  `json:"end"`
-		Message  string    `json:"message"`
-		Related  []related `json:"related,omitempty"`
-	}{
-		Code:     p.Category,
-		Severity: p.Severity.String(),
-		Location: location{
-			File:   p.Position.Filename,
-			Line:   p.Position.Line,
-			Column: p.Position.Column,
-		},
-		End: location{
-			File:   p.End.Filename,
-			Line:   p.End.Line,
-			Column: p.End.Column,
-		},
-		Message: p.Message,
-	}
-	for _, r := range p.Related {
-		jp.Related = append(jp.Related, related{
+
+	enc := json.NewEncoder(o.W)
+	for _, p := range ps {
+		jp := struct {
+			Code     string    `json:"code"`
+			Severity string    `json:"severity,omitempty"`
+			Location location  `json:"location"`
+			End      location  `json:"end"`
+			Message  string    `json:"message"`
+			Related  []related `json:"related,omitempty"`
+		}{
+			Code:     p.Category,
+			Severity: p.Severity.String(),
 			Location: location{
-				File:   r.Position.Filename,
-				Line:   r.Position.Line,
-				Column: r.Position.Column,
+				File:   p.Position.Filename,
+				Line:   p.Position.Line,
+				Column: p.Position.Column,
 			},
 			End: location{
-				File:   r.End.Filename,
-				Line:   r.End.Line,
-				Column: r.End.Column,
+				File:   p.End.Filename,
+				Line:   p.End.Line,
+				Column: p.End.Column,
 			},
-			Message: r.Message,
-		})
+			Message: p.Message,
+		}
+		for _, r := range p.Related {
+			jp.Related = append(jp.Related, related{
+				Location: location{
+					File:   r.Position.Filename,
+					Line:   r.Position.Line,
+					Column: r.Position.Column,
+				},
+				End: location{
+					File:   r.End.Filename,
+					Line:   r.End.Line,
+					Column: r.End.Column,
+				},
+				Message: r.Message,
+			})
+		}
+		_ = enc.Encode(jp)
 	}
-	_ = json.NewEncoder(o.W).Encode(jp)
 }
 
 type stylishFormatter struct {
@@ -127,24 +128,26 @@ type stylishFormatter struct {
 	tw       *tabwriter.Writer
 }
 
-func (o *stylishFormatter) Format(p problem) {
-	pos := p.Position
-	if pos.Filename == "" {
-		pos.Filename = "-"
-	}
-
-	if pos.Filename != o.prevFile {
-		if o.prevFile != "" {
-			o.tw.Flush()
-			fmt.Fprintln(o.W)
+func (o *stylishFormatter) Format(_ []*lint.Analyzer, ps []problem) {
+	for _, p := range ps {
+		pos := p.Position
+		if pos.Filename == "" {
+			pos.Filename = "-"
 		}
-		fmt.Fprintln(o.W, pos.Filename)
-		o.prevFile = pos.Filename
-		o.tw = tabwriter.NewWriter(o.W, 0, 4, 2, ' ', 0)
-	}
-	fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Category, p.Message)
-	for _, r := range p.Related {
-		fmt.Fprintf(o.tw, "    (%d, %d)\t\t  %s\n", r.Position.Line, r.Position.Column, r.Message)
+
+		if pos.Filename != o.prevFile {
+			if o.prevFile != "" {
+				o.tw.Flush()
+				fmt.Fprintln(o.W)
+			}
+			fmt.Fprintln(o.W, pos.Filename)
+			o.prevFile = pos.Filename
+			o.tw = tabwriter.NewWriter(o.W, 0, 4, 2, ' ', 0)
+		}
+		fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Category, p.Message)
+		for _, r := range p.Related {
+			fmt.Fprintf(o.tw, "    (%d, %d)\t\t  %s\n", r.Position.Line, r.Position.Column, r.Message)
+		}
 	}
 }
 

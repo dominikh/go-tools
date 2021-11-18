@@ -364,10 +364,7 @@ func (cmd *Command) Run() {
 	shouldExit["staticcheck"] = true
 	shouldExit["compile"] = true
 
-	if f, ok := f.(complexFormatter); ok {
-		f.Start(cs)
-	}
-
+	notIgnored := make([]problem, 0, len(ps))
 	for _, p := range ps {
 		if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
 			continue
@@ -382,14 +379,11 @@ func (cmd *Command) Run() {
 			p.Severity = severityWarning
 			numWarnings++
 		}
-		f.Format(p)
+		notIgnored = append(notIgnored, p)
 	}
+	f.Format(cs, notIgnored)
 	if f, ok := f.(statter); ok {
 		f.Stats(len(ps), numErrors, numWarnings, numIgnored)
-	}
-
-	if f, ok := f.(complexFormatter); ok {
-		f.End()
 	}
 
 	if numErrors > 0 {
