@@ -331,7 +331,7 @@ func (cmd *Command) Run() {
 		exit(2)
 	}
 
-	ps, warnings, err := doLint(cs, cmd.flags.fs.Args(), &options{
+	res, err := doLint(cs, cmd.flags.fs.Args(), &options{
 		Tags:      cmd.flags.tags,
 		LintTests: cmd.flags.tests,
 		GoVersion: string(cmd.flags.goVersion),
@@ -345,7 +345,7 @@ func (cmd *Command) Run() {
 		exit(1)
 	}
 
-	for _, w := range warnings {
+	for _, w := range res.Warnings {
 		fmt.Fprintln(os.Stderr, "warning:", w)
 	}
 
@@ -364,8 +364,8 @@ func (cmd *Command) Run() {
 	shouldExit["staticcheck"] = true
 	shouldExit["compile"] = true
 
-	notIgnored := make([]problem, 0, len(ps))
-	for _, p := range ps {
+	notIgnored := make([]problem, 0, len(res.Problems))
+	for _, p := range res.Problems {
 		if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
 			continue
 		}
@@ -381,9 +381,10 @@ func (cmd *Command) Run() {
 		}
 		notIgnored = append(notIgnored, p)
 	}
+
 	f.Format(cs, notIgnored)
 	if f, ok := f.(statter); ok {
-		f.Stats(len(ps), numErrors, numWarnings, numIgnored)
+		f.Stats(len(res.Problems), numErrors, numWarnings, numIgnored)
 	}
 
 	if numErrors > 0 {
@@ -394,6 +395,7 @@ func (cmd *Command) Run() {
 			exit(1)
 		}
 	}
+
 	exit(0)
 }
 

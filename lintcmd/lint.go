@@ -78,14 +78,22 @@ func newLinter(cfg config.Config) (*linter, error) {
 	}, nil
 }
 
-func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []problem, warnings []string, err error) {
+type LintResult struct {
+	CheckedFiles []string
+	Problems     []problem
+	Warnings     []string
+}
+
+func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, error) {
+	var out LintResult
+
 	cs := make([]*analysis.Analyzer, len(l.Checkers))
 	for i, a := range l.Checkers {
 		cs[i] = a.Analyzer
 	}
 	results, err := l.Runner.Run(cfg, cs, patterns)
 	if err != nil {
-		return nil, nil, err
+		return out, err
 	}
 
 	if len(results) == 0 {
@@ -108,10 +116,10 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 			panic("package has errors but isn't marked as failed")
 		}
 		if res.Failed {
-			problems = append(problems, failed(res)...)
+			out.Problems = append(out.Problems, failed(res)...)
 		} else {
 			if res.Skipped {
-				warnings = append(warnings, fmt.Sprintf("skipped package %s because it is too large", res.Package))
+				out.Warnings = append(out.Warnings, fmt.Sprintf("skipped package %s because it is too large", res.Package))
 				continue
 			}
 
@@ -119,17 +127,21 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 				continue
 			}
 
+			for _, f := range res.Package.GoFiles {
+				out.CheckedFiles = append(out.CheckedFiles, f)
+			}
+
 			allowedAnalyzers := filterAnalyzerNames(analyzerNames, res.Config.Checks)
 			resd, err := res.Load()
 			if err != nil {
-				return nil, nil, err
+				return out, err
 			}
 			ps := success(allowedAnalyzers, resd)
 			filtered, err := filterIgnored(ps, resd, allowedAnalyzers)
 			if err != nil {
-				return nil, nil, err
+				return out, err
 			}
-			problems = append(problems, filtered...)
+			out.Problems = append(out.Problems, filtered...)
 
 			for _, obj := range resd.Unused.Used {
 				// FIXME(dh): pick the object whose filename does not include $GOROOT
@@ -166,7 +178,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 		if uo.obj.InGenerated {
 			continue
 		}
-		problems = append(problems, problem{
+		out.Problems = append(out.Problems, problem{
 			Diagnostic: runner.Diagnostic{
 				Position: uo.obj.DisplayPosition,
 				Message:  fmt.Sprintf("%s %s is unused", uo.obj.Kind, uo.obj.Name),
@@ -175,13 +187,13 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 		})
 	}
 
-	if len(problems) == 0 {
-		return nil, warnings, nil
+	if len(out.Problems) == 0 {
+		return out, nil
 	}
 
-	sort.Slice(problems, func(i, j int) bool {
-		pi := problems[i].Position
-		pj := problems[j].Position
+	sort.Slice(out.Problems, func(i, j int) bool {
+		pi := out.Problems[i].Position
+		pj := out.Problems[j].Position
 
 		if pi.Filename != pj.Filename {
 			return pi.Filename < pj.Filename
@@ -193,19 +205,20 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (problems []probl
 			return pi.Column < pj.Column
 		}
 
-		return problems[i].Message < problems[j].Message
+		return out.Problems[i].Message < out.Problems[j].Message
 	})
 
-	var out []problem
-	out = append(out, problems[0])
-	for i, p := range problems[1:] {
+	var filtered []problem
+	filtered = append(filtered, out.Problems[0])
+	for i, p := range out.Problems[1:] {
 		// We may encounter duplicate problems because one file
 		// can be part of many packages.
-		if !problems[i].equal(p) {
-			out = append(out, p)
+		if !out.Problems[i].equal(p) {
+			filtered = append(filtered, p)
 		}
 	}
-	return out, warnings, nil
+	out.Problems = filtered
+	return out, nil
 }
 
 func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers map[string]bool) ([]problem, error) {
@@ -511,14 +524,14 @@ type options struct {
 	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
-func doLint(cs []*lint.Analyzer, paths []string, opt *options) ([]problem, []string, error) {
+func doLint(cs []*lint.Analyzer, paths []string, opt *options) (LintResult, error) {
 	if opt == nil {
 		opt = &options{}
 	}
 
 	l, err := newLinter(opt.Config)
 	if err != nil {
-		return nil, nil, err
+		return LintResult{}, err
 	}
 	l.Checkers = cs
 	l.Runner.GoVersion = opt.GoVersion

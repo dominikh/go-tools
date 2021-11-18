@@ -22,11 +22,11 @@ func lintPackage(t *testing.T, name string) []problem {
 	cfg := &packages.Config{
 		Env: append(os.Environ(), "GOPATH="+analysistest.TestData(), "GO111MODULE=off"),
 	}
-	ps, _, err := l.Lint(cfg, []string{name})
+	res, err := l.Lint(cfg, []string{name})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ps
+	return res.Problems
 }
 
 func trimPosition(t *testing.T, pos *token.Position) {
