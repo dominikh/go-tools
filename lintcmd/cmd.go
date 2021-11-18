@@ -129,6 +129,7 @@ func (cmd *Command) initFlagSet(name string) {
 	flags.StringVar(&cmd.flags.formatter, "f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
 	flags.StringVar(&cmd.flags.explain, "explain", "", "Print description of `check`")
 	flags.BoolVar(&cmd.flags.listChecks, "list-checks", false, "List all available checks")
+	flags.BoolVar(&cmd.flags.merge, "merge", false, "Merge results of multiple Staticcheck runs")
 
 	flags.StringVar(&cmd.flags.debugCpuprofile, "debug.cpuprofile", "", "Write CPU profile to `file`")
 	flags.StringVar(&cmd.flags.debugMemprofile, "debug.memprofile", "", "Write memory profile to `file`")
@@ -248,11 +249,6 @@ func (cmd *Command) Run() {
 		trace.Start(f)
 	}
 
-	if cmd.flags.debugVersion {
-		version.Verbose(cmd.version, cmd.machineVersion)
-		exit(0)
-	}
-
 	defaultChecks := []string{"all"}
 	cs := make([]*lint.Analyzer, 0, len(cmd.analyzers))
 	for _, a := range cmd.analyzers {
@@ -263,7 +259,10 @@ func (cmd *Command) Run() {
 	}
 	config.DefaultConfig.Checks = defaultChecks
 
-	if cmd.flags.listChecks {
+	if cmd.flags.debugVersion {
+		version.Verbose(cmd.version, cmd.machineVersion)
+		exit(0)
+	} else if cmd.flags.listChecks {
 		sort.Slice(cs, func(i, j int) bool {
 			return cs[i].Analyzer.Name < cs[j].Analyzer.Name
 		})
@@ -275,128 +274,125 @@ func (cmd *Command) Run() {
 			fmt.Printf("%s %s\n", c.Analyzer.Name, title)
 		}
 		exit(0)
-	}
-
-	if cmd.flags.printVersion {
+	} else if cmd.flags.printVersion {
 		version.Print(cmd.version, cmd.machineVersion)
 		exit(0)
-	}
-
-	// Validate that the tags argument is well-formed. go/packages
-	// doesn't detect malformed build flags and returns unhelpful
-	// errors.
-	tf := buildutil.TagsFlag{}
-	if err := tf.Set(cmd.flags.tags); err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", cmd.flags.tags, err))
-		exit(1)
-	}
-
-	if explain := cmd.flags.explain; explain != "" {
-		check, ok := cmd.analyzers[explain]
-		if !ok {
-			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
+	} else if explain := cmd.flags.explain; explain != "" {
+		if explain := cmd.flags.explain; explain != "" {
+			check, ok := cmd.analyzers[explain]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
+				exit(1)
+			}
+			if check.Analyzer.Doc == "" {
+				fmt.Fprintln(os.Stderr, explain, "has no documentation")
+				exit(1)
+			}
+			fmt.Println(check.Doc)
+			fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
+			exit(0)
+		}
+	} else {
+		// Validate that the tags argument is well-formed. go/packages
+		// doesn't detect malformed build flags and returns unhelpful
+		// errors.
+		tf := buildutil.TagsFlag{}
+		if err := tf.Set(cmd.flags.tags); err != nil {
+			fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", cmd.flags.tags, err))
 			exit(1)
 		}
-		if check.Analyzer.Doc == "" {
-			fmt.Fprintln(os.Stderr, explain, "has no documentation")
+
+		var f formatter
+		switch cmd.flags.formatter {
+		case "text":
+			f = textFormatter{W: os.Stdout}
+		case "stylish":
+			f = &stylishFormatter{W: os.Stdout}
+		case "json":
+			f = jsonFormatter{W: os.Stdout}
+		case "sarif":
+			f = &sarifFormatter{
+				driverName:    cmd.name,
+				driverVersion: cmd.version,
+			}
+			if cmd.name == "staticcheck" {
+				f.(*sarifFormatter).driverName = "Staticcheck"
+				f.(*sarifFormatter).driverWebsite = "https://staticcheck.io"
+			}
+
+		case "null":
+			f = nullFormatter{}
+		default:
+			fmt.Fprintf(os.Stderr, "unsupported output format %q\n", cmd.flags.formatter)
+			exit(2)
+		}
+
+		res, err := doLint(cs, cmd.flags.fs.Args(), &options{
+			Tags:      cmd.flags.tags,
+			LintTests: cmd.flags.tests,
+			GoVersion: string(cmd.flags.goVersion),
+			Config: config.Config{
+				Checks: cmd.flags.checks,
+			},
+			PrintAnalyzerMeasurement: measureAnalyzers,
+		})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			exit(1)
 		}
-		fmt.Println(check.Doc)
-		fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
+
+		for _, w := range res.Warnings {
+			fmt.Fprintln(os.Stderr, "warning:", w)
+		}
+
+		var (
+			numErrors   int
+			numWarnings int
+			numIgnored  int
+		)
+
+		fail := cmd.flags.fail
+		analyzerNames := make([]string, len(cs))
+		for i, a := range cs {
+			analyzerNames[i] = a.Analyzer.Name
+		}
+		shouldExit := filterAnalyzerNames(analyzerNames, fail)
+		shouldExit["staticcheck"] = true
+		shouldExit["compile"] = true
+
+		notIgnored := make([]problem, 0, len(res.Problems))
+		for _, p := range res.Problems {
+			if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
+				continue
+			}
+			if p.Severity == severityIgnored && !cmd.flags.showIgnored {
+				numIgnored++
+				continue
+			}
+			if shouldExit[p.Category] {
+				numErrors++
+			} else {
+				p.Severity = severityWarning
+				numWarnings++
+			}
+			notIgnored = append(notIgnored, p)
+		}
+
+		f.Format(cs, notIgnored)
+		if f, ok := f.(statter); ok {
+			f.Stats(len(res.Problems), numErrors, numWarnings, numIgnored)
+		}
+
+		if numErrors > 0 {
+			if _, ok := f.(*sarifFormatter); ok {
+				// When emitting SARIF, finding errors is considered success.
+				exit(0)
+			} else {
+				exit(1)
+			}
+		}
 		exit(0)
 	}
-
-	var f formatter
-	switch cmd.flags.formatter {
-	case "text":
-		f = textFormatter{W: os.Stdout}
-	case "stylish":
-		f = &stylishFormatter{W: os.Stdout}
-	case "json":
-		f = jsonFormatter{W: os.Stdout}
-	case "sarif":
-		f = &sarifFormatter{
-			driverName:    cmd.name,
-			driverVersion: cmd.version,
-		}
-		if cmd.name == "staticcheck" {
-			f.(*sarifFormatter).driverName = "Staticcheck"
-			f.(*sarifFormatter).driverWebsite = "https://staticcheck.io"
-		}
-
-	case "null":
-		f = nullFormatter{}
-	default:
-		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", cmd.flags.formatter)
-		exit(2)
-	}
-
-	res, err := doLint(cs, cmd.flags.fs.Args(), &options{
-		Tags:      cmd.flags.tags,
-		LintTests: cmd.flags.tests,
-		GoVersion: string(cmd.flags.goVersion),
-		Config: config.Config{
-			Checks: cmd.flags.checks,
-		},
-		PrintAnalyzerMeasurement: measureAnalyzers,
-	})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		exit(1)
-	}
-
-	for _, w := range res.Warnings {
-		fmt.Fprintln(os.Stderr, "warning:", w)
-	}
-
-	var (
-		numErrors   int
-		numWarnings int
-		numIgnored  int
-	)
-
-	fail := cmd.flags.fail
-	analyzerNames := make([]string, len(cs))
-	for i, a := range cs {
-		analyzerNames[i] = a.Analyzer.Name
-	}
-	shouldExit := filterAnalyzerNames(analyzerNames, fail)
-	shouldExit["staticcheck"] = true
-	shouldExit["compile"] = true
-
-	notIgnored := make([]problem, 0, len(res.Problems))
-	for _, p := range res.Problems {
-		if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
-			continue
-		}
-		if p.Severity == severityIgnored && !cmd.flags.showIgnored {
-			numIgnored++
-			continue
-		}
-		if shouldExit[p.Category] {
-			numErrors++
-		} else {
-			p.Severity = severityWarning
-			numWarnings++
-		}
-		notIgnored = append(notIgnored, p)
-	}
-
-	f.Format(cs, notIgnored)
-	if f, ok := f.(statter); ok {
-		f.Stats(len(res.Problems), numErrors, numWarnings, numIgnored)
-	}
-
-	if numErrors > 0 {
-		if _, ok := f.(*sarifFormatter); ok {
-			// When emitting SARIF, finding errors is considered success.
-			exit(0)
-		} else {
-			exit(1)
-		}
-	}
-
-	exit(0)
 }
 
 func usage(name string, fs *flag.FlagSet) func() {
