@@ -9,18 +9,21 @@ var Docs = lint.Markdownify(map[string]*lint.RawDocumentation{
 		Title:    `Invalid regular expression`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1001": {
 		Title:    `Invalid template`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1002": {
 		Title:    `Invalid format in \'time.Parse\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1003": {
@@ -33,6 +36,7 @@ serializing maps, channels, strings, or functions.
 Before Go 1.8, \'bool\' wasn't supported, either.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1004": {
@@ -51,6 +55,7 @@ If you truly meant to sleep for a tiny amount of time, use
 for some amount of nanoseconds.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1005": {
@@ -75,6 +80,7 @@ Windows, will have a \'/bin/sh\' program:
     exec.Command("/bin/sh", "-c", "ls | grep Awesome")`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1006": {
@@ -100,12 +106,14 @@ input, either use a variant of \'fmt.Print\', or use the \'%s\' Printf verb
 and pass the string as an argument.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1007": {
 		Title:    `Invalid URL in \'net/url.Parse\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1008": {
@@ -132,6 +140,7 @@ The easiest way of obtaining the canonical form of a key is to use
 \'http.CanonicalHeaderKey\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1010": {
@@ -140,36 +149,42 @@ The easiest way of obtaining the canonical form of a key is to use
 return all results, specify a negative number.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants
 	},
 
 	"SA1011": {
 		Title:    `Various methods in the \"strings\" package expect valid UTF-8, but invalid input is provided`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1012": {
 		Title:    `A nil \'context.Context\' is being passed to a function, consider using \'context.TODO\' instead`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1013": {
 		Title:    `\'io.Seeker.Seek\' is being called with the whence constant as the first argument, but it should be the second`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1014": {
 		Title:    `Non-pointer value passed to \'Unmarshal\' or \'Decode\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1015": {
 		Title:    `Using \'time.Tick\' in a way that will leak. Consider using \'time.NewTicker\', and only use \'time.Tick\' in tests, commands and endless functions`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1016": {
@@ -180,6 +195,7 @@ never passed to the process, but instead handled directly by the
 kernel. It is therefore pointless to try and handle these signals.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1017": {
@@ -192,6 +208,7 @@ appropriate size. For a channel used for notification of just one
 signal value, a buffer of size 1 is sufficient.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1018": {
@@ -200,18 +217,21 @@ signal value, a buffer of size 1 is sufficient.`,
 instances, use a negative number, or use \'strings.ReplaceAll\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants
 	},
 
 	"SA1019": {
 		Title:    `Using a deprecated function, variable, constant or field`,
 		Since:    "2017.1",
 		Severity: lint.SeverityDeprecated,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1020": {
 		Title:    `Using an invalid host:port pair with a \'net.Listen\'-related function`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1021": {
@@ -223,6 +243,7 @@ order to correctly compare two \'net.IP\'s, the \'net.IP.Equal\' method should
 be used, as it takes both representations into account.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1023": {
@@ -230,6 +251,7 @@ be used, as it takes both representations into account.`,
 		Text:     `\'Write\' must not modify the slice data, even temporarily.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1024": {
@@ -246,18 +268,21 @@ will result in the string \'"word"\' – any characters that are 1, 2, 3 or
 In order to remove one string from another, use \'strings.TrimPrefix\' instead.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1025": {
 		Title:    `It is not possible to use \'(*time.Timer).Reset\''s return value correctly`,
 		Since:    "2019.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1026": {
 		Title:    `Cannot marshal channels or functions`,
 		Since:    "2019.2",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1027": {
@@ -271,6 +296,7 @@ You can use the structlayout tool to inspect the alignment of fields
 in a struct.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1028": {
@@ -278,6 +304,7 @@ in a struct.`,
 		Text:     `The first argument of \'sort.Slice\' must be a slice.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1029": {
@@ -293,6 +320,7 @@ exported context key variables' static type should be a pointer or
 interface.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA1030": {
@@ -301,12 +329,14 @@ interface.`,
 the various parsing and formatting functions in \'strconv\'.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA2000": {
 		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA2001": {
@@ -329,18 +359,21 @@ comments with a \'//lint:ignore\' directive can be used to suppress this
 rare false positive.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA2002": {
 		Title:    `Called \'testing.T.FailNow\' or \'SkipNow\' in a goroutine, which isn't allowed`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA2003": {
 		Title:    `Deferred \'Lock\' right after locking, likely meant to defer \'Unlock\' instead`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA3000": {
@@ -353,6 +386,7 @@ the usual way of implementing \'TestMain\' is to end it with
 \'os.Exit(m.Run())\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA3001": {
@@ -363,114 +397,133 @@ single operation. Benchmark code must not alter \'b.N\' as this would
 falsify results.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4000": {
 		Title:    `Binary operator has identical expressions on both sides`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4001": {
 		Title:    `\'&*x\' gets simplified to \'x\', it does not copy \'x\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4003": {
 		Title:    `Comparing unsigned values against negative values is pointless`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4004": {
 		Title:    `The loop exits unconditionally after one iteration`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4005": {
 		Title:    `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4006": {
 		Title:    `A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4008": {
 		Title:    `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4009": {
 		Title:    `A function argument is overwritten before its first use`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4010": {
 		Title:    `The result of \'append\' will never be observed anywhere`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4011": {
 		Title:    `Break statement with no effect. Did you mean to break out of an outer loop?`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4012": {
 		Title:    `Comparing a value against NaN even though no value is equal to NaN`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4013": {
 		Title:    `Negating a boolean twice (\'!!b\') is the same as writing \'b\'. This is either redundant, or a typo.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4014": {
 		Title:    `An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4015": {
 		Title:    `Calling functions like \'math.Ceil\' on floats converted from integers doesn't do anything useful`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4016": {
 		Title:    `Certain bitwise operations, such as \'x ^ 0\', do not do anything useful`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants
 	},
 
 	"SA4017": {
 		Title:    `A pure function's return value is discarded, making the call pointless`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4018": {
 		Title:    `Self-assignment of variables`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4019": {
 		Title:    `Multiple, identical build constraints in the same file`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4020": {
@@ -543,12 +596,14 @@ the following type switch will have an unreachable case clause:
 and therefore \'doSomething()\''s return value implements both.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4021": {
 		Title:    `\"x = append(y)\" is equivalent to \"x = y\"`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4022": {
@@ -556,6 +611,7 @@ and therefore \'doSomething()\''s return value implements both.`,
 		Text:     `Code such as \"if &x == nil\" is meaningless, because taking the address of a variable always yields a non-nil pointer.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4023": {
@@ -619,6 +675,7 @@ https://golang.org/doc/faq#nil_error, licensed under the Creative
 Commons Attribution 3.0 License.`,
 		Since:    "2020.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny, // TODO should this be MergeIfAll?
 	},
 
 	"SA4024": {
@@ -634,6 +691,7 @@ Example:
     }`,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4025": {
@@ -654,6 +712,7 @@ division involving named constants, to avoid noisy positives.
 `,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4026": {
@@ -669,6 +728,7 @@ To explicitly and reliably create a negative zero, you can use the
 \'math.Copysign\' function: \'math.Copysign(0, -1)\'.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4027": {
@@ -682,12 +742,14 @@ As a consequence, the following code pattern is an expensive no-op:
 \'u.Query().Add(key, value)\'.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4028": {
 		Title:    `\'x % 1\' is always zero`,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants
 	},
 
 	"SA4029": {
@@ -702,6 +764,7 @@ but there are more convenient helpers, namely \'sort.Float64s\',
 `,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4030": {
@@ -714,30 +777,35 @@ don't include \'n\'. \'rand.Intn(1)\' therefore doesn't generate \'0\'
 or \'1\', it always generates \'0\'.`,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4031": {
 		Title:    `Checking never-nil value against nil`,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5000": {
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5001": {
 		Title:    `Deferring \'Close\' before checking for a possible error`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5002": {
 		Title:    `The empty for loop (\"for {}\") spins and can block the scheduler`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5003": {
@@ -747,12 +815,14 @@ block. In a function that never returns, i.e. one containing an
 infinite loop, defers will never execute.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5004": {
 		Title:    `\"for { select { ...\" with an empty default branch spins`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5005": {
@@ -770,6 +840,7 @@ on the object. That way, the number of references can temporarily go
 to zero before the object is being passed to the finalizer.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5007": {
@@ -785,18 +856,21 @@ safe to use. Go, however, does not implement TCO, and as such a loop
 should be used instead.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5008": {
 		Title:    `Invalid struct tag`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5009": {
 		Title:    `Invalid Printf call`,
 		Since:    "2019.2",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5010": {
@@ -820,6 +894,10 @@ either.`,
 
 		Since:    "2020.1",
 		Severity: lint.SeverityWarning,
+		// Technically this should be MergeIfAll, but the Go compiler
+		// already flags some impossible type assertions, so
+		// MergeIfAny is consistent with the compiler.
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"SA5011": {
@@ -889,6 +967,7 @@ logrus. Please file an issue if we're missing support for a
 popular package.`,
 		Since:    "2020.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA5012": {
@@ -899,12 +978,14 @@ For example, \'strings.NewReplacer\' takes pairs of old and new strings,
 and calling it with an odd number of elements would be an error.`,
 		Since:    "2020.2",
 		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA6000": {
 		Title:    `Using \'regexp.Match\' or related in a loop, should use \'regexp.Compile\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA6001": {
@@ -936,6 +1017,7 @@ For some history on this optimization, check out commit
 f5f5a8b6209f84961687d993b93ea0d397f5d5bf in the Go repository.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA6002": {
@@ -954,6 +1036,7 @@ See the comments on https://go-review.googlesource.com/c/go/+/24371
 that discuss this problem.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA6003": {
@@ -977,6 +1060,7 @@ first one yields byte offsets, while the second one yields indices in
 the slice of runes.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA6005": {
@@ -1002,24 +1086,28 @@ For a more in-depth explanation of this issue, see
 https://blog.digitalocean.com/how-to-efficiently-compare-strings-in-go/`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA9001": {
 		Title:    `Defers in range loops may not run when you expect them to`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA9002": {
 		Title:    `Using a non-octal \'os.FileMode\' that looks like it was meant to be in octal.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA9003": {
 		Title:    `Empty body in an if or else branch`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA9004": {
@@ -1113,6 +1201,7 @@ This code will output
 as \'EnumSecond\' has no explicit type, and thus defaults to \'int\'.`,
 		Since:    "2019.1",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA9005": {
@@ -1127,6 +1216,7 @@ marshaling behavior, e.g. via \'MarshalJSON\' methods. It will also not
 flag empty structs.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA9006": {
@@ -1152,6 +1242,10 @@ positives in somewhat exotic but valid bit twiddling tricks:
     }`,
 		Since:    "2020.2",
 		Severity: lint.SeverityWarning,
+		// Technically this should be MergeIfAll, because the type of
+		// v might be different for different build tags. Practically,
+		// don't write code that depends on that.
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"SA9007": {
@@ -1179,6 +1273,7 @@ This check flags attempts at deleting the following directories:
 `,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA9008": {
@@ -1202,5 +1297,6 @@ value \'0\' and the type \'int\'.
 `,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
 	},
 })

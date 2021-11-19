@@ -3,8 +3,10 @@
 package lintcmd
 
 import (
+	"encoding/gob"
 	"flag"
 	"fmt"
+	"go/token"
 	"log"
 	"os"
 	"reflect"
@@ -25,6 +27,11 @@ import (
 	"golang.org/x/tools/go/buildutil"
 )
 
+type binaryOutput struct {
+	CheckedFiles []string
+	Problems     []problem
+}
+
 // Command represents a linter command line tool.
 type Command struct {
 	name           string
@@ -42,6 +49,7 @@ type Command struct {
 		formatter    string
 		explain      string
 		listChecks   bool
+		merge        bool
 
 		debugCpuprofile       string
 		debugMemprofile       string
@@ -217,23 +225,6 @@ func (cmd *Command) Run() {
 		}
 	}
 
-	exit := func(code int) {
-		if cmd.flags.debugCpuprofile != "" {
-			pprof.StopCPUProfile()
-		}
-		if path := cmd.flags.debugMemprofile; path != "" {
-			f, err := os.Create(path)
-			if err != nil {
-				panic(err)
-			}
-			runtime.GC()
-			pprof.WriteHeapProfile(f)
-		}
-		if cmd.flags.debugTrace != "" {
-			trace.Stop()
-		}
-		os.Exit(code)
-	}
 	if path := cmd.flags.debugCpuprofile; path != "" {
 		f, err := os.Create(path)
 		if err != nil {
@@ -259,10 +250,11 @@ func (cmd *Command) Run() {
 	}
 	config.DefaultConfig.Checks = defaultChecks
 
-	if cmd.flags.debugVersion {
+	switch {
+	case cmd.flags.debugVersion:
 		version.Verbose(cmd.version, cmd.machineVersion)
-		exit(0)
-	} else if cmd.flags.listChecks {
+		cmd.exit(0)
+	case cmd.flags.listChecks:
 		sort.Slice(cs, func(i, j int) bool {
 			return cs[i].Analyzer.Name < cs[j].Analyzer.Name
 		})
@@ -273,58 +265,118 @@ func (cmd *Command) Run() {
 			}
 			fmt.Printf("%s %s\n", c.Analyzer.Name, title)
 		}
-		exit(0)
-	} else if cmd.flags.printVersion {
+		cmd.exit(0)
+	case cmd.flags.printVersion:
 		version.Print(cmd.version, cmd.machineVersion)
-		exit(0)
-	} else if explain := cmd.flags.explain; explain != "" {
-		if explain := cmd.flags.explain; explain != "" {
-			check, ok := cmd.analyzers[explain]
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
-				exit(1)
-			}
-			if check.Analyzer.Doc == "" {
-				fmt.Fprintln(os.Stderr, explain, "has no documentation")
-				exit(1)
-			}
-			fmt.Println(check.Doc)
-			fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
-			exit(0)
+		cmd.exit(0)
+	case cmd.flags.explain != "":
+		explain := cmd.flags.explain
+		check, ok := cmd.analyzers[explain]
+		if !ok {
+			fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
+			cmd.exit(1)
 		}
-	} else {
+		if check.Analyzer.Doc == "" {
+			fmt.Fprintln(os.Stderr, explain, "has no documentation")
+			cmd.exit(1)
+		}
+		fmt.Println(check.Doc)
+		fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
+		cmd.exit(0)
+	case cmd.flags.merge:
+		type problemDescriptor struct {
+			Position token.Position
+			End      token.Position
+			Category string
+			Message  string
+		}
+		type run struct {
+			checkedFiles map[string]struct{}
+			problems     map[problemDescriptor]struct{}
+		}
+		runs := make([]run, len(cmd.flags.fs.Args()))
+		var allProblems []problem
+		for i, path := range cmd.flags.fs.Args() {
+			runs[i] = run{
+				checkedFiles: map[string]struct{}{},
+				problems:     map[problemDescriptor]struct{}{},
+			}
+
+			// OPT(dh): should we parallelize this?
+			err := func(path string) error {
+				f, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+
+				var bin binaryOutput
+				if err := gob.NewDecoder(f).Decode(&bin); err != nil {
+					return err
+				}
+
+				for _, cf := range bin.CheckedFiles {
+					runs[i].checkedFiles[cf] = struct{}{}
+				}
+				allProblems = append(allProblems, bin.Problems...)
+				for _, p := range bin.Problems {
+					pd := problemDescriptor{
+						Position: p.Position,
+						End:      p.End,
+						Category: p.Category,
+						Message:  p.Message,
+					}
+					runs[i].problems[pd] = struct{}{}
+				}
+				return nil
+			}(path)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, fmt.Errorf("couldn't parse file %s: %s", path, err))
+				cmd.exit(1)
+			}
+		}
+
+		relevantProblems := make([]problem, 0, len(allProblems))
+		for _, p := range allProblems {
+			switch p.MergeIf {
+			case lint.MergeIfAny:
+				relevantProblems = append(relevantProblems, p)
+			case lint.MergeIfAll:
+				doPrint := true
+				for _, r := range runs {
+					if _, ok := r.checkedFiles[p.Position.Filename]; ok {
+						pd := problemDescriptor{
+							Position: p.Position,
+							End:      p.End,
+							Category: p.Category,
+							Message:  p.Message,
+						}
+						if _, ok := r.problems[pd]; !ok {
+							doPrint = false
+						}
+					}
+				}
+				if doPrint {
+					relevantProblems = append(relevantProblems, p)
+				}
+			}
+		}
+		cmd.printDiagnostics(cs, relevantProblems)
+	default:
 		// Validate that the tags argument is well-formed. go/packages
 		// doesn't detect malformed build flags and returns unhelpful
 		// errors.
 		tf := buildutil.TagsFlag{}
 		if err := tf.Set(cmd.flags.tags); err != nil {
 			fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", cmd.flags.tags, err))
-			exit(1)
+			cmd.exit(1)
 		}
 
-		var f formatter
 		switch cmd.flags.formatter {
-		case "text":
-			f = textFormatter{W: os.Stdout}
-		case "stylish":
-			f = &stylishFormatter{W: os.Stdout}
-		case "json":
-			f = jsonFormatter{W: os.Stdout}
-		case "sarif":
-			f = &sarifFormatter{
-				driverName:    cmd.name,
-				driverVersion: cmd.version,
-			}
-			if cmd.name == "staticcheck" {
-				f.(*sarifFormatter).driverName = "Staticcheck"
-				f.(*sarifFormatter).driverWebsite = "https://staticcheck.io"
-			}
-
-		case "null":
-			f = nullFormatter{}
+		case "text", "stylish", "json", "sarif", "binary", "null":
 		default:
 			fmt.Fprintf(os.Stderr, "unsupported output format %q\n", cmd.flags.formatter)
-			exit(2)
+			cmd.exit(2)
 		}
 
 		res, err := doLint(cs, cmd.flags.fs.Args(), &options{
@@ -338,61 +390,153 @@ func (cmd *Command) Run() {
 		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			exit(1)
+			cmd.exit(1)
 		}
 
 		for _, w := range res.Warnings {
 			fmt.Fprintln(os.Stderr, "warning:", w)
 		}
 
-		var (
-			numErrors   int
-			numWarnings int
-			numIgnored  int
-		)
-
-		fail := cmd.flags.fail
-		analyzerNames := make([]string, len(cs))
-		for i, a := range cs {
-			analyzerNames[i] = a.Analyzer.Name
-		}
-		shouldExit := filterAnalyzerNames(analyzerNames, fail)
-		shouldExit["staticcheck"] = true
-		shouldExit["compile"] = true
-
-		notIgnored := make([]problem, 0, len(res.Problems))
-		for _, p := range res.Problems {
-			if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
-				continue
+		if cmd.flags.formatter == "binary" {
+			bin := binaryOutput{
+				CheckedFiles: res.CheckedFiles,
+				Problems:     res.Problems,
 			}
-			if p.Severity == severityIgnored && !cmd.flags.showIgnored {
-				numIgnored++
-				continue
+			err := gob.NewEncoder(os.Stdout).Encode(bin)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed writing output: %s\n", err)
+				cmd.exit(2)
 			}
-			if shouldExit[p.Category] {
-				numErrors++
-			} else {
-				p.Severity = severityWarning
-				numWarnings++
-			}
-			notIgnored = append(notIgnored, p)
+			cmd.exit(0)
+		} else {
+			cmd.printDiagnostics(cs, res.Problems)
 		}
-
-		f.Format(cs, notIgnored)
-		if f, ok := f.(statter); ok {
-			f.Stats(len(res.Problems), numErrors, numWarnings, numIgnored)
-		}
-
-		if numErrors > 0 {
-			if _, ok := f.(*sarifFormatter); ok {
-				// When emitting SARIF, finding errors is considered success.
-				exit(0)
-			} else {
-				exit(1)
-			}
-		}
-		exit(0)
 	}
+}
+
+func (cmd *Command) exit(code int) {
+	if cmd.flags.debugCpuprofile != "" {
+		pprof.StopCPUProfile()
+	}
+	if path := cmd.flags.debugMemprofile; path != "" {
+		f, err := os.Create(path)
+		if err != nil {
+			panic(err)
+		}
+		runtime.GC()
+		pprof.WriteHeapProfile(f)
+	}
+	if cmd.flags.debugTrace != "" {
+		trace.Stop()
+	}
+	os.Exit(code)
+}
+
+func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, problems []problem) {
+	if len(problems) > 1 {
+		sort.Slice(problems, func(i, j int) bool {
+			pi := problems[i].Position
+			pj := problems[j].Position
+
+			if pi.Filename != pj.Filename {
+				return pi.Filename < pj.Filename
+			}
+			if pi.Line != pj.Line {
+				return pi.Line < pj.Line
+			}
+			if pi.Column != pj.Column {
+				return pi.Column < pj.Column
+			}
+
+			return problems[i].Message < problems[j].Message
+		})
+
+		var filtered []problem
+		filtered = append(filtered, problems[0])
+		for i, p := range problems[1:] {
+			// We may encounter duplicate problems because one file
+			// can be part of many packages.
+			if !problems[i].equal(p) {
+				filtered = append(filtered, p)
+			}
+		}
+
+		problems = filtered
+	}
+
+	var f formatter
+	switch cmd.flags.formatter {
+	case "text":
+		f = textFormatter{W: os.Stdout}
+	case "stylish":
+		f = &stylishFormatter{W: os.Stdout}
+	case "json":
+		f = jsonFormatter{W: os.Stdout}
+	case "sarif":
+		f = &sarifFormatter{
+			driverName:    cmd.name,
+			driverVersion: cmd.version,
+		}
+		if cmd.name == "staticcheck" {
+			f.(*sarifFormatter).driverName = "Staticcheck"
+			f.(*sarifFormatter).driverWebsite = "https://staticcheck.io"
+		}
+	case "binary":
+		fmt.Fprintln(os.Stderr, "'-f binary' not supported in this context")
+		cmd.exit(2)
+	case "null":
+		f = nullFormatter{}
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", cmd.flags.formatter)
+		cmd.exit(2)
+	}
+
+	fail := cmd.flags.fail
+	analyzerNames := make([]string, len(cs))
+	for i, a := range cs {
+		analyzerNames[i] = a.Analyzer.Name
+	}
+	shouldExit := filterAnalyzerNames(analyzerNames, fail)
+	shouldExit["staticcheck"] = true
+	shouldExit["compile"] = true
+
+	var (
+		numErrors   int
+		numWarnings int
+		numIgnored  int
+	)
+	notIgnored := make([]problem, 0, len(problems))
+	for _, p := range problems {
+		if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
+			continue
+		}
+		if p.Severity == severityIgnored && !cmd.flags.showIgnored {
+			numIgnored++
+			continue
+		}
+		if shouldExit[p.Category] {
+			numErrors++
+		} else {
+			p.Severity = severityWarning
+			numWarnings++
+		}
+		notIgnored = append(notIgnored, p)
+	}
+
+	f.Format(cs, notIgnored)
+	if f, ok := f.(statter); ok {
+		f.Stats(len(problems), numErrors, numWarnings, numIgnored)
+	}
+
+	if numErrors > 0 {
+		if _, ok := f.(*sarifFormatter); ok {
+			// When emitting SARIF, finding errors is considered success.
+			cmd.exit(0)
+		} else {
+			cmd.exit(1)
+		}
+	}
+	cmd.exit(0)
 }
 
 func usage(name string, fs *flag.FlagSet) func() {

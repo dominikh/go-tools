@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +29,7 @@ import (
 
 // A linter lints Go source code.
 type linter struct {
-	Checkers []*lint.Analyzer
+	Checkers []*lint.Analyzer // TODO rename to Analyzers
 	Runner   *runner.Runner
 }
 
@@ -104,9 +103,12 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 		}
 	}
 
+	analyzerByName := map[string]*lint.Analyzer{}
 	analyzerNames := make([]string, len(l.Checkers))
 	for i, a := range l.Checkers {
-		analyzerNames[i] = a.Analyzer.Name
+		name := a.Analyzer.Name
+		analyzerByName[name] = a
+		analyzerNames[i] = name
 	}
 
 	used := map[unusedKey]bool{}
@@ -127,10 +129,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 				continue
 			}
 
-			for _, f := range res.Package.GoFiles {
-				out.CheckedFiles = append(out.CheckedFiles, f)
-			}
-
+			out.CheckedFiles = append(out.CheckedFiles, res.Package.GoFiles...)
 			allowedAnalyzers := filterAnalyzerNames(analyzerNames, res.Config.Checks)
 			resd, err := res.Load()
 			if err != nil {
@@ -142,6 +141,12 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 				return out, err
 			}
 			out.Problems = append(out.Problems, filtered...)
+
+			// OPT move this code into the 'success' function.
+			for i, p := range out.Problems {
+				a := analyzerByName[p.Category]
+				out.Problems[i].MergeIf = a.Doc.MergeIf
+			}
 
 			for _, obj := range resd.Unused.Used {
 				// FIXME(dh): pick the object whose filename does not include $GOROOT
@@ -184,40 +189,10 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 				Message:  fmt.Sprintf("%s %s is unused", uo.obj.Kind, uo.obj.Name),
 				Category: "U1000",
 			},
+			MergeIf: lint.MergeIfAll,
 		})
 	}
 
-	if len(out.Problems) == 0 {
-		return out, nil
-	}
-
-	sort.Slice(out.Problems, func(i, j int) bool {
-		pi := out.Problems[i].Position
-		pj := out.Problems[j].Position
-
-		if pi.Filename != pj.Filename {
-			return pi.Filename < pj.Filename
-		}
-		if pi.Line != pj.Line {
-			return pi.Line < pj.Line
-		}
-		if pi.Column != pj.Column {
-			return pi.Column < pj.Column
-		}
-
-		return out.Problems[i].Message < out.Problems[j].Message
-	})
-
-	var filtered []problem
-	filtered = append(filtered, out.Problems[0])
-	for i, p := range out.Problems[1:] {
-		// We may encounter duplicate problems because one file
-		// can be part of many packages.
-		if !out.Problems[i].equal(p) {
-			filtered = append(filtered, p)
-		}
-	}
-	out.Problems = filtered
 	return out, nil
 }
 
@@ -349,6 +324,7 @@ func (s severity) String() string {
 type problem struct {
 	runner.Diagnostic
 	Severity severity
+	MergeIf  lint.MergeStrategy
 }
 
 func (p problem) equal(o problem) bool {
@@ -356,7 +332,8 @@ func (p problem) equal(o problem) bool {
 		p.End == o.End &&
 		p.Message == o.Message &&
 		p.Category == o.Category &&
-		p.Severity == o.Severity
+		p.Severity == o.Severity &&
+		p.MergeIf == o.MergeIf
 }
 
 func (p *problem) String() string {

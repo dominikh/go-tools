@@ -55,6 +55,13 @@ const (
 	SeverityHint
 )
 
+type MergeStrategy int
+
+const (
+	MergeIfAny MergeStrategy = iota
+	MergeIfAll
+)
+
 type RawDocumentation struct {
 	Title      string
 	Text       string
@@ -64,6 +71,7 @@ type RawDocumentation struct {
 	NonDefault bool
 	Options    []string
 	Severity   Severity
+	MergeIf    MergeStrategy
 }
 
 type Documentation struct {
@@ -79,6 +87,7 @@ type Documentation struct {
 	NonDefault bool
 	Options    []string
 	Severity   Severity
+	MergeIf    MergeStrategy
 }
 
 func Markdownify(m map[string]*RawDocumentation) map[string]*Documentation {
@@ -97,6 +106,7 @@ func Markdownify(m map[string]*RawDocumentation) map[string]*Documentation {
 			NonDefault: v.NonDefault,
 			Options:    v.Options,
 			Severity:   v.Severity,
+			MergeIf:    v.MergeIf,
 		}
 	}
 	return out

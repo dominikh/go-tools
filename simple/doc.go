@@ -19,7 +19,8 @@ case x := <-ch:
 x := <-ch
 fmt.Println(x)
 `,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1001": {
@@ -33,6 +34,9 @@ for i, x := range src {
 }`,
 		After: `copy(dst, src)`,
 		Since: "2017.1",
+		// MergeIfAll because the types of src and dst might be different under different build tags.
+		// You shouldn't write code like that…
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1002": {
@@ -40,20 +44,25 @@ for i, x := range src {
 		Before: `if x == true {}`,
 		After:  `if x {}`,
 		Since:  "2017.1",
+		// MergeIfAll because 'true' might not be the builtin constant under all build tags.
+		// You shouldn't write code like that…
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1003": {
-		Title:  `Replace call to \'strings.Index\' with \'strings.Contains\'`,
-		Before: `if strings.Index(x, y) != -1 {}`,
-		After:  `if strings.Contains(x, y) {}`,
-		Since:  "2017.1",
+		Title:   `Replace call to \'strings.Index\' with \'strings.Contains\'`,
+		Before:  `if strings.Index(x, y) != -1 {}`,
+		After:   `if strings.Contains(x, y) {}`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1004": {
-		Title:  `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
-		Before: `if bytes.Compare(x, y) == 0 {}`,
-		After:  `if bytes.Equal(x, y) {}`,
-		Since:  "2017.1",
+		Title:   `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
+		Before:  `if bytes.Compare(x, y) == 0 {}`,
+		After:   `if bytes.Equal(x, y) {}`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1005": {
@@ -67,13 +76,15 @@ _ = <-ch`,
 for range s{}
 x = someMap[key]
 <-ch`,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1006": {
-		Title: `Use \"for { ... }\" for infinite loops`,
-		Text:  `For infinite loops, using \'for { ... }\' is the most idiomatic choice.`,
-		Since: "2017.1",
+		Title:   `Use \"for { ... }\" for infinite loops`,
+		Text:    `For infinite loops, using \'for { ... }\' is the most idiomatic choice.`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1007": {
@@ -84,9 +95,10 @@ freely, without the need of escaping.
 
 Since regular expressions have their own escape sequences, raw strings
 can improve their readability.`,
-		Before: `regexp.Compile("\\A(\\w+) profile: total \\d+\\n\\z")`,
-		After:  "regexp.Compile(`\\A(\\w+) profile: total \\d+\\n\\z`)",
-		Since:  "2017.1",
+		Before:  `regexp.Compile("\\A(\\w+) profile: total \\d+\\n\\z")`,
+		After:   "regexp.Compile(`\\A(\\w+) profile: total \\d+\\n\\z`)",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1008": {
@@ -96,8 +108,9 @@ if <expr> {
     return true
 }
 return false`,
-		After: `return <expr>`,
-		Since: "2017.1",
+		After:   `return <expr>`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1009": {
@@ -105,16 +118,18 @@ return false`,
 		Text: `The \'len\' function is defined for all slices, even nil ones, which have
 a length of zero. It is not necessary to check if a slice is not nil
 before checking that its length is not zero.`,
-		Before: `if x != nil && len(x) != 0 {}`,
-		After:  `if len(x) != 0 {}`,
-		Since:  "2017.1",
+		Before:  `if x != nil && len(x) != 0 {}`,
+		After:   `if len(x) != 0 {}`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1010": {
 		Title: `Omit default slice index`,
 		Text: `When slicing, the second index defaults to the length of the value,
 making \'s[n:len(s)]\' and \'s[n:]\' equivalent.`,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1011": {
@@ -125,15 +140,18 @@ for _, e := range y {
 }`,
 		After: `x = append(x, y...)`,
 		Since: "2017.1",
+		// MergeIfAll because y might not be a slice under all build tags.
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1012": {
 		Title: `Replace \'time.Now().Sub(x)\' with \'time.Since(x)\'`,
 		Text: `The \'time.Since\' helper has the same effect as using \'time.Now().Sub(x)\'
 but is easier to read.`,
-		Before: `time.Now().Sub(x)`,
-		After:  `time.Since(x)`,
-		Since:  "2017.1",
+		Before:  `time.Now().Sub(x)`,
+		After:   `time.Since(x)`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1016": {
@@ -152,7 +170,8 @@ y := T2{
 		After: `
 var x T1
 y := T2(x)`,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1017": {
@@ -166,8 +185,9 @@ mistakes.`,
 if strings.HasPrefix(str, prefix) {
     str = str[len(prefix):]
 }`,
-		After: `str = strings.TrimPrefix(str, prefix)`,
-		Since: "2017.1",
+		After:   `str = strings.TrimPrefix(str, prefix)`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1018": {
@@ -180,8 +200,9 @@ slice.`,
 for i := 0; i < n; i++ {
     bs[i] = bs[offset+i]
 }`,
-		After: `copy(bs[:n], bs[offset:])`,
-		Since: "2017.1",
+		After:   `copy(bs[:n], bs[offset:])`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1019": {
@@ -190,13 +211,17 @@ for i := 0; i < n; i++ {
 arguments. For channels, the length defaults to zero, and for slices,
 the capacity defaults to the length.`,
 		Since: "2017.1",
+		// MergeIfAll because the type might be different under different build tags.
+		// You shouldn't write code like that…
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1020": {
-		Title:  `Omit redundant nil check in type assertion`,
-		Before: `if _, ok := i.(T); ok && i != nil {}`,
-		After:  `if _, ok := i.(T); ok {}`,
-		Since:  "2017.1",
+		Title:   `Omit redundant nil check in type assertion`,
+		Before:  `if _, ok := i.(T); ok && i != nil {}`,
+		After:   `if _, ok := i.(T); ok {}`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1021": {
@@ -204,8 +229,9 @@ the capacity defaults to the length.`,
 		Before: `
 var x uint
 x = 1`,
-		After: `var x uint = 1`,
-		Since: "2017.1",
+		After:   `var x uint = 1`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1023": {
@@ -216,16 +242,18 @@ the final statement of the function.
 Switches in Go do not have automatic fallthrough, unlike languages
 like C. It is not necessary to have a break statement as the final
 statement in a case block.`,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1024": {
 		Title: `Replace \'x.Sub(time.Now())\' with \'time.Until(x)\'`,
 		Text: `The \'time.Until\' helper has the same effect as using \'x.Sub(time.Now())\'
 but is easier to read.`,
-		Before: `x.Sub(time.Now())`,
-		After:  `time.Until(x)`,
-		Since:  "2017.1",
+		Before:  `x.Sub(time.Now())`,
+		After:   `time.Until(x)`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1025": {
@@ -258,14 +286,16 @@ to
     string(y)
     z.String()
 `,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1028": {
-		Title:  `Simplify error construction with \'fmt.Errorf\'`,
-		Before: `errors.New(fmt.Sprintf(...))`,
-		After:  `fmt.Errorf(...)`,
-		Since:  "2017.1",
+		Title:   `Simplify error construction with \'fmt.Errorf\'`,
+		Before:  `errors.New(fmt.Sprintf(...))`,
+		After:   `fmt.Errorf(...)`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1029": {
@@ -275,9 +305,10 @@ isn't used, this is functionally equivalent to converting the string
 to a slice of runes and ranging over that. Ranging directly over the
 string will be more performant, however, as it avoids allocating a new
 slice, the size of which depends on the length of the string.`,
-		Before: `for _, r := range []rune(s) {}`,
-		After:  `for _, r := range s {}`,
-		Since:  "2017.1",
+		Before:  `for _, r := range []rune(s) {}`,
+		After:   `for _, r := range s {}`,
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1030": {
@@ -289,7 +320,8 @@ use the other method.
 The only exception to this are map lookups. Due to a compiler optimization,
 \'m[string(buf.Bytes())]\' is more efficient than \'m[buf.String()]\'.
 `,
-		Since: "2017.1",
+		Since:   "2017.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1031": {
@@ -308,6 +340,9 @@ for _, x := range s {
     ...
 }`,
 		Since: "2017.1",
+		// MergeIfAll because x might be a channel under some build tags.
+		// you shouldn't write code like that…
+		MergeIf: lint.MergeIfAll,
 	},
 
 	"S1032": {
@@ -315,20 +350,23 @@ for _, x := range s {
 		Text: `The \'sort.Ints\', \'sort.Float64s\' and \'sort.Strings\' functions are easier to
 read than \'sort.Sort(sort.IntSlice(x))\', \'sort.Sort(sort.Float64Slice(x))\'
 and \'sort.Sort(sort.StringSlice(x))\'.`,
-		Before: `sort.Sort(sort.StringSlice(x))`,
-		After:  `sort.Strings(x)`,
-		Since:  "2019.1",
+		Before:  `sort.Sort(sort.StringSlice(x))`,
+		After:   `sort.Strings(x)`,
+		Since:   "2019.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1033": {
-		Title: `Unnecessary guard around call to \"delete\"`,
-		Text:  `Calling \'delete\' on a nil map is a no-op.`,
-		Since: "2019.2",
+		Title:   `Unnecessary guard around call to \"delete\"`,
+		Text:    `Calling \'delete\' on a nil map is a no-op.`,
+		Since:   "2019.2",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1034": {
-		Title: `Use result of type assertion to simplify cases`,
-		Since: "2019.2",
+		Title:   `Use result of type assertion to simplify cases`,
+		Since:   "2019.2",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1035": {
@@ -336,7 +374,8 @@ and \'sort.Sort(sort.StringSlice(x))\'.`,
 		Text: `
 The methods on \'net/http.Header\', namely \'Add\', \'Del\', \'Get\'
 and \'Set\', already canonicalize the given header name.`,
-		Since: "2020.1",
+		Since:   "2020.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1036": {
@@ -371,7 +410,8 @@ can be simplified to
 
     m["k"] += 4
 `,
-		Since: "2020.1",
+		Since:   "2020.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1037": {
@@ -379,13 +419,15 @@ can be simplified to
 		Text: `Using a select statement with a single case receiving
 from the result of \'time.After\' is a very elaborate way of sleeping that
 can much simpler be expressed with a simple call to time.Sleep.`,
-		Since: "2020.1",
+		Since:   "2020.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1038": {
-		Title: "Unnecessarily complex way of printing formatted string",
-		Text:  `Instead of using \'fmt.Print(fmt.Sprintf(...))\', one can use \'fmt.Printf(...)\'.`,
-		Since: "2020.1",
+		Title:   "Unnecessarily complex way of printing formatted string",
+		Text:    `Instead of using \'fmt.Print(fmt.Sprintf(...))\', one can use \'fmt.Printf(...)\'.`,
+		Since:   "2020.1",
+		MergeIf: lint.MergeIfAny,
 	},
 
 	"S1039": {
@@ -394,6 +436,9 @@ can much simpler be expressed with a simple call to time.Sleep.`,
 Calling \'fmt.Sprint\' with a single string argument is unnecessary
 and identical to using the string directly.`,
 		Since: "2020.1",
+		// MergeIfAll because s might not be a string under all build tags.
+		// you shouldn't write code like that…
+		MergeIf: lint.MergeIfAll,
 	},
 	"S1040": {
 		Title: "Type assertion to current type",
@@ -404,5 +449,8 @@ delete the type assertion. If you want to check that \'x\' is not nil,
 consider being explicit and using an actual \'if x == nil\' comparison
 instead of relying on the type assertion panicking.`,
 		Since: "2021.1",
+		// MergeIfAll because x might have different types under different build tags.
+		// You shouldn't write code like that…
+		MergeIf: lint.MergeIfAll,
 	},
 })
