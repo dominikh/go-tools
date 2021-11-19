@@ -142,6 +142,7 @@ import (
 
 const sanityCheck = false
 
+// Diagnostic is like go/analysis.Diagnostic, but with all token.Pos resolved to token.Position.
 type Diagnostic struct {
 	Position token.Position
 	End      token.Position

@@ -14,7 +14,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func lintPackage(t *testing.T, name string) []problem {
+func lintPackage(t *testing.T, name string) []diagnostic {
 	l, err := newLinter(config.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func lintPackage(t *testing.T, name string) []problem {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return res.Problems
+	return res.Diagnostics
 }
 
 func trimPosition(t *testing.T, pos *token.Position) {
@@ -42,7 +42,7 @@ func TestErrors(t *testing.T) {
 	t.Run("invalid package declaration", func(t *testing.T) {
 		ps := lintPackage(t, "broken_pkgerror")
 		if len(ps) != 1 {
-			t.Fatalf("got %d problems, want 1", len(ps))
+			t.Fatalf("got %d diagnostics, want 1", len(ps))
 		}
 		if want := "expected 'package', found pckage"; ps[0].Message != want {
 			t.Errorf("got message %q, want %q", ps[0].Message, want)
@@ -58,10 +58,10 @@ func TestErrors(t *testing.T) {
 		}
 		ps := lintPackage(t, "broken_typeerror")
 		if len(ps) != 1 {
-			t.Fatalf("got %d problems, want 1", len(ps))
+			t.Fatalf("got %d diagnostics, want 1", len(ps))
 		}
 		trimPosition(t, &ps[0].Position)
-		want := problem{
+		want := diagnostic{
 			Diagnostic: runner.Diagnostic{
 				Position: token.Position{
 					Filename: "broken_typeerror/pkg.go",
@@ -89,11 +89,11 @@ func TestErrors(t *testing.T) {
 		}
 		ps := lintPackage(t, "broken_parse")
 		if len(ps) != 1 {
-			t.Fatalf("got %d problems, want 1", len(ps))
+			t.Fatalf("got %d diagnostics, want 1", len(ps))
 		}
 
 		trimPosition(t, &ps[0].Position)
-		want := problem{
+		want := diagnostic{
 			Diagnostic: runner.Diagnostic{
 				Position: token.Position{
 					Filename: "broken_parse/pkg.go",

@@ -29,7 +29,7 @@ import (
 
 type binaryOutput struct {
 	CheckedFiles []string
-	Problems     []problem
+	Diagnostics  []diagnostic
 }
 
 // Command represents a linter command line tool.
@@ -133,7 +133,7 @@ func (cmd *Command) initFlagSet(name string) {
 	flags.StringVar(&cmd.flags.tags, "tags", "", "List of `build tags`")
 	flags.BoolVar(&cmd.flags.tests, "tests", true, "Include tests")
 	flags.BoolVar(&cmd.flags.printVersion, "version", false, "Print version and exit")
-	flags.BoolVar(&cmd.flags.showIgnored, "show-ignored", false, "Don't filter ignored problems")
+	flags.BoolVar(&cmd.flags.showIgnored, "show-ignored", false, "Don't filter ignored diagnostics")
 	flags.StringVar(&cmd.flags.formatter, "f", "text", "Output `format` (valid choices are 'stylish', 'text' and 'json')")
 	flags.StringVar(&cmd.flags.explain, "explain", "", "Print description of `check`")
 	flags.BoolVar(&cmd.flags.listChecks, "list-checks", false, "List all available checks")
@@ -284,7 +284,7 @@ func (cmd *Command) Run() {
 		fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
 		cmd.exit(0)
 	case cmd.flags.merge:
-		type problemDescriptor struct {
+		type diagnosticDescriptor struct {
 			Position token.Position
 			End      token.Position
 			Category string
@@ -292,14 +292,14 @@ func (cmd *Command) Run() {
 		}
 		type run struct {
 			checkedFiles map[string]struct{}
-			problems     map[problemDescriptor]struct{}
+			diagnostics  map[diagnosticDescriptor]struct{}
 		}
 		runs := make([]run, len(cmd.flags.fs.Args()))
-		var allProblems []problem
+		var allDiagnostics []diagnostic
 		for i, path := range cmd.flags.fs.Args() {
 			runs[i] = run{
 				checkedFiles: map[string]struct{}{},
-				problems:     map[problemDescriptor]struct{}{},
+				diagnostics:  map[diagnosticDescriptor]struct{}{},
 			}
 
 			// OPT(dh): should we parallelize this?
@@ -318,15 +318,15 @@ func (cmd *Command) Run() {
 				for _, cf := range bin.CheckedFiles {
 					runs[i].checkedFiles[cf] = struct{}{}
 				}
-				allProblems = append(allProblems, bin.Problems...)
-				for _, p := range bin.Problems {
-					pd := problemDescriptor{
-						Position: p.Position,
-						End:      p.End,
-						Category: p.Category,
-						Message:  p.Message,
+				allDiagnostics = append(allDiagnostics, bin.Diagnostics...)
+				for _, diag := range bin.Diagnostics {
+					desc := diagnosticDescriptor{
+						Position: diag.Position,
+						End:      diag.End,
+						Category: diag.Category,
+						Message:  diag.Message,
 					}
-					runs[i].problems[pd] = struct{}{}
+					runs[i].diagnostics[desc] = struct{}{}
 				}
 				return nil
 			}(path)
@@ -336,32 +336,32 @@ func (cmd *Command) Run() {
 			}
 		}
 
-		relevantProblems := make([]problem, 0, len(allProblems))
-		for _, p := range allProblems {
-			switch p.MergeIf {
+		relevantDiagnostics := make([]diagnostic, 0, len(allDiagnostics))
+		for _, diag := range allDiagnostics {
+			switch diag.MergeIf {
 			case lint.MergeIfAny:
-				relevantProblems = append(relevantProblems, p)
+				relevantDiagnostics = append(relevantDiagnostics, diag)
 			case lint.MergeIfAll:
 				doPrint := true
 				for _, r := range runs {
-					if _, ok := r.checkedFiles[p.Position.Filename]; ok {
-						pd := problemDescriptor{
-							Position: p.Position,
-							End:      p.End,
-							Category: p.Category,
-							Message:  p.Message,
+					if _, ok := r.checkedFiles[diag.Position.Filename]; ok {
+						desc := diagnosticDescriptor{
+							Position: diag.Position,
+							End:      diag.End,
+							Category: diag.Category,
+							Message:  diag.Message,
 						}
-						if _, ok := r.problems[pd]; !ok {
+						if _, ok := r.diagnostics[desc]; !ok {
 							doPrint = false
 						}
 					}
 				}
 				if doPrint {
-					relevantProblems = append(relevantProblems, p)
+					relevantDiagnostics = append(relevantDiagnostics, diag)
 				}
 			}
 		}
-		cmd.printDiagnostics(cs, relevantProblems)
+		cmd.printDiagnostics(cs, relevantDiagnostics)
 	default:
 		// Validate that the tags argument is well-formed. go/packages
 		// doesn't detect malformed build flags and returns unhelpful
@@ -400,7 +400,7 @@ func (cmd *Command) Run() {
 		if cmd.flags.formatter == "binary" {
 			bin := binaryOutput{
 				CheckedFiles: res.CheckedFiles,
-				Problems:     res.Problems,
+				Diagnostics:  res.Diagnostics,
 			}
 			err := gob.NewEncoder(os.Stdout).Encode(bin)
 			if err != nil {
@@ -409,7 +409,7 @@ func (cmd *Command) Run() {
 			}
 			cmd.exit(0)
 		} else {
-			cmd.printDiagnostics(cs, res.Problems)
+			cmd.printDiagnostics(cs, res.Diagnostics)
 		}
 	}
 }
@@ -432,11 +432,11 @@ func (cmd *Command) exit(code int) {
 	os.Exit(code)
 }
 
-func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, problems []problem) {
-	if len(problems) > 1 {
-		sort.Slice(problems, func(i, j int) bool {
-			pi := problems[i].Position
-			pj := problems[j].Position
+func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnostic) {
+	if len(diagnostics) > 1 {
+		sort.Slice(diagnostics, func(i, j int) bool {
+			pi := diagnostics[i].Position
+			pj := diagnostics[j].Position
 
 			if pi.Filename != pj.Filename {
 				return pi.Filename < pj.Filename
@@ -448,20 +448,20 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, problems []problem) {
 				return pi.Column < pj.Column
 			}
 
-			return problems[i].Message < problems[j].Message
+			return diagnostics[i].Message < diagnostics[j].Message
 		})
 
-		var filtered []problem
-		filtered = append(filtered, problems[0])
-		for i, p := range problems[1:] {
-			// We may encounter duplicate problems because one file
+		var filtered []diagnostic
+		filtered = append(filtered, diagnostics[0])
+		for i, diag := range diagnostics[1:] {
+			// We may encounter duplicate diagnostics because one file
 			// can be part of many packages.
-			if !problems[i].equal(p) {
-				filtered = append(filtered, p)
+			if !diagnostics[i].equal(diag) {
+				filtered = append(filtered, diag)
 			}
 		}
 
-		problems = filtered
+		diagnostics = filtered
 	}
 
 	var f formatter
@@ -505,27 +505,27 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, problems []problem) {
 		numWarnings int
 		numIgnored  int
 	)
-	notIgnored := make([]problem, 0, len(problems))
-	for _, p := range problems {
-		if p.Category == "compile" && cmd.flags.debugNoCompileErrors {
+	notIgnored := make([]diagnostic, 0, len(diagnostics))
+	for _, diag := range diagnostics {
+		if diag.Category == "compile" && cmd.flags.debugNoCompileErrors {
 			continue
 		}
-		if p.Severity == severityIgnored && !cmd.flags.showIgnored {
+		if diag.Severity == severityIgnored && !cmd.flags.showIgnored {
 			numIgnored++
 			continue
 		}
-		if shouldExit[p.Category] {
+		if shouldExit[diag.Category] {
 			numErrors++
 		} else {
-			p.Severity = severityWarning
+			diag.Severity = severityWarning
 			numWarnings++
 		}
-		notIgnored = append(notIgnored, p)
+		notIgnored = append(notIgnored, diag)
 	}
 
 	f.Format(cs, notIgnored)
 	if f, ok := f.(statter); ok {
-		f.Stats(len(problems), numErrors, numWarnings, numIgnored)
+		f.Stats(len(diagnostics), numErrors, numWarnings, numIgnored)
 	}
 
 	if numErrors > 0 {

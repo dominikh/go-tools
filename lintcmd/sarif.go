@@ -230,8 +230,8 @@ func convertCodeBlocks(text string) string {
 	return buf.String()
 }
 
-func (o *sarifFormatter) Format(checks []*lint.Analyzer, problems []problem) {
-	// TODO(dh): some problems shouldn't be reported as results. For example, when the user specifies a package on the command line that doesn't exist.
+func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnostic) {
+	// TODO(dh): some diagnostics shouldn't be reported as results. For example, when the user specifies a package on the command line that doesn't exist.
 
 	cwd, _ := os.Getwd()
 	run := sarif.Run{
@@ -276,7 +276,7 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, problems []problem) {
 			})
 	}
 
-	for _, p := range problems {
+	for _, p := range diagnostics {
 		r := sarif.Result{
 			RuleID: p.Category,
 			Kind:   sarif.Fail,
@@ -354,7 +354,7 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, problems []problem) {
 			}}
 		} else {
 			// We want an empty slice, not nil. SARIF differentiates
-			// between the two. An empty slice means that the problem
+			// between the two. An empty slice means that the diagnostic
 			// wasn't suppressed, while nil means that we don't have the
 			// information available.
 			r.Suppressions = []sarif.Suppression{}

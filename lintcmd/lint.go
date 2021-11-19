@@ -29,8 +29,8 @@ import (
 
 // A linter lints Go source code.
 type linter struct {
-	Checkers []*lint.Analyzer // TODO rename to Analyzers
-	Runner   *runner.Runner
+	Analyzers map[string]*lint.Analyzer
+	Runner    *runner.Runner
 }
 
 func computeSalt() ([]byte, error) {
@@ -79,18 +79,18 @@ func newLinter(cfg config.Config) (*linter, error) {
 
 type LintResult struct {
 	CheckedFiles []string
-	Problems     []problem
+	Diagnostics  []diagnostic
 	Warnings     []string
 }
 
 func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, error) {
 	var out LintResult
 
-	cs := make([]*analysis.Analyzer, len(l.Checkers))
-	for i, a := range l.Checkers {
-		cs[i] = a.Analyzer
+	as := make([]*analysis.Analyzer, 0, len(l.Analyzers))
+	for _, a := range l.Analyzers {
+		as = append(as, a.Analyzer)
 	}
-	results, err := l.Runner.Run(cfg, cs, patterns)
+	results, err := l.Runner.Run(cfg, as, patterns)
 	if err != nil {
 		return out, err
 	}
@@ -103,14 +103,10 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 		}
 	}
 
-	analyzerByName := map[string]*lint.Analyzer{}
-	analyzerNames := make([]string, len(l.Checkers))
-	for i, a := range l.Checkers {
-		name := a.Analyzer.Name
-		analyzerByName[name] = a
-		analyzerNames[i] = name
+	analyzerNames := make([]string, 0, len(l.Analyzers))
+	for name := range l.Analyzers {
+		analyzerNames = append(analyzerNames, name)
 	}
-
 	used := map[unusedKey]bool{}
 	var unuseds []unusedPair
 	for _, res := range results {
@@ -118,7 +114,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 			panic("package has errors but isn't marked as failed")
 		}
 		if res.Failed {
-			out.Problems = append(out.Problems, failed(res)...)
+			out.Diagnostics = append(out.Diagnostics, failed(res)...)
 		} else {
 			if res.Skipped {
 				out.Warnings = append(out.Warnings, fmt.Sprintf("skipped package %s because it is too large", res.Package))
@@ -140,12 +136,12 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 			if err != nil {
 				return out, err
 			}
-			out.Problems = append(out.Problems, filtered...)
+			out.Diagnostics = append(out.Diagnostics, filtered...)
 
 			// OPT move this code into the 'success' function.
-			for i, p := range out.Problems {
-				a := analyzerByName[p.Category]
-				out.Problems[i].MergeIf = a.Doc.MergeIf
+			for i, diag := range out.Diagnostics {
+				a := l.Analyzers[diag.Category]
+				out.Diagnostics[i].MergeIf = a.Doc.MergeIf
 			}
 
 			for _, obj := range resd.Unused.Used {
@@ -183,7 +179,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 		if uo.obj.InGenerated {
 			continue
 		}
-		out.Problems = append(out.Problems, problem{
+		out.Diagnostics = append(out.Diagnostics, diagnostic{
 			Diagnostic: runner.Diagnostic{
 				Position: uo.obj.DisplayPosition,
 				Message:  fmt.Sprintf("%s %s is unused", uo.obj.Kind, uo.obj.Name),
@@ -196,7 +192,7 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 	return out, nil
 }
 
-func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers map[string]bool) ([]problem, error) {
+func filterIgnored(diagnostics []diagnostic, res runner.ResultData, allowedAnalyzers map[string]bool) ([]diagnostic, error) {
 	couldHaveMatched := func(ig *lineIgnore) bool {
 		for _, c := range ig.Checks {
 			if c == "U1000" {
@@ -223,33 +219,33 @@ func filterIgnored(problems []problem, res runner.ResultData, allowedAnalyzers m
 		return false
 	}
 
-	ignores, moreProblems := parseDirectives(res.Directives)
+	ignores, moreDiagnostics := parseDirectives(res.Directives)
 
 	for _, ig := range ignores {
-		for i := range problems {
-			p := &problems[i]
-			if ig.Match(*p) {
-				p.Severity = severityIgnored
+		for i := range diagnostics {
+			diag := &diagnostics[i]
+			if ig.Match(*diag) {
+				diag.Severity = severityIgnored
 			}
 		}
 
 		if ig, ok := ig.(*lineIgnore); ok && !ig.Matched && couldHaveMatched(ig) {
-			p := problem{
+			diag := diagnostic{
 				Diagnostic: runner.Diagnostic{
 					Position: ig.Pos,
 					Message:  "this linter directive didn't match anything; should it be removed?",
 					Category: "staticcheck",
 				},
 			}
-			moreProblems = append(moreProblems, p)
+			moreDiagnostics = append(moreDiagnostics, diag)
 		}
 	}
 
-	return append(problems, moreProblems...), nil
+	return append(diagnostics, moreDiagnostics...), nil
 }
 
 type ignore interface {
-	Match(p problem) bool
+	Match(diag diagnostic) bool
 }
 
 type lineIgnore struct {
@@ -260,7 +256,7 @@ type lineIgnore struct {
 	Pos     token.Position
 }
 
-func (li *lineIgnore) Match(p problem) bool {
+func (li *lineIgnore) Match(p diagnostic) bool {
 	pos := p.Position
 	if pos.Filename != li.File || pos.Line != li.Line {
 		return false
@@ -287,7 +283,7 @@ type fileIgnore struct {
 	Checks []string
 }
 
-func (fi *fileIgnore) Match(p problem) bool {
+func (fi *fileIgnore) Match(p diagnostic) bool {
 	if p.Position.Filename != fi.File {
 		return false
 	}
@@ -320,14 +316,14 @@ func (s severity) String() string {
 	}
 }
 
-// problem represents a problem in some source code.
-type problem struct {
+// diagnostic represents a diagnostic in some source code.
+type diagnostic struct {
 	runner.Diagnostic
 	Severity severity
 	MergeIf  lint.MergeStrategy
 }
 
-func (p problem) equal(o problem) bool {
+func (p diagnostic) equal(o diagnostic) bool {
 	return p.Position == o.Position &&
 		p.End == o.End &&
 		p.Message == o.Message &&
@@ -336,12 +332,12 @@ func (p problem) equal(o problem) bool {
 		p.MergeIf == o.MergeIf
 }
 
-func (p *problem) String() string {
+func (p *diagnostic) String() string {
 	return fmt.Sprintf("%s (%s)", p.Message, p.Category)
 }
 
-func failed(res runner.Result) []problem {
-	var problems []problem
+func failed(res runner.Result) []diagnostic {
+	var diagnostics []diagnostic
 
 	for _, e := range res.Errors {
 		switch e := e.(type) {
@@ -375,7 +371,7 @@ func failed(res runner.Result) []problem {
 					panic(fmt.Sprintf("internal error: %s", e))
 				}
 			}
-			p := problem{
+			diag := diagnostic{
 				Diagnostic: runner.Diagnostic{
 					Position: posn,
 					Message:  msg,
@@ -383,9 +379,9 @@ func failed(res runner.Result) []problem {
 				},
 				Severity: severityError,
 			}
-			problems = append(problems, p)
+			diagnostics = append(diagnostics, diag)
 		case error:
-			p := problem{
+			diag := diagnostic{
 				Diagnostic: runner.Diagnostic{
 					Position: token.Position{},
 					Message:  e.Error(),
@@ -393,11 +389,11 @@ func failed(res runner.Result) []problem {
 				},
 				Severity: severityError,
 			}
-			problems = append(problems, p)
+			diagnostics = append(diagnostics, diag)
 		}
 	}
 
-	return problems
+	return diagnostics
 }
 
 type unusedKey struct {
@@ -412,16 +408,16 @@ type unusedPair struct {
 	obj unused.SerializedObject
 }
 
-func success(allowedChecks map[string]bool, res runner.ResultData) []problem {
+func success(allowedAnalyzers map[string]bool, res runner.ResultData) []diagnostic {
 	diags := res.Diagnostics
-	var problems []problem
+	var diagnostics []diagnostic
 	for _, diag := range diags {
-		if !allowedChecks[diag.Category] {
+		if !allowedAnalyzers[diag.Category] {
 			continue
 		}
-		problems = append(problems, problem{Diagnostic: diag})
+		diagnostics = append(diagnostics, diagnostic{Diagnostic: diag})
 	}
-	return problems
+	return diagnostics
 }
 
 func defaultGoVersion() string {
@@ -501,7 +497,7 @@ type options struct {
 	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
-func doLint(cs []*lint.Analyzer, paths []string, opt *options) (LintResult, error) {
+func doLint(as []*lint.Analyzer, paths []string, opt *options) (LintResult, error) {
 	if opt == nil {
 		opt = &options{}
 	}
@@ -510,7 +506,11 @@ func doLint(cs []*lint.Analyzer, paths []string, opt *options) (LintResult, erro
 	if err != nil {
 		return LintResult{}, err
 	}
-	l.Checkers = cs
+	analyzers := make(map[string]*lint.Analyzer, len(as))
+	for _, a := range as {
+		analyzers[a.Analyzer.Name] = a
+	}
+	l.Analyzers = analyzers
 	l.Runner.GoVersion = opt.GoVersion
 	l.Runner.Stats.PrintAnalyzerMeasurement = opt.PrintAnalyzerMeasurement
 

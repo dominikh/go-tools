@@ -42,14 +42,14 @@ type statter interface {
 }
 
 type formatter interface {
-	Format(checks []*lint.Analyzer, problems []problem)
+	Format(checks []*lint.Analyzer, diagnostics []diagnostic)
 }
 
 type textFormatter struct {
 	W io.Writer
 }
 
-func (o textFormatter) Format(_ []*lint.Analyzer, ps []problem) {
+func (o textFormatter) Format(_ []*lint.Analyzer, ps []diagnostic) {
 	for _, p := range ps {
 		fmt.Fprintf(o.W, "%s: %s\n", relativePositionString(p.Position), p.String())
 		for _, r := range p.Related {
@@ -60,13 +60,13 @@ func (o textFormatter) Format(_ []*lint.Analyzer, ps []problem) {
 
 type nullFormatter struct{}
 
-func (nullFormatter) Format([]*lint.Analyzer, []problem) {}
+func (nullFormatter) Format([]*lint.Analyzer, []diagnostic) {}
 
 type jsonFormatter struct {
 	W io.Writer
 }
 
-func (o jsonFormatter) Format(_ []*lint.Analyzer, ps []problem) {
+func (o jsonFormatter) Format(_ []*lint.Analyzer, ps []diagnostic) {
 	type location struct {
 		File   string `json:"file"`
 		Line   int    `json:"line"`
@@ -128,7 +128,7 @@ type stylishFormatter struct {
 	tw       *tabwriter.Writer
 }
 
-func (o *stylishFormatter) Format(_ []*lint.Analyzer, ps []problem) {
+func (o *stylishFormatter) Format(_ []*lint.Analyzer, ps []diagnostic) {
 	for _, p := range ps {
 		pos := p.Position
 		if pos.Filename == "" {

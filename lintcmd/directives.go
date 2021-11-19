@@ -6,9 +6,9 @@ import (
 	"honnef.co/go/tools/lintcmd/runner"
 )
 
-func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []problem) {
+func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []diagnostic) {
 	var ignores []ignore
-	var problems []problem
+	var diagnostics []diagnostic
 
 	for _, dir := range dirs {
 		cmd := dir.Command
@@ -16,7 +16,7 @@ func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []problem) {
 		switch cmd {
 		case "ignore", "file-ignore":
 			if len(args) < 2 {
-				p := problem{
+				p := diagnostic{
 					Diagnostic: runner.Diagnostic{
 						Position: dir.NodePosition,
 						Message:  "malformed linter directive; missing the required reason field?",
@@ -24,7 +24,7 @@ func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []problem) {
 					},
 					Severity: severityError,
 				}
-				problems = append(problems, p)
+				diagnostics = append(diagnostics, p)
 				continue
 			}
 		default:
@@ -51,5 +51,5 @@ func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []problem) {
 		ignores = append(ignores, ig)
 	}
 
-	return ignores, problems
+	return ignores, diagnostics
 }
