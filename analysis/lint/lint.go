@@ -1,4 +1,5 @@
 // Package lint provides abstractions on top of go/analysis.
+// These abstractions add extra information to analyzes, such as structured documentation and severities.
 package lint
 
 import (
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// Analyzer wraps a go/analysis.Analyzer and provides structured documentation.
 type Analyzer struct {
 	// The analyzer's documentation. Unlike go/analysis.Analyzer.Doc,
 	// this field is structured, providing access to severity, options
@@ -30,6 +32,8 @@ func (a *Analyzer) initialize() {
 	}
 }
 
+// InitializeAnalyzers takes a map of documentation and a map of go/analysis.Analyzers and returns a slice of Analyzers.
+// The map keys are the analyzer names.
 func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) []*Analyzer {
 	out := make([]*Analyzer, 0, len(analyzers))
 	for k, v := range analyzers {
@@ -44,6 +48,7 @@ func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*a
 	return out
 }
 
+// Severity describes the severity of diagnostics reported by an analyzer.
 type Severity int
 
 const (
@@ -55,6 +60,7 @@ const (
 	SeverityHint
 )
 
+// MergeStrategy sets how merge mode should behave for diagnostics of an analyzer.
 type MergeStrategy int
 
 const (
@@ -247,6 +253,7 @@ func parseDirective(s string) (cmd string, args []string) {
 	return fields[0], fields[1:]
 }
 
+// ParseDirectives extracts all directives from a list of Go files.
 func ParseDirectives(files []*ast.File, fset *token.FileSet) []Directive {
 	var dirs []Directive
 	for _, f := range files {
