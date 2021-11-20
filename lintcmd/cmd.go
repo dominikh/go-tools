@@ -3,10 +3,12 @@
 package lintcmd
 
 import (
+	"bufio"
 	"encoding/gob"
 	"flag"
 	"fmt"
 	"go/token"
+	"io"
 	"log"
 	"os"
 	"reflect"
@@ -204,6 +206,52 @@ func (cmd *Command) ParseFlags(args []string) {
 	cmd.flags.fs.Parse(args)
 }
 
+type diagnosticDescriptor struct {
+	Position token.Position
+	End      token.Position
+	Category string
+	Message  string
+}
+type run struct {
+	checkedFiles map[string]struct{}
+	diagnostics  map[diagnosticDescriptor]diagnostic
+}
+
+func decodeGob(br io.ByteReader) ([]run, error) {
+	var runs []run
+	for {
+		var bin binaryOutput
+		if err := gob.NewDecoder(br.(io.Reader)).Decode(&bin); err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				return nil, err
+			}
+		}
+
+		theRun := run{
+			checkedFiles: map[string]struct{}{},
+			diagnostics:  map[diagnosticDescriptor]diagnostic{},
+		}
+
+		for _, cf := range bin.CheckedFiles {
+			theRun.checkedFiles[cf] = struct{}{}
+		}
+		for _, diag := range bin.Diagnostics {
+			desc := diagnosticDescriptor{
+				Position: diag.Position,
+				End:      diag.End,
+				Category: diag.Category,
+				Message:  diag.Message,
+			}
+			theRun.diagnostics[desc] = diag
+		}
+
+		runs = append(runs, theRun)
+	}
+	return runs, nil
+}
+
 // Run runs all registered analyzers and reports their findings.
 // It always calls os.Exit and does not return.
 func (cmd *Command) Run() {
@@ -284,80 +332,58 @@ func (cmd *Command) Run() {
 		fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
 		cmd.exit(0)
 	case cmd.flags.merge:
-		type diagnosticDescriptor struct {
-			Position token.Position
-			End      token.Position
-			Category string
-			Message  string
-		}
-		type run struct {
-			checkedFiles map[string]struct{}
-			diagnostics  map[diagnosticDescriptor]struct{}
-		}
-		runs := make([]run, len(cmd.flags.fs.Args()))
 		var allDiagnostics []diagnostic
-		for i, path := range cmd.flags.fs.Args() {
-			runs[i] = run{
-				checkedFiles: map[string]struct{}{},
-				diagnostics:  map[diagnosticDescriptor]struct{}{},
-			}
-
-			// OPT(dh): should we parallelize this?
-			err := func(path string) error {
-				f, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-
-				var bin binaryOutput
-				if err := gob.NewDecoder(f).Decode(&bin); err != nil {
-					return err
-				}
-
-				for _, cf := range bin.CheckedFiles {
-					runs[i].checkedFiles[cf] = struct{}{}
-				}
-				allDiagnostics = append(allDiagnostics, bin.Diagnostics...)
-				for _, diag := range bin.Diagnostics {
-					desc := diagnosticDescriptor{
-						Position: diag.Position,
-						End:      diag.End,
-						Category: diag.Category,
-						Message:  diag.Message,
-					}
-					runs[i].diagnostics[desc] = struct{}{}
-				}
-				return nil
-			}(path)
+		var runs []run
+		if len(cmd.flags.fs.Args()) == 0 {
+			var err error
+			runs, err = decodeGob(bufio.NewReader(os.Stdin))
 			if err != nil {
-				fmt.Fprintln(os.Stderr, fmt.Errorf("couldn't parse file %s: %s", path, err))
+				fmt.Fprintln(os.Stderr, fmt.Errorf("couldn't parse stdin: %s", err))
 				cmd.exit(1)
+			}
+		} else {
+			for _, path := range cmd.flags.fs.Args() {
+				someRuns, err := func(path string) ([]run, error) {
+					f, err := os.Open(path)
+					if err != nil {
+						return nil, err
+					}
+					defer f.Close()
+					br := bufio.NewReader(f)
+					return decodeGob(br)
+				}(path)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, fmt.Errorf("couldn't parse file %s: %s", path, err))
+					cmd.exit(1)
+				}
+				runs = append(runs, someRuns...)
 			}
 		}
 
 		relevantDiagnostics := make([]diagnostic, 0, len(allDiagnostics))
-		for _, diag := range allDiagnostics {
-			switch diag.MergeIf {
-			case lint.MergeIfAny:
-				relevantDiagnostics = append(relevantDiagnostics, diag)
-			case lint.MergeIfAll:
-				doPrint := true
-				for _, r := range runs {
-					if _, ok := r.checkedFiles[diag.Position.Filename]; ok {
-						desc := diagnosticDescriptor{
-							Position: diag.Position,
-							End:      diag.End,
-							Category: diag.Category,
-							Message:  diag.Message,
-						}
-						if _, ok := r.diagnostics[desc]; !ok {
-							doPrint = false
+		for _, r := range runs {
+			for _, diag := range r.diagnostics {
+				switch diag.MergeIf {
+				case lint.MergeIfAny:
+					relevantDiagnostics = append(relevantDiagnostics, diag)
+				case lint.MergeIfAll:
+					doPrint := true
+					for _, r := range runs {
+						if _, ok := r.checkedFiles[diag.Position.Filename]; ok {
+							desc := diagnosticDescriptor{
+								Position: diag.Position,
+								End:      diag.End,
+								Category: diag.Category,
+								Message:  diag.Message,
+							}
+							if _, ok := r.diagnostics[desc]; !ok {
+								doPrint = false
+							}
 						}
 					}
-				}
-				if doPrint {
-					relevantDiagnostics = append(relevantDiagnostics, diag)
+					if doPrint {
+						relevantDiagnostics = append(relevantDiagnostics, diag)
+					}
 				}
 			}
 		}
