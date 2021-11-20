@@ -29,11 +29,6 @@ import (
 	"golang.org/x/tools/go/buildutil"
 )
 
-type binaryOutput struct {
-	CheckedFiles []string
-	Diagnostics  []diagnostic
-}
-
 // Command represents a linter command line tool.
 type Command struct {
 	name           string
@@ -220,8 +215,8 @@ type run struct {
 func decodeGob(br io.ByteReader) ([]run, error) {
 	var runs []run
 	for {
-		var bin binaryOutput
-		if err := gob.NewDecoder(br.(io.Reader)).Decode(&bin); err != nil {
+		var res LintResult
+		if err := gob.NewDecoder(br.(io.Reader)).Decode(&res); err != nil {
 			if err == io.EOF {
 				break
 			} else {
@@ -397,11 +392,7 @@ func (cmd *Command) Run() {
 		}
 
 		if cmd.flags.formatter == "binary" {
-			bin := binaryOutput{
-				CheckedFiles: res.CheckedFiles,
-				Diagnostics:  res.Diagnostics,
-			}
-			err := gob.NewEncoder(os.Stdout).Encode(bin)
+			err := gob.NewEncoder(os.Stdout).Encode(res)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "failed writing output: %s\n", err)
 				cmd.exit(2)
