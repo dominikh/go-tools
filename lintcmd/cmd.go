@@ -332,7 +332,6 @@ func (cmd *Command) Run() {
 		fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
 		cmd.exit(0)
 	case cmd.flags.merge:
-		var allDiagnostics []diagnostic
 		var runs []run
 		if len(cmd.flags.fs.Args()) == 0 {
 			var err error
@@ -360,33 +359,7 @@ func (cmd *Command) Run() {
 			}
 		}
 
-		relevantDiagnostics := make([]diagnostic, 0, len(allDiagnostics))
-		for _, r := range runs {
-			for _, diag := range r.diagnostics {
-				switch diag.MergeIf {
-				case lint.MergeIfAny:
-					relevantDiagnostics = append(relevantDiagnostics, diag)
-				case lint.MergeIfAll:
-					doPrint := true
-					for _, r := range runs {
-						if _, ok := r.checkedFiles[diag.Position.Filename]; ok {
-							desc := diagnosticDescriptor{
-								Position: diag.Position,
-								End:      diag.End,
-								Category: diag.Category,
-								Message:  diag.Message,
-							}
-							if _, ok := r.diagnostics[desc]; !ok {
-								doPrint = false
-							}
-						}
-					}
-					if doPrint {
-						relevantDiagnostics = append(relevantDiagnostics, diag)
-					}
-				}
-			}
-		}
+		relevantDiagnostics := mergeRuns(runs)
 		cmd.printDiagnostics(cs, relevantDiagnostics)
 	default:
 		// Validate that the tags argument is well-formed. go/packages
@@ -438,6 +411,37 @@ func (cmd *Command) Run() {
 			cmd.printDiagnostics(cs, res.Diagnostics)
 		}
 	}
+}
+
+func mergeRuns(runs []run) []diagnostic {
+	var relevantDiagnostics []diagnostic
+	for _, r := range runs {
+		for _, diag := range r.diagnostics {
+			switch diag.MergeIf {
+			case lint.MergeIfAny:
+				relevantDiagnostics = append(relevantDiagnostics, diag)
+			case lint.MergeIfAll:
+				doPrint := true
+				for _, r := range runs {
+					if _, ok := r.checkedFiles[diag.Position.Filename]; ok {
+						desc := diagnosticDescriptor{
+							Position: diag.Position,
+							End:      diag.End,
+							Category: diag.Category,
+							Message:  diag.Message,
+						}
+						if _, ok := r.diagnostics[desc]; !ok {
+							doPrint = false
+						}
+					}
+				}
+				if doPrint {
+					relevantDiagnostics = append(relevantDiagnostics, diag)
+				}
+			}
+		}
+	}
+	return relevantDiagnostics
 }
 
 func (cmd *Command) exit(code int) {
