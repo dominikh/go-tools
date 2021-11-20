@@ -29,6 +29,12 @@ import (
 	"golang.org/x/tools/go/buildutil"
 )
 
+type BuildConfig struct {
+	Name  string
+	Envs  []string
+	Flags []string
+}
+
 // Command represents a linter command line tool.
 type Command struct {
 	name           string
@@ -39,14 +45,18 @@ type Command struct {
 	flags struct {
 		fs *flag.FlagSet
 
-		tags         string
-		tests        bool
-		printVersion bool
-		showIgnored  bool
-		formatter    string
+		tags        string
+		tests       bool
+		showIgnored bool
+		formatter   string
+
+		// mutually exclusive mode flags
 		explain      string
+		printVersion bool
 		listChecks   bool
 		merge        bool
+
+		matrix bool
 
 		debugCpuprofile       string
 		debugMemprofile       string
@@ -135,6 +145,7 @@ func (cmd *Command) initFlagSet(name string) {
 	flags.StringVar(&cmd.flags.explain, "explain", "", "Print description of `check`")
 	flags.BoolVar(&cmd.flags.listChecks, "list-checks", false, "List all available checks")
 	flags.BoolVar(&cmd.flags.merge, "merge", false, "Merge results of multiple Staticcheck runs")
+	flags.BoolVar(&cmd.flags.matrix, "matrix", false, "Read a build config matrix from stdin")
 
 	flags.StringVar(&cmd.flags.debugCpuprofile, "debug.cpuprofile", "", "Write CPU profile to `file`")
 	flags.StringVar(&cmd.flags.debugMemprofile, "debug.memprofile", "", "Write memory profile to `file`")
@@ -201,15 +212,41 @@ func (cmd *Command) ParseFlags(args []string) {
 	cmd.flags.fs.Parse(args)
 }
 
+// diagnosticDescriptor represents the uniquiely identifying information of diagnostics.
 type diagnosticDescriptor struct {
 	Position token.Position
 	End      token.Position
 	Category string
 	Message  string
 }
+
+func (diag diagnostic) descriptor() diagnosticDescriptor {
+	return diagnosticDescriptor{
+		Position: diag.Position,
+		End:      diag.End,
+		Category: diag.Category,
+		Message:  diag.Message,
+	}
+}
+
 type run struct {
 	checkedFiles map[string]struct{}
 	diagnostics  map[diagnosticDescriptor]diagnostic
+}
+
+func runFromLintResult(res LintResult) run {
+	out := run{
+		checkedFiles: map[string]struct{}{},
+		diagnostics:  map[diagnosticDescriptor]diagnostic{},
+	}
+
+	for _, cf := range res.CheckedFiles {
+		out.checkedFiles[cf] = struct{}{}
+	}
+	for _, diag := range res.Diagnostics {
+		out.diagnostics[diag.descriptor()] = diag
+	}
+	return out
 }
 
 func decodeGob(br io.ByteReader) ([]run, error) {
@@ -223,26 +260,7 @@ func decodeGob(br io.ByteReader) ([]run, error) {
 				return nil, err
 			}
 		}
-
-		theRun := run{
-			checkedFiles: map[string]struct{}{},
-			diagnostics:  map[diagnosticDescriptor]diagnostic{},
-		}
-
-		for _, cf := range bin.CheckedFiles {
-			theRun.checkedFiles[cf] = struct{}{}
-		}
-		for _, diag := range bin.Diagnostics {
-			desc := diagnosticDescriptor{
-				Position: diag.Position,
-				End:      diag.End,
-				Category: diag.Category,
-				Message:  diag.Message,
-			}
-			theRun.diagnostics[desc] = diag
-		}
-
-		runs = append(runs, theRun)
+		runs = append(runs, runFromLintResult(res))
 	}
 	return runs, nil
 }
@@ -357,15 +375,6 @@ func (cmd *Command) Run() {
 		relevantDiagnostics := mergeRuns(runs)
 		cmd.printDiagnostics(cs, relevantDiagnostics)
 	default:
-		// Validate that the tags argument is well-formed. go/packages
-		// doesn't detect malformed build flags and returns unhelpful
-		// errors.
-		tf := buildutil.TagsFlag{}
-		if err := tf.Set(cmd.flags.tags); err != nil {
-			fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", cmd.flags.tags, err))
-			cmd.exit(1)
-		}
-
 		switch cmd.flags.formatter {
 		case "text", "stylish", "json", "sarif", "binary", "null":
 		default:
@@ -373,33 +382,74 @@ func (cmd *Command) Run() {
 			cmd.exit(2)
 		}
 
-		res, err := doLint(cs, cmd.flags.fs.Args(), &options{
-			Tags:      cmd.flags.tags,
-			LintTests: cmd.flags.tests,
-			GoVersion: string(cmd.flags.goVersion),
-			Config: config.Config{
-				Checks: cmd.flags.checks,
-			},
-			PrintAnalyzerMeasurement: measureAnalyzers,
-		})
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			cmd.exit(1)
-		}
-
-		for _, w := range res.Warnings {
-			fmt.Fprintln(os.Stderr, "warning:", w)
-		}
-
-		if cmd.flags.formatter == "binary" {
-			err := gob.NewEncoder(os.Stdout).Encode(res)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed writing output: %s\n", err)
+		var bconfs []BuildConfig
+		if cmd.flags.matrix {
+			if cmd.flags.tags != "" {
+				fmt.Fprintln(os.Stderr, "cannot use -matrix and -tags together")
 				cmd.exit(2)
 			}
-			cmd.exit(0)
+
+			var err error
+			bconfs, err = parseBuildConfigs(os.Stdin)
+			if err != nil {
+				if err, ok := err.(parseBuildConfigError); ok {
+					fmt.Fprintf(os.Stderr, "<stdin>:%d:%d: couldn't parse build matrix: %s\n", err.line+1, err.offset+1, err.msg)
+				} else {
+					fmt.Fprintln(os.Stderr, err)
+				}
+				os.Exit(2)
+			}
 		} else {
-			cmd.printDiagnostics(cs, res.Diagnostics)
+			bc := BuildConfig{}
+			if cmd.flags.tags != "" {
+				// Validate that the tags argument is well-formed. go/packages
+				// doesn't detect malformed build flags and returns unhelpful
+				// errors.
+				tf := buildutil.TagsFlag{}
+				if err := tf.Set(cmd.flags.tags); err != nil {
+					fmt.Fprintln(os.Stderr, fmt.Errorf("invalid value %q for flag -tags: %s", cmd.flags.tags, err))
+					cmd.exit(1)
+				}
+
+				bc.Flags = []string{"-tags", cmd.flags.tags}
+			}
+			bconfs = append(bconfs, bc)
+		}
+
+		var runs []run
+		for _, bconf := range bconfs {
+			res, err := doLint(cs, cmd.flags.fs.Args(), &options{
+				BuildConfig: bconf,
+				LintTests:   cmd.flags.tests,
+				GoVersion:   string(cmd.flags.goVersion),
+				Config: config.Config{
+					Checks: cmd.flags.checks,
+				},
+				PrintAnalyzerMeasurement: measureAnalyzers,
+			})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				cmd.exit(1)
+			}
+
+			for _, w := range res.Warnings {
+				fmt.Fprintln(os.Stderr, "warning:", w)
+			}
+
+			if cmd.flags.formatter == "binary" {
+				err := gob.NewEncoder(os.Stdout).Encode(res)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed writing output: %s\n", err)
+					cmd.exit(2)
+				}
+			} else {
+				runs = append(runs, runFromLintResult(res))
+			}
+		}
+
+		if cmd.flags.formatter != "binary" {
+			diags := mergeRuns(runs)
+			cmd.printDiagnostics(cs, diags)
 		}
 	}
 }
@@ -415,13 +465,7 @@ func mergeRuns(runs []run) []diagnostic {
 				doPrint := true
 				for _, r := range runs {
 					if _, ok := r.checkedFiles[diag.Position.Filename]; ok {
-						desc := diagnosticDescriptor{
-							Position: diag.Position,
-							End:      diag.End,
-							Category: diag.Category,
-							Message:  diag.Message,
-						}
-						if _, ok := r.diagnostics[desc]; !ok {
+						if _, ok := r.diagnostics[diag.descriptor()]; !ok {
 							doPrint = false
 						}
 					}
@@ -456,8 +500,10 @@ func (cmd *Command) exit(code int) {
 func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnostic) {
 	if len(diagnostics) > 1 {
 		sort.Slice(diagnostics, func(i, j int) bool {
-			pi := diagnostics[i].Position
-			pj := diagnostics[j].Position
+			di := diagnostics[i]
+			dj := diagnostics[j]
+			pi := di.Position
+			pj := dj.Position
 
 			if pi.Filename != pj.Filename {
 				return pi.Filename < pj.Filename
@@ -468,20 +514,46 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			if pi.Column != pj.Column {
 				return pi.Column < pj.Column
 			}
-
-			return diagnostics[i].Message < diagnostics[j].Message
+			if di.Message != dj.Message {
+				return di.Message < dj.Message
+			}
+			if di.BuildName != dj.BuildName {
+				return di.BuildName < dj.BuildName
+			}
+			return di.Category < dj.Category
 		})
 
-		var filtered []diagnostic
-		filtered = append(filtered, diagnostics[0])
-		for i, diag := range diagnostics[1:] {
+		filtered := []diagnostic{
+			diagnostics[0],
+		}
+		builds := []map[string]struct{}{
+			{diagnostics[0].BuildName: {}},
+		}
+		for _, diag := range diagnostics[1:] {
 			// We may encounter duplicate diagnostics because one file
-			// can be part of many packages.
-			if !diagnostics[i].equal(diag) {
-				filtered = append(filtered, diag)
+			// can be part of many packages, and because multiple
+			// build configurations may check the same files.
+			if !filtered[len(filtered)-1].equal(diag) {
+				if filtered[len(filtered)-1].descriptor() == diag.descriptor() {
+					// Diagnostics only differ in build name, track new name
+					builds[len(filtered)-1][diag.BuildName] = struct{}{}
+				} else {
+					filtered = append(filtered, diag)
+					builds = append(builds, map[string]struct{}{})
+					builds[len(filtered)-1][diag.BuildName] = struct{}{}
+				}
 			}
 		}
 
+		var names []string
+		for i := range filtered {
+			names = names[:0]
+			for k := range builds[i] {
+				names = append(names, k)
+			}
+			sort.Strings(names)
+			filtered[i].BuildName = strings.Join(names, ",")
+		}
 		diagnostics = filtered
 	}
 

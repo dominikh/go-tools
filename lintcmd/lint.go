@@ -319,8 +319,9 @@ func (s severity) String() string {
 // diagnostic represents a diagnostic in some source code.
 type diagnostic struct {
 	runner.Diagnostic
-	Severity severity
-	MergeIf  lint.MergeStrategy
+	Severity  severity
+	MergeIf   lint.MergeStrategy
+	BuildName string
 }
 
 func (p diagnostic) equal(o diagnostic) bool {
@@ -329,11 +330,16 @@ func (p diagnostic) equal(o diagnostic) bool {
 		p.Message == o.Message &&
 		p.Category == o.Category &&
 		p.Severity == o.Severity &&
-		p.MergeIf == o.MergeIf
+		p.MergeIf == o.MergeIf &&
+		p.BuildName == o.BuildName
 }
 
 func (p *diagnostic) String() string {
-	return fmt.Sprintf("%s (%s)", p.Message, p.Category)
+	if p.BuildName != "" {
+		return fmt.Sprintf("%s [%s] (%s)", p.Message, p.BuildName, p.Category)
+	} else {
+		return fmt.Sprintf("%s (%s)", p.Message, p.Category)
+	}
 }
 
 func failed(res runner.Result) []diagnostic {
@@ -489,9 +495,9 @@ func parsePos(pos string) (token.Position, int, error) {
 }
 
 type options struct {
-	Config config.Config
+	Config      config.Config
+	BuildConfig BuildConfig
 
-	Tags                     string
 	LintTests                bool
 	GoVersion                string
 	PrintAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
@@ -518,9 +524,9 @@ func doLint(as []*lint.Analyzer, paths []string, opt *options) (LintResult, erro
 	if opt.LintTests {
 		cfg.Tests = true
 	}
-	if opt.Tags != "" {
-		cfg.BuildFlags = append(cfg.BuildFlags, "-tags", opt.Tags)
-	}
+
+	cfg.BuildFlags = opt.BuildConfig.Flags
+	cfg.Env = append(os.Environ(), opt.BuildConfig.Envs...)
 
 	printStats := func() {
 		// Individual stats are read atomically, but overall there
@@ -556,5 +562,9 @@ func doLint(as []*lint.Analyzer, paths []string, opt *options) (LintResult, erro
 			}
 		}()
 	}
-	return l.Lint(cfg, paths)
+	res, err := l.Lint(cfg, paths)
+	for i := range res.Diagnostics {
+		res.Diagnostics[i].BuildName = opt.BuildConfig.Name
+	}
+	return res, err
 }
