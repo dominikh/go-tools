@@ -1,6 +1,8 @@
 ---
 title: GitHub Actions
 description: Running Staticcheck in GitHub Actions
+aliases:
+  - /docs/running-staticcheck/github-actions
 ---
 We publish [our own action](https://github.com/marketplace/actions/staticcheck) for [GitHub Actions](https://github.com/features/actions),
 which makes it very simple to run Staticcheck in CI on GitHub.
