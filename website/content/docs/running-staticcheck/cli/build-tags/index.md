@@ -115,7 +115,7 @@ $ staticcheck -merge file1 file2
 ```
 
 
-Alternatively, if no arguments are passed, `staticcheck` will read from standard input instead.
+Alternatively, if no arguments are passed, `staticcheck -merge` will read from standard input instead.
 This allows for workflows like
 
 ```
@@ -134,21 +134,9 @@ In other words, it automates running Staticcheck multiple times and merging resu
 This is useful when all configurations can be checked on a single system, for example because you don't use cgo.
 
 When using the `-matrix` flag, Staticcheck reads a build matrix from standard input.
-The build matrix uses a line-based format, where each line specifies a build name, environment variables and command-line flags.
-Each line is of the format `<name>: [flags and environment...]`, for example `linux-debug: GOOS=linux -tags=debug`.
+The build matrix uses a line-based format, where each non-empty line specifies a build name, environment variables and command-line flags.
+A line is of the format `<name>: [environment variables] [flags]`, for example `linux-debug: GOOS=linux -tags=debug -some-flag="some value"`.
 Environment variables and flags get passed to `go` when Staticcheck analyzes code, so you can use all flags that `go` supports, such as `-tags` or `-gcflags`, although few flags other than `-tags` are really useful.
-
-<details>
-<summary>Syntax rules of build matrices</summary>
-Build names may consist of Unicode numbers, Unicode letters, and underscores.
-Environment variable names may consist of a-z, A-Z, 0-9, and underscores.
-Flag names may consist of a-z, 0-9, underscores, and dashes, and they must begin with a dash.
-Values that contain spaces must be quoted using double quotes.
-Flags with values must use equal signs. That is, <code>-tags=debug</code> is valid, but <code>-tags debug</code> is not.
-Empty values are permitted.
-Environment variables and flags can be freely mixed.
-Empty lines are skipped.
-</details>
 
 Here is an example of using a build matrix:
 
@@ -158,6 +146,9 @@ windows: GOOS=windows
 linux: GOOS=linux
 appengine: GOOS=linux -tags=appengine
 EOF
+```
+
+```terminal
 root_windows.go:292:47: syscall.StringToUTF16Ptr has been deprecated since Go 1.1: Use UTF16PtrFromString instead.  [windows] (SA1019)
 verify_test.go:1338:7: const issuerSubjectMatchRoot is unused [appengine,linux,windows] (U1000)
 ```
