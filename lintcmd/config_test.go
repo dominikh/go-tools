@@ -10,15 +10,22 @@ import (
 var buildConfigTests = []struct {
 	in      string
 	name    string
-	envs    [][2]string
-	flags   [][2]string
+	envs    []string
+	flags   []string
 	invalid bool
 }{
 	{
-		`some_name: ENV1=foo ENV_2=bar ENV3="foo bar baz" ENV4=foo"bar -flag1 -flag2= -flag3=value -flag4="some value"`,
+		`some_name: ENV1=foo ENV_2=bar ENV3="foo bar baz" ENV4=foo"bar" -flag1 -flag2= -flag3=value -flag4="some value" -flag5=some" value "test "-flag6=1"`,
 		"some_name",
-		[][2]string{{"ENV1", "foo"}, {"ENV_2", "bar"}, {"ENV3", "foo bar baz"}, {"ENV4", `foo"bar`}},
-		[][2]string{{"-flag1", ""}, {"-flag2", ""}, {"-flag3", "value"}, {"-flag4", "some value"}},
+		[]string{"ENV1=foo", "ENV_2=bar", "ENV3=foo bar baz", "ENV4=foobar"},
+		[]string{"-flag1", "-flag2=", "-flag3=value", "-flag4=some value", "-flag5=some value test", "-flag6=1"},
+		false,
+	},
+	{
+		`some_name: ENV1=foo -tags bar baz=meow`,
+		"some_name",
+		[]string{"ENV1=foo"},
+		[]string{"-tags", "bar", "baz=meow"},
 		false,
 	},
 	{
@@ -45,7 +52,7 @@ var buildConfigTests = []struct {
 }
 
 func FuzzParseBuildConfig(f *testing.F) {
-	equal := func(a, b [][2]string) bool {
+	equal := func(a, b []string) bool {
 		if len(a) != len(b) {
 			return false
 		}
