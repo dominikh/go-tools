@@ -164,8 +164,16 @@ func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
 
 		n := negateDeMorgan(expr, false)
 		nr := negateDeMorgan(expr, true)
-		ns := simplifyParentheses(astutil.CopyExpr(n))
-		nrs := simplifyParentheses(astutil.CopyExpr(nr))
+		nc, ok := astutil.CopyExpr(n)
+		if !ok {
+			return
+		}
+		ns := simplifyParentheses(nc)
+		nrc, ok := astutil.CopyExpr(nr)
+		if !ok {
+			return
+		}
+		nrs := simplifyParentheses(nrc)
 
 		var bn, bnr, bns, bnrs string
 		switch parent := stack[len(stack)-2]; parent.(type) {
@@ -519,7 +527,11 @@ func CheckMathPow(pass *analysis.Pass) (interface{}, error) {
 				}
 			}
 
-			replacement = simplifyParentheses(astutil.CopyExpr(r))
+			rc, ok := astutil.CopyExpr(r)
+			if !ok {
+				return
+			}
+			replacement = simplifyParentheses(rc)
 		default:
 			return
 		}
