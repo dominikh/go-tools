@@ -136,13 +136,12 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 			if err != nil {
 				return out, err
 			}
-			out.Diagnostics = append(out.Diagnostics, filtered...)
-
 			// OPT move this code into the 'success' function.
-			for i, diag := range out.Diagnostics {
+			for i, diag := range filtered {
 				a := l.Analyzers[diag.Category]
-				out.Diagnostics[i].MergeIf = a.Doc.MergeIf
+				filtered[i].MergeIf = a.Doc.MergeIf
 			}
+			out.Diagnostics = append(out.Diagnostics, filtered...)
 
 			for _, obj := range resd.Unused.Used {
 				// FIXME(dh): pick the object whose filename does not include $GOROOT
