@@ -11,4 +11,5 @@ func fn() {
 	http.ListenAndServe(":http", nil)
 	http.ListenAndServe("localhost:http", nil)
 	http.ListenAndServe("local_host:8080", nil)
+	http.ListenAndServe("", nil) // providing no address at all makes it default to :http
 }
