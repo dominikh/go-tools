@@ -140,6 +140,7 @@ var nodeToASTTypes = map[reflect.Type][]reflect.Type{
 	reflect.TypeOf(BranchStmt{}):     {reflect.TypeOf((*ast.BranchStmt)(nil))},
 	reflect.TypeOf(IncDecStmt{}):     {reflect.TypeOf((*ast.IncDecStmt)(nil))},
 	reflect.TypeOf(BasicLit{}):       {reflect.TypeOf((*ast.BasicLit)(nil))},
+	reflect.TypeOf(IntegerLiteral{}): {reflect.TypeOf((*ast.BasicLit)(nil)), reflect.TypeOf((*ast.UnaryExpr)(nil))},
 }
 
 var requiresTypeInfo = map[string]bool{
@@ -356,6 +357,7 @@ var structNodes = map[string]reflect.Type{
 	"Function":       reflect.TypeOf(Function{}),
 	"Or":             reflect.TypeOf(Or{}),
 	"Not":            reflect.TypeOf(Not{}),
+	"IntegerLiteral": reflect.TypeOf(IntegerLiteral{}),
 }
 
 func (p *Parser) object() (Node, error) {

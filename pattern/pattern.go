@@ -61,6 +61,7 @@ var (
 	_ Node = Function{}
 	_ Node = Not{}
 	_ Node = Or{}
+	_ Node = IntegerLiteral{}
 )
 
 type Function struct {
@@ -305,6 +306,12 @@ type BasicLit struct {
 	Value Node
 }
 
+// An IntegerLiteral is a constant expression made up of only integer basic literals and the "+" and "-" unary operators.
+// That is, 0, -4, -+42 are all integer literals, but 1 + 2 is not.
+type IntegerLiteral struct {
+	Value Node
+}
+
 type BinaryExpr struct {
 	X  Node
 	Op Node
@@ -383,6 +390,7 @@ func (obj Object) String() string          { return stringify(obj) }
 func (fn Function) String() string         { return stringify(fn) }
 func (el Ellipsis) String() string         { return stringify(el) }
 func (not Not) String() string             { return stringify(not) }
+func (lit IntegerLiteral) String() string  { return stringify(lit) }
 
 func (or Or) String() string {
 	s := "(Or"
@@ -494,3 +502,4 @@ func (Token) isNode()          {}
 func (Any) isNode()            {}
 func (Binding) isNode()        {}
 func (Not) isNode()            {}
+func (IntegerLiteral) isNode() {}

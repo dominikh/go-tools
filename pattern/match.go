@@ -428,6 +428,8 @@ func (s String) Match(m *Matcher, node interface{}) (interface{}, bool) {
 		return nil, false
 	case string:
 		return o, string(s) == o
+	case types.TypeAndValue:
+		return o, o.Value != nil && o.Value.String() == string(s)
 	default:
 		return nil, false
 	}
@@ -530,6 +532,24 @@ func (not Not) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	return node, true
 }
 
+var integerLiteralQ = MustParse(`(Or (BasicLit "INT" _) (UnaryExpr (Or "+" "-") (IntegerLiteral _)))`)
+
+func (lit IntegerLiteral) Match(m *Matcher, node interface{}) (interface{}, bool) {
+	matched, ok := match(m, integerLiteralQ.Root, node)
+	if !ok {
+		return nil, false
+	}
+	tv, ok := m.TypesInfo.Types[matched.(ast.Expr)]
+	if !ok {
+		return nil, false
+	}
+	if tv.Value == nil {
+		return nil, false
+	}
+	_, ok = match(m, lit.Value, tv)
+	return matched, ok
+}
+
 var (
 	// Types of fields in go/ast structs that we want to skip
 	rtTokPos       = reflect.TypeOf(token.Pos(0))
@@ -549,4 +569,5 @@ var (
 	_ matcher = Function{}
 	_ matcher = Or{}
 	_ matcher = Not{}
+	_ matcher = IntegerLiteral{}
 )
