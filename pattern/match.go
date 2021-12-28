@@ -550,6 +550,33 @@ func (lit IntegerLiteral) Match(m *Matcher, node interface{}) (interface{}, bool
 	return matched, ok
 }
 
+func (texpr TrulyConstantExpression) Match(m *Matcher, node interface{}) (interface{}, bool) {
+	expr, ok := node.(ast.Expr)
+	if !ok {
+		return nil, false
+	}
+	tv, ok := m.TypesInfo.Types[expr]
+	if !ok {
+		return nil, false
+	}
+	if tv.Value == nil {
+		return nil, false
+	}
+	truly := true
+	ast.Inspect(expr, func(node ast.Node) bool {
+		if _, ok := node.(*ast.Ident); ok {
+			truly = false
+			return false
+		}
+		return true
+	})
+	if !truly {
+		return nil, false
+	}
+	_, ok = match(m, texpr.Value, tv)
+	return expr, ok
+}
+
 var (
 	// Types of fields in go/ast structs that we want to skip
 	rtTokPos       = reflect.TypeOf(token.Pos(0))
@@ -570,4 +597,5 @@ var (
 	_ matcher = Or{}
 	_ matcher = Not{}
 	_ matcher = IntegerLiteral{}
+	_ matcher = TrulyConstantExpression{}
 )
