@@ -13,6 +13,7 @@ import (
 	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -295,4 +296,22 @@ func IsGoVersion(pass *analysis.Pass, minor int) bool {
 	}
 	version := f.Get().(int)
 	return version >= minor
+}
+
+var integerLiteralQ = pattern.MustParse(`(IntegerLiteral tv)`)
+
+func IntegerLiteral(pass *analysis.Pass, node ast.Node) (types.TypeAndValue, bool) {
+	m, ok := Match(pass, integerLiteralQ, node)
+	if !ok {
+		return types.TypeAndValue{}, false
+	}
+	return m.State["tv"].(types.TypeAndValue), true
+}
+
+func IsIntegerLiteral(pass *analysis.Pass, node ast.Node, value constant.Value) bool {
+	tv, ok := IntegerLiteral(pass, node)
+	if !ok {
+		return false
+	}
+	return constant.Compare(tv.Value, token.EQL, value)
 }

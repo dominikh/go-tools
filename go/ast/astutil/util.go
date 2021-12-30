@@ -20,6 +20,7 @@ func IsBlank(id ast.Expr) bool {
 	return ident != nil && ident.Name == "_"
 }
 
+// Deprecated: use code.IsIntegerLiteral instead.
 func IsIntLiteral(expr ast.Expr, literal string) bool {
 	lit, ok := expr.(*ast.BasicLit)
 	return ok && lit.Kind == token.INT && lit.Value == literal
