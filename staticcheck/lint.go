@@ -1028,22 +1028,19 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
+	checkTimeSleepConstantPatternQ   = pattern.MustParse(`(CallExpr (Function "time.Sleep") lit@(IntegerLiteral value))`)
 	checkTimeSleepConstantPatternRns = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
 	checkTimeSleepConstantPatternRs  = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
 )
 
 func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		if !code.IsCallTo(pass, call, "time.Sleep") {
-			return
-		}
-		lit, ok := call.Args[knowledge.Arg("time.Sleep.d")].(*ast.BasicLit)
+		m, ok := code.Match(pass, checkTimeSleepConstantPatternQ, node)
 		if !ok {
 			return
 		}
-		n, err := strconv.Atoi(lit.Value)
-		if err != nil {
+		n, ok := constant.Int64Val(m.State["value"].(types.TypeAndValue).Value)
+		if !ok {
 			return
 		}
 		if n == 0 || n > 120 {
@@ -1053,6 +1050,7 @@ func CheckTimeSleepConstant(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
+		lit := m.State["lit"].(ast.Node)
 		report.Report(pass, lit,
 			fmt.Sprintf("sleeping for %d nanoseconds is probably a bug; be explicit if it isn't", n), report.Fixes(
 				edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit})),
@@ -2013,13 +2011,16 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, expr, fmt.Sprintf("every value of type %s is <= %s", basic, max))
 		}
 
+		isZeroLiteral := func(expr ast.Expr) bool {
+			return code.IsIntegerLiteral(pass, expr, constant.MakeInt64(0))
+		}
 		if (basic.Info() & types.IsUnsigned) != 0 {
-			if (expr.Op == token.LSS && astutil.IsIntLiteral(expr.Y, "0")) ||
-				(expr.Op == token.GTR && astutil.IsIntLiteral(expr.X, "0")) {
+			if (expr.Op == token.LSS && isZeroLiteral(expr.Y)) ||
+				(expr.Op == token.GTR && isZeroLiteral(expr.X)) {
 				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than 0", basic))
 			}
-			if expr.Op == token.GEQ && astutil.IsIntLiteral(expr.Y, "0") ||
-				expr.Op == token.LEQ && astutil.IsIntLiteral(expr.X, "0") {
+			if expr.Op == token.GEQ && isZeroLiteral(expr.Y) ||
+				expr.Op == token.LEQ && isZeroLiteral(expr.X) {
 				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= 0", basic))
 			}
 		} else {
@@ -2951,8 +2952,7 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 			// of a pattern, x<<0, x<<8, x<<16, ...
 			return
 		}
-		switch y := binop.Y.(type) {
-		case *ast.Ident:
+		if y, ok := binop.Y.(*ast.Ident); ok {
 			obj, ok := pass.TypesInfo.ObjectOf(y).(*types.Const)
 			if !ok {
 				return
@@ -2991,18 +2991,13 @@ func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 				report.Report(pass, node,
 					fmt.Sprintf("%s always equals %s; %s is defined as iota and has value 0, maybe %s is meant to be 1 << iota?", report.Render(pass, binop), report.Render(pass, binop.X), report.Render(pass, binop.Y), report.Render(pass, binop.Y)))
 			}
-		case *ast.BasicLit:
-			if !astutil.IsIntLiteral(binop.Y, "0") {
-				return
-			}
+		} else if code.IsIntegerLiteral(pass, binop.Y, constant.MakeInt64(0)) {
 			switch binop.Op {
 			case token.AND:
 				report.Report(pass, node, fmt.Sprintf("%s always equals 0", report.Render(pass, binop)))
 			case token.OR, token.XOR:
 				report.Report(pass, node, fmt.Sprintf("%s always equals %s", report.Render(pass, binop), report.Render(pass, binop.X)))
 			}
-		default:
-			return
 		}
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
@@ -4596,13 +4591,13 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 var builtinLessThanZeroQ = pattern.MustParse(`
 	(Or
 		(BinaryExpr
-			(BasicLit "INT" "0")
+			(IntegerLiteral "0")
 			">"
 			(CallExpr builtin@(Builtin (Or "len" "cap")) _))
 		(BinaryExpr
 			(CallExpr builtin@(Builtin (Or "len" "cap")) _)
 			"<"
-			(BasicLit "INT" "0")))
+			(IntegerLiteral "0")))
 `)
 
 func CheckBuiltinZeroComparison(pass *analysis.Pass) (interface{}, error) {
@@ -4620,7 +4615,7 @@ func CheckBuiltinZeroComparison(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var integerDivisionQ = pattern.MustParse(`(BinaryExpr (BasicLit "INT" _) "/" (BasicLit "INT" _))`)
+var integerDivisionQ = pattern.MustParse(`(BinaryExpr (IntegerLiteral _) "/" (IntegerLiteral _))`)
 
 func CheckIntegerDivisionEqualsZero(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
@@ -4896,19 +4891,15 @@ func CheckBadRemoveAll(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var moduloOneQ = pattern.MustParse(`(BinaryExpr _ "%" (IntegerLiteral "1"))`)
+
 func CheckModuloOne(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		binop := node.(*ast.BinaryExpr)
-		if binop.Op != token.REM {
-			return
-		}
-		lit, ok := binop.Y.(*ast.BasicLit)
+		_, ok := code.Match(pass, moduloOneQ, node)
 		if !ok {
 			return
 		}
-		if lit.Value == "1" {
-			report.Report(pass, binop, "x % 1 is always zero")
-		}
+		report.Report(pass, node, "x % 1 is always zero")
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
@@ -5046,7 +5037,7 @@ var ineffectiveRandIntQ = pattern.MustParse(`
 				"(*math/rand.Rand).Int31n"
 				"(*math/rand.Rand).Int63n"
 				"(*math/rand.Rand).Intn"))
-		[(BasicLit "INT" "1")])`)
+		[(IntegerLiteral "1")])`)
 
 func CheckIneffectiveRandInt(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {

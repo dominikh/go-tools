@@ -185,6 +185,8 @@ func CheckBlankImports(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var checkIncDecQ = pattern.MustParse(`(AssignStmt x tok@(Or "+=" "-=") (BasicLit "INT" "1"))`)
+
 func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 	// TODO(dh): this can be noisy for function bodies that look like this:
 	// 	x += 3
@@ -193,24 +195,19 @@ func CheckIncDec(pass *analysis.Pass) (interface{}, error) {
 	// 	...
 	// 	x += 1
 	fn := func(node ast.Node) {
-		assign := node.(*ast.AssignStmt)
-		if assign.Tok != token.ADD_ASSIGN && assign.Tok != token.SUB_ASSIGN {
+		m, ok := code.Match(pass, checkIncDecQ, node)
+		if !ok {
 			return
 		}
-		if (len(assign.Lhs) != 1 || len(assign.Rhs) != 1) ||
-			!astutil.IsIntLiteral(assign.Rhs[0], "1") {
-			return
-		}
-
 		suffix := ""
-		switch assign.Tok {
+		switch m.State["tok"].(token.Token) {
 		case token.ADD_ASSIGN:
 			suffix = "++"
 		case token.SUB_ASSIGN:
 			suffix = "--"
 		}
 
-		report.Report(pass, assign, fmt.Sprintf("should replace %s with %s%s", report.Render(pass, assign), report.Render(pass, assign.Lhs[0]), suffix))
+		report.Report(pass, node, fmt.Sprintf("should replace %s with %s%s", report.Render(pass, node), report.Render(pass, m.State["x"].(ast.Node)), suffix))
 	}
 	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
@@ -539,7 +536,7 @@ func CheckErrorVarNames(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var httpStatusCodes = map[int]string{
+var httpStatusCodes = map[int64]string{
 	100: "StatusContinue",
 	101: "StatusSwitchingProtocols",
 	102: "StatusProcessing",
@@ -625,22 +622,23 @@ func CheckHTTPStatusCodes(pass *analysis.Pass) (interface{}, error) {
 		if arg >= len(call.Args) {
 			return
 		}
-		lit, ok := call.Args[arg].(*ast.BasicLit)
+		tv, ok := code.IntegerLiteral(pass, call.Args[arg])
 		if !ok {
 			return
 		}
-		if whitelist[lit.Value] {
+		n, ok := constant.Int64Val(tv.Value)
+		if !ok {
+			return
+		}
+		if whitelist[strconv.FormatInt(n, 10)] {
 			return
 		}
 
-		n, err := strconv.Atoi(lit.Value)
-		if err != nil {
-			return
-		}
 		s, ok := httpStatusCodes[n]
 		if !ok {
 			return
 		}
+		lit := call.Args[arg]
 		report.Report(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(lit, "http."+s))))
@@ -665,7 +663,7 @@ func CheckDefaultCaseOrder(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkYodaConditionsQ = pattern.MustParse(`(BinaryExpr left@(BasicLit _ _) tok@(Or "==" "!=") right@(Not (BasicLit _ _)))`)
+	checkYodaConditionsQ = pattern.MustParse(`(BinaryExpr left@(TrulyConstantExpression _) tok@(Or "==" "!=") right@(Not (TrulyConstantExpression _)))`)
 	checkYodaConditionsR = pattern.MustParse(`(BinaryExpr right tok left)`)
 )
 

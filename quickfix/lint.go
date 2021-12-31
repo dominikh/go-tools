@@ -3,9 +3,9 @@ package quickfix
 import (
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
-	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/analysis/code"
@@ -423,12 +423,12 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 }
 
 var stringsReplaceAllQ = pattern.MustParse(`(Or
-	(CallExpr fn@(Function "strings.Replace") [_ _ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
-	(CallExpr fn@(Function "strings.SplitN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
-	(CallExpr fn@(Function "strings.SplitAfterN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
-	(CallExpr fn@(Function "bytes.Replace") [_ _ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
-	(CallExpr fn@(Function "bytes.SplitN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))])
-	(CallExpr fn@(Function "bytes.SplitAfterN") [_ _ lit@(UnaryExpr "-" (BasicLit "INT" "1"))]))`)
+	(CallExpr fn@(Function "strings.Replace") [_ _ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Function "strings.SplitN") [_ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Function "strings.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Function "bytes.Replace") [_ _ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Function "bytes.SplitN") [_ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Function "bytes.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")]))`)
 
 func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
 	// XXX respect minimum Go version
@@ -469,7 +469,7 @@ func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var mathPowQ = pattern.MustParse(`(CallExpr (Function "math.Pow") [x n@(BasicLit "INT" _)])`)
+var mathPowQ = pattern.MustParse(`(CallExpr (Function "math.Pow") [x (IntegerLiteral n)])`)
 
 func CheckMathPow(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
@@ -482,7 +482,10 @@ func CheckMathPow(pass *analysis.Pass) (interface{}, error) {
 		if code.MayHaveSideEffects(pass, x, nil) {
 			return
 		}
-		n, _ := strconv.ParseInt(matcher.State["n"].(*ast.BasicLit).Value, 10, 64)
+		n, ok := constant.Int64Val(constant.ToInt(matcher.State["n"].(types.TypeAndValue).Value))
+		if !ok {
+			return
+		}
 
 		needConversion := false
 		if T, ok := pass.TypesInfo.Types[x]; ok && T.Value != nil {

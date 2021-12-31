@@ -66,7 +66,7 @@ var (
 				key@(Ident _) nil ":=" src
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))])
 			(ForStmt
-				(AssignStmt key@(Ident _) ":=" (BasicLit "INT" "0"))
+				(AssignStmt key@(Ident _) ":=" (IntegerLiteral "0"))
 				(BinaryExpr key "<" (CallExpr (Function "len") [src]))
 				(IncDecStmt key "++")
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))]))`)
@@ -378,7 +378,7 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkBytesCompareQ  = pattern.MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (BasicLit "INT" "0"))`)
+	checkBytesCompareQ  = pattern.MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (IntegerLiteral "0"))`)
 	checkBytesCompareRe = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
 	checkBytesCompareRn = pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
 )
@@ -606,7 +606,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
 		_, ok := expr.(*ast.BasicLit)
 		if ok {
-			return true, astutil.IsIntLiteral(expr, "0")
+			return true, code.IsIntegerLiteral(pass, expr, constant.MakeInt64(0))
 		}
 		id, ok := expr.(*ast.Ident)
 		if !ok {
@@ -670,7 +670,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if eqNil && !astutil.IsIntLiteral(y.Y, "0") { // must be len(x) == *0*
+		if eqNil && !code.IsIntegerLiteral(pass, y.Y, constant.MakeInt64(0)) { // must be len(x) == *0*
 			return
 		}
 
@@ -1220,7 +1220,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 var (
 	checkLoopSlideQ = pattern.MustParse(`
 		(ForStmt
-			(AssignStmt initvar@(Ident _) _ (BasicLit "INT" "0"))
+			(AssignStmt initvar@(Ident _) _ (IntegerLiteral "0"))
 			(BinaryExpr initvar "<" limit@(Ident _))
 			(IncDecStmt initvar "++")
 			[(AssignStmt
@@ -1260,7 +1260,7 @@ func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkMakeLenCapQ1 = pattern.MustParse(`(CallExpr (Builtin "make") [typ size@(BasicLit "INT" "0")])`)
+	checkMakeLenCapQ1 = pattern.MustParse(`(CallExpr (Builtin "make") [typ size@(IntegerLiteral "0")])`)
 	checkMakeLenCapQ2 = pattern.MustParse(`(CallExpr (Builtin "make") [typ size size])`)
 )
 
@@ -1879,7 +1879,7 @@ var checkUnnecessaryGuardQ = pattern.MustParse(`
 			(AssignStmt [(Ident "_") ok] ":=" indexexpr@(IndexExpr _ _))
 			ok
 			set@(IncDecStmt indexexpr "++")
-			(AssignStmt indexexpr "=" (BasicLit "INT" "1"))))`)
+			(AssignStmt indexexpr "=" (IntegerLiteral "1"))))`)
 
 func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
