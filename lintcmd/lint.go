@@ -139,7 +139,10 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 			// OPT move this code into the 'success' function.
 			for i, diag := range filtered {
 				a := l.Analyzers[diag.Category]
-				filtered[i].MergeIf = a.Doc.MergeIf
+				// Some diag.Category don't map to analyzers, such as "staticcheck"
+				if a != nil {
+					filtered[i].MergeIf = a.Doc.MergeIf
+				}
 			}
 			out.Diagnostics = append(out.Diagnostics, filtered...)
 
