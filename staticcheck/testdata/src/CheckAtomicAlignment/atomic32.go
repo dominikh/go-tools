@@ -1,4 +1,4 @@
-// +build 386 arm armbe mips mipsle ppc s390 sparc
+// +build 386 arm armbe mips mipsle ppc s390 sparc riscv
 
 package pkg
 
