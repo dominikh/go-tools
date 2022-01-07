@@ -1,7 +1,6 @@
 ---
 title: Build tags
 description: How to correctly check code that uses build tags
-draft: true
 ---
 
 ## Introduction
