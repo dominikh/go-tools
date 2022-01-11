@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/BurntSushi/toml v0.4.1
-	golang.org/x/tools v0.1.8-0.20211111032514-c116b727ec7e
+	golang.org/x/tools v0.1.8
 )
 
 require (
