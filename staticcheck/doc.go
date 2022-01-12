@@ -260,7 +260,7 @@ be used, as it takes both representations into account.`,
 prefixes. A cutset is treated as a set of characters to remove from a
 string. For example,
 
-    strings.TrimLeft("42133word", "1234"))
+    strings.TrimLeft("42133word", "1234")
 
 will result in the string \'"word"\' – any characters that are 1, 2, 3 or
 4 are cut from the left of the string.
