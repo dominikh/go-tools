@@ -2034,7 +2034,10 @@ func CheckPrintSprintf(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Ensure that Errorf/Fatalf refer to the right method
-		recvTV := pass.TypesInfo.Types[m.State["recv"].(ast.Expr)]
+		recvTV, ok := pass.TypesInfo.Types[m.State["recv"].(ast.Expr)]
+		if !ok {
+			return
+		}
 		obj, _, _ := types.LookupFieldOrMethod(recvTV.Type, recvTV.Addressable(), nil, mapped.alternative)
 		f, ok := obj.(*types.Func)
 		if !ok {
