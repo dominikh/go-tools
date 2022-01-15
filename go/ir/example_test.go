@@ -5,6 +5,7 @@
 package ir_test
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/importer"
@@ -13,6 +14,7 @@ import (
 	"go/types"
 	"log"
 	"os"
+	"strings"
 
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
@@ -76,8 +78,17 @@ func Example_buildPackage() {
 	hello.WriteTo(os.Stdout)
 
 	// Print out the package-level functions.
-	hello.Func("init").WriteTo(os.Stdout)
-	hello.Func("main").WriteTo(os.Stdout)
+	// Replace interface{} with any so the tests work for Go 1.17 and Go 1.18.
+	{
+		var buf bytes.Buffer
+		ir.WriteFunction(&buf, hello.Func("init"))
+		fmt.Print(strings.ReplaceAll(buf.String(), "interface{}", "any"))
+	}
+	{
+		var buf bytes.Buffer
+		ir.WriteFunction(&buf, hello.Func("main"))
+		fmt.Print(strings.ReplaceAll(buf.String(), "interface{}", "any"))
+	}
 
 	// Output:
 	// package hello:
@@ -110,11 +121,11 @@ func Example_buildPackage() {
 	// b0: # entry
 	// 	t1 = Const <string> {"Hello, World!"}
 	// 	t2 = Const <int> {0}
-	// 	t3 = HeapAlloc <*[1]interface{}>
-	// 	t4 = IndexAddr <*interface{}> t3 t2
-	// 	t5 = MakeInterface <interface{}> t1
-	// 	Store {interface{}} t4 t5
-	// 	t7 = Slice <[]interface{}> t3 <nil> <nil> <nil>
+	// 	t3 = HeapAlloc <*[1]any>
+	// 	t4 = IndexAddr <*any> t3 t2
+	// 	t5 = MakeInterface <any> t1
+	// 	Store {any} t4 t5
+	// 	t7 = Slice <[]any> t3 <nil> <nil> <nil>
 	// 	t8 = Call <(n int, err error)> fmt.Println t7
 	// 	Jump → b1
 	//
