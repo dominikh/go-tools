@@ -132,3 +132,24 @@ func fn19() bool {
 	}
 	return true
 }
+
+const a = true
+const b = false
+
+func fn20(x bool) bool {
+	// Don't match on constants other than the predeclared true and false. This protects us both from build tag woes,
+	// and from code that breaks when the constant values change.
+	if x {
+		return a
+	}
+	return b
+}
+
+func fn21(x bool) bool {
+	// Don't flag, 'true' isn't the predeclared identifier.
+	const true = false
+	if x {
+		return true
+	}
+	return false
+}

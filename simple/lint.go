@@ -486,8 +486,8 @@ func CheckRegexpRaw(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkIfReturnQIf  = pattern.MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Ident _)])] nil)`)
-	checkIfReturnQRet = pattern.MustParse(`(ReturnStmt [ret@(Ident _)])`)
+	checkIfReturnQIf  = pattern.MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Builtin (Or "true" "false"))])] nil)`)
+	checkIfReturnQRet = pattern.MustParse(`(ReturnStmt [ret@(Builtin (Or "true" "false"))])`)
 )
 
 func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
@@ -523,13 +523,7 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		ret1 := m1.State["ret"].(*ast.Ident)
-		if !code.IsBoolConst(pass, ret1) {
-			return
-		}
 		ret2 := m2.State["ret"].(*ast.Ident)
-		if !code.IsBoolConst(pass, ret2) {
-			return
-		}
 
 		if ret1.Name == ret2.Name {
 			// we want the function to return true and false, not the
