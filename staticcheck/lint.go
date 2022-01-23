@@ -29,6 +29,7 @@ import (
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/vrp"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/internal/sharedcheck"
 	"honnef.co/go/tools/knowledge"
@@ -4952,6 +4953,11 @@ func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 	// checks.
 
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
+
+	for _, fn := range irpkg.Functions {
+		vrp.XXX(fn)
+	}
+
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, typeAssertionShadowingElseQ, node)
 		if !ok {

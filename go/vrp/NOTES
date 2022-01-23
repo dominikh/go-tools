@@ -1,0 +1,6 @@
+- Patterson paper: very light on implementation details, but fairly straightforward algorithm. Iterative.
+- Douglas do Couto Teixeira: uses the Su and Wagner (2005) constraint system, modified in "many ways". One modification
+  is using Gawlitza's algorithm to handle loops. Another modification is using e-SSA, of which our SSI is a superset.
+  Various typos and/or confusing parts in the paper.
+- Stephenson: Iterative.
+- Mahlke: Iterative.
