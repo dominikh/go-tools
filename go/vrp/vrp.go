@@ -140,6 +140,8 @@ func negateToken(tok token.Token) token.Token {
 
 var one = big.NewInt(1)
 
+type valueSet map[ir.Value]struct{}
+
 type constraintGraph struct {
 	// OPT: if we wrap ir.Value in a struct with some fields, then we only need one map, which reduces the number of
 	// lookups and the memory usage.
@@ -148,7 +150,7 @@ type constraintGraph struct {
 	// cause intersections, and conditionals always cause the creation of sigma nodes for all relevant values.
 	intersections map[*ir.Sigma]Intersection
 	// The subset of fn's instructions that make up our constraint graph.
-	nodes map[ir.Value]struct{}
+	nodes valueSet
 	// Map instructions to computed intervals
 	intervals map[ir.Value]Interval
 }
@@ -156,7 +158,7 @@ type constraintGraph struct {
 func XXX(fn *ir.Function) {
 	cg := constraintGraph{
 		intersections: map[*ir.Sigma]Intersection{},
-		nodes:         map[ir.Value]struct{}{},
+		nodes:         valueSet{},
 		intervals:     map[ir.Value]Interval{},
 	}
 
@@ -295,14 +297,190 @@ func XXX(fn *ir.Function) {
 		}
 	}
 
-	printConstraintGraph(cg.nodes, cg.intersections)
+	sccs := cg.sccs()
+
+	if false {
+		cg.printConstraints()
+		cg.printSCCs(sccs)
+	}
+
+	// XXX the paper's code "propagates" values to dependent SCCs by evaluating their constraints once, so "that the
+	// next SCCs after component will have entry points to kick start the range analysis algorithm". intuitively, this
+	// sounds unnecessary, but I haven't looked into what "entry points" are or why we need them. "propagating" means
+	// evaluating all uses of the values in the finished SCC, and if they're sigma nodes, marking them as unresolved if
+	// they're undefined. "entry points" are variables with ranges that aren't unknown. is this just an optimization?
+
+	// XXX The paper updates futures after widening, before narrowing. Why? Wouldn't it make more sense to update futures
+	// after narrowing, for more precise intersections?
+	for _, scc := range sccs {
+		if len(scc) == 0 {
+			panic("WTF")
+		}
+
+		// XXX run widening
+
+		// Once we've finished processing the SCC we can propagate the ranges of variables to the symbolic
+		// intersections that use them.
+		cg.fixIntersects(scc)
+
+		// XXX run narrowing
+	}
 }
 
-func printConstraintGraph(nodes map[ir.Value]struct{}, intersections map[*ir.Sigma]Intersection) {
-	for v := range nodes {
+func (cg *constraintGraph) printSCCs(sccs []valueSet) {
+	fmt.Println("digraph{")
+	n := 0
+	for _, scc := range sccs {
+		n++
+		fmt.Printf("subgraph cluster_%d {\n", n)
+		for node := range scc {
+			fmt.Printf("%s;\n", node.Name())
+			for _, ref_ := range *node.Referrers() {
+				ref, ok := ref_.(ir.Value)
+				if !ok {
+					continue
+				}
+				if _, ok := cg.nodes[ref]; !ok {
+					continue
+				}
+				fmt.Printf("%s -> %s\n", node.Name(), ref.Name())
+			}
+			if node, ok := node.(*ir.Sigma); ok {
+				if isec, ok := cg.intersections[node].(SymbolicIntersection); ok {
+					fmt.Printf("%s -> %s [style=dashed]\n", isec.Value.Name(), node.Name())
+				}
+			}
+		}
+		fmt.Println("}")
+	}
+	fmt.Println("}")
+}
+
+// sccs returns the constraint graph's strongly connected components, in topological order.
+func (cg *constraintGraph) sccs() []valueSet {
+	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
+	for sigma, isec := range cg.intersections {
+		if isec, ok := isec.(SymbolicIntersection); ok {
+			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+		}
+	}
+	index := uint64(1)
+	S := []ir.Value{}
+	data := map[ir.Value]*struct {
+		index   uint64
+		lowlink uint64
+		onstack bool
+	}{}
+	var sccs []valueSet
+
+	min := func(a, b uint64) uint64 {
+		if a < b {
+			return a
+		}
+		return b
+	}
+
+	var strongconnect func(v ir.Value)
+	strongconnect = func(v ir.Value) {
+		vd, ok := data[v]
+		if !ok {
+			vd = &struct {
+				index   uint64
+				lowlink uint64
+				onstack bool
+			}{}
+			data[v] = vd
+		}
+		vd.index = index
+		vd.lowlink = index
+		index++
+		S = append(S, v)
+		vd.onstack = true
+
+		// XXX deduplicate code
+		for _, w := range futuresUsedBy[v] {
+			if _, ok := cg.nodes[w]; !ok {
+				continue
+			}
+			wd, ok := data[w]
+			if !ok {
+				wd = &struct {
+					index   uint64
+					lowlink uint64
+					onstack bool
+				}{}
+				data[w] = wd
+			}
+
+			if wd.index == 0 {
+				strongconnect(w)
+				vd.lowlink = min(vd.lowlink, wd.lowlink)
+			} else if wd.onstack {
+				vd.lowlink = min(vd.lowlink, wd.lowlink)
+			}
+		}
+		for _, w_ := range *v.Referrers() {
+			w, ok := w_.(ir.Value)
+			if !ok {
+				continue
+			}
+			if _, ok := cg.nodes[w]; !ok {
+				continue
+			}
+			wd, ok := data[w]
+			if !ok {
+				wd = &struct {
+					index   uint64
+					lowlink uint64
+					onstack bool
+				}{}
+				data[w] = wd
+			}
+
+			if wd.index == 0 {
+				strongconnect(w)
+				vd.lowlink = min(vd.lowlink, wd.lowlink)
+			} else if wd.onstack {
+				vd.lowlink = min(vd.lowlink, wd.lowlink)
+			}
+		}
+
+		if vd.lowlink == vd.index {
+			scc := valueSet{}
+			for {
+				w := S[len(S)-1]
+				S = S[:len(S)-1]
+				data[w].onstack = false
+				scc[w] = struct{}{}
+				if w == v {
+					break
+				}
+			}
+			if len(scc) > 0 {
+				sccs = append(sccs, scc)
+			}
+		}
+	}
+
+	for v := range cg.nodes {
+		if data[v] == nil || data[v].index == 0 {
+			strongconnect(v)
+		}
+	}
+
+	// The output of Tarjan is in reverse topological order. Reverse it to bring it into topological order.
+	for i := 0; i < len(sccs)/2; i++ {
+		sccs[i], sccs[len(sccs)-i-1] = sccs[len(sccs)-i-1], sccs[i]
+	}
+
+	return sccs
+}
+
+func (cg *constraintGraph) printConstraints() {
+	for v := range cg.nodes {
 		switch v := v.(type) {
 		case *ir.Sigma:
-			fmt.Printf("%s = %s ∩ %s\n", v.Name(), v.X.Name(), intersections[v])
+			fmt.Printf("%s = %s ∩ %s\n", v.Name(), v.X.Name(), cg.intersections[v])
 		case *ir.Const:
 			fmt.Printf("%s = %s\n", v.Name(), v.Value)
 		default:
