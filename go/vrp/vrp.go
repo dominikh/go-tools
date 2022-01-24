@@ -23,6 +23,8 @@ import (
 var Inf Numeric = Infinity{}
 var NegInf Numeric = Infinity{negative: true}
 var Empty = NewInterval(Inf, NegInf)
+var One = Number{big.NewInt(1)}
+var MinusOne = Number{big.NewInt(-1)}
 
 type Numeric interface {
 	isNumeric()
@@ -30,6 +32,7 @@ type Numeric interface {
 	String() string
 	Negative() bool
 	Add(Numeric) Numeric
+	Sub(Numeric) Numeric
 }
 
 type Infinity struct {
@@ -48,6 +51,9 @@ func (v Number) Cmp(other Numeric) int   { return Cmp(v, other) }
 
 func (v Infinity) Add(other Numeric) Numeric { return Add(v, other) }
 func (v Number) Add(other Numeric) Numeric   { return Add(v, other) }
+
+func (v Infinity) Sub(other Numeric) Numeric { return Sub(v, other) }
+func (v Number) Sub(other Numeric) Numeric   { return Sub(v, other) }
 
 func (v Infinity) String() string {
 	if v.negative {
@@ -82,7 +88,34 @@ func Add(x, y Numeric) Numeric {
 	ny := y.(Number)
 
 	out := big.NewInt(0)
-	out = nx.Number.Add(out, ny.Number)
+	out = out.Add(nx.Number, ny.Number)
+	return Number{out}
+}
+
+func Sub(x, y Numeric) Numeric {
+	if x == NegInf {
+		panic("-inf - y is not defined")
+	}
+
+	// x - -inf = x + inf = inf
+	if y == NegInf {
+		return Inf
+	}
+
+	// x - inf = -inf
+	if y == Inf {
+		return NegInf
+	}
+
+	if x == Inf {
+		return Inf
+	}
+
+	nx := x.(Number)
+	ny := y.(Number)
+
+	out := big.NewInt(0)
+	out = out.Sub(nx.Number, ny.Number)
 	return Number{out}
 }
 
@@ -504,10 +537,10 @@ func XXX(fn *ir.Function) {
 			changed = false
 			for op := range scc {
 				old := cg.intervals[op]
-				new := cg.eval(op)
 				{
 					// this block is the meet widening operator
 					// XXX implement jump-set widening
+					new := cg.eval(op)
 
 					if old.Undefined() {
 						cg.intervals[op] = new
@@ -520,8 +553,8 @@ func XXX(fn *ir.Function) {
 					}
 				}
 				res := cg.intervals[op]
-				log.Printf("%s = %s: %s -> %s", op.Name(), op, old, res)
 				if !old.Equal(res) {
+					log.Printf("%s = %s: %s -> %s", op.Name(), op, old, res)
 					changed = true
 				}
 			}
@@ -529,9 +562,107 @@ func XXX(fn *ir.Function) {
 
 		// Once we've finished processing the SCC we can propagate the ranges of variables to the symbolic
 		// intersections that use them.
-		// XXX: cg.fixIntersects(scc)
+		cg.fixIntersects(scc)
+
+		for v := range scc {
+			if cg.intervals[v].Undefined() {
+				cg.intervals[v] = infinity()
+			}
+		}
+
+		changed = true
+		for changed {
+			changed = false
+			for op := range scc {
+				old := cg.intervals[op]
+				new := cg.eval(op)
+				{
+					// this block is the meet narrowing operator
+					new := cg.eval(op)
+					if old.Lower == NegInf && new.Lower != NegInf {
+						cg.intervals[op] = NewInterval(new.Lower, old.Upper)
+					} else {
+						// XXX this logic is from the reference implementation, but it seems wrong to me. we're
+						// _narrowing_, so why do we choose the smaller lower bound?
+						if old.Lower.Cmp(new.Lower) == 1 {
+							cg.intervals[op] = NewInterval(new.Lower, old.Upper)
+						}
+					}
+				}
+
+				if old.Upper == Inf && new.Upper != Inf {
+					cg.intervals[op] = NewInterval(old.Lower, new.Upper)
+				} else {
+					// XXX this logic is from the reference implementation, but it seems wrong to me. we're
+					// _narrowing_, so why do we choose the larger upper bound?
+					if old.Upper.Cmp(new.Upper) == -1 {
+						cg.intervals[op] = NewInterval(old.Lower, new.Upper)
+					}
+				}
+
+				res := cg.intervals[op]
+				if !old.Equal(res) {
+					log.Printf("%s = %s: %s -> %s", op.Name(), op, old, res)
+					changed = true
+				}
+			}
+		}
 
 		// XXX run narrowing
+	}
+
+	for v, ival := range cg.intervals {
+		fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
+	}
+}
+
+func (cg *constraintGraph) fixIntersects(scc valueSet) {
+	// OPT cache this compuation
+	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
+	for sigma, isec := range cg.intersections {
+		if isec, ok := isec.(SymbolicIntersection); ok {
+			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+		}
+	}
+	for v := range scc {
+		ival := cg.intervals[v]
+		for _, sigma := range futuresUsedBy[v] {
+			sval := cg.intervals[sigma]
+			symb := cg.intersections[sigma].(SymbolicIntersection)
+			svall := sval.Lower
+			svalu := sval.Upper
+			if sval.Undefined() {
+				svall = NegInf
+				svalu = Inf
+			}
+			var newval Interval
+			switch symb.Op {
+			case token.EQL:
+				newval = ival
+			case token.LEQ:
+				newval = NewInterval(svall, ival.Upper)
+			case token.LSS:
+				// XXX the branch isn't necessary, -∞ + 1 is still -∞
+				if ival.Upper != Inf {
+					newval = NewInterval(svall, ival.Upper.Add(MinusOne))
+				} else {
+					newval = NewInterval(svall, ival.Upper)
+				}
+			case token.GEQ:
+				newval = NewInterval(ival.Lower, svalu)
+			case token.GTR:
+				// XXX the branch isn't necessary, -∞ + 1 is still -∞
+				if ival.Lower != NegInf {
+					newval = NewInterval(ival.Lower.Add(One), svalu)
+				} else {
+					newval = NewInterval(ival.Lower, svalu)
+				}
+			default:
+				panic(fmt.Sprintf("unhandled token %s", symb.Op))
+			}
+			log.Printf("intersection of %s changed from %s to %s", sigma, cg.intersections[sigma], BasicIntersection{interval: newval})
+			cg.intersections[sigma] = BasicIntersection{interval: newval}
+		}
 	}
 }
 
@@ -717,30 +848,63 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 			yl := yval.Lower
 			yu := yval.Upper
 
-			a := xl
-			b := xu
-			c := yl
-			d := yu
-
 			l := NegInf
 			u := Inf
-			if a != NegInf && c != NegInf {
-				l = a.Add(c)
+			if xl != NegInf && yl != NegInf {
+				l = xl.Add(yl)
 
-				if a.Negative() == c.Negative() && a.Negative() != l.Negative() {
+				if xl.Negative() == yl.Negative() && xl.Negative() != l.Negative() {
 					l = NegInf
 				}
 			}
 
-			if b != Inf && d != Inf {
-				u = b.Add(d)
+			if xu != Inf && yu != Inf {
+				u = xu.Add(yu)
 
-				if b.Negative() == d.Negative() && b.Negative() != u.Negative() {
+				if xu.Negative() == yu.Negative() && xu.Negative() != u.Negative() {
 					u = Inf
 				}
 			}
 
 			return NewInterval(l, u)
+
+		case token.SUB:
+			xval := cg.intervals[v.X]
+			yval := cg.intervals[v.Y]
+
+			if xval.Undefined() || yval.Undefined() {
+				return NewInterval(nil, nil)
+			}
+
+			xl := xval.Lower
+			xu := xval.Upper
+			yl := yval.Lower
+			yu := yval.Upper
+
+			var l, u Numeric
+
+			if xl == NegInf || yu == Inf {
+				l = NegInf
+			} else {
+				l = xl.Sub(yu)
+
+				if xl.Negative() != yu.Negative() && yu.Negative() == l.Negative() {
+					l = NegInf
+				}
+			}
+
+			if xu == Inf || yl == NegInf {
+				u = Inf
+			} else {
+				u = xu.Sub(yl)
+
+				if xu.Negative() != yl.Negative() && yl.Negative() == u.Negative() {
+					u = Inf
+				}
+			}
+
+			return NewInterval(l, u)
+
 		default:
 			panic(fmt.Sprintf("unhandled token %s", v.Op))
 		}
