@@ -14,48 +14,236 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"log"
 	"math/big"
 
 	"honnef.co/go/tools/go/ir"
 )
 
-type Interval struct {
-	// A nil bound either indicates infinity or ⊥, depending on the value of Unknown.
-	Lower, Upper *big.Int
-	Unknown      bool
+var Inf Numeric = Infinity{}
+var NegInf Numeric = Infinity{negative: true}
+var Empty = NewInterval(Inf, NegInf)
+
+type Numeric interface {
+	isNumeric()
+	Cmp(other Numeric) int
+	String() string
+	Negative() bool
+	Add(Numeric) Numeric
 }
 
-func (ival *Interval) String() string {
-	if ival.Unknown {
+type Infinity struct {
+	negative bool
+}
+
+type Number struct {
+	Number *big.Int
+}
+
+func (v Infinity) Negative() bool { return v.negative }
+func (v Number) Negative() bool   { return v.Number.Sign() == -1 }
+
+func (v Infinity) Cmp(other Numeric) int { return Cmp(v, other) }
+func (v Number) Cmp(other Numeric) int   { return Cmp(v, other) }
+
+func (v Infinity) Add(other Numeric) Numeric { return Add(v, other) }
+func (v Number) Add(other Numeric) Numeric   { return Add(v, other) }
+
+func (v Infinity) String() string {
+	if v.negative {
+		return "-∞"
+	} else {
+		return "∞"
+	}
+}
+
+func (v Number) String() string {
+	return v.Number.String()
+}
+
+func (Infinity) isNumeric() {}
+func (Number) isNumeric()   {}
+
+func Add(x, y Numeric) Numeric {
+	if x, ok := x.(Infinity); ok {
+		if x.negative {
+			panic("-∞ + y is not defined")
+		}
+		return x
+	}
+
+	if y, ok := y.(Infinity); ok {
+		// x + ∞ = ∞
+		// x - ∞ = -∞
+		return y
+	}
+
+	nx := x.(Number)
+	ny := y.(Number)
+
+	out := big.NewInt(0)
+	out = nx.Number.Add(out, ny.Number)
+	return Number{out}
+}
+
+func Cmp(x, y Numeric) int {
+	if x == y {
+		return 0
+	}
+	switch x := x.(type) {
+	case Infinity:
+		switch y := y.(type) {
+		case Infinity:
+			if x.negative == y.negative {
+				return 0
+			} else if x.negative {
+				return -1
+			} else {
+				return 1
+			}
+		case Number:
+			if x.negative {
+				return -1
+			} else {
+				return 1
+			}
+		default:
+			panic(fmt.Sprintf("unhandled type %T", x))
+		}
+	case Number:
+		switch y := y.(type) {
+		case Infinity:
+			if y.negative {
+				return 1
+			} else {
+				return -1
+			}
+		case Number:
+			return x.Number.Cmp(y.Number)
+		default:
+			panic(fmt.Sprintf("unhandled type %T", x))
+		}
+	default:
+		panic(fmt.Sprintf("unhandled type %T", x))
+	}
+}
+
+type Interval struct {
+	Lower, Upper Numeric
+}
+
+func NewInterval(l, u Numeric) Interval {
+	if l == nil && u != nil || l != nil && u == nil {
+		panic("inconsistent interval")
+	}
+
+	return Interval{l, u}
+}
+
+func (ival Interval) Empty() bool {
+	if ival.Undefined() {
+		return false
+	}
+	if ival.Upper.Cmp(ival.Lower) == -1 {
+		return true
+	}
+	return false
+}
+
+func (ival Interval) Union(oval Interval) Interval {
+	if ival.Empty() {
+		return oval
+	} else if oval.Empty() {
+		return ival
+	} else if ival.Undefined() {
+		return oval
+	} else if oval.Undefined() {
+		return ival
+	} else {
+		var l, u Numeric
+		if ival.Lower.Cmp(oval.Lower) == -1 {
+			l = ival.Lower
+		} else {
+			l = oval.Lower
+		}
+
+		if ival.Upper.Cmp(oval.Upper) == 1 {
+			u = ival.Upper
+		} else {
+			u = oval.Upper
+		}
+
+		return NewInterval(l, u)
+	}
+}
+
+func (ival Interval) Intersect(oval Interval) Interval {
+	if ival.Empty() || oval.Empty() {
+		return Empty
+	}
+	if ival.Undefined() {
+		return oval
+	}
+	if oval.Undefined() {
+		return ival
+	}
+
+	var l, u Numeric
+	if ival.Lower.Cmp(oval.Lower) == 1 {
+		l = ival.Lower
+	} else {
+		l = oval.Lower
+	}
+
+	if ival.Upper.Cmp(oval.Upper) == -1 {
+		u = ival.Upper
+	} else {
+		u = oval.Upper
+	}
+
+	return NewInterval(l, u)
+}
+
+func (ival Interval) Equal(oval Interval) bool {
+	return (ival.Lower == nil && oval.Lower == nil) || (ival.Lower != nil && oval.Lower != nil) &&
+		(ival.Upper == nil && oval.Upper == nil) || (ival.Upper != nil && oval.Upper != nil) &&
+		(ival.Lower.Cmp(oval.Lower) == 0) &&
+		(ival.Upper.Cmp(oval.Upper) == 0)
+}
+
+func (ival Interval) Undefined() bool {
+	if ival.Lower == nil && ival.Upper != nil || ival.Lower != nil && ival.Upper == nil {
+		panic("inconsistent interval")
+	}
+	return ival.Lower == nil
+}
+
+func (ival Interval) String() string {
+	if ival.Undefined() {
 		return "[⊥, ⊥]"
 	} else {
-		l := "-∞"
-		u := "∞"
-		if ival.Lower != nil {
-			l = ival.Lower.String()
-		}
-		if ival.Upper != nil {
-			u = ival.Upper.String()
-		}
+		l := ival.Lower.String()
+		u := ival.Upper.String()
 		return fmt.Sprintf("[%s, %s]", l, u)
 	}
 }
 
-func (ival *Interval) IsUndefined() bool {
-	return ival.Unknown
-}
-
 // TODO: we should be able to represent both intersections using a single type
 type Intersection interface {
-	fmt.Stringer
+	String() string
+	Interval() Interval
 }
 
 type BasicIntersection struct {
-	Interval Interval
+	interval Interval
 }
 
 func (isec BasicIntersection) String() string {
-	return isec.Interval.String()
+	return isec.interval.String()
+}
+
+func (isec BasicIntersection) Interval() Interval {
+	return isec.interval
 }
 
 // A SymbolicIntersection represents an intersection with an interval bounded by a comparison instruction between two
@@ -88,14 +276,15 @@ func (isec SymbolicIntersection) String() string {
 	return fmt.Sprintf("[%s, %s]", l, u)
 }
 
-type Operation interface {
-	Interval() Intersection
-	Eval() Interval
+func (isec SymbolicIntersection) Interval() Interval {
+	// We don't have an interval for this intersection yet. If we did, the SymbolicIntersection wouldn't exist any
+	// longer and would've been replaced with a basic intersection.
+	return NewInterval(nil, nil)
 }
 
 func infinity() Interval {
 	// XXX should unsigned integers be [-inf, inf] or [0, inf]?
-	return Interval{}
+	return NewInterval(NegInf, Inf)
 }
 
 // flipToken flips a binary operator. For example, '>' becomes '<'.
@@ -179,7 +368,7 @@ func XXX(fn *ir.Function) {
 			cg.nodes[v] = struct{}{}
 
 			if v, ok := v.(*ir.Sigma); ok {
-				cg.intersections[v] = BasicIntersection{Interval: infinity()}
+				cg.intersections[v] = BasicIntersection{interval: infinity()}
 				// OPT: we repeat many checks for all sigmas in a basic block, even though most information is the same
 				// for all sigmas, and the remaining information only matters for at most two sigmas. It might make
 				// sense to either cache most of the computation, or to map from control instruction to sigma node, not
@@ -213,35 +402,27 @@ func XXX(fn *ir.Function) {
 									// We're in the else branch
 									op = negateToken(op)
 								}
-								val := big.NewInt(0)
-								switch k := constant.Val(k.Value).(type) {
-								case int64:
-									val = big.NewInt(k)
-								case *big.Int:
-									val.Set(k)
-								default:
-									panic(fmt.Sprintf("unexpected type %T", k))
-								}
+								val := constantToBigInt(k.Value)
 								switch op {
 								case token.LSS:
 									// [-∞, k-1]
-									cg.intersections[v] = BasicIntersection{Interval{Upper: val.Sub(val, one)}}
+									cg.intersections[v] = BasicIntersection{NewInterval(NegInf, Number{val.Sub(val, one)})}
 								case token.GTR:
 									// [k+1, ∞]
-									cg.intersections[v] = BasicIntersection{Interval{Lower: val.Add(val, one)}}
+									cg.intersections[v] = BasicIntersection{NewInterval(Number{val.Add(val, one)}, Inf)}
 								case token.LEQ:
 									// [-∞, k]
-									cg.intersections[v] = BasicIntersection{Interval{Upper: val}}
+									cg.intersections[v] = BasicIntersection{NewInterval(NegInf, Number{val})}
 								case token.GEQ:
 									// [k, ∞]
-									cg.intersections[v] = BasicIntersection{Interval{Lower: val}}
+									cg.intersections[v] = BasicIntersection{NewInterval(Number{val}, Inf)}
 								case token.NEQ:
 									// We cannot represent this constraint
 									// [-∞, ∞]
 									cg.intersections[v] = BasicIntersection{infinity()}
 								case token.EQL:
 									// [k, k]
-									cg.intersections[v] = BasicIntersection{Interval{Lower: val, Upper: val}}
+									cg.intersections[v] = BasicIntersection{NewInterval(Number{val}, Number{val})}
 								default:
 									panic(fmt.Sprintf("unhandled token %s", op))
 								}
@@ -317,11 +498,38 @@ func XXX(fn *ir.Function) {
 			panic("WTF")
 		}
 
-		// XXX run widening
+		// OPT: use a worklist approach
+		changed := true
+		for changed {
+			changed = false
+			for op := range scc {
+				old := cg.intervals[op]
+				new := cg.eval(op)
+				{
+					// this block is the meet widening operator
+					// XXX implement jump-set widening
+
+					if old.Undefined() {
+						cg.intervals[op] = new
+					} else if new.Lower.Cmp(old.Lower) == -1 && new.Upper.Cmp(old.Upper) == 1 {
+						cg.intervals[op] = infinity()
+					} else if new.Lower.Cmp(old.Lower) == -1 {
+						cg.intervals[op] = NewInterval(NegInf, old.Upper)
+					} else if new.Upper.Cmp(new.Upper) == 1 {
+						cg.intervals[op] = NewInterval(old.Lower, Inf)
+					}
+				}
+				res := cg.intervals[op]
+				log.Printf("%s = %s: %s -> %s", op.Name(), op, old, res)
+				if !old.Equal(res) {
+					changed = true
+				}
+			}
+		}
 
 		// Once we've finished processing the SCC we can propagate the ranges of variables to the symbolic
 		// intersections that use them.
-		cg.fixIntersects(scc)
+		// XXX: cg.fixIntersects(scc)
 
 		// XXX run narrowing
 	}
@@ -489,6 +697,79 @@ func (cg *constraintGraph) printConstraints() {
 	}
 }
 
-func eval(instr ir.Instruction) bool {
-	return false
+func (cg *constraintGraph) eval(v ir.Value) Interval {
+	switch v := v.(type) {
+	case *ir.Const:
+		return NewInterval(constantToNumber(v.Value), constantToNumber(v.Value))
+	case *ir.BinOp:
+		xval := cg.intervals[v.X]
+		yval := cg.intervals[v.Y]
+
+		if xval.Undefined() || yval.Undefined() {
+			return NewInterval(nil, nil)
+		}
+
+		switch v.Op {
+		// XXX so much to implement
+		case token.ADD:
+			xl := xval.Lower
+			xu := xval.Upper
+			yl := yval.Lower
+			yu := yval.Upper
+
+			a := xl
+			b := xu
+			c := yl
+			d := yu
+
+			l := NegInf
+			u := Inf
+			if a != NegInf && c != NegInf {
+				l = a.Add(c)
+
+				if a.Negative() == c.Negative() && a.Negative() != l.Negative() {
+					l = NegInf
+				}
+			}
+
+			if b != Inf && d != Inf {
+				u = b.Add(d)
+
+				if b.Negative() == d.Negative() && b.Negative() != u.Negative() {
+					u = Inf
+				}
+			}
+
+			return NewInterval(l, u)
+		default:
+			panic(fmt.Sprintf("unhandled token %s", v.Op))
+		}
+	case *ir.Phi:
+		ret := cg.intervals[v.Edges[0]]
+		for _, other := range v.Edges[1:] {
+			ret = ret.Union(cg.intervals[other])
+		}
+		return ret
+	case *ir.Sigma:
+		return cg.intervals[v].Intersect(cg.intersections[v].Interval())
+	default:
+		panic(fmt.Sprintf("unhandled type %T", v))
+	}
+}
+
+func constantToNumber(v constant.Value) Number {
+	return Number{constantToBigInt(v)}
+}
+
+func constantToBigInt(v constant.Value) *big.Int {
+	val := big.NewInt(0)
+	switch v := constant.Val(v).(type) {
+	case int64:
+		val.SetInt64(v)
+	case *big.Int:
+		val.Set(v)
+	default:
+		panic(fmt.Sprintf("unexpected type %T", v))
+	}
+	return val
 }
