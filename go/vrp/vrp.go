@@ -9,6 +9,8 @@
 // TODO: document use of jump-set widening, possible use of rounds of abstract interpretation, what our lattice looks like, ...
 package vrp
 
+// XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
+
 import (
 	"fmt"
 	"go/constant"
@@ -915,7 +917,9 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 		}
 		return ret
 	case *ir.Sigma:
-		return cg.intervals[v].Intersect(cg.intersections[v].Interval())
+		return cg.intervals[v.X].Intersect(cg.intersections[v].Interval())
+	case *ir.Parameter:
+		return infinity()
 	default:
 		panic(fmt.Sprintf("unhandled type %T", v))
 	}
