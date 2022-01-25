@@ -215,7 +215,10 @@ func (ival Interval) Union(oval Interval) (RET Interval) {
 	}
 }
 
-func (ival Interval) Intersect(oval Interval) Interval {
+func (ival Interval) Intersect(oval Interval) (RET Interval) {
+	defer func() {
+		log.Printf("%s ∩ %s = %s", ival, oval, RET)
+	}()
 	if ival.Empty() || oval.Empty() {
 		return Empty
 	}
@@ -518,7 +521,7 @@ func XXX(fn *ir.Function) {
 
 	sccs := cg.sccs()
 
-	if false {
+	if true {
 		cg.printConstraints()
 		cg.printSCCs(sccs)
 	}
@@ -544,10 +547,6 @@ func XXX(fn *ir.Function) {
 					// this block is the meet widening operator
 					// XXX implement jump-set widening
 					new := cg.eval(op)
-
-					if _, ok := op.(*ir.Phi); ok {
-						log.Printf("!!! %s - %s -> %s", op.Name(), old, new)
-					}
 
 					if old.Undefined() {
 						cg.intervals[op] = new
@@ -615,10 +614,14 @@ func XXX(fn *ir.Function) {
 				}
 
 				res := cg.intervals[op]
+				log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
 				if !old.Equal(res) {
-					log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
 					changed = true
 				}
+
+				// TODO: we can implement iterative narrowing that shrinks the intervals even for non-infinites. it
+				// might not converge, but we can stop any time. I'm not sure if it actually works for our lattice and
+				// evaluation functions, though.
 			}
 		}
 
@@ -626,6 +629,7 @@ func XXX(fn *ir.Function) {
 		for v := range scc {
 			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
 		}
+
 		log.Println("---------------------------------------------------------")
 	}
 
@@ -685,6 +689,9 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 }
 
 func (cg *constraintGraph) printSCCs(sccs []valueSet) {
+	// We first create subgraphs containing the nodes, then create edges between nodes. Graphviz creates a node the
+	// first time it sees it, so doing 'a -> b' in a subgraph would create 'b' in that subgraph, even if it belongs in a
+	// different one.
 	fmt.Println("digraph{")
 	n := 0
 	for _, scc := range sccs {
@@ -692,6 +699,11 @@ func (cg *constraintGraph) printSCCs(sccs []valueSet) {
 		fmt.Printf("subgraph cluster_%d {\n", n)
 		for node := range scc {
 			fmt.Printf("%s;\n", node.Name())
+		}
+		fmt.Println("}")
+	}
+	for _, scc := range sccs {
+		for node := range scc {
 			for _, ref_ := range *node.Referrers() {
 				ref, ok := ref_.(ir.Value)
 				if !ok {
@@ -708,7 +720,6 @@ func (cg *constraintGraph) printSCCs(sccs []valueSet) {
 				}
 			}
 		}
-		fmt.Println("}")
 	}
 	fmt.Println("}")
 }
@@ -933,6 +944,14 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 		}
 		return ret
 	case *ir.Sigma:
+		if cg.intervals[v.X].Undefined() {
+			// If sigma gets evaluated before sigma.X we don't want to return the sigma's intersection, which might be
+			// [-∞, ∞] and saturate all instructions using the sigma.
+			//
+			// XXX can we do this without losing precision?
+			return NewInterval(nil, nil)
+		}
+
 		return cg.intervals[v.X].Intersect(cg.intersections[v].Interval())
 	case *ir.Parameter:
 		return infinity()
