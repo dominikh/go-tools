@@ -11,6 +11,8 @@ package vrp
 
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
 
+// OPT: constants have fixed intervals, they don't need widening or narrowing or fixpoints
+
 import (
 	"fmt"
 	"go/constant"
@@ -402,6 +404,36 @@ type constraintGraph struct {
 	intervals map[ir.Value]Interval
 }
 
+func min(a, b Numeric) Numeric {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+
+	if a.Cmp(b) <= 0 {
+		return a
+	} else {
+		return b
+	}
+}
+
+func max(a, b Numeric) Numeric {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+
+	if a.Cmp(b) >= 0 {
+		return a
+	} else {
+		return b
+	}
+}
+
 func XXX(fn *ir.Function) {
 	cg := constraintGraph{
 		intersections: map[*ir.Sigma]Intersection{},
@@ -539,8 +571,8 @@ func XXX(fn *ir.Function) {
 	sccs := cg.sccs()
 
 	if true {
-		cg.printConstraints()
-		cg.printSCCs(sccs)
+		// cg.printConstraints()
+		cg.printSCCs(sccs, nil, "")
 	}
 
 	// XXX the paper's code "propagates" values to dependent SCCs by evaluating their constraints once, so "that the
@@ -565,18 +597,33 @@ func XXX(fn *ir.Function) {
 					// XXX implement jump-set widening
 					new := cg.eval(op)
 
-					if old.Undefined() {
-						cg.intervals[op] = new
-					} else if new.Lower.Cmp(old.Lower) == -1 && new.Upper.Cmp(old.Upper) == 1 {
-						cg.intervals[op] = infinity()
-					} else if new.Lower.Cmp(old.Lower) == -1 {
-						cg.intervals[op] = NewInterval(NegInf, old.Upper)
-					} else if new.Upper.Cmp(old.Upper) == 1 {
-						cg.intervals[op] = NewInterval(old.Lower, Inf)
+					const simple = 0
+					const jumpset = 1
+					const infinite = 2
+					const mode = simple
+
+					switch mode {
+					case simple:
+						if old.Undefined() {
+							cg.intervals[op] = new
+						} else if new.Lower.Cmp(old.Lower) == -1 && new.Upper.Cmp(old.Upper) == 1 {
+							cg.intervals[op] = infinity()
+						} else if new.Lower.Cmp(old.Lower) == -1 {
+							cg.intervals[op] = NewInterval(NegInf, old.Upper)
+						} else if new.Upper.Cmp(old.Upper) == 1 {
+							cg.intervals[op] = NewInterval(old.Lower, Inf)
+						}
+
+					case jumpset:
+						panic("not implemented")
+
+					case infinite:
+						cg.intervals[op] = NewInterval(min(old.Lower, new.Lower), max(old.Upper, new.Upper))
 					}
 				}
 				res := cg.intervals[op]
-				log.Printf("W: %s = %s: %s -> %s", op.Name(), op, old, res)
+				// log.Printf("W: %s = %s: %s -> %s", op.Name(), op, old, res)
+				cg.printSCCs(sccs, op, "red")
 				if !old.Equal(res) {
 					changed = true
 				}
@@ -631,7 +678,8 @@ func XXX(fn *ir.Function) {
 				}
 
 				res := cg.intervals[op]
-				log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
+				// log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
+				cg.printSCCs(sccs, op, "green")
 				if !old.Equal(res) {
 					changed = true
 				}
@@ -650,11 +698,13 @@ func XXX(fn *ir.Function) {
 		log.Println("---------------------------------------------------------")
 	}
 
-	keys := SortedKeys(cg.intervals, func(a, b ir.Value) bool { return a.ID() < b.ID() })
-	for _, v := range keys {
-		ival := cg.intervals[v]
-		fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
-	}
+	cg.printSCCs(sccs, nil, "")
+
+	// keys := SortedKeys(cg.intervals, func(a, b ir.Value) bool { return a.ID() < b.ID() })
+	// for _, v := range keys {
+	// 	ival := cg.intervals[v]
+	// 	fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
+	// }
 }
 
 func (cg *constraintGraph) fixIntersects(scc valueSet) {
@@ -707,7 +757,7 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 	}
 }
 
-func (cg *constraintGraph) printSCCs(sccs []valueSet) {
+func (cg *constraintGraph) printSCCs(sccs []valueSet, activeOp ir.Value, color string) {
 	// We first create subgraphs containing the nodes, then create edges between nodes. Graphviz creates a node the
 	// first time it sees it, so doing 'a -> b' in a subgraph would create 'b' in that subgraph, even if it belongs in a
 	// different one.
@@ -716,13 +766,23 @@ func (cg *constraintGraph) printSCCs(sccs []valueSet) {
 	for _, scc := range sccs {
 		n++
 		fmt.Printf("subgraph cluster_%d {\n", n)
-		for node := range scc {
-			fmt.Printf("%s;\n", node.Name())
+		nodes := SortedKeys(scc, func(a, b ir.Value) bool { return a.ID() < b.ID() })
+		for _, node := range nodes {
+			extra := ""
+			if node == activeOp {
+				extra = ", color=" + color
+			}
+			if sigma, ok := node.(*ir.Sigma); ok {
+				fmt.Printf("%s [label=\"%s = %s ∩ %s ∈ %s\"%s];\n", node.Name(), node.Name(), node, cg.intersections[sigma], cg.intervals[node], extra)
+			} else {
+				fmt.Printf("%s [label=\"%s = %s ∈ %s\"%s];\n", node.Name(), node.Name(), node, cg.intervals[node], extra)
+			}
 		}
 		fmt.Println("}")
 	}
 	for _, scc := range sccs {
-		for node := range scc {
+		nodes := SortedKeys(scc, func(a, b ir.Value) bool { return a.ID() < b.ID() })
+		for _, node := range nodes {
 			for _, ref_ := range *node.Referrers() {
 				ref, ok := ref_.(ir.Value)
 				if !ok {
