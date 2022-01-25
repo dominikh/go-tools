@@ -185,7 +185,10 @@ func (ival Interval) Empty() bool {
 	return false
 }
 
-func (ival Interval) Union(oval Interval) Interval {
+func (ival Interval) Union(oval Interval) (RET Interval) {
+	defer func() {
+		log.Printf("%s ∪ %s = %s", ival, oval, RET)
+	}()
 	if ival.Empty() {
 		return oval
 	} else if oval.Empty() {
@@ -526,8 +529,6 @@ func XXX(fn *ir.Function) {
 	// evaluating all uses of the values in the finished SCC, and if they're sigma nodes, marking them as unresolved if
 	// they're undefined. "entry points" are variables with ranges that aren't unknown. is this just an optimization?
 
-	// XXX The paper updates futures after widening, before narrowing. Why? Wouldn't it make more sense to update futures
-	// after narrowing, for more precise intersections?
 	for _, scc := range sccs {
 		if len(scc) == 0 {
 			panic("WTF")
@@ -544,19 +545,23 @@ func XXX(fn *ir.Function) {
 					// XXX implement jump-set widening
 					new := cg.eval(op)
 
+					if _, ok := op.(*ir.Phi); ok {
+						log.Printf("!!! %s - %s -> %s", op.Name(), old, new)
+					}
+
 					if old.Undefined() {
 						cg.intervals[op] = new
 					} else if new.Lower.Cmp(old.Lower) == -1 && new.Upper.Cmp(old.Upper) == 1 {
 						cg.intervals[op] = infinity()
 					} else if new.Lower.Cmp(old.Lower) == -1 {
 						cg.intervals[op] = NewInterval(NegInf, old.Upper)
-					} else if new.Upper.Cmp(new.Upper) == 1 {
+					} else if new.Upper.Cmp(old.Upper) == 1 {
 						cg.intervals[op] = NewInterval(old.Lower, Inf)
 					}
 				}
 				res := cg.intervals[op]
+				log.Printf("W: %s = %s: %s -> %s", op.Name(), op, old, res)
 				if !old.Equal(res) {
-					log.Printf("%s = %s: %s -> %s", op.Name(), op, old, res)
 					changed = true
 				}
 			}
@@ -572,45 +577,56 @@ func XXX(fn *ir.Function) {
 			}
 		}
 
+		log.Println("Finished widening SCC")
+		for v := range scc {
+			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
+		}
+
 		changed = true
 		for changed {
 			changed = false
 			for op := range scc {
 				old := cg.intervals[op]
-				new := cg.eval(op)
 				{
-					// this block is the meet narrowing operator
+					// This block is the meet narrowing operator. Narrowing is meant to replace infinites with smaller
+					// bounds, but leave other bounds alone. That is, [-∞, 10] can become [0, 10], but not [0, 9] or
+					// [-∞, 9]. That's why the code below selects the _wider_ bounds for non-infinities. When the
+					// widening operator is implemented correctly, then the bounds shouldn't be able to grow.
+
+					// OPT: if the bounds aren't able to grow, then why are we doing any comparisons/assigning new
+					// intervals? Either we went from an infinity to a narrower bound, or nothing should've changed.
 					new := cg.eval(op)
+
 					if old.Lower == NegInf && new.Lower != NegInf {
 						cg.intervals[op] = NewInterval(new.Lower, old.Upper)
 					} else {
-						// XXX this logic is from the reference implementation, but it seems wrong to me. we're
-						// _narrowing_, so why do we choose the smaller lower bound?
 						if old.Lower.Cmp(new.Lower) == 1 {
 							cg.intervals[op] = NewInterval(new.Lower, old.Upper)
 						}
 					}
-				}
 
-				if old.Upper == Inf && new.Upper != Inf {
-					cg.intervals[op] = NewInterval(old.Lower, new.Upper)
-				} else {
-					// XXX this logic is from the reference implementation, but it seems wrong to me. we're
-					// _narrowing_, so why do we choose the larger upper bound?
-					if old.Upper.Cmp(new.Upper) == -1 {
+					if old.Upper == Inf && new.Upper != Inf {
 						cg.intervals[op] = NewInterval(old.Lower, new.Upper)
+					} else {
+						if old.Upper.Cmp(new.Upper) == -1 {
+							cg.intervals[op] = NewInterval(old.Lower, new.Upper)
+						}
 					}
 				}
 
 				res := cg.intervals[op]
 				if !old.Equal(res) {
-					log.Printf("%s = %s: %s -> %s", op.Name(), op, old, res)
+					log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
 					changed = true
 				}
 			}
 		}
 
-		// XXX run narrowing
+		log.Println("Finished narrowing SCC")
+		for v := range scc {
+			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
+		}
+		log.Println("---------------------------------------------------------")
 	}
 
 	for v, ival := range cg.intervals {
