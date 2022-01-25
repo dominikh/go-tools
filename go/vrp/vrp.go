@@ -18,6 +18,7 @@ import (
 	"go/types"
 	"log"
 	"math/big"
+	"sort"
 
 	"honnef.co/go/tools/go/ir"
 )
@@ -27,6 +28,22 @@ var NegInf Numeric = Infinity{negative: true}
 var Empty = NewInterval(Inf, NegInf)
 var One = Number{big.NewInt(1)}
 var MinusOne = Number{big.NewInt(-1)}
+
+func Keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func SortedKeys[K comparable, V any](m map[K]V, less func(a, b K) bool) []K {
+	keys := Keys(m)
+	sort.Slice(keys, func(i, j int) bool {
+		return less(keys[i], keys[j])
+	})
+	return keys
+}
 
 type Numeric interface {
 	isNumeric()
@@ -633,7 +650,9 @@ func XXX(fn *ir.Function) {
 		log.Println("---------------------------------------------------------")
 	}
 
-	for v, ival := range cg.intervals {
+	keys := SortedKeys(cg.intervals, func(a, b ir.Value) bool { return a.ID() < b.ID() })
+	for _, v := range keys {
+		ival := cg.intervals[v]
 		fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
 	}
 }
