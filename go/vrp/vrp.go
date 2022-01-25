@@ -13,17 +13,24 @@ package vrp
 
 // OPT: constants have fixed intervals, they don't need widening or narrowing or fixpoints
 
+// XXX we need to handle overflow better. after 'if x > 0', x has range [1, ∞], and x + 1 has range [2, ∞] even though in
+// reality, it might have wrapped around to the smallest possible value.
+
+// TODO: support more than one interval per value. For example, we should be able to represent the set {0, 10, 100}
+// without ending up with [0, 100].
+
 import (
 	"fmt"
 	"go/constant"
 	"go/token"
 	"go/types"
-	"log"
 	"math/big"
 	"sort"
 
 	"honnef.co/go/tools/go/ir"
 )
+
+const debug = true
 
 var Inf Numeric = Infinity{}
 var NegInf Numeric = Infinity{negative: true}
@@ -204,10 +211,7 @@ func (ival Interval) Empty() bool {
 	return false
 }
 
-func (ival Interval) Union(oval Interval) (RET Interval) {
-	defer func() {
-		log.Printf("%s ∪ %s = %s", ival, oval, RET)
-	}()
+func (ival Interval) Union(oval Interval) Interval {
 	if ival.Empty() {
 		return oval
 	} else if oval.Empty() {
@@ -234,10 +238,7 @@ func (ival Interval) Union(oval Interval) (RET Interval) {
 	}
 }
 
-func (ival Interval) Intersect(oval Interval) (RET Interval) {
-	defer func() {
-		log.Printf("%s ∩ %s = %s", ival, oval, RET)
-	}()
+func (ival Interval) Intersect(oval Interval) Interval {
 	if ival.Empty() || oval.Empty() {
 		return Empty
 	}
@@ -402,9 +403,8 @@ type constraintGraph struct {
 	nodes valueSet
 	// Map instructions to computed intervals
 	intervals map[ir.Value]Interval
-	// The graph's strongly connected components. Each component is represented as a slice of values, sorted by ID. The
-	// list of SCCs is sorted in topological order.
-	sccs [][]ir.Value
+	// The graph's strongly connected components. The list of SCCs is sorted in topological order.
+	sccs []valueSet
 }
 
 func min(a, b Numeric) Numeric {
@@ -437,7 +437,15 @@ func max(a, b Numeric) Numeric {
 	}
 }
 
-func BuildConstraintGraph(fn *ir.Function) *constraintGraph {
+func isInteger(typ types.Type) bool {
+	basic, ok := typ.Underlying().(*types.Basic)
+	if !ok {
+		return false
+	}
+	return (basic.Info() & types.IsInteger) != 0
+}
+
+func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 	cg := constraintGraph{
 		intersections: map[*ir.Sigma]Intersection{},
 		nodes:         valueSet{},
@@ -575,12 +583,91 @@ func BuildConstraintGraph(fn *ir.Function) *constraintGraph {
 	return &cg
 }
 
-func XXX(fn *ir.Function) {
-	cg := BuildConstraintGraph(fn)
-	if true {
-		// cg.printConstraints()
-		cg.printSCCs(nil, "")
+func (cg *constraintGraph) fixpoint(scc valueSet, color string, fn func(ir.Value)) {
+	worklist := Keys(scc)
+	for len(worklist) > 0 {
+		// XXX is a LIFO okay or do we need FIFO?
+		op := worklist[len(worklist)-1]
+		worklist = worklist[:len(worklist)-1]
+		old := cg.intervals[op]
+
+		fn(op)
+
+		res := cg.intervals[op]
+		cg.printSCCs(op, color)
+		if !old.Equal(res) {
+			for _, ref := range *op.Referrers() {
+				if ref, ok := ref.(ir.Value); ok && isInteger(ref.Type()) {
+					if _, ok := scc[ref]; ok {
+						worklist = append(worklist, ref)
+					}
+				}
+			}
+		}
 	}
+}
+
+func (cg *constraintGraph) widen(op ir.Value) {
+	old := cg.intervals[op]
+	new := cg.eval(op)
+
+	const simple = 0
+	const jumpset = 1
+	const infinite = 2
+	const mode = simple
+
+	switch mode {
+	case simple:
+		if old.Undefined() {
+			cg.intervals[op] = new
+		} else if new.Lower.Cmp(old.Lower) == -1 && new.Upper.Cmp(old.Upper) == 1 {
+			cg.intervals[op] = infinity()
+		} else if new.Lower.Cmp(old.Lower) == -1 {
+			cg.intervals[op] = NewInterval(NegInf, old.Upper)
+		} else if new.Upper.Cmp(old.Upper) == 1 {
+			cg.intervals[op] = NewInterval(old.Lower, Inf)
+		}
+
+	case jumpset:
+		panic("not implemented")
+
+	case infinite:
+		cg.intervals[op] = NewInterval(min(old.Lower, new.Lower), max(old.Upper, new.Upper))
+	}
+}
+
+func (cg *constraintGraph) narrow(op ir.Value) {
+	// This block is the meet narrowing operator. Narrowing is meant to replace infinites with smaller
+	// bounds, but leave other bounds alone. That is, [-∞, 10] can become [0, 10], but not [0, 9] or
+	// [-∞, 9]. That's why the code below selects the _wider_ bounds for non-infinities. When the
+	// widening operator is implemented correctly, then the bounds shouldn't be able to grow.
+
+	old := cg.intervals[op]
+
+	// OPT: if the bounds aren't able to grow, then why are we doing any comparisons/assigning new
+	// intervals? Either we went from an infinity to a narrower bound, or nothing should've changed.
+	new := cg.eval(op)
+
+	if old.Lower == NegInf && new.Lower != NegInf {
+		cg.intervals[op] = NewInterval(new.Lower, old.Upper)
+	} else {
+		if old.Lower.Cmp(new.Lower) == 1 {
+			cg.intervals[op] = NewInterval(new.Lower, old.Upper)
+		}
+	}
+
+	if old.Upper == Inf && new.Upper != Inf {
+		cg.intervals[op] = NewInterval(old.Lower, new.Upper)
+	} else {
+		if old.Upper.Cmp(new.Upper) == -1 {
+			cg.intervals[op] = NewInterval(old.Lower, new.Upper)
+		}
+	}
+}
+
+func XXX(fn *ir.Function) {
+	cg := buildConstraintGraph(fn)
+	cg.printSCCs(nil, "")
 
 	// XXX the paper's code "propagates" values to dependent SCCs by evaluating their constraints once, so "that the
 	// next SCCs after component will have entry points to kick start the range analysis algorithm". intuitively, this
@@ -593,130 +680,26 @@ func XXX(fn *ir.Function) {
 			panic("WTF")
 		}
 
-		// OPT: use a worklist approach
-		changed := true
-		for changed {
-			changed = false
-			for _, op := range scc {
-				old := cg.intervals[op]
-				{
-					// this block is the meet widening operator
-					// XXX implement jump-set widening
-					new := cg.eval(op)
-
-					const simple = 0
-					const jumpset = 1
-					const infinite = 2
-					const mode = simple
-
-					switch mode {
-					case simple:
-						if old.Undefined() {
-							cg.intervals[op] = new
-						} else if new.Lower.Cmp(old.Lower) == -1 && new.Upper.Cmp(old.Upper) == 1 {
-							cg.intervals[op] = infinity()
-						} else if new.Lower.Cmp(old.Lower) == -1 {
-							cg.intervals[op] = NewInterval(NegInf, old.Upper)
-						} else if new.Upper.Cmp(old.Upper) == 1 {
-							cg.intervals[op] = NewInterval(old.Lower, Inf)
-						}
-
-					case jumpset:
-						panic("not implemented")
-
-					case infinite:
-						cg.intervals[op] = NewInterval(min(old.Lower, new.Lower), max(old.Upper, new.Upper))
-					}
-				}
-				res := cg.intervals[op]
-				// log.Printf("W: %s = %s: %s -> %s", op.Name(), op, old, res)
-				cg.printSCCs(op, "red")
-				if !old.Equal(res) {
-					changed = true
-				}
-			}
-		}
+		// OPT: select favourable entry points
+		cg.fixpoint(scc, "red", cg.widen)
 
 		// Once we've finished processing the SCC we can propagate the ranges of variables to the symbolic
 		// intersections that use them.
 		cg.fixIntersects(scc)
 
-		for _, v := range scc {
+		for v := range scc {
 			if cg.intervals[v].Undefined() {
 				cg.intervals[v] = infinity()
 			}
 		}
 
-		log.Println("Finished widening SCC")
-		for _, v := range scc {
-			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
-		}
-
-		changed = true
-		for changed {
-			changed = false
-			for _, op := range scc {
-				old := cg.intervals[op]
-				{
-					// This block is the meet narrowing operator. Narrowing is meant to replace infinites with smaller
-					// bounds, but leave other bounds alone. That is, [-∞, 10] can become [0, 10], but not [0, 9] or
-					// [-∞, 9]. That's why the code below selects the _wider_ bounds for non-infinities. When the
-					// widening operator is implemented correctly, then the bounds shouldn't be able to grow.
-
-					// OPT: if the bounds aren't able to grow, then why are we doing any comparisons/assigning new
-					// intervals? Either we went from an infinity to a narrower bound, or nothing should've changed.
-					new := cg.eval(op)
-
-					if old.Lower == NegInf && new.Lower != NegInf {
-						cg.intervals[op] = NewInterval(new.Lower, old.Upper)
-					} else {
-						if old.Lower.Cmp(new.Lower) == 1 {
-							cg.intervals[op] = NewInterval(new.Lower, old.Upper)
-						}
-					}
-
-					if old.Upper == Inf && new.Upper != Inf {
-						cg.intervals[op] = NewInterval(old.Lower, new.Upper)
-					} else {
-						if old.Upper.Cmp(new.Upper) == -1 {
-							cg.intervals[op] = NewInterval(old.Lower, new.Upper)
-						}
-					}
-				}
-
-				res := cg.intervals[op]
-				// log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
-				cg.printSCCs(op, "green")
-				if !old.Equal(res) {
-					changed = true
-				}
-
-				// TODO: we can implement iterative narrowing that shrinks the intervals even for non-infinites. it
-				// might not converge, but we can stop any time. I'm not sure if it actually works for our lattice and
-				// evaluation functions, though.
-			}
-		}
-
-		log.Println("Finished narrowing SCC")
-		for _, v := range scc {
-			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
-		}
-
-		log.Println("---------------------------------------------------------")
+		cg.fixpoint(scc, "green", cg.narrow)
 	}
 
 	cg.printSCCs(nil, "")
-
-	if false {
-		keys := SortedKeys(cg.intervals, func(a, b ir.Value) bool { return a.ID() < b.ID() })
-		for _, v := range keys {
-			ival := cg.intervals[v]
-			fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
-		}
-	}
 }
 
-func (cg *constraintGraph) fixIntersects(scc []ir.Value) {
+func (cg *constraintGraph) fixIntersects(scc valueSet) {
 	// OPT cache this compuation
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
 	for sigma, isec := range cg.intersections {
@@ -724,7 +707,7 @@ func (cg *constraintGraph) fixIntersects(scc []ir.Value) {
 			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
 		}
 	}
-	for _, v := range scc {
+	for v := range scc {
 		ival := cg.intervals[v]
 		for _, sigma := range futuresUsedBy[v] {
 			sval := cg.intervals[sigma]
@@ -760,13 +743,16 @@ func (cg *constraintGraph) fixIntersects(scc []ir.Value) {
 			default:
 				panic(fmt.Sprintf("unhandled token %s", symb.Op))
 			}
-			log.Printf("intersection of %s changed from %s to %s", sigma, cg.intersections[sigma], BasicIntersection{interval: newval})
 			cg.intersections[sigma] = BasicIntersection{interval: newval}
 		}
 	}
 }
 
 func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
+	if !debug {
+		return
+	}
+
 	// We first create subgraphs containing the nodes, then create edges between nodes. Graphviz creates a node the
 	// first time it sees it, so doing 'a -> b' in a subgraph would create 'b' in that subgraph, even if it belongs in a
 	// different one.
@@ -775,7 +761,7 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 	for _, scc := range cg.sccs {
 		n++
 		fmt.Printf("subgraph cluster_%d {\n", n)
-		for _, node := range scc {
+		for _, node := range SortedKeys(scc, func(a, b ir.Value) bool { return a.ID() < b.ID() }) {
 			extra := ""
 			if node == activeOp {
 				extra = ", color=" + color
@@ -789,7 +775,7 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 		fmt.Println("}")
 	}
 	for _, scc := range cg.sccs {
-		for _, node := range scc {
+		for _, node := range SortedKeys(scc, func(a, b ir.Value) bool { return a.ID() < b.ID() }) {
 			for _, ref_ := range *node.Referrers() {
 				ref, ok := ref_.(ir.Value)
 				if !ok {
@@ -811,7 +797,7 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 }
 
 // sccs returns the constraint graph's strongly connected components, in topological order.
-func (cg *constraintGraph) buildSCCs() [][]ir.Value {
+func (cg *constraintGraph) buildSCCs() []valueSet {
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
 	for sigma, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
@@ -825,7 +811,7 @@ func (cg *constraintGraph) buildSCCs() [][]ir.Value {
 		lowlink uint64
 		onstack bool
 	}{}
-	var sccs [][]ir.Value
+	var sccs []valueSet
 
 	min := func(a, b uint64) uint64 {
 		if a < b {
@@ -900,18 +886,17 @@ func (cg *constraintGraph) buildSCCs() [][]ir.Value {
 		}
 
 		if vd.lowlink == vd.index {
-			var scc []ir.Value
+			scc := valueSet{}
 			for {
 				w := S[len(S)-1]
 				S = S[:len(S)-1]
 				data[w].onstack = false
-				scc = append(scc, w)
+				scc[w] = struct{}{}
 				if w == v {
 					break
 				}
 			}
 			if len(scc) > 0 {
-				sort.Slice(scc, func(i, j int) bool { return scc[i].ID() < scc[j].ID() })
 				sccs = append(sccs, scc)
 			}
 		}
@@ -931,23 +916,11 @@ func (cg *constraintGraph) buildSCCs() [][]ir.Value {
 	return sccs
 }
 
-func (cg *constraintGraph) printConstraints() {
-	for v := range cg.nodes {
-		switch v := v.(type) {
-		case *ir.Sigma:
-			fmt.Printf("%s = %s ∩ %s\n", v.Name(), v.X.Name(), cg.intersections[v])
-		case *ir.Const:
-			fmt.Printf("%s = %s\n", v.Name(), v.Value)
-		default:
-			fmt.Printf("%s = %s\n", v.Name(), v)
-		}
-	}
-}
-
 func (cg *constraintGraph) eval(v ir.Value) Interval {
 	switch v := v.(type) {
 	case *ir.Const:
 		return NewInterval(constantToNumber(v.Value), constantToNumber(v.Value))
+
 	case *ir.BinOp:
 		xval := cg.intervals[v.X]
 		yval := cg.intervals[v.Y]
@@ -1024,12 +997,14 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 		default:
 			panic(fmt.Sprintf("unhandled token %s", v.Op))
 		}
+
 	case *ir.Phi:
 		ret := cg.intervals[v.Edges[0]]
 		for _, other := range v.Edges[1:] {
 			ret = ret.Union(cg.intervals[other])
 		}
 		return ret
+
 	case *ir.Sigma:
 		if cg.intervals[v.X].Undefined() {
 			// If sigma gets evaluated before sigma.X we don't want to return the sigma's intersection, which might be
@@ -1040,8 +1015,10 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 		}
 
 		return cg.intervals[v.X].Intersect(cg.intersections[v].Interval())
+
 	case *ir.Parameter:
 		return infinity()
+
 	default:
 		panic(fmt.Sprintf("unhandled type %T", v))
 	}
