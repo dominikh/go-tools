@@ -402,6 +402,9 @@ type constraintGraph struct {
 	nodes valueSet
 	// Map instructions to computed intervals
 	intervals map[ir.Value]Interval
+	// The graph's strongly connected components. Each component is represented as a slice of values, sorted by ID. The
+	// list of SCCs is sorted in topological order.
+	sccs [][]ir.Value
 }
 
 func min(a, b Numeric) Numeric {
@@ -434,7 +437,7 @@ func max(a, b Numeric) Numeric {
 	}
 }
 
-func XXX(fn *ir.Function) {
+func BuildConstraintGraph(fn *ir.Function) *constraintGraph {
 	cg := constraintGraph{
 		intersections: map[*ir.Sigma]Intersection{},
 		nodes:         valueSet{},
@@ -568,11 +571,15 @@ func XXX(fn *ir.Function) {
 		}
 	}
 
-	sccs := cg.sccs()
+	cg.sccs = cg.buildSCCs()
+	return &cg
+}
 
+func XXX(fn *ir.Function) {
+	cg := BuildConstraintGraph(fn)
 	if true {
 		// cg.printConstraints()
-		cg.printSCCs(sccs, nil, "")
+		cg.printSCCs(nil, "")
 	}
 
 	// XXX the paper's code "propagates" values to dependent SCCs by evaluating their constraints once, so "that the
@@ -581,7 +588,7 @@ func XXX(fn *ir.Function) {
 	// evaluating all uses of the values in the finished SCC, and if they're sigma nodes, marking them as unresolved if
 	// they're undefined. "entry points" are variables with ranges that aren't unknown. is this just an optimization?
 
-	for _, scc := range sccs {
+	for _, scc := range cg.sccs {
 		if len(scc) == 0 {
 			panic("WTF")
 		}
@@ -590,7 +597,7 @@ func XXX(fn *ir.Function) {
 		changed := true
 		for changed {
 			changed = false
-			for op := range scc {
+			for _, op := range scc {
 				old := cg.intervals[op]
 				{
 					// this block is the meet widening operator
@@ -623,7 +630,7 @@ func XXX(fn *ir.Function) {
 				}
 				res := cg.intervals[op]
 				// log.Printf("W: %s = %s: %s -> %s", op.Name(), op, old, res)
-				cg.printSCCs(sccs, op, "red")
+				cg.printSCCs(op, "red")
 				if !old.Equal(res) {
 					changed = true
 				}
@@ -634,21 +641,21 @@ func XXX(fn *ir.Function) {
 		// intersections that use them.
 		cg.fixIntersects(scc)
 
-		for v := range scc {
+		for _, v := range scc {
 			if cg.intervals[v].Undefined() {
 				cg.intervals[v] = infinity()
 			}
 		}
 
 		log.Println("Finished widening SCC")
-		for v := range scc {
+		for _, v := range scc {
 			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
 		}
 
 		changed = true
 		for changed {
 			changed = false
-			for op := range scc {
+			for _, op := range scc {
 				old := cg.intervals[op]
 				{
 					// This block is the meet narrowing operator. Narrowing is meant to replace infinites with smaller
@@ -679,7 +686,7 @@ func XXX(fn *ir.Function) {
 
 				res := cg.intervals[op]
 				// log.Printf("N: %s = %s: %s -> %s", op.Name(), op, old, res)
-				cg.printSCCs(sccs, op, "green")
+				cg.printSCCs(op, "green")
 				if !old.Equal(res) {
 					changed = true
 				}
@@ -691,23 +698,25 @@ func XXX(fn *ir.Function) {
 		}
 
 		log.Println("Finished narrowing SCC")
-		for v := range scc {
+		for _, v := range scc {
 			log.Printf("%s = %s ∈ %s", v.Name(), v, cg.intervals[v])
 		}
 
 		log.Println("---------------------------------------------------------")
 	}
 
-	cg.printSCCs(sccs, nil, "")
+	cg.printSCCs(nil, "")
 
-	// keys := SortedKeys(cg.intervals, func(a, b ir.Value) bool { return a.ID() < b.ID() })
-	// for _, v := range keys {
-	// 	ival := cg.intervals[v]
-	// 	fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
-	// }
+	if false {
+		keys := SortedKeys(cg.intervals, func(a, b ir.Value) bool { return a.ID() < b.ID() })
+		for _, v := range keys {
+			ival := cg.intervals[v]
+			fmt.Printf("%s$=$%s$∈$%s\n", v.Name(), v, ival)
+		}
+	}
 }
 
-func (cg *constraintGraph) fixIntersects(scc valueSet) {
+func (cg *constraintGraph) fixIntersects(scc []ir.Value) {
 	// OPT cache this compuation
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
 	for sigma, isec := range cg.intersections {
@@ -715,7 +724,7 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
 		}
 	}
-	for v := range scc {
+	for _, v := range scc {
 		ival := cg.intervals[v]
 		for _, sigma := range futuresUsedBy[v] {
 			sval := cg.intervals[sigma]
@@ -757,17 +766,16 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 	}
 }
 
-func (cg *constraintGraph) printSCCs(sccs []valueSet, activeOp ir.Value, color string) {
+func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 	// We first create subgraphs containing the nodes, then create edges between nodes. Graphviz creates a node the
 	// first time it sees it, so doing 'a -> b' in a subgraph would create 'b' in that subgraph, even if it belongs in a
 	// different one.
 	fmt.Println("digraph{")
 	n := 0
-	for _, scc := range sccs {
+	for _, scc := range cg.sccs {
 		n++
 		fmt.Printf("subgraph cluster_%d {\n", n)
-		nodes := SortedKeys(scc, func(a, b ir.Value) bool { return a.ID() < b.ID() })
-		for _, node := range nodes {
+		for _, node := range scc {
 			extra := ""
 			if node == activeOp {
 				extra = ", color=" + color
@@ -780,9 +788,8 @@ func (cg *constraintGraph) printSCCs(sccs []valueSet, activeOp ir.Value, color s
 		}
 		fmt.Println("}")
 	}
-	for _, scc := range sccs {
-		nodes := SortedKeys(scc, func(a, b ir.Value) bool { return a.ID() < b.ID() })
-		for _, node := range nodes {
+	for _, scc := range cg.sccs {
+		for _, node := range scc {
 			for _, ref_ := range *node.Referrers() {
 				ref, ok := ref_.(ir.Value)
 				if !ok {
@@ -804,7 +811,7 @@ func (cg *constraintGraph) printSCCs(sccs []valueSet, activeOp ir.Value, color s
 }
 
 // sccs returns the constraint graph's strongly connected components, in topological order.
-func (cg *constraintGraph) sccs() []valueSet {
+func (cg *constraintGraph) buildSCCs() [][]ir.Value {
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
 	for sigma, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
@@ -818,7 +825,7 @@ func (cg *constraintGraph) sccs() []valueSet {
 		lowlink uint64
 		onstack bool
 	}{}
-	var sccs []valueSet
+	var sccs [][]ir.Value
 
 	min := func(a, b uint64) uint64 {
 		if a < b {
@@ -893,17 +900,18 @@ func (cg *constraintGraph) sccs() []valueSet {
 		}
 
 		if vd.lowlink == vd.index {
-			scc := valueSet{}
+			var scc []ir.Value
 			for {
 				w := S[len(S)-1]
 				S = S[:len(S)-1]
 				data[w].onstack = false
-				scc[w] = struct{}{}
+				scc = append(scc, w)
 				if w == v {
 					break
 				}
 			}
 			if len(scc) > 0 {
+				sort.Slice(scc, func(i, j int) bool { return scc[i].ID() < scc[j].ID() })
 				sccs = append(sccs, scc)
 			}
 		}
