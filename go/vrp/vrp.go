@@ -19,11 +19,21 @@ package vrp
 // TODO: support more than one interval per value. For example, we should be able to represent the set {0, 10, 100}
 // without ending up with [0, 100].
 
+// XXX our use of big.Int does not match the original code's use of APInt. While the APInt type has arbitrary precision,
+// each instance of APInt has a fixed width, and computations can overflow. our current code doesn't handle overflow and
+// sometimes returns results that pretend that overflow cannot occur (e.g. by assuming that 'for x >= 0' for an unsigned
+// x can return false).
+//
+// The original code, however, doesn't seem ideal either. It uses a single bit width for all APInts, determined by the
+// largest integer in the code. It also conflates the minimum/maximum values with negative and positive infinity.
+// Weirder yet, the maximum value is that for signed values, which means an unsigned value could be bigger than that?
+
 import (
 	"fmt"
 	"go/constant"
 	"go/token"
 	"go/types"
+	"math"
 	"math/big"
 	"sort"
 
@@ -445,6 +455,80 @@ func isInteger(typ types.Type) bool {
 	return (basic.Info() & types.IsInteger) != 0
 }
 
+func minInt(typ types.Type) Numeric {
+	// OPT reuse variables for these constants
+
+	basic := typ.Underlying().(*types.Basic)
+	switch basic.Kind() {
+	case types.Int:
+		// XXX don't pretend that everything runs on 64 bit
+		return Number{big.NewInt(math.MinInt64)}
+	case types.Int8:
+		return Number{big.NewInt(math.MinInt8)}
+	case types.Int16:
+		return Number{big.NewInt(math.MinInt16)}
+	case types.Int32:
+		return Number{big.NewInt(math.MinInt32)}
+	case types.Int64:
+		return Number{big.NewInt(math.MinInt64)}
+	case types.Uint:
+		return Number{big.NewInt(0)}
+	case types.Uint8:
+		return Number{big.NewInt(0)}
+	case types.Uint16:
+		return Number{big.NewInt(0)}
+	case types.Uint32:
+		return Number{big.NewInt(0)}
+	case types.Uint64:
+		return Number{big.NewInt(0)}
+	case types.Uintptr:
+		return Number{big.NewInt(0)}
+	default:
+		panic(fmt.Sprintf("unhandled type %v", basic.Kind()))
+	}
+}
+
+func maxInt(typ types.Type) Numeric {
+	// OPT reuse variables for these constants
+
+	basic := typ.Underlying().(*types.Basic)
+	switch basic.Kind() {
+	case types.Int:
+		// XXX don't pretend that everything runs on 64 bit
+		return Number{big.NewInt(math.MaxInt64)}
+	case types.Int8:
+		return Number{big.NewInt(math.MaxInt8)}
+	case types.Int16:
+		return Number{big.NewInt(math.MaxInt16)}
+	case types.Int32:
+		return Number{big.NewInt(math.MaxInt32)}
+	case types.Int64:
+		return Number{big.NewInt(math.MaxInt64)}
+	case types.Uint:
+		// XXX don't pretend that everything runs on 64 bit
+		n := new(big.Int)
+		n.SetUint64(math.MaxUint64)
+		return Number{n}
+	case types.Uint8:
+		return Number{big.NewInt(math.MaxUint8)}
+	case types.Uint16:
+		return Number{big.NewInt(math.MaxUint16)}
+	case types.Uint32:
+		return Number{big.NewInt(math.MaxUint32)}
+	case types.Uint64:
+		n := new(big.Int)
+		n.SetUint64(math.MaxUint64)
+		return Number{n}
+	case types.Uintptr:
+		// XXX don't pretend that everything runs on 64 bit
+		n := new(big.Int)
+		n.SetUint64(math.MaxUint64)
+		return Number{n}
+	default:
+		panic(fmt.Sprintf("unhandled type %v", basic.Kind()))
+	}
+}
+
 func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 	cg := constraintGraph{
 		intersections: map[*ir.Sigma]Intersection{},
@@ -507,16 +591,16 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 								switch op {
 								case token.LSS:
 									// [-∞, k-1]
-									cg.intersections[v] = BasicIntersection{NewInterval(NegInf, Number{val.Sub(val, one)})}
+									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), Number{val.Sub(val, one)})}
 								case token.GTR:
 									// [k+1, ∞]
-									cg.intersections[v] = BasicIntersection{NewInterval(Number{val.Add(val, one)}, Inf)}
+									cg.intersections[v] = BasicIntersection{NewInterval(Number{val.Add(val, one)}, maxInt(variable.Type()))}
 								case token.LEQ:
 									// [-∞, k]
-									cg.intersections[v] = BasicIntersection{NewInterval(NegInf, Number{val})}
+									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), Number{val})}
 								case token.GEQ:
 									// [k, ∞]
-									cg.intersections[v] = BasicIntersection{NewInterval(Number{val}, Inf)}
+									cg.intersections[v] = BasicIntersection{NewInterval(Number{val}, maxInt(variable.Type()))}
 								case token.NEQ:
 									// We cannot represent this constraint
 									// [-∞, ∞]
@@ -1017,7 +1101,7 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 		return cg.intervals[v.X].Intersect(cg.intersections[v].Interval())
 
 	case *ir.Parameter:
-		return infinity()
+		return NewInterval(minInt(v.Type()), maxInt(v.Type()))
 
 	default:
 		panic(fmt.Sprintf("unhandled type %T", v))
