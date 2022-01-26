@@ -13,28 +13,25 @@ package vrp
 
 // OPT: constants have fixed intervals, they don't need widening or narrowing or fixpoints
 
-// XXX we need to handle overflow better. after 'if x > 0', x has range [1, ∞], and x + 1 has range [2, ∞] even though in
-// reality, it might have wrapped around to the smallest possible value.
-
 // TODO: support more than one interval per value. For example, we should be able to represent the set {0, 10, 100}
 // without ending up with [0, 100].
 
-// XXX our use of big.Int does not match the original code's use of APInt. While the APInt type has arbitrary precision,
-// each instance of APInt has a fixed width, and computations can overflow. our current code doesn't handle overflow and
-// sometimes returns results that pretend that overflow cannot occur (e.g. by assuming that 'for x >= 0' for an unsigned
-// x can return false).
+// Our handling of overflow is poor. We basically use saturated integers and when x <op> y overflows, it will be set to
+// -∞ or ∞, depending if it's the lower or upper bound of an interval. This means that an interval like [1, ∞] for a
+// signed integer really means that the value can be anywhere between its minimum and maximum value. For example, for a
+// int8, [1, ∞] really means [-128, 127]. The reason we use [1, ∞] and not [-128, 127] or [-∞, ∞] is that our intervals
+// encode growth in the lattice of intervals. In our case, the value only ever overflowed because the upper bound
+// overflowed. Note that it is possible for [-∞, -100] - 100 to result in [-∞, ∞], which makes sense in the lattice, but
+// doesn't really encode how the overflow happens at runtime.
 //
-// The original code, however, doesn't seem ideal either. It uses a single bit width for all APInts, determined by the
-// largest integer in the code. It also conflates the minimum/maximum values with negative and positive infinity.
-// Weirder yet, the maximum value is that for signed values, which means an unsigned value could be bigger than that?
+// Nevertheless, if we used more than one interval per variable we could encode tighter bounds. For example, [5, 127] +
+// 1 ought to be [6, 127] ∪ [-128, -128].
 
 import (
 	"fmt"
-	"go/constant"
 	"go/token"
 	"go/types"
 	"math"
-	"math/big"
 	"sort"
 
 	"honnef.co/go/tools/go/ir"
@@ -45,8 +42,6 @@ const debug = true
 var Inf Numeric = Infinity{}
 var NegInf Numeric = Infinity{negative: true}
 var Empty = NewInterval(Inf, NegInf)
-var One = Number{big.NewInt(1)}
-var MinusOne = Number{big.NewInt(-1)}
 
 func Keys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
@@ -65,137 +60,61 @@ func SortedKeys[K comparable, V any](m map[K]V, less func(a, b K) bool) []K {
 }
 
 type Numeric interface {
-	isNumeric()
 	Cmp(other Numeric) int
 	String() string
 	Negative() bool
-	Add(Numeric) Numeric
-	Sub(Numeric) Numeric
+	Add(Numeric) (Numeric, bool)
+	Sub(Numeric) (Numeric, bool)
+	Inc() (Numeric, bool)
+	Dec() (Numeric, bool)
 }
 
 type Infinity struct {
 	negative bool
 }
 
-type Number struct {
-	Number *big.Int
+func (v Infinity) Negative() bool { return v.negative }
+
+func (v Infinity) Cmp(other Numeric) int {
+	if other, ok := other.(Infinity); ok {
+		if v == other {
+			return 0
+		} else if v.negative {
+			return -1
+		} else {
+			return 1
+		}
+	} else {
+		if v.negative {
+			return -1
+		} else {
+			return 1
+		}
+	}
 }
 
-func (v Infinity) Negative() bool { return v.negative }
-func (v Number) Negative() bool   { return v.Number.Sign() == -1 }
+func (v Infinity) Add(other Numeric) (Numeric, bool) {
+	if v.negative {
+		panic("-∞ + y is not defined")
+	}
+	return v, false
+}
 
-func (v Infinity) Cmp(other Numeric) int { return Cmp(v, other) }
-func (v Number) Cmp(other Numeric) int   { return Cmp(v, other) }
+func (v Infinity) Sub(other Numeric) (Numeric, bool) {
+	if v.negative {
+		panic("-∞ - y is not defined")
+	}
+	return v, false
+}
 
-func (v Infinity) Add(other Numeric) Numeric { return Add(v, other) }
-func (v Number) Add(other Numeric) Numeric   { return Add(v, other) }
-
-func (v Infinity) Sub(other Numeric) Numeric { return Sub(v, other) }
-func (v Number) Sub(other Numeric) Numeric   { return Sub(v, other) }
+func (v Infinity) Inc() (Numeric, bool) { return v, false }
+func (v Infinity) Dec() (Numeric, bool) { return v, false }
 
 func (v Infinity) String() string {
 	if v.negative {
 		return "-∞"
 	} else {
 		return "∞"
-	}
-}
-
-func (v Number) String() string {
-	return v.Number.String()
-}
-
-func (Infinity) isNumeric() {}
-func (Number) isNumeric()   {}
-
-func Add(x, y Numeric) Numeric {
-	if x, ok := x.(Infinity); ok {
-		if x.negative {
-			panic("-∞ + y is not defined")
-		}
-		return x
-	}
-
-	if y, ok := y.(Infinity); ok {
-		// x + ∞ = ∞
-		// x - ∞ = -∞
-		return y
-	}
-
-	nx := x.(Number)
-	ny := y.(Number)
-
-	out := big.NewInt(0)
-	out = out.Add(nx.Number, ny.Number)
-	return Number{out}
-}
-
-func Sub(x, y Numeric) Numeric {
-	if x == NegInf {
-		panic("-inf - y is not defined")
-	}
-
-	// x - -inf = x + inf = inf
-	if y == NegInf {
-		return Inf
-	}
-
-	// x - inf = -inf
-	if y == Inf {
-		return NegInf
-	}
-
-	if x == Inf {
-		return Inf
-	}
-
-	nx := x.(Number)
-	ny := y.(Number)
-
-	out := big.NewInt(0)
-	out = out.Sub(nx.Number, ny.Number)
-	return Number{out}
-}
-
-func Cmp(x, y Numeric) int {
-	if x == y {
-		return 0
-	}
-	switch x := x.(type) {
-	case Infinity:
-		switch y := y.(type) {
-		case Infinity:
-			if x.negative == y.negative {
-				return 0
-			} else if x.negative {
-				return -1
-			} else {
-				return 1
-			}
-		case Number:
-			if x.negative {
-				return -1
-			} else {
-				return 1
-			}
-		default:
-			panic(fmt.Sprintf("unhandled type %T", x))
-		}
-	case Number:
-		switch y := y.(type) {
-		case Infinity:
-			if y.negative {
-				return 1
-			} else {
-				return -1
-			}
-		case Number:
-			return x.Number.Cmp(y.Number)
-		default:
-			panic(fmt.Sprintf("unhandled type %T", x))
-		}
-	default:
-		panic(fmt.Sprintf("unhandled type %T", x))
 	}
 }
 
@@ -221,6 +140,7 @@ func (ival Interval) Empty() bool {
 	return false
 }
 
+// XXX rename this method; it's not a traditional interval union, in which [1, 2] ∪ [4, 5] would be {1, 2, 4, 5}, not [1, 5]
 func (ival Interval) Union(oval Interval) Interval {
 	if ival.Empty() {
 		return oval
@@ -398,8 +318,6 @@ func negateToken(tok token.Token) token.Token {
 	}
 }
 
-var one = big.NewInt(1)
-
 type valueSet map[ir.Value]struct{}
 
 type constraintGraph struct {
@@ -462,27 +380,29 @@ func minInt(typ types.Type) Numeric {
 	switch basic.Kind() {
 	case types.Int:
 		// XXX don't pretend that everything runs on 64 bit
-		return Number{big.NewInt(math.MinInt64)}
+		return Int[int64]{math.MinInt64}
 	case types.Int8:
-		return Number{big.NewInt(math.MinInt8)}
+		return Int[int8]{math.MinInt8}
 	case types.Int16:
-		return Number{big.NewInt(math.MinInt16)}
+		return Int[int16]{math.MinInt16}
 	case types.Int32:
-		return Number{big.NewInt(math.MinInt32)}
+		return Int[int32]{math.MinInt32}
 	case types.Int64:
-		return Number{big.NewInt(math.MinInt64)}
+		return Int[int64]{math.MinInt64}
 	case types.Uint:
-		return Number{big.NewInt(0)}
+		// XXX don't pretend that everything runs on 64 bit
+		return Uint[uint64]{0}
 	case types.Uint8:
-		return Number{big.NewInt(0)}
+		return Uint[uint8]{0}
 	case types.Uint16:
-		return Number{big.NewInt(0)}
+		return Uint[uint16]{0}
 	case types.Uint32:
-		return Number{big.NewInt(0)}
+		return Uint[uint32]{0}
 	case types.Uint64:
-		return Number{big.NewInt(0)}
+		return Uint[uint64]{0}
 	case types.Uintptr:
-		return Number{big.NewInt(0)}
+		// XXX don't pretend that everything runs on 64 bit
+		return Uint[uint64]{0}
 	default:
 		panic(fmt.Sprintf("unhandled type %v", basic.Kind()))
 	}
@@ -495,35 +415,29 @@ func maxInt(typ types.Type) Numeric {
 	switch basic.Kind() {
 	case types.Int:
 		// XXX don't pretend that everything runs on 64 bit
-		return Number{big.NewInt(math.MaxInt64)}
+		return Int[int64]{math.MaxInt64}
 	case types.Int8:
-		return Number{big.NewInt(math.MaxInt8)}
+		return Int[int8]{math.MaxInt8}
 	case types.Int16:
-		return Number{big.NewInt(math.MaxInt16)}
+		return Int[int16]{math.MaxInt16}
 	case types.Int32:
-		return Number{big.NewInt(math.MaxInt32)}
+		return Int[int32]{math.MaxInt32}
 	case types.Int64:
-		return Number{big.NewInt(math.MaxInt64)}
+		return Int[int64]{math.MaxInt64}
 	case types.Uint:
 		// XXX don't pretend that everything runs on 64 bit
-		n := new(big.Int)
-		n.SetUint64(math.MaxUint64)
-		return Number{n}
+		return Uint[uint64]{math.MaxUint64}
 	case types.Uint8:
-		return Number{big.NewInt(math.MaxUint8)}
+		return Uint[uint8]{math.MaxUint8}
 	case types.Uint16:
-		return Number{big.NewInt(math.MaxUint16)}
+		return Uint[uint16]{math.MaxUint16}
 	case types.Uint32:
-		return Number{big.NewInt(math.MaxUint32)}
+		return Uint[uint32]{math.MaxUint32}
 	case types.Uint64:
-		n := new(big.Int)
-		n.SetUint64(math.MaxUint64)
-		return Number{n}
+		return Uint[uint64]{math.MaxUint64}
 	case types.Uintptr:
 		// XXX don't pretend that everything runs on 64 bit
-		n := new(big.Int)
-		n.SetUint64(math.MaxUint64)
-		return Number{n}
+		return Uint[uint64]{math.MaxUint64}
 	default:
 		panic(fmt.Sprintf("unhandled type %v", basic.Kind()))
 	}
@@ -587,27 +501,35 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 									// We're in the else branch
 									op = negateToken(op)
 								}
-								val := constantToBigInt(k.Value)
+								val := ConstToNumeric(k)
 								switch op {
 								case token.LSS:
 									// [-∞, k-1]
-									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), Number{val.Sub(val, one)})}
+									u, of := val.Dec()
+									if of {
+										u = Inf
+									}
+									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), u)}
 								case token.GTR:
 									// [k+1, ∞]
-									cg.intersections[v] = BasicIntersection{NewInterval(Number{val.Add(val, one)}, maxInt(variable.Type()))}
+									l, of := val.Inc()
+									if of {
+										l = NegInf
+									}
+									cg.intersections[v] = BasicIntersection{NewInterval(l, maxInt(variable.Type()))}
 								case token.LEQ:
 									// [-∞, k]
-									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), Number{val})}
+									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), val)}
 								case token.GEQ:
 									// [k, ∞]
-									cg.intersections[v] = BasicIntersection{NewInterval(Number{val}, maxInt(variable.Type()))}
+									cg.intersections[v] = BasicIntersection{NewInterval(val, maxInt(variable.Type()))}
 								case token.NEQ:
 									// We cannot represent this constraint
 									// [-∞, ∞]
 									cg.intersections[v] = BasicIntersection{infinity()}
 								case token.EQL:
 									// [k, k]
-									cg.intersections[v] = BasicIntersection{NewInterval(Number{val}, Number{val})}
+									cg.intersections[v] = BasicIntersection{NewInterval(val, val)}
 								default:
 									panic(fmt.Sprintf("unhandled token %s", op))
 								}
@@ -811,7 +733,11 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 			case token.LSS:
 				// XXX the branch isn't necessary, -∞ + 1 is still -∞
 				if ival.Upper != Inf {
-					newval = NewInterval(svall, ival.Upper.Add(MinusOne))
+					u, of := ival.Upper.Dec()
+					if of {
+						u = Inf
+					}
+					newval = NewInterval(svall, u)
 				} else {
 					newval = NewInterval(svall, ival.Upper)
 				}
@@ -820,7 +746,11 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 			case token.GTR:
 				// XXX the branch isn't necessary, -∞ + 1 is still -∞
 				if ival.Lower != NegInf {
-					newval = NewInterval(ival.Lower.Add(One), svalu)
+					l, of := ival.Lower.Inc()
+					if of {
+						l = NegInf
+					}
+					newval = NewInterval(l, svalu)
 				} else {
 					newval = NewInterval(ival.Lower, svalu)
 				}
@@ -1003,7 +933,8 @@ func (cg *constraintGraph) buildSCCs() []valueSet {
 func (cg *constraintGraph) eval(v ir.Value) Interval {
 	switch v := v.(type) {
 	case *ir.Const:
-		return NewInterval(constantToNumber(v.Value), constantToNumber(v.Value))
+		n := ConstToNumeric(v)
+		return NewInterval(n, n)
 
 	case *ir.BinOp:
 		xval := cg.intervals[v.X]
@@ -1023,18 +954,17 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 
 			l := NegInf
 			u := Inf
+			var of bool
 			if xl != NegInf && yl != NegInf {
-				l = xl.Add(yl)
-
-				if xl.Negative() == yl.Negative() && xl.Negative() != l.Negative() {
+				l, of = xl.Add(yl)
+				if of {
 					l = NegInf
 				}
 			}
 
 			if xu != Inf && yu != Inf {
-				u = xu.Add(yu)
-
-				if xu.Negative() == yu.Negative() && xu.Negative() != u.Negative() {
+				u, of = xu.Add(yu)
+				if of {
 					u = Inf
 				}
 			}
@@ -1055,13 +985,12 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 			yu := yval.Upper
 
 			var l, u Numeric
-
+			var of bool
 			if xl == NegInf || yu == Inf {
 				l = NegInf
 			} else {
-				l = xl.Sub(yu)
-
-				if xl.Negative() != yu.Negative() && yu.Negative() == l.Negative() {
+				l, of = xl.Sub(yu)
+				if of {
 					l = NegInf
 				}
 			}
@@ -1069,9 +998,8 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 			if xu == Inf || yl == NegInf {
 				u = Inf
 			} else {
-				u = xu.Sub(yl)
-
-				if xu.Negative() != yl.Negative() && yl.Negative() == u.Negative() {
+				u, of = xu.Sub(yl)
+				if of {
 					u = Inf
 				}
 			}
@@ -1106,21 +1034,4 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 	default:
 		panic(fmt.Sprintf("unhandled type %T", v))
 	}
-}
-
-func constantToNumber(v constant.Value) Number {
-	return Number{constantToBigInt(v)}
-}
-
-func constantToBigInt(v constant.Value) *big.Int {
-	val := big.NewInt(0)
-	switch v := constant.Val(v).(type) {
-	case int64:
-		val.SetInt64(v)
-	case *big.Int:
-		val.Set(v)
-	default:
-		panic(fmt.Sprintf("unexpected type %T", v))
-	}
-	return val
 }
