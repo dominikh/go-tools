@@ -1,10 +1,13 @@
 // Package vrp implements value range analysis on Go programs in SSI form.
 //
-// We implement the algorithm shown in the paper "Speed And Precision in Range Analysis" by Campos et al. Further resources discussing this algorithm are:
+// Our implementation is based on the algorithm shown in the paper "Speed And Precision in Range Analysis" by Campos et al. Further resources discussing this algorithm are:
 // - Scalable and precise range analysis on the interval lattice by Rodrigues
 // - A Fast and Low Overhead Technique to Secure Programs Against Integer Overflows by Rodrigues et al
 // - https://github.com/vhscampos/range-analysis
 // - https://www.youtube.com/watch?v=Vj-TI4Yjt10
+//
+// Note, however, that our implementation isn't a direct copy of theirs. In particular, our handling of overflow and
+// infinites is slightly different.
 //
 // TODO: document use of jump-set widening, possible use of rounds of abstract interpretation, what our lattice looks like, ...
 package vrp
@@ -67,6 +70,22 @@ type Numeric interface {
 	Sub(Numeric) (Numeric, bool)
 	Inc() (Numeric, bool)
 	Dec() (Numeric, bool)
+}
+
+func Min(a, b Numeric) Numeric {
+	if a.Cmp(b) == -1 {
+		return a
+	} else {
+		return b
+	}
+}
+
+func Max(a, b Numeric) Numeric {
+	if a.Cmp(b) == 1 {
+		return a
+	} else {
+		return b
+	}
 }
 
 type Infinity struct {
@@ -151,20 +170,7 @@ func (ival Interval) Union(oval Interval) Interval {
 	} else if oval.Undefined() {
 		return ival
 	} else {
-		var l, u Numeric
-		if ival.Lower.Cmp(oval.Lower) == -1 {
-			l = ival.Lower
-		} else {
-			l = oval.Lower
-		}
-
-		if ival.Upper.Cmp(oval.Upper) == 1 {
-			u = ival.Upper
-		} else {
-			u = oval.Upper
-		}
-
-		return NewInterval(l, u)
+		return NewInterval(Min(ival.Lower, oval.Lower), Max(ival.Upper, oval.Upper))
 	}
 }
 
@@ -179,20 +185,7 @@ func (ival Interval) Intersect(oval Interval) Interval {
 		return ival
 	}
 
-	var l, u Numeric
-	if ival.Lower.Cmp(oval.Lower) == 1 {
-		l = ival.Lower
-	} else {
-		l = oval.Lower
-	}
-
-	if ival.Upper.Cmp(oval.Upper) == -1 {
-		u = ival.Upper
-	} else {
-		u = oval.Upper
-	}
-
-	return NewInterval(l, u)
+	return NewInterval(Max(ival.Lower, oval.Lower), Min(ival.Upper, oval.Upper))
 }
 
 func (ival Interval) Equal(oval Interval) bool {
