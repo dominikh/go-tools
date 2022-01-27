@@ -189,10 +189,13 @@ func (ival Interval) Intersect(oval Interval) Interval {
 }
 
 func (ival Interval) Equal(oval Interval) bool {
-	return (ival.Lower == nil && oval.Lower == nil) || (ival.Lower != nil && oval.Lower != nil) &&
-		(ival.Upper == nil && oval.Upper == nil) || (ival.Upper != nil && oval.Upper != nil) &&
-		(ival.Lower.Cmp(oval.Lower) == 0) &&
-		(ival.Upper.Cmp(oval.Upper) == 0)
+	if ival.Empty() {
+		return oval.Empty()
+	} else if ival.Undefined() {
+		return oval.Undefined()
+	} else {
+		return ival.Lower.Cmp(oval.Lower) == 0 && ival.Upper.Cmp(oval.Upper) == 0
+	}
 }
 
 func (ival Interval) Undefined() bool {
@@ -205,6 +208,8 @@ func (ival Interval) Undefined() bool {
 func (ival Interval) String() string {
 	if ival.Undefined() {
 		return "[⊥, ⊥]"
+	} else if ival.Empty() {
+		return "∅"
 	} else {
 		l := ival.Lower.String()
 		u := ival.Upper.String()
