@@ -33,6 +33,10 @@ package vrp
 // TODO: track if constants came from literals or from named consts, to know if build tags could affect them. then
 // include that information in intervals derived from constants.
 
+// TODO: our analysis cannot deduce that for 'a := b + c; if b == 5 && c == 3 { _ = a}' the value of 'a' is 8. Instead
+// of only doing interval intersection for sigma nodes, can we instead reevaluate the source instruction with operands
+// replaced with their respective sigmas?
+
 import (
 	"fmt"
 	"go/token"
@@ -894,6 +898,34 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 				if of {
 					u = Inf
 				}
+			}
+
+			return NewInterval(l, u)
+
+		case token.MUL:
+			xval := cg.intervals[v.X]
+			yval := cg.intervals[v.Y]
+
+			if xval.Undefined() || yval.Undefined() {
+				return NewInterval(nil, nil)
+			}
+
+			x1 := xval.Lower
+			x2 := xval.Upper
+			y1 := yval.Lower
+			y2 := yval.Upper
+
+			var l, u *Int
+			n1, of1 := x1.Mul(y1)
+			n2, of2 := x1.Mul(y2)
+			n3, of3 := x2.Mul(y1)
+			n4, of4 := x2.Mul(y2)
+			if of1 || of2 || of3 || of4 {
+				l = NegInf
+				u = Inf
+			} else {
+				l = min(min(n1, n2), min(n3, n4))
+				u = max(max(n1, n2), max(n3, n4))
 			}
 
 			return NewInterval(l, u)

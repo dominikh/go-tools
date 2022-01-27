@@ -69,7 +69,7 @@ func (n *Int) Sub(o *Int) (*Int, bool) {
 	}
 
 	if n.width < 0 {
-		var max uint64 = 1<<n.width - 1
+		var max uint64 = 1<<(-n.width) - 1
 		r := uint64(n.v) - uint64(o.v)
 		of := r > uint64(n.v) || r > max
 		return &Int{v: int64(r), width: n.width}, of
@@ -78,6 +78,32 @@ func (n *Int) Sub(o *Int) (*Int, bool) {
 		var max int64 = 1<<(n.width-1) - 1
 		r := n.v - o.v
 		of := (r < n.v) != (o.v > 0) || r < min || r > max
+		return &Int{v: r, width: n.width}, of
+	}
+}
+
+func (n *Int) Mul(o *Int) (*Int, bool) {
+	if inf := n.inf * o.inf; inf != 0 {
+		return &Int{inf: inf}, false
+	}
+
+	if n.v == 0 {
+		return n, false
+	}
+	if o.v == 0 {
+		return o, false
+	}
+
+	if n.width < 0 {
+		var max uint64 = 1<<(-n.width) - 1
+		r := uint64(n.v) * uint64(o.v)
+		of := r/uint64(o.v) != uint64(n.v) || r > max
+		return &Int{v: int64(r), width: n.width}, of
+	} else {
+		var min int64 = -1 << (n.width - 1)
+		var max int64 = 1<<(n.width-1) - 1
+		r := n.v * o.v
+		of := (r < 0) != ((n.v < 0) != (o.v < 0)) || r/o.v != n.v || r < min || r > max
 		return &Int{v: r, width: n.width}, of
 	}
 }
