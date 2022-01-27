@@ -46,10 +46,6 @@ import (
 
 const debug = true
 
-var Inf Numeric = Infinity{}
-var NegInf Numeric = Infinity{negative: true}
-var Empty = NewInterval(Inf, NegInf)
-
 func Keys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
@@ -66,17 +62,7 @@ func SortedKeys[K comparable, V any](m map[K]V, less func(a, b K) bool) []K {
 	return keys
 }
 
-type Numeric interface {
-	Cmp(other Numeric) int
-	String() string
-	Negative() bool
-	Add(Numeric) (Numeric, bool)
-	Sub(Numeric) (Numeric, bool)
-	Inc() (Numeric, bool)
-	Dec() (Numeric, bool)
-}
-
-func Min(a, b Numeric) Numeric {
+func Min(a, b *Int) *Int {
 	if a.Cmp(b) == -1 {
 		return a
 	} else {
@@ -84,7 +70,7 @@ func Min(a, b Numeric) Numeric {
 	}
 }
 
-func Max(a, b Numeric) Numeric {
+func Max(a, b *Int) *Int {
 	if a.Cmp(b) == 1 {
 		return a
 	} else {
@@ -92,60 +78,11 @@ func Max(a, b Numeric) Numeric {
 	}
 }
 
-type Infinity struct {
-	negative bool
-}
-
-func (v Infinity) Negative() bool { return v.negative }
-
-func (v Infinity) Cmp(other Numeric) int {
-	if other, ok := other.(Infinity); ok {
-		if v == other {
-			return 0
-		} else if v.negative {
-			return -1
-		} else {
-			return 1
-		}
-	} else {
-		if v.negative {
-			return -1
-		} else {
-			return 1
-		}
-	}
-}
-
-func (v Infinity) Add(other Numeric) (Numeric, bool) {
-	if v.negative {
-		panic("-∞ + y is not defined")
-	}
-	return v, false
-}
-
-func (v Infinity) Sub(other Numeric) (Numeric, bool) {
-	if v.negative {
-		panic("-∞ - y is not defined")
-	}
-	return v, false
-}
-
-func (v Infinity) Inc() (Numeric, bool) { return v, false }
-func (v Infinity) Dec() (Numeric, bool) { return v, false }
-
-func (v Infinity) String() string {
-	if v.negative {
-		return "-∞"
-	} else {
-		return "∞"
-	}
-}
-
 type Interval struct {
-	Lower, Upper Numeric
+	Lower, Upper *Int
 }
 
-func NewInterval(l, u Numeric) Interval {
+func NewInterval(l, u *Int) Interval {
 	if l == nil && u != nil || l != nil && u == nil {
 		panic("inconsistent interval")
 	}
@@ -180,7 +117,7 @@ func (ival Interval) Union(oval Interval) Interval {
 
 func (ival Interval) Intersect(oval Interval) Interval {
 	if ival.Empty() || oval.Empty() {
-		return Empty
+		return Interval{Inf, NegInf}
 	}
 	if ival.Undefined() {
 		return oval
@@ -337,7 +274,7 @@ type constraintGraph struct {
 	sccs []valueSet
 }
 
-func min(a, b Numeric) Numeric {
+func min(a, b *Int) *Int {
 	if a == nil {
 		return b
 	}
@@ -352,7 +289,7 @@ func min(a, b Numeric) Numeric {
 	}
 }
 
-func max(a, b Numeric) Numeric {
+func max(a, b *Int) *Int {
 	if a == nil {
 		return b
 	}
@@ -375,73 +312,26 @@ func isInteger(typ types.Type) bool {
 	return (basic.Info() & types.IsInteger) != 0
 }
 
-func minInt(typ types.Type) Numeric {
-	// OPT reuse variables for these constants
-
+func minInt(typ types.Type) *Int {
 	basic := typ.Underlying().(*types.Basic)
-	switch basic.Kind() {
-	case types.Int:
-		// XXX don't pretend that everything runs on 64 bit
-		return Int[int64]{math.MinInt64}
-	case types.Int8:
-		return Int[int8]{math.MinInt8}
-	case types.Int16:
-		return Int[int16]{math.MinInt16}
-	case types.Int32:
-		return Int[int32]{math.MinInt32}
-	case types.Int64:
-		return Int[int64]{math.MinInt64}
-	case types.Uint:
-		// XXX don't pretend that everything runs on 64 bit
-		return Uint[uint64]{0}
-	case types.Uint8:
-		return Uint[uint8]{0}
-	case types.Uint16:
-		return Uint[uint16]{0}
-	case types.Uint32:
-		return Uint[uint32]{0}
-	case types.Uint64:
-		return Uint[uint64]{0}
-	case types.Uintptr:
-		// XXX don't pretend that everything runs on 64 bit
-		return Uint[uint64]{0}
-	default:
-		panic(fmt.Sprintf("unhandled type %v", basic.Kind()))
+	width := intWidth(basic)
+	if (basic.Info() & types.IsUnsigned) == 0 {
+		var min int64 = -1 << (width - 1)
+		return &Int{v: min, width: width}
+	} else {
+		return &Int{v: 0, width: -width}
 	}
 }
 
-func maxInt(typ types.Type) Numeric {
-	// OPT reuse variables for these constants
-
+func maxInt(typ types.Type) *Int {
 	basic := typ.Underlying().(*types.Basic)
-	switch basic.Kind() {
-	case types.Int:
-		// XXX don't pretend that everything runs on 64 bit
-		return Int[int64]{math.MaxInt64}
-	case types.Int8:
-		return Int[int8]{math.MaxInt8}
-	case types.Int16:
-		return Int[int16]{math.MaxInt16}
-	case types.Int32:
-		return Int[int32]{math.MaxInt32}
-	case types.Int64:
-		return Int[int64]{math.MaxInt64}
-	case types.Uint:
-		// XXX don't pretend that everything runs on 64 bit
-		return Uint[uint64]{math.MaxUint64}
-	case types.Uint8:
-		return Uint[uint8]{math.MaxUint8}
-	case types.Uint16:
-		return Uint[uint16]{math.MaxUint16}
-	case types.Uint32:
-		return Uint[uint32]{math.MaxUint32}
-	case types.Uint64:
-		return Uint[uint64]{math.MaxUint64}
-	case types.Uintptr:
-		// XXX don't pretend that everything runs on 64 bit
-		return Uint[uint64]{math.MaxUint64}
-	default:
-		panic(fmt.Sprintf("unhandled type %v", basic.Kind()))
+	width := intWidth(basic)
+	if (basic.Info() & types.IsUnsigned) == 0 {
+		var max int64 = 1<<(width-1) - 1
+		return &Int{v: max, width: width}
+	} else {
+		var max uint64 = 1<<width - 1
+		return &Int{v: int64(max), width: -width}
 	}
 }
 
@@ -932,21 +822,6 @@ func (cg *constraintGraph) buildSCCs() []valueSet {
 	return sccs
 }
 
-func upperMinusOne[T int8 | int16 | int32 | int64 | uint8 | uint16 | uint32 | uint64](cg *constraintGraph, v ir.Value) Interval {
-	val := cg.intervals[v]
-	if val.Undefined() {
-		return NewInterval(nil, nil)
-	} else if val.Empty() {
-		return NewInterval(Inf, NegInf)
-	} else {
-		u, of := val.Upper.Dec()
-		if of {
-			u = Inf
-		}
-		return NewInterval(NewInt[T](0), u)
-	}
-}
-
 func (cg *constraintGraph) eval(v ir.Value) Interval {
 	switch v := v.(type) {
 	case *ir.Const:
@@ -1001,7 +876,7 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 			yl := yval.Lower
 			yu := yval.Upper
 
-			var l, u Numeric
+			var l, u *Int
 			var of bool
 			if xl == NegInf || yu == Inf {
 				l = NegInf
@@ -1056,6 +931,22 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 
 		// TODO: handle builtin len/cap
 
+		upperMinusOne := func(cg *constraintGraph, v ir.Value) Interval {
+			val := cg.intervals[v]
+			if val.Undefined() {
+				return NewInterval(nil, nil)
+			} else if val.Empty() {
+				return NewInterval(Inf, NegInf)
+			} else {
+				u, of := val.Upper.Dec()
+				if of {
+					u = Inf
+				}
+				width := intWidth(v.Type())
+				return NewInterval(&Int{v: 0, width: width}, u)
+			}
+		}
+
 		switch irutil.CallName(v.Common()) {
 		case "bytes.Index", "bytes.IndexAny", "bytes.IndexByte",
 			"bytes.IndexFunc", "bytes.IndexRune", "bytes.LastIndex",
@@ -1065,63 +956,66 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 			"strings.LastIndexAny", "strings.LastIndexByte", "strings.LastIndexFunc":
 			// XXX don't pretend that everything uses 64 bit
 			// TODO: limit to the length of the string or slice
-			return NewInterval(Int[int64]{-1}, Int[int64]{math.MaxInt64})
+			return NewInterval(&Int{v: -1, width: 64}, &Int{v: math.MaxInt64, width: 64})
 		case "bytes.Compare", "strings.Compare":
 			// XXX don't pretend that everything uses 64 bit
 			// TODO: take string lengths into consideration
-			return NewInterval(Int[int64]{-1}, Int[int64]{1})
+			return NewInterval(&Int{v: -1, width: 64}, &Int{v: 1, width: 64})
 		case "bytes.Count", "strings.Count":
 			// XXX don't pretend that everything uses 64 bit
 			// TODO: limit to the length of the string or slice
-			return NewInterval(Int[int64]{-1}, Int[int64]{math.MaxInt64})
+			return NewInterval(&Int{v: -1, width: 64}, &Int{v: math.MaxInt64, width: 64})
 		case "(*bytes.Buffer).Cap", "(*bytes.Buffer).Len", "(*bytes.Reader).Len", "(*bytes.Reader).Size":
 			// XXX don't pretend that everything uses 64 bit
-			return NewInterval(Int[int64]{0}, Int[int64]{math.MaxInt64})
+			return NewInterval(&Int{v: 0, width: 64}, &Int{v: math.MaxInt64, width: 64})
 
 		case "math/rand.Int":
 			// XXX don't pretend that everything uses 64 bit
-			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
 		case "math/rand.Int31":
-			return NewInterval(Int[int32]{0}, Int[int32]{maxInt31})
+			return NewInterval(&Int{v: 0, width: 32}, &Int{v: maxInt31, width: 32})
 		case "math/rand.Int31n":
 			// XXX handle the case where n > 31 bits
-			return upperMinusOne[int32](cg, v.Call.Args[0])
+			return upperMinusOne(cg, v.Call.Args[0])
 		case "math/rand.Int63":
-			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
 		case "math/rand.Int63n":
 			// XXX handle the case where n > 63 bits
-			return upperMinusOne[int64](cg, v.Call.Args[0])
+			return upperMinusOne(cg, v.Call.Args[0])
 		case "math/rand.Intn":
 			// XXX handle the case where n > 31 bits
 			// XXX don't pretend that everything uses 64 bit
-			return upperMinusOne[int64](cg, v.Call.Args[0])
+			return upperMinusOne(cg, v.Call.Args[0])
 		case "math/rand.Uint32":
-			return NewInterval(Uint[uint32]{0}, Uint[uint32]{math.MaxUint32})
+			return NewInterval(&Int{v: 0, width: -32}, &Int{v: math.MaxUint32, width: -32})
 		case "math/rand.Uint64":
-			return NewInterval(Uint[uint64]{0}, Uint[uint64]{math.MaxUint64})
+			m := uint64(math.MaxUint64)
+			return NewInterval(&Int{v: 0, width: -64}, &Int{v: int64(m), width: -64})
 		case "(*math/rand.Rand).Int":
 			// XXX don't pretend that everything uses 64 bit
-			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
 		case "(*math/rand.Rand).Int31":
-			return NewInterval(Int[int32]{0}, Int[int32]{maxInt31})
+			return NewInterval(&Int{v: 0, width: 32}, &Int{v: maxInt31, width: 32})
 		case "(*math/rand.Rand).Int31n":
 			// XXX handle the case where n > 31 bits
-			return upperMinusOne[int32](cg, v.Call.Args[0])
+			return upperMinusOne(cg, v.Call.Args[0])
 		case "(*math/rand.Rand).Int63":
-			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
 		case "(*math/rand.Rand).Int63n":
 			// XXX handle the case where n > 63 bits
-			return upperMinusOne[int64](cg, v.Call.Args[0])
+			return upperMinusOne(cg, v.Call.Args[0])
 		case "(*math/rand.Rand).Intn":
 			// XXX don't pretend that everything uses 64 bit
-			return upperMinusOne[int64](cg, v.Call.Args[0])
+			return upperMinusOne(cg, v.Call.Args[0])
 		case "(*math/rand.Rand).Uint32":
-			return NewInterval(Uint[uint32]{0}, Uint[uint32]{math.MaxUint32})
+			return NewInterval(&Int{v: 0, width: -32}, &Int{v: math.MaxUint32, width: -32})
 		case "(*math/rand.Rand).Uint64":
-			return NewInterval(Uint[uint64]{0}, Uint[uint64]{math.MaxUint64})
+			m := uint64(math.MaxUint64)
+			return NewInterval(&Int{v: 0, width: -64}, &Int{v: int64(m), width: -64})
 		case "(*math/rand.Zipf).Uint64":
 			// TODO: we could track the creation of the Zipf instance, which determines the maximum value
-			return NewInterval(Uint[uint64]{0}, Uint[uint64]{math.MaxUint64})
+			m := uint64(math.MaxUint64)
+			return NewInterval(&Int{v: 0, width: -64}, &Int{v: int64(m), width: -64})
 		default:
 			return NewInterval(minInt(v.Type()), maxInt(v.Type()))
 		}
