@@ -30,6 +30,9 @@ package vrp
 // Nevertheless, if we used more than one interval per variable we could encode tighter bounds. For example, [5, 127] +
 // 1 ought to be [6, 127] ∪ [-128, -128].
 
+// TODO: track if constants came from literals or from named consts, to know if build tags could affect them. then
+// include that information in intervals derived from constants.
+
 import (
 	"fmt"
 	"go/token"
@@ -38,6 +41,7 @@ import (
 	"sort"
 
 	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/go/ir/irutil"
 )
 
 const debug = true
@@ -928,6 +932,21 @@ func (cg *constraintGraph) buildSCCs() []valueSet {
 	return sccs
 }
 
+func upperMinusOne[T int8 | int16 | int32 | int64 | uint8 | uint16 | uint32 | uint64](cg *constraintGraph, v ir.Value) Interval {
+	val := cg.intervals[v]
+	if val.Undefined() {
+		return NewInterval(nil, nil)
+	} else if val.Empty() {
+		return NewInterval(Inf, NegInf)
+	} else {
+		u, of := val.Upper.Dec()
+		if of {
+			u = Inf
+		}
+		return NewInterval(NewInt[T](0), u)
+	}
+}
+
 func (cg *constraintGraph) eval(v ir.Value) Interval {
 	switch v := v.(type) {
 	case *ir.Const:
@@ -1028,6 +1047,84 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 
 	case *ir.Parameter:
 		return NewInterval(minInt(v.Type()), maxInt(v.Type()))
+
+	case *ir.Call:
+		const minInt31 = -1 << 30
+		const minInt63 = -1 << 62
+		const maxInt31 = 1<<30 - 1
+		const maxInt63 = 1<<62 - 1
+
+		// TODO: handle builtin len/cap
+
+		switch irutil.CallName(v.Common()) {
+		case "bytes.Index", "bytes.IndexAny", "bytes.IndexByte",
+			"bytes.IndexFunc", "bytes.IndexRune", "bytes.LastIndex",
+			"bytes.LastIndexAny", "bytes.LastIndexByte", "bytes.LastIndexFunc",
+			"strings.Index", "strings.IndexAny", "strings.IndexByte",
+			"strings.IndexFunc", "strings.IndexRune", "strings.LastIndex",
+			"strings.LastIndexAny", "strings.LastIndexByte", "strings.LastIndexFunc":
+			// XXX don't pretend that everything uses 64 bit
+			// TODO: limit to the length of the string or slice
+			return NewInterval(Int[int64]{-1}, Int[int64]{math.MaxInt64})
+		case "bytes.Compare", "strings.Compare":
+			// XXX don't pretend that everything uses 64 bit
+			// TODO: take string lengths into consideration
+			return NewInterval(Int[int64]{-1}, Int[int64]{1})
+		case "bytes.Count", "strings.Count":
+			// XXX don't pretend that everything uses 64 bit
+			// TODO: limit to the length of the string or slice
+			return NewInterval(Int[int64]{-1}, Int[int64]{math.MaxInt64})
+		case "(*bytes.Buffer).Cap", "(*bytes.Buffer).Len", "(*bytes.Reader).Len", "(*bytes.Reader).Size":
+			// XXX don't pretend that everything uses 64 bit
+			return NewInterval(Int[int64]{0}, Int[int64]{math.MaxInt64})
+
+		case "math/rand.Int":
+			// XXX don't pretend that everything uses 64 bit
+			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+		case "math/rand.Int31":
+			return NewInterval(Int[int32]{0}, Int[int32]{maxInt31})
+		case "math/rand.Int31n":
+			// XXX handle the case where n > 31 bits
+			return upperMinusOne[int32](cg, v.Call.Args[0])
+		case "math/rand.Int63":
+			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+		case "math/rand.Int63n":
+			// XXX handle the case where n > 63 bits
+			return upperMinusOne[int64](cg, v.Call.Args[0])
+		case "math/rand.Intn":
+			// XXX handle the case where n > 31 bits
+			// XXX don't pretend that everything uses 64 bit
+			return upperMinusOne[int64](cg, v.Call.Args[0])
+		case "math/rand.Uint32":
+			return NewInterval(Uint[uint32]{0}, Uint[uint32]{math.MaxUint32})
+		case "math/rand.Uint64":
+			return NewInterval(Uint[uint64]{0}, Uint[uint64]{math.MaxUint64})
+		case "(*math/rand.Rand).Int":
+			// XXX don't pretend that everything uses 64 bit
+			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+		case "(*math/rand.Rand).Int31":
+			return NewInterval(Int[int32]{0}, Int[int32]{maxInt31})
+		case "(*math/rand.Rand).Int31n":
+			// XXX handle the case where n > 31 bits
+			return upperMinusOne[int32](cg, v.Call.Args[0])
+		case "(*math/rand.Rand).Int63":
+			return NewInterval(Int[int64]{0}, Int[int64]{maxInt63})
+		case "(*math/rand.Rand).Int63n":
+			// XXX handle the case where n > 63 bits
+			return upperMinusOne[int64](cg, v.Call.Args[0])
+		case "(*math/rand.Rand).Intn":
+			// XXX don't pretend that everything uses 64 bit
+			return upperMinusOne[int64](cg, v.Call.Args[0])
+		case "(*math/rand.Rand).Uint32":
+			return NewInterval(Uint[uint32]{0}, Uint[uint32]{math.MaxUint32})
+		case "(*math/rand.Rand).Uint64":
+			return NewInterval(Uint[uint64]{0}, Uint[uint64]{math.MaxUint64})
+		case "(*math/rand.Zipf).Uint64":
+			// TODO: we could track the creation of the Zipf instance, which determines the maximum value
+			return NewInterval(Uint[uint64]{0}, Uint[uint64]{math.MaxUint64})
+		default:
+			return NewInterval(minInt(v.Type()), maxInt(v.Type()))
+		}
 
 	default:
 		panic(fmt.Sprintf("unhandled type %T", v))

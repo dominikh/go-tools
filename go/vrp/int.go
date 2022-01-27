@@ -8,6 +8,29 @@ import (
 	"honnef.co/go/tools/go/ir"
 )
 
+func NewInt[T int8 | int16 | int32 | int64 | uint8 | uint16 | uint32 | uint64](n T) Numeric {
+	switch n := interface{}(n).(type) {
+	case int8:
+		return Int[int8]{n}
+	case int16:
+		return Int[int16]{n}
+	case int32:
+		return Int[int32]{n}
+	case int64:
+		return Int[int64]{n}
+	case uint8:
+		return Uint[uint8]{n}
+	case uint16:
+		return Uint[uint16]{n}
+	case uint32:
+		return Uint[uint32]{n}
+	case uint64:
+		return Uint[uint64]{n}
+	default:
+		panic("unreachable")
+	}
+}
+
 type Int[T int8 | int16 | int32 | int64] struct {
 	v T
 }
@@ -22,7 +45,7 @@ func (n Int[T]) Add(o Numeric) (Numeric, bool) {
 	case Int[T]:
 		r := n.v + o.v
 		of := (r > n.v) != (o.v > 0)
-		return Int[T]{v: r}, of
+		return Int[T]{r}, of
 	default:
 		panic(fmt.Sprintf("incompatible types %T and %T", n, o))
 	}
