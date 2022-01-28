@@ -50,6 +50,31 @@ func (b *BasicBlock) SigmaFor(v Value, pred *BasicBlock) *Sigma {
 	return nil
 }
 
+func unsigma(v Value) Value {
+	for {
+		s, ok := v.(*Sigma)
+		if !ok {
+			return v
+		}
+		v = s.X
+	}
+}
+
+// SigmaForRecursive returns the sigma node for v, or a sigma node of v, coming from pred.
+func (b *BasicBlock) SigmaForRecursive(v Value, pred *BasicBlock) *Sigma {
+	for _, instr := range b.Instrs {
+		sigma, ok := instr.(*Sigma)
+		if !ok {
+			// no more sigmas
+			return nil
+		}
+		if sigma.From == pred && unsigma(sigma.X) == v {
+			return sigma
+		}
+	}
+	return nil
+}
+
 // Parent returns the function that contains block b.
 func (b *BasicBlock) Parent() *Function { return b.parent }
 

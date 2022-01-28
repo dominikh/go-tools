@@ -33,16 +33,13 @@ package vrp
 // TODO: track if constants came from literals or from named consts, to know if build tags could affect them. then
 // include that information in intervals derived from constants.
 
-// TODO: our analysis cannot deduce that for 'a := b + c; if b == 5 && c == 3 { _ = a}' the value of 'a' is 8. Instead
-// of only doing interval intersection for sigma nodes, can we instead reevaluate the source instruction with operands
-// replaced with their respective sigmas?
-
 import (
 	"fmt"
 	"go/token"
 	"go/types"
 	"math"
 	"sort"
+	"strings"
 
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
@@ -64,22 +61,6 @@ func SortedKeys[K comparable, V any](m map[K]V, less func(a, b K) bool) []K {
 		return less(keys[i], keys[j])
 	})
 	return keys
-}
-
-func Min(a, b *Int) *Int {
-	if a.Cmp(b) == -1 {
-		return a
-	} else {
-		return b
-	}
-}
-
-func Max(a, b *Int) *Int {
-	if a.Cmp(b) == 1 {
-		return a
-	} else {
-		return b
-	}
 }
 
 type Interval struct {
@@ -115,7 +96,7 @@ func (ival Interval) Union(oval Interval) Interval {
 	} else if oval.Undefined() {
 		return ival
 	} else {
-		return NewInterval(Min(ival.Lower, oval.Lower), Max(ival.Upper, oval.Upper))
+		return NewInterval(min(ival.Lower, oval.Lower), max(ival.Upper, oval.Upper))
 	}
 }
 
@@ -130,7 +111,7 @@ func (ival Interval) Intersect(oval Interval) Interval {
 		return ival
 	}
 
-	return NewInterval(Max(ival.Lower, oval.Lower), Min(ival.Upper, oval.Upper))
+	return NewInterval(max(ival.Lower, oval.Lower), min(ival.Upper, oval.Upper))
 }
 
 func (ival Interval) Equal(oval Interval) bool {
@@ -263,6 +244,11 @@ func negateToken(tok token.Token) token.Token {
 
 type valueSet map[ir.Value]struct{}
 
+type TaggedIntersection struct {
+	Variable     ir.Value
+	Intersection Intersection
+}
+
 type constraintGraph struct {
 	// OPT: if we wrap ir.Value in a struct with some fields, then we only need one map, which reduces the number of
 	// lookups and the memory usage.
@@ -270,6 +256,9 @@ type constraintGraph struct {
 	// Map sigma nodes to their intersections. In SSI form, only sigma nodes will have intersections. Only conditionals
 	// cause intersections, and conditionals always cause the creation of sigma nodes for all relevant values.
 	intersections map[*ir.Sigma]Intersection
+	// Intersections that describe the range of a variable to a sigma using the variable in an operation
+	// XXX we can merge this with the intersections field
+	intersectionsFor map[*ir.Sigma][]TaggedIntersection
 	// The subset of fn's instructions that make up our constraint graph.
 	nodes valueSet
 	// Map instructions to computed intervals
@@ -341,12 +330,205 @@ func maxInt(typ types.Type) *Int {
 
 func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 	cg := constraintGraph{
-		intersections: map[*ir.Sigma]Intersection{},
-		nodes:         valueSet{},
-		intervals:     map[ir.Value]Interval{},
+		intersections:    map[*ir.Sigma]Intersection{},
+		intersectionsFor: map[*ir.Sigma][]TaggedIntersection{},
+		nodes:            valueSet{},
+		intervals:        map[ir.Value]Interval{},
 	}
 
 	for _, b := range fn.Blocks {
+		switch ctrl := b.Control().(type) {
+		case *ir.If:
+			if cond, ok := ctrl.Cond.(*ir.BinOp); ok {
+				lc, _ := cond.X.(*ir.Const)
+				rc, _ := cond.Y.(*ir.Const)
+
+				if lc != nil && rc != nil {
+					// Comparing two constants, which isn't interesting to us
+				} else if (lc != nil && rc == nil) || (lc == nil && rc != nil) {
+					// Comparing a variable with a constant
+					var x ir.Value
+					var k *ir.Const
+					var op token.Token
+					if lc != nil {
+						// constant on the left side
+						x = cond.Y
+						k = lc
+						op = flipToken(cond.Op)
+					} else {
+						// constant on the right side
+						x = cond.X
+						k = rc
+						op = cond.Op
+					}
+
+					makeIntersection := func(op token.Token, val *Int) Intersection {
+						switch op {
+						case token.LSS:
+							// [-∞, k-1]
+							u, of := val.Dec()
+							if of {
+								u = Inf
+							}
+							return BasicIntersection{NewInterval(minInt(x.Type()), u)}
+						case token.GTR:
+							// [k+1, ∞]
+							l, of := val.Inc()
+							if of {
+								l = NegInf
+							}
+							return BasicIntersection{NewInterval(l, maxInt(x.Type()))}
+						case token.LEQ:
+							// [-∞, k]
+							return BasicIntersection{NewInterval(minInt(x.Type()), val)}
+						case token.GEQ:
+							// [k, ∞]
+							return BasicIntersection{NewInterval(val, maxInt(x.Type()))}
+						case token.NEQ:
+							// We cannot represent this constraint
+							// [-∞, ∞]
+							return BasicIntersection{infinity()}
+						case token.EQL:
+							// [k, k]
+							return BasicIntersection{NewInterval(val, val)}
+						default:
+							panic(fmt.Sprintf("unhandled token %s", op))
+						}
+					}
+					// Associate learned information with sigma nodes for uses of x
+					for lv := x; ; {
+						refs := *lv.Referrers() // all uses of the variable whose value we just determined
+						for i, succ := range b.Succs {
+							for _, ref := range refs {
+								if ref, ok := ref.(ir.Value); ok {
+									if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the sigma for the use, or for a sigma of the use, recursively
+										val := ConstToNumeric(k)
+										var isec Intersection
+										if i == 0 {
+											isec = makeIntersection(op, val)
+										} else {
+											// We're in the else branch
+											isec = makeIntersection(negateToken(op), val)
+										}
+										cg.intersectionsFor[σ] = append(cg.intersectionsFor[σ], TaggedIntersection{lv, isec})
+										// log.Printf("%s = %s | %s = %s | %s ∈ %s", s.Name(), s, lv, rc, lv.Name(), isec) // attach information relevant to the original instruction to the sigma
+									}
+								}
+							}
+						}
+
+						// We didn't find a use for this variable, but if the variable is a sigma node, then there might be
+						// a use for the underlying variable. For example, in
+						// 	x := foo(a)
+						// 	if a > 5 {
+						// 		x1 := sigma(x)
+						// 		a1 := sigma(a)
+						// 		if a1 < 10 {
+						// 			x2 := sigma(x1)
+						// 			println(x2)
+						// 		}
+						// 	}
+						// when we learn that a1 < 10, we won't find a use of a1, but we'll find a use of 'a'.
+						if llv, ok := lv.(*ir.Sigma); ok {
+							lv = llv.X
+						} else {
+							break
+						}
+					}
+
+					// Associate learned information with sigma node for x
+					for i, succ := range b.Succs {
+						σ := succ.SigmaFor(x, b)
+						if σ == nil {
+							continue
+						}
+						val := ConstToNumeric(k)
+						var isec Intersection
+						if i == 0 {
+							isec = makeIntersection(op, val)
+						} else {
+							// We're in the else branch
+							isec = makeIntersection(negateToken(op), val)
+						}
+						cg.intersections[σ] = isec
+					}
+				} else if lc == nil && rc == nil {
+					// Comparing two variables
+					if cond.X == cond.Y {
+						// Comparing variable with itself, nothing to do
+					} else {
+						x, y := cond.X, cond.Y
+						op := cond.Op
+
+						makeIntersection := func(op token.Token, v ir.Value) Intersection {
+							switch op {
+							case token.LSS, token.GTR, token.LEQ, token.GEQ, token.EQL:
+								return SymbolicIntersection{op, v}
+							case token.NEQ:
+								// We cannot represent this constraint
+								return BasicIntersection{infinity()}
+							default:
+								panic(fmt.Sprintf("unhandled token %s", op))
+							}
+						}
+
+						// XXX this function is virtually identical to the code for comparisons with constants. factor it out
+						//
+						// Associate learned information with sigma nodes for uses of x and y
+						enrichUses := func(v ir.Value, op token.Token, ov ir.Value) {
+							for lv := v; ; {
+								refs := *lv.Referrers() // all uses of the variable whose value we just determined
+								for i, succ := range b.Succs {
+									for _, ref := range refs {
+										if ref, ok := ref.(ir.Value); ok {
+											if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the sigma for the use, or for a sigma of the use, recursively
+												var isec Intersection
+												if i == 0 {
+													isec = makeIntersection(op, ov)
+												} else {
+													// We're in the else branch
+													isec = makeIntersection(negateToken(op), ov)
+												}
+												cg.intersectionsFor[σ] = append(cg.intersectionsFor[σ], TaggedIntersection{lv, isec})
+											}
+										}
+									}
+								}
+
+								// We didn't find a use for this variable, but if the variable is a sigma node, then
+								// there might be a use for the underlying variable.
+								if llv, ok := lv.(*ir.Sigma); ok {
+									lv = llv.X
+								} else {
+									break
+								}
+							}
+						}
+						enrichUses(x, op, y)
+						enrichUses(y, flipToken(op), x)
+
+						// Associate learned information with sigma node for x
+						for i, succ := range b.Succs {
+							if i == 1 {
+								// We're in the else branch
+								op = negateToken(op)
+							}
+
+							σ1, σ2 := succ.SigmaFor(x, b), succ.SigmaFor(y, b)
+							if σ1 != nil {
+								cg.intersections[σ1] = makeIntersection(op, y)
+							}
+							if σ2 != nil {
+								cg.intersections[σ2] = makeIntersection(flipToken(op), x)
+							}
+						}
+					}
+				} else {
+					panic("unreachable")
+				}
+			}
+		}
+
 		for _, instr := range b.Instrs {
 			v, ok := instr.(ir.Value)
 			if !ok {
@@ -361,123 +543,6 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 			}
 
 			cg.nodes[v] = struct{}{}
-
-			if v, ok := v.(*ir.Sigma); ok {
-				cg.intersections[v] = BasicIntersection{interval: infinity()}
-				// OPT: we repeat many checks for all sigmas in a basic block, even though most information is the same
-				// for all sigmas, and the remaining information only matters for at most two sigmas. It might make
-				// sense to either cache most of the computation, or to map from control instruction to sigma node, not
-				// the other way around.
-				switch ctrl := v.From.Control().(type) {
-				case *ir.If:
-					cond, ok := ctrl.Cond.(*ir.BinOp)
-					if ok {
-						lc, _ := cond.X.(*ir.Const)
-						rc, _ := cond.Y.(*ir.Const)
-						if lc != nil && rc != nil {
-							// Comparing two constants, which isn't interesting to us
-						} else if (lc != nil && rc == nil) || (lc == nil && rc != nil) {
-							// Comparing a variable with a constant
-							var variable ir.Value
-							var k *ir.Const
-							var op token.Token
-							if lc != nil {
-								// constant on the left side
-								variable = cond.Y
-								k = lc
-								op = flipToken(cond.Op)
-							} else {
-								// constant on the right side
-								variable = cond.X
-								k = rc
-								op = cond.Op
-							}
-							if variable == v.X {
-								if v.From.Succs[1] == b {
-									// We're in the else branch
-									op = negateToken(op)
-								}
-								val := ConstToNumeric(k)
-								switch op {
-								case token.LSS:
-									// [-∞, k-1]
-									u, of := val.Dec()
-									if of {
-										u = Inf
-									}
-									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), u)}
-								case token.GTR:
-									// [k+1, ∞]
-									l, of := val.Inc()
-									if of {
-										l = NegInf
-									}
-									cg.intersections[v] = BasicIntersection{NewInterval(l, maxInt(variable.Type()))}
-								case token.LEQ:
-									// [-∞, k]
-									cg.intersections[v] = BasicIntersection{NewInterval(minInt(variable.Type()), val)}
-								case token.GEQ:
-									// [k, ∞]
-									cg.intersections[v] = BasicIntersection{NewInterval(val, maxInt(variable.Type()))}
-								case token.NEQ:
-									// We cannot represent this constraint
-									// [-∞, ∞]
-									cg.intersections[v] = BasicIntersection{infinity()}
-								case token.EQL:
-									// [k, k]
-									cg.intersections[v] = BasicIntersection{NewInterval(val, val)}
-								default:
-									panic(fmt.Sprintf("unhandled token %s", op))
-								}
-							} else {
-								// Conditional isn't about this variable
-							}
-						} else if lc == nil && rc == nil {
-							// Comparing two variables
-							if cond.X == cond.Y {
-								// Comparing variable with itself, nothing to do"
-							} else if cond.X != v.X && cond.Y != v.X {
-								// Conditional isn't about this variable
-							} else {
-								var variable ir.Value
-								var op token.Token
-								if cond.X == v.X {
-									// Our variable on the left side
-									variable = cond.Y
-									op = cond.Op
-								} else {
-									// Our variable on the right side
-									variable = cond.X
-									op = flipToken(cond.Op)
-								}
-
-								if v.From.Succs[1] == b {
-									// We're in the else branch
-									op = negateToken(op)
-								}
-
-								switch op {
-								case token.LSS, token.GTR, token.LEQ, token.GEQ, token.EQL:
-									cg.intersections[v] = SymbolicIntersection{op, variable}
-								case token.NEQ:
-									// We cannot represent this constraint
-									// [-∞, ∞]
-									cg.intersections[v] = BasicIntersection{infinity()}
-								default:
-									panic(fmt.Sprintf("unhandled token %s", op))
-								}
-							}
-						} else {
-							panic("unreachable")
-						}
-					} else {
-						// We don't know how to derive new information from the branch condition.
-					}
-				// case *ir.ConstantSwitch:
-				default:
-					panic(fmt.Sprintf("unhandled control %T", ctrl))
-				}
-			}
 		}
 	}
 
@@ -511,7 +576,7 @@ func (cg *constraintGraph) fixpoint(scc valueSet, color string, fn func(ir.Value
 
 func (cg *constraintGraph) widen(op ir.Value) {
 	old := cg.intervals[op]
-	new := cg.eval(op)
+	new := cg.eval(op, nil)
 
 	const simple = 0
 	const jumpset = 1
@@ -548,7 +613,7 @@ func (cg *constraintGraph) narrow(op ir.Value) {
 
 	// OPT: if the bounds aren't able to grow, then why are we doing any comparisons/assigning new
 	// intervals? Either we went from an infinity to a narrower bound, or nothing should've changed.
-	new := cg.eval(op)
+	new := cg.eval(op, nil)
 
 	if old.Lower == NegInf && new.Lower != NegInf {
 		cg.intervals[op] = NewInterval(new.Lower, old.Upper)
@@ -567,6 +632,7 @@ func (cg *constraintGraph) narrow(op ir.Value) {
 	}
 }
 
+// XXX rename this function
 func XXX(fn *ir.Function) {
 	cg := buildConstraintGraph(fn)
 	cg.printSCCs(nil, "")
@@ -602,7 +668,51 @@ func XXX(fn *ir.Function) {
 }
 
 func (cg *constraintGraph) fixIntersects(scc valueSet) {
-	// OPT cache this compuation
+	// XXX rename this function
+	doTheThing := func(ival Interval, σival Interval, symbIsec SymbolicIntersection) Interval {
+		σivall := σival.Lower
+		σivalu := σival.Upper
+		if σival.Undefined() {
+			σivall = NegInf
+			σivalu = Inf
+		}
+		var newval Interval
+		switch symbIsec.Op {
+		case token.EQL:
+			newval = ival
+		case token.LEQ:
+			newval = NewInterval(σivall, ival.Upper)
+		case token.LSS:
+			// XXX the branch isn't necessary, -∞ + 1 is still -∞
+			if ival.Upper != Inf {
+				u, of := ival.Upper.Dec()
+				if of {
+					u = Inf
+				}
+				newval = NewInterval(σivall, u)
+			} else {
+				newval = NewInterval(σivall, ival.Upper)
+			}
+		case token.GEQ:
+			newval = NewInterval(ival.Lower, σivalu)
+		case token.GTR:
+			// XXX the branch isn't necessary, -∞ + 1 is still -∞
+			if ival.Lower != NegInf {
+				l, of := ival.Lower.Inc()
+				if of {
+					l = NegInf
+				}
+				newval = NewInterval(l, σivalu)
+			} else {
+				newval = NewInterval(ival.Lower, σivalu)
+			}
+		default:
+			panic(fmt.Sprintf("unhandled token %s", symbIsec.Op))
+		}
+		return newval
+	}
+
+	// OPT cache this compuation. also, similar code exists in buildSCCs.
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
 	for sigma, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
@@ -611,49 +721,32 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 	}
 	for v := range scc {
 		ival := cg.intervals[v]
-		for _, sigma := range futuresUsedBy[v] {
-			sval := cg.intervals[sigma]
-			symb := cg.intersections[sigma].(SymbolicIntersection)
-			svall := sval.Lower
-			svalu := sval.Upper
-			if sval.Undefined() {
-				svall = NegInf
-				svalu = Inf
+		for _, σ := range futuresUsedBy[v] {
+			// XXX is there any point in σival? We'll end up with sigma ∩ ival, which gets evaluated at some point, so
+			// doing σival ∩ ival in this step seems pointless?
+			σival := cg.intervals[σ]
+			symbIsec := cg.intersections[σ].(SymbolicIntersection)
+			newval := doTheThing(ival, σival, symbIsec)
+			cg.intersections[σ] = BasicIntersection{interval: newval}
+		}
+	}
+
+	// XXX rename this variable
+	futuresUsedByOther := map[ir.Value][]*TaggedIntersection{}
+	for _, tsecs := range cg.intersectionsFor {
+		for i := range tsecs {
+			tsec := &tsecs[i]
+			if isec, ok := tsec.Intersection.(SymbolicIntersection); ok {
+				futuresUsedByOther[isec.Value] = append(futuresUsedByOther[isec.Value], tsec)
 			}
-			var newval Interval
-			switch symb.Op {
-			case token.EQL:
-				newval = ival
-			case token.LEQ:
-				newval = NewInterval(svall, ival.Upper)
-			case token.LSS:
-				// XXX the branch isn't necessary, -∞ + 1 is still -∞
-				if ival.Upper != Inf {
-					u, of := ival.Upper.Dec()
-					if of {
-						u = Inf
-					}
-					newval = NewInterval(svall, u)
-				} else {
-					newval = NewInterval(svall, ival.Upper)
-				}
-			case token.GEQ:
-				newval = NewInterval(ival.Lower, svalu)
-			case token.GTR:
-				// XXX the branch isn't necessary, -∞ + 1 is still -∞
-				if ival.Lower != NegInf {
-					l, of := ival.Lower.Inc()
-					if of {
-						l = NegInf
-					}
-					newval = NewInterval(l, svalu)
-				} else {
-					newval = NewInterval(ival.Lower, svalu)
-				}
-			default:
-				panic(fmt.Sprintf("unhandled token %s", symb.Op))
-			}
-			cg.intersections[sigma] = BasicIntersection{interval: newval}
+		}
+	}
+	for v := range scc {
+		ival := cg.intervals[v]
+		for _, tsec := range futuresUsedByOther[v] {
+			symbIsec := tsec.Intersection.(SymbolicIntersection)
+			newval := doTheThing(ival, Interval{}, symbIsec)
+			tsec.Intersection = BasicIntersection{interval: newval}
 		}
 	}
 }
@@ -677,7 +770,17 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 				extra = ", color=" + color
 			}
 			if sigma, ok := node.(*ir.Sigma); ok {
-				fmt.Printf("%s [label=\"%s = %s ∩ %s ∈ %s\"%s];\n", node.Name(), node.Name(), node, cg.intersections[sigma], cg.intervals[node], extra)
+				var ovs []string
+				for _, ov := range cg.intersectionsFor[sigma] {
+					ovs = append(ovs, fmt.Sprintf("%s ∩ %s", ov.Variable.Name(), ov.Intersection))
+				}
+				isec := cg.intersections[sigma]
+				if isec == nil {
+					isec = BasicIntersection{
+						interval: infinity(),
+					}
+				}
+				fmt.Printf("%s [label=\"%s = %s ∩ %s ← {%s} ∈ %s\"%s];\n", node.Name(), node.Name(), node, isec, strings.Join(ovs, ", "), cg.intervals[node], extra)
 			} else {
 				fmt.Printf("%s [label=\"%s = %s ∈ %s\"%s];\n", node.Name(), node.Name(), node, cg.intervals[node], extra)
 			}
@@ -700,6 +803,11 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 				if isec, ok := cg.intersections[node].(SymbolicIntersection); ok {
 					fmt.Printf("%s -> %s [style=dashed]\n", isec.Value.Name(), node.Name())
 				}
+				for _, tsec := range cg.intersectionsFor[node] {
+					if isec, ok := tsec.Intersection.(SymbolicIntersection); ok {
+						fmt.Printf("%s -> %s [style=dashed]\n", isec.Value.Name(), node.Name())
+					}
+				}
 			}
 		}
 	}
@@ -712,6 +820,13 @@ func (cg *constraintGraph) buildSCCs() []valueSet {
 	for sigma, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
 			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+		}
+	}
+	for sigma, isecs := range cg.intersectionsFor {
+		for _, isec := range isecs {
+			if isec, ok := isec.Intersection.(SymbolicIntersection); ok {
+				futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+			}
 		}
 	}
 	index := uint64(1)
@@ -826,15 +941,28 @@ func (cg *constraintGraph) buildSCCs() []valueSet {
 	return sccs
 }
 
-func (cg *constraintGraph) eval(v ir.Value) Interval {
+func (cg *constraintGraph) intervalFor(x ir.Value, overrides []TaggedIntersection) Interval {
+	ival := cg.intervals[x]
+	for _, ov := range overrides {
+		if ov.Variable == x {
+			ival = ival.Intersect(ov.Intersection.Interval())
+		}
+	}
+	return ival
+}
+
+func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Interval {
+	// XXX make use of overrides in all instructions, not just BinOp
+
 	switch v := v.(type) {
 	case *ir.Const:
 		n := ConstToNumeric(v)
 		return NewInterval(n, n)
 
 	case *ir.BinOp:
-		xval := cg.intervals[v.X]
-		yval := cg.intervals[v.Y]
+		xval := cg.intervalFor(v.X, overrides)
+		yval := cg.intervalFor(v.Y, overrides)
+		// log.Println(v, overrides)
 
 		if xval.Undefined() || yval.Undefined() {
 			return NewInterval(nil, nil)
@@ -950,9 +1078,24 @@ func (cg *constraintGraph) eval(v ir.Value) Interval {
 			return NewInterval(nil, nil)
 		}
 
-		return cg.intervals[v.X].Intersect(cg.intersections[v].Interval())
+		ival := cg.intervals[v.X]
+		var ovs []TaggedIntersection
+		ovs = append(ovs, overrides...)
+		ovs = append(ovs, cg.intersectionsFor[v]...)
+		if len(ovs) > 0 {
+			ival = cg.eval(v.X, ovs)
+		}
+
+		if isec, ok := cg.intersections[v]; ok {
+			return ival.Intersect(isec.Interval())
+		} else {
+			return ival
+		}
 
 	case *ir.Parameter:
+		return NewInterval(minInt(v.Type()), maxInt(v.Type()))
+
+	case *ir.Load:
 		return NewInterval(minInt(v.Type()), maxInt(v.Type()))
 
 	case *ir.Call:
