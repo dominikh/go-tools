@@ -122,15 +122,15 @@ import (
 
 const debug = true
 
-func Keys[K comparable, V any](m map[K]V) []K {
-	keys := make([]K, 0, len(m))
+func Keys(m map[ir.Value]struct{}) []ir.Value {
+	keys := make([]ir.Value, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
 	return keys
 }
 
-func SortedKeys[K comparable, V any](m map[K]V, less func(a, b K) bool) []K {
+func SortedKeys(m map[ir.Value]struct{}, less func(a, b ir.Value) bool) []ir.Value {
 	keys := Keys(m)
 	sort.Slice(keys, func(i, j int) bool {
 		return less(keys[i], keys[j])
