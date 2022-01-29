@@ -5,86 +5,60 @@
 //
 // Propagating new information to old instructions
 //
-// Consider the following two pieces of code:
+// Many implementations of VRP rely on an IR that is similar to eSSA, which renames variables that are being used in
+// conditionals, which allows associating information with them that holds for individual branches.
 //
-// 	if a == 5 && b == 6 {
-// 		c := a + b
-// 		println(c)
+// Consider the following piece of code:
+//
+// 	if x == 5 {
+// 		if y == 6 {
+// 			z := x + y
+// 			println(z)
+// 		}
 // 	}
 //
-// and
+// With eSSA-style renaming, it will translate to
 //
-// 	c := a + b
-// 	if a == 5 && b == 6 {
-// 		println(c)
+// 	if x == 5 {
+// 		x1 := σ(x)
+// 		if y == 6 {
+// 			y1 := σ(y)
+// 			z := x1 + y1
+// 			println(z)
+// 		}
 // 	}
 //
-// which compile to the following IRs:
+// We can then say that x1 ∈ [5, 5], y1 ∈ [6, 6], and z = x1 + y1 ∈ [11, 11].
 //
-// 	func fn(a int8, b int8):
-// 	b0: # entry
-// 	        t1 = Const <int8> {5}
-// 	        t2 = Const <int8> {6}
-// 	        t3 = Parameter <int8> {a}
-// 	        t4 = Parameter <int8> {b}
-// 	        t5 = BinOp <bool> {==} t3 t1
-// 	        If t5 → b3 b1
+// Now consider this slightly different example:
 //
-// 	b1: ← b0 b3 b2 # exit
-// 	        Return
+// 	z := x + y
+// 	if x == 5 {
+// 		if y == 6 {
+// 			println(z)
+// 		}
+// 	}
 //
-// 	b2: ← b3 # if.then
-// 	        t8 = Sigma <int8> [b3] t13
-// 	        t9 = Sigma <int8> [b3] t14
-// 	        t10 = BinOp <int8> {+} t8 t9
-// 	        t11 = Call <()> println t10
-// 	        Jump → b1
+// Because x and y aren't used further, and z isn't part of any conditionals, no renaming occurs and we cannot associate
+// any per-branch information with the variables. Furthermore, when we evaluate z = x + y, no information is known about
+// x and y, and z's bounds are [-∞, ∞].
 //
-// 	b3: ← b0 # cond.true
-// 	        t13 = Sigma <int8> [b0] t3
-// 	        t14 = Sigma <int8> [b0] t4
-// 	        t15 = BinOp <bool> {==} t14 t2
-// 	        If t15 → b2 b1
-// and
+// SSI, unlike eSSA, renames all variables that are used in branches, not just those that are part of conditionals. For
+// the first example, while the exact translation differs, the end result is the same: we associate information with x1 and
+// y1 and use these in the computation of z. However, for the second example, we end up with the following translation:
 //
-// 	func fn(a int8, b int8):
-// 	b0: # entry
-// 	        t1 = Const <int8> {5}
-// 	        t2 = Const <int8> {6}
-// 	        t3 = Parameter <int8> {a}
-// 	        t4 = Parameter <int8> {b}
-// 	        t5 = BinOp <int8> {+} t3 t4
-// 	        t6 = BinOp <bool> {==} t3 t1
-// 	        If t6 → b3 b1
+// 	z := x + y
+// 	if x == 5 {
+// 		z1 := σ(z)
+// 		if y == 6 {
+// 			z2 := σ(z1)
+// 			println(z2)
+// 		}
+// 	}
 //
-// 	b1: ← b0 b3 b2 # exit
-// 	        Return
-//
-// 	b2: ← b3 # if.then
-// 	        t9 = Sigma <int8> [b3] t13
-// 	        t10 = Call <()> println t9
-// 	        Jump → b1
-//
-// 	b3: ← b0 # cond.true
-// 	        t12 = Sigma <int8> [b0] t4
-// 	        t13 = Sigma <int8> [b0] t5
-// 	        t14 = BinOp <bool> {==} t12 t2
-// 	        If t14 → b2 b1
-//
-// In the first case, we can trivially associate information with the sigma nodes for 'a' and 'b', which are then used
-// by the addition. t8 is known to be 5 and t9 is known to be 6, which means that t8 + t9 is 11; information is flowing
-// from the definitions to the use.
-//
-// In the second example, we compute t3 + t4 before we know anything about arguments. However, we do know that inside
-// the branch, t3 and t4 are restricted to being 5 and 6 respectively. Since we have σ nodes for the result of the
-// addition, we can associate information with them. We associate the fact that for t13, t3 is known to be 5, and that
-// for t9, t4 is known to be 6. We can then reevaluate the addition operation, using the extra information for t3 and t4
-// that holds inside the branch.
-//
-// This demonstrates a crucial difference between eSSA and SSI. While eSSA only creates σ nodes for variables that are
-// used inside conditionals, SSI creates σ nodes for all variables whose uses are guarded by conditionals. In eSSA,
-// there would be no new nodes for the result of the addition and we wouldn't be able to sparsely associate information
-// with the result of the addition that only holds on some branches; in SSI we can.
+// We still have no σ nodes for x or y, but we do have nodes for z. This allows us to associate new information with z
+// in the branches. If we associate x ∈ [5, 5] with z1 and y ∈ [6, 6] with z2, then we can reevaluate x + y inside the
+// branches and end up with z1 ∈ [5, ∞] and z2 ∈ [11, 11].
 package vrp
 
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
