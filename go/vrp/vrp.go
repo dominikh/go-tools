@@ -2,6 +2,89 @@
 //
 // Our implementation uses an iterative fixpoint algorithm on an interval lattice, with jump-set widening, and futures
 // as presented in the paper "Speed And Precision in Range Analysis" by Campos et al.
+//
+// Propagating new information to old instructions
+//
+// Consider the following two pieces of code:
+//
+// 	if a == 5 && b == 6 {
+// 		c := a + b
+// 		println(c)
+// 	}
+//
+// and
+//
+// 	c := a + b
+// 	if a == 5 && b == 6 {
+// 		println(c)
+// 	}
+//
+// which compile to the following IRs:
+//
+// 	func fn(a int8, b int8):
+// 	b0: # entry
+// 	        t1 = Const <int8> {5}
+// 	        t2 = Const <int8> {6}
+// 	        t3 = Parameter <int8> {a}
+// 	        t4 = Parameter <int8> {b}
+// 	        t5 = BinOp <bool> {==} t3 t1
+// 	        If t5 → b3 b1
+//
+// 	b1: ← b0 b3 b2 # exit
+// 	        Return
+//
+// 	b2: ← b3 # if.then
+// 	        t8 = Sigma <int8> [b3] t13
+// 	        t9 = Sigma <int8> [b3] t14
+// 	        t10 = BinOp <int8> {+} t8 t9
+// 	        t11 = Call <()> println t10
+// 	        Jump → b1
+//
+// 	b3: ← b0 # cond.true
+// 	        t13 = Sigma <int8> [b0] t3
+// 	        t14 = Sigma <int8> [b0] t4
+// 	        t15 = BinOp <bool> {==} t14 t2
+// 	        If t15 → b2 b1
+// and
+//
+// 	func fn(a int8, b int8):
+// 	b0: # entry
+// 	        t1 = Const <int8> {5}
+// 	        t2 = Const <int8> {6}
+// 	        t3 = Parameter <int8> {a}
+// 	        t4 = Parameter <int8> {b}
+// 	        t5 = BinOp <int8> {+} t3 t4
+// 	        t6 = BinOp <bool> {==} t3 t1
+// 	        If t6 → b3 b1
+//
+// 	b1: ← b0 b3 b2 # exit
+// 	        Return
+//
+// 	b2: ← b3 # if.then
+// 	        t9 = Sigma <int8> [b3] t13
+// 	        t10 = Call <()> println t9
+// 	        Jump → b1
+//
+// 	b3: ← b0 # cond.true
+// 	        t12 = Sigma <int8> [b0] t4
+// 	        t13 = Sigma <int8> [b0] t5
+// 	        t14 = BinOp <bool> {==} t12 t2
+// 	        If t14 → b2 b1
+//
+// In the first case, we can trivially associate information with the sigma nodes for 'a' and 'b', which are then used
+// by the addition. t8 is known to be 5 and t9 is known to be 6, which means that t8 + t9 is 11; information is flowing
+// from the definitions to the use.
+//
+// In the second example, we compute t3 + t4 before we know anything about arguments. However, we do know that inside
+// the branch, t3 and t4 are restricted to being 5 and 6 respectively. Since we have σ nodes for the result of the
+// addition, we can associate information with them. We associate the fact that for t13, t3 is known to be 5, and that
+// for t9, t4 is known to be 6. We can then reevaluate the addition operation, using the extra information for t3 and t4
+// that holds inside the branch.
+//
+// This demonstrates a crucial difference between eSSA and SSI. While eSSA only creates σ nodes for variables that are
+// used inside conditionals, SSI creates σ nodes for all variables whose uses are guarded by conditionals. In eSSA,
+// there would be no new nodes for the result of the addition and we wouldn't be able to sparsely associate information
+// with the result of the addition that only holds on some branches; in SSI we can.
 package vrp
 
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
@@ -190,7 +273,6 @@ func (isec SymbolicIntersection) Interval() Interval {
 }
 
 func infinity() Interval {
-	// XXX should unsigned integers be [-inf, inf] or [0, inf]?
 	return NewInterval(NegInf, Inf)
 }
 
@@ -245,10 +327,10 @@ type constraintGraph struct {
 	// OPT: if we wrap ir.Value in a struct with some fields, then we only need one map, which reduces the number of
 	// lookups and the memory usage.
 
-	// Map sigma nodes to their intersections. In SSI form, only sigma nodes will have intersections. Only conditionals
-	// cause intersections, and conditionals always cause the creation of sigma nodes for all relevant values.
+	// Map σ nodes to their intersections. In SSI form, only σ nodes will have intersections. Only conditionals
+	// cause intersections, and conditionals always cause the creation of σ nodes for all relevant values.
 	intersections map[*ir.Sigma]Intersection
-	// Intersections that describe the range of a variable to a sigma using the variable in an operation
+	// Intersections that describe the range of a variable to a σ using the variable in an operation
 	// XXX we can merge this with the intersections field
 	intersectionsFor map[*ir.Sigma][]TaggedIntersection
 	// The subset of fn's instructions that make up our constraint graph.
@@ -335,7 +417,7 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 				for i, succ := range b.Succs {
 					for _, ref := range refs {
 						if ref, ok := ref.(ir.Value); ok {
-							if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the sigma for the use, or for a sigma of the use, recursively
+							if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the σ for the use, or for a σ of the use, recursively
 								var isec Intersection
 								if i == 0 {
 									isec = makeIntersection(op, val)
@@ -349,14 +431,14 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 					}
 				}
 
-				// We didn't find a use for this variable, but if the variable is a sigma node, then there might be
+				// We didn't find a use for this variable, but if the variable is a σ node, then there might be
 				// a use for the underlying variable. For example, in
 				// 	x := foo(a)
 				// 	if a > 5 {
-				// 		x1 := sigma(x)
-				// 		a1 := sigma(a)
+				// 		x1 := σ(x)
+				// 		a1 := σ(a)
 				// 		if a1 < 10 {
-				// 			x2 := sigma(x1)
+				// 			x2 := σ(x1)
 				// 			println(x2)
 				// 		}
 				// 	}
@@ -429,10 +511,10 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 						}
 					}
 
-					// Associate learned information with sigma nodes for uses of x
+					// Associate learned information with σ nodes for uses of x
 					enrichUses(x, op, ConstToNumeric(k), makeIntersection)
 
-					// Associate learned information with sigma node for x
+					// Associate learned information with σ node for x
 					for i, succ := range b.Succs {
 						σ := succ.SigmaFor(x, b)
 						if σ == nil {
@@ -469,11 +551,11 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 							}
 						}
 
-						// Associate learned information with sigma nodes for uses of x and y
+						// Associate learned information with σ nodes for uses of x and y
 						enrichUses(x, op, y, makeIntersection)
 						enrichUses(y, flipToken(op), x, makeIntersection)
 
-						// Associate learned information with sigma node for x
+						// Associate learned information with σ node for x
 						for i, succ := range b.Succs {
 							if i == 1 {
 								// We're in the else branch
@@ -606,7 +688,7 @@ func XXX(fn *ir.Function) {
 	// XXX the paper's code "propagates" values to dependent SCCs by evaluating their constraints once, so "that the
 	// next SCCs after component will have entry points to kick start the range analysis algorithm". intuitively, this
 	// sounds unnecessary, but I haven't looked into what "entry points" are or why we need them. "propagating" means
-	// evaluating all uses of the values in the finished SCC, and if they're sigma nodes, marking them as unresolved if
+	// evaluating all uses of the values in the finished SCC, and if they're σ nodes, marking them as unresolved if
 	// they're undefined. "entry points" are variables with ranges that aren't unknown. is this just an optimization?
 
 	for _, scc := range cg.sccs {
@@ -680,15 +762,15 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 
 	// OPT cache this compuation. also, similar code exists in buildSCCs.
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
-	for sigma, isec := range cg.intersections {
+	for σ, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
-			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], σ)
 		}
 	}
 	for v := range scc {
 		ival := cg.intervals[v]
 		for _, σ := range futuresUsedBy[v] {
-			// XXX is there any point in σival? We'll end up with sigma ∩ ival, which gets evaluated at some point, so
+			// XXX is there any point in σival? We'll end up with σ ∩ ival, which gets evaluated at some point, so
 			// doing σival ∩ ival in this step seems pointless?
 			σival := cg.intervals[σ]
 			symbIsec := cg.intersections[σ].(SymbolicIntersection)
@@ -735,12 +817,12 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 			if node == activeOp {
 				extra = ", color=" + color
 			}
-			if sigma, ok := node.(*ir.Sigma); ok {
+			if σ, ok := node.(*ir.Sigma); ok {
 				var ovs []string
-				for _, ov := range cg.intersectionsFor[sigma] {
+				for _, ov := range cg.intersectionsFor[σ] {
 					ovs = append(ovs, fmt.Sprintf("%s ∩ %s", ov.Variable.Name(), ov.Intersection))
 				}
-				isec := cg.intersections[sigma]
+				isec := cg.intersections[σ]
 				if isec == nil {
 					isec = BasicIntersection{
 						interval: infinity(),
@@ -783,15 +865,15 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 // sccs returns the constraint graph's strongly connected components, in topological order.
 func (cg *constraintGraph) buildSCCs() []valueSet {
 	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
-	for sigma, isec := range cg.intersections {
+	for σ, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
-			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], σ)
 		}
 	}
-	for sigma, isecs := range cg.intersectionsFor {
+	for σ, isecs := range cg.intersectionsFor {
 		for _, isec := range isecs {
 			if isec, ok := isec.Intersection.(SymbolicIntersection); ok {
-				futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], sigma)
+				futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], σ)
 			}
 		}
 	}
@@ -1037,8 +1119,8 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 
 	case *ir.Sigma:
 		if cg.intervals[v.X].Undefined() {
-			// If sigma gets evaluated before sigma.X we don't want to return the sigma's intersection, which might be
-			// [-∞, ∞] and saturate all instructions using the sigma.
+			// If σ gets evaluated before σ.X we don't want to return the σ's intersection, which might be
+			// [-∞, ∞] and saturate all instructions using the σ.
 			//
 			// XXX can we do this without losing precision?
 			return NewInterval(nil, nil)
