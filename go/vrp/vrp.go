@@ -1,15 +1,7 @@
 // Package vrp implements value range analysis on Go programs in SSI form.
 //
-// Our implementation is based on the algorithm shown in the paper "Speed And Precision in Range Analysis" by Campos et al. Further resources discussing this algorithm are:
-// - Scalable and precise range analysis on the interval lattice by Rodrigues
-// - A Fast and Low Overhead Technique to Secure Programs Against Integer Overflows by Rodrigues et al
-// - https://github.com/vhscampos/range-analysis
-// - https://www.youtube.com/watch?v=Vj-TI4Yjt10
-//
-// Note, however, that our implementation isn't a direct copy of theirs. In particular, our handling of overflow and
-// infinites is slightly different.
-//
-// TODO: document use of jump-set widening, possible use of rounds of abstract interpretation, what our lattice looks like, ...
+// Our implementation uses an iterative fixpoint algorithm on an interval lattice, with jump-set widening, and futures
+// as presented in the paper "Speed And Precision in Range Analysis" by Campos et al.
 package vrp
 
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
@@ -337,6 +329,46 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 	}
 
 	for _, b := range fn.Blocks {
+		enrichUses := func(v ir.Value, op token.Token, val interface{}, makeIntersection func(op token.Token, val interface{}) Intersection) {
+			for lv := v; ; {
+				refs := *lv.Referrers() // all uses of the variable whose value we just determined
+				for i, succ := range b.Succs {
+					for _, ref := range refs {
+						if ref, ok := ref.(ir.Value); ok {
+							if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the sigma for the use, or for a sigma of the use, recursively
+								var isec Intersection
+								if i == 0 {
+									isec = makeIntersection(op, val)
+								} else {
+									// We're in the else branch
+									isec = makeIntersection(negateToken(op), val)
+								}
+								cg.intersectionsFor[σ] = append(cg.intersectionsFor[σ], TaggedIntersection{lv, isec})
+							}
+						}
+					}
+				}
+
+				// We didn't find a use for this variable, but if the variable is a sigma node, then there might be
+				// a use for the underlying variable. For example, in
+				// 	x := foo(a)
+				// 	if a > 5 {
+				// 		x1 := sigma(x)
+				// 		a1 := sigma(a)
+				// 		if a1 < 10 {
+				// 			x2 := sigma(x1)
+				// 			println(x2)
+				// 		}
+				// 	}
+				// when we learn that a1 < 10, we won't find a use of a1, but we'll find a use of 'a'.
+				if llv, ok := lv.(*ir.Sigma); ok {
+					lv = llv.X
+				} else {
+					break
+				}
+			}
+		}
+
 		switch ctrl := b.Control().(type) {
 		case *ir.If:
 			if cond, ok := ctrl.Cond.(*ir.BinOp); ok {
@@ -362,7 +394,8 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 						op = cond.Op
 					}
 
-					makeIntersection := func(op token.Token, val *Int) Intersection {
+					makeIntersection := func(op token.Token, val_ interface{}) Intersection {
+						val := val_.(*Int)
 						switch op {
 						case token.LSS:
 							// [-∞, k-1]
@@ -395,46 +428,9 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 							panic(fmt.Sprintf("unhandled token %s", op))
 						}
 					}
-					// Associate learned information with sigma nodes for uses of x
-					for lv := x; ; {
-						refs := *lv.Referrers() // all uses of the variable whose value we just determined
-						for i, succ := range b.Succs {
-							for _, ref := range refs {
-								if ref, ok := ref.(ir.Value); ok {
-									if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the sigma for the use, or for a sigma of the use, recursively
-										val := ConstToNumeric(k)
-										var isec Intersection
-										if i == 0 {
-											isec = makeIntersection(op, val)
-										} else {
-											// We're in the else branch
-											isec = makeIntersection(negateToken(op), val)
-										}
-										cg.intersectionsFor[σ] = append(cg.intersectionsFor[σ], TaggedIntersection{lv, isec})
-										// log.Printf("%s = %s | %s = %s | %s ∈ %s", s.Name(), s, lv, rc, lv.Name(), isec) // attach information relevant to the original instruction to the sigma
-									}
-								}
-							}
-						}
 
-						// We didn't find a use for this variable, but if the variable is a sigma node, then there might be
-						// a use for the underlying variable. For example, in
-						// 	x := foo(a)
-						// 	if a > 5 {
-						// 		x1 := sigma(x)
-						// 		a1 := sigma(a)
-						// 		if a1 < 10 {
-						// 			x2 := sigma(x1)
-						// 			println(x2)
-						// 		}
-						// 	}
-						// when we learn that a1 < 10, we won't find a use of a1, but we'll find a use of 'a'.
-						if llv, ok := lv.(*ir.Sigma); ok {
-							lv = llv.X
-						} else {
-							break
-						}
-					}
+					// Associate learned information with sigma nodes for uses of x
+					enrichUses(x, op, ConstToNumeric(k), makeIntersection)
 
 					// Associate learned information with sigma node for x
 					for i, succ := range b.Succs {
@@ -460,7 +456,8 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 						x, y := cond.X, cond.Y
 						op := cond.Op
 
-						makeIntersection := func(op token.Token, v ir.Value) Intersection {
+						makeIntersection := func(op token.Token, v_ interface{}) Intersection {
+							v := v_.(ir.Value)
 							switch op {
 							case token.LSS, token.GTR, token.LEQ, token.GEQ, token.EQL:
 								return SymbolicIntersection{op, v}
@@ -472,40 +469,9 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 							}
 						}
 
-						// XXX this function is virtually identical to the code for comparisons with constants. factor it out
-						//
 						// Associate learned information with sigma nodes for uses of x and y
-						enrichUses := func(v ir.Value, op token.Token, ov ir.Value) {
-							for lv := v; ; {
-								refs := *lv.Referrers() // all uses of the variable whose value we just determined
-								for i, succ := range b.Succs {
-									for _, ref := range refs {
-										if ref, ok := ref.(ir.Value); ok {
-											if σ := succ.SigmaForRecursive(ref, b); σ != nil { // find the sigma for the use, or for a sigma of the use, recursively
-												var isec Intersection
-												if i == 0 {
-													isec = makeIntersection(op, ov)
-												} else {
-													// We're in the else branch
-													isec = makeIntersection(negateToken(op), ov)
-												}
-												cg.intersectionsFor[σ] = append(cg.intersectionsFor[σ], TaggedIntersection{lv, isec})
-											}
-										}
-									}
-								}
-
-								// We didn't find a use for this variable, but if the variable is a sigma node, then
-								// there might be a use for the underlying variable.
-								if llv, ok := lv.(*ir.Sigma); ok {
-									lv = llv.X
-								} else {
-									break
-								}
-							}
-						}
-						enrichUses(x, op, y)
-						enrichUses(y, flipToken(op), x)
+						enrichUses(x, op, y, makeIntersection)
+						enrichUses(y, flipToken(op), x, makeIntersection)
 
 						// Associate learned information with sigma node for x
 						for i, succ := range b.Succs {
