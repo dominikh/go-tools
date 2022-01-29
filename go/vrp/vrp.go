@@ -50,15 +50,16 @@
 // 	z := x + y
 // 	if x == 5 {
 // 		z1 := σ(z)
-// 		if y == 6 {
+// 		y1 := σ(y)
+// 		if y1 == 6 {
 // 			z2 := σ(z1)
 // 			println(z2)
 // 		}
 // 	}
 //
-// We still have no σ nodes for x or y, but we do have nodes for z. This allows us to associate new information with z
-// in the branches. If we associate x ∈ [5, 5] with z1 and y ∈ [6, 6] with z2, then we can reevaluate x + y inside the
-// branches and end up with z1 ∈ [5, ∞] and z2 ∈ [11, 11].
+// We still have no useful σ nodes for x or y, but we do have nodes for z. This allows us to associate new information
+// with z in the branches. If we associate x ∈ [5, 5] with z1 and y ∈ [6, 6] with z2, then we can reevaluate x + y
+// inside the branches and end up with z1 ∈ [5, ∞] and z2 ∈ [11, 11].
 package vrp
 
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
