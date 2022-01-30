@@ -397,6 +397,9 @@ func hasDirectReferrer(instr Instruction) bool {
 }
 
 func markLiveNodes(blocks []*BasicBlock, newPhis newPhiMap, newSigmas newSigmaMap) {
+	// Phis and sigmas may become dead due to optimization passes. We may also insert more nodes than strictly
+	// necessary, e.g. sigma nodes for constants, which will never be used.
+
 	// Phi and sigma nodes are considered live if a non-phi, non-sigma
 	// node uses them. Once we find a node that is live, we mark all
 	// of its operands as used, too.
@@ -742,6 +745,7 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 	// Compute defblocks, the set of blocks containing a
 	// definition of the alloc cell.
 	for _, instr := range *alloc.Referrers() {
+		// XXX the below comment no longer seems accurate
 		// Bail out if we discover the alloc is not liftable;
 		// the only operations permitted to use the alloc are
 		// loads/stores into the cell, and DebugRef.
@@ -964,21 +968,19 @@ func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSig
 
 		case *Load:
 			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
-				// In theory, we wouldn't be able to replace loads
-				// directly, because a loaded value could be used in
-				// different branches, in which case it should be
-				// replaced with different sigma nodes. But we can't
-				// simply defer replacement, either, because then
-				// later stores might incorrectly affect this load.
+				// In theory, we wouldn't be able to replace loads directly, because a loaded value could be used in
+				// different branches, in which case it should be replaced with different sigma nodes. But we can't
+				// simply defer replacement, either, because then later stores might incorrectly affect this load.
 				//
-				// To avoid doing renaming on _all_ values (instead of
-				// just loads and stores like we're doing), we make
-				// sure during code generation that each load is only
-				// used in one block. For example, in constant switch
-				// statements, where the tag is only evaluated once,
-				// we store it in a temporary and load it for each
-				// comparison, so that we have individual loads to
-				// replace.
+				// To avoid doing renaming on _all_ values (instead of just loads and stores like we're doing), we make
+				// sure during code generation that each load is only used in one block. For example, in constant switch
+				// statements, where the tag is only evaluated once, we store it in a temporary and load it for each
+				// comparison, so that we have individual loads to replace.
+				//
+				// Because we only rename stores and loads, the end result will not contain sigma nodes for all
+				// constants. Some constants may be used directly, e.g. in comparisons such as 'x == 5'. We may still
+				// end up inserting dead sigma nodes in branches, but these will never get used in renaming and will be
+				// cleaned up when we remove dead phis and sigmas.
 				newval := renamed(u.Parent(), renaming, alloc)
 				if debugLifting {
 					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
