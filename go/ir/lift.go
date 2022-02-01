@@ -43,6 +43,7 @@ package ir
 // Also see many other "TODO: opt" suggestions in the code.
 
 import (
+	"encoding/binary"
 	"fmt"
 	"go/types"
 	"os"
@@ -260,7 +261,7 @@ func lift(fn *Function) {
 		// Renaming.
 		rename(fn.Blocks[0], renaming, newPhis, newSigmas)
 
-		simplifyPhis(newPhis)
+		simplifyPhisAndSigmas(newPhis, newSigmas)
 
 		// Eliminate dead φ- and σ-nodes.
 		markLiveNodes(fn.Blocks, newPhis, newSigmas)
@@ -459,10 +460,21 @@ func markLiveSigma(sigma *Sigma) {
 	}
 }
 
-// simplifyPhis replaces trivial phis with non-phi alternatives. Phi
+// simplifyPhisAndSigmas removes duplicate phi and sigma nodes,
+// and replaces trivial phis with non-phi alternatives. Phi
 // nodes where all edges are identical, or consist of only the phi
 // itself and one other value, may be replaced with the value.
-func simplifyPhis(newPhis newPhiMap) {
+func simplifyPhisAndSigmas(newPhis newPhiMap, newSigmas newSigmaMap) {
+	// temporary numbering of values used in phis so that we can build map keys
+	var id ID
+	for _, npList := range newPhis {
+		for _, np := range npList {
+			for _, edge := range np.phi.Edges {
+				edge.setID(id)
+				id++
+			}
+		}
+	}
 	// find all phis that are trivial and can be replaced with a
 	// non-phi value. run until we reach a fixpoint, because replacing
 	// a phi may make other phis trivial.
@@ -471,7 +483,7 @@ func simplifyPhis(newPhis newPhiMap) {
 		for _, npList := range newPhis {
 			for _, np := range npList {
 				if np.phi.live {
-					// we're reusing 'live' to mean 'dead' in the context of simplifyPhis
+					// we're reusing 'live' to mean 'dead' in the context of simplifyPhisAndSigmas
 					continue
 				}
 				if r, ok := isUselessPhi(np.phi); ok {
@@ -484,11 +496,80 @@ func simplifyPhis(newPhis newPhiMap) {
 				}
 			}
 		}
+
+		// Replace duplicate sigma nodes with a single node. These nodes exist when multiple allocs get replaced with the
+		// same dominating store.
+		for _, sigmaList := range newSigmas {
+			primarySigmas := map[struct {
+				succ int
+				v    Value
+			}]*Sigma{}
+			for _, sigmas := range sigmaList {
+				for succ, sigma := range sigmas.sigmas {
+					if sigma == nil {
+						continue
+					}
+					if sigma.live {
+						// we're reusing 'live' to mean 'dead' in the context of simplifyPhisAndSigmas
+						continue
+					}
+					key := struct {
+						succ int
+						v    Value
+					}{succ, sigma.X}
+					if alt, ok := primarySigmas[key]; ok {
+						replaceAll(sigma, alt)
+						sigma.live = true
+						changed = true
+					} else {
+						primarySigmas[key] = sigma
+					}
+				}
+			}
+		}
+
+		// Replace duplicate phi nodes with a single node. As far as we know, these duplicate nodes only ever exist
+		// because of the previous sigma deduplication.
+		keyb := make([]byte, 0, 4*8)
+		for _, npList := range newPhis {
+			primaryPhis := map[string]*Phi{}
+			for _, np := range npList {
+				if np.phi.live {
+					continue
+				}
+				if n := len(np.phi.Edges) * 8; cap(keyb) >= n {
+					keyb = keyb[:n]
+				} else {
+					keyb = make([]byte, n, n*2)
+				}
+				for i, e := range np.phi.Edges {
+					binary.LittleEndian.PutUint64(keyb[i*8:i*8+8], uint64(e.ID()))
+				}
+				if alt, ok := primaryPhis[string(keyb)]; ok {
+					replaceAll(np.phi, alt)
+					np.phi.live = true
+					changed = true
+				} else {
+					primaryPhis[string(keyb)] = np.phi
+				}
+			}
+		}
+
 	}
 
 	for _, npList := range newPhis {
 		for _, np := range npList {
 			np.phi.live = false
+		}
+	}
+
+	for _, sigmaList := range newSigmas {
+		for _, sigmas := range sigmaList {
+			for _, sigma := range sigmas.sigmas {
+				if sigma != nil {
+					sigma.live = false
+				}
+			}
 		}
 	}
 }
