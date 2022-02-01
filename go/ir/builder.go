@@ -377,7 +377,7 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) lvalue {
 		}
 		v := &IndexAddr{
 			X:     x,
-			Index: emitConv(fn, b.expr(fn, e.Index), tInt, e.Index),
+			Index: b.expr(fn, e.Index),
 		}
 		v.setType(et)
 		return &address{addr: fn.emit(v, e), expr: e}
