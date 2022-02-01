@@ -984,6 +984,28 @@ func replaceAll(x, y Value) {
 	*pxrefs = nil // x is now unreferenced
 }
 
+func replace(instr Instruction, x, y Value) {
+	args := instr.Operands(nil)
+	matched := false
+	for _, arg := range args {
+		if *arg == x {
+			*arg = y
+			matched = true
+		}
+	}
+	if matched {
+		yrefs := y.Referrers()
+		if yrefs != nil {
+			*yrefs = append(*yrefs, instr)
+		}
+
+		xrefs := x.Referrers()
+		if xrefs != nil {
+			*xrefs = removeInstr(*xrefs, instr)
+		}
+	}
+}
+
 // renamed returns the value to which alloc is being renamed,
 // constructing it lazily if it's the implicit zero initialization.
 //
@@ -994,6 +1016,94 @@ func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 		renaming[alloc.index] = v
 	}
 	return v
+}
+
+func splitOnIndexing(fn *Function) {
+	// Zero is reserved for values that aren't used as indices. The corresponding value in the renaming mapping will be
+	// nil.
+	var numIndices ID = 1
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			if instr, ok := instr.(*IndexAddr); ok {
+				idx := instr.Index
+				if idx.ID() == 0 {
+					idx.setID(numIndices)
+					numIndices++
+				}
+			}
+		}
+	}
+
+	if numIndices > 1 {
+		renaming := make([]Value, numIndices)
+		splitOnIndexingBlock(fn.Blocks[0], renaming)
+	}
+}
+
+func splitOnIndexingBlock(u *BasicBlock, renaming []Value) {
+	var args []*Value
+	for i := 0; i < len(u.Instrs); i++ {
+		instr := u.Instrs[i]
+		if instr == nil {
+			continue
+		}
+		args = instr.Operands(args[:0])
+		for _, arg := range args {
+			if r := renaming[(*arg).ID()]; r != nil {
+				*arg = r
+				replace(instr, *arg, r)
+			}
+		}
+		if instr, ok := instr.(*IndexAddr); ok {
+			v := &Copy{
+				X:   instr.Index,
+				Why: instr,
+			}
+			refs := instr.Index.Referrers()
+			if refs != nil {
+				*refs = append(*refs, v)
+			}
+			v.setType(instr.Index.Type())
+			v.setSource(instr.Index.Source())
+			v.setBlock(u)
+			renaming[instr.Index.ID()] = v
+			u.Instrs = append(u.Instrs, nil)
+			copy(u.Instrs[i+2:], u.Instrs[i+1:])
+			u.Instrs[i+1] = v
+			i++ // skip over instruction we just inserted
+		}
+	}
+
+	for _, succ := range u.Succs {
+		for _, instr := range succ.Instrs {
+			switch instr := instr.(type) {
+			case *Sigma:
+				if r := renaming[instr.X.ID()]; r != nil {
+					replace(instr, instr.X, r)
+				}
+			case *Phi:
+				for _, edge := range instr.Edges {
+					if r := renaming[edge.ID()]; r != nil {
+						replace(instr, edge, r)
+					}
+				}
+			case nil:
+			case *DebugRef:
+			default:
+				break
+			}
+		}
+	}
+
+	if renaming[0] != nil {
+		panic("renaming[0] has been assigned to")
+	}
+
+	r := make([]Value, len(renaming))
+	for _, v := range u.dom.children {
+		copy(r, renaming)
+		splitOnIndexingBlock(v, r)
+	}
 }
 
 // rename implements the Cytron et al-based SSI renaming algorithm, a

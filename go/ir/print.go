@@ -154,6 +154,10 @@ func (v *Load) String() string {
 	return fmt.Sprintf("Load <%s> %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v))
 }
 
+func (v *Copy) String() string {
+	return fmt.Sprintf("Copy <%s> %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v))
+}
+
 func printConv(prefix string, v, x Value) string {
 	from := v.Parent().pkg()
 	return fmt.Sprintf("%s <%s> %s",

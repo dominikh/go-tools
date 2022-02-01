@@ -578,6 +578,9 @@ func (f *Function) finishBody() {
 	if f.Prog.mode&NaiveForm == 0 {
 		lift(f)
 	}
+	if f.Prog.mode&SplitAfterIndexing != 0 {
+		splitOnIndexing(f)
+	}
 
 	// emit constants after lifting, because lifting may produce new constants.
 	f.emitConsts()

@@ -610,6 +610,12 @@ type Sigma struct {
 	live bool // used during lifting
 }
 
+type Copy struct {
+	register
+	X   Value
+	Why Instruction
+}
+
 // The Phi instruction represents an SSA φ-node, which combines values
 // that differ across incoming control-flow edges and yields a new
 // value.  Within a block, all φ-nodes must appear before all non-φ, non-σ
@@ -1751,6 +1757,10 @@ func (v *SliceToArrayPointer) Operands(rands []*Value) []*Value {
 }
 
 func (s *DebugRef) Operands(rands []*Value) []*Value {
+	return append(rands, &s.X)
+}
+
+func (s *Copy) Operands(rands []*Value) []*Value {
 	return append(rands, &s.X)
 }
 
