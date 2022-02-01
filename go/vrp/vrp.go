@@ -60,6 +60,18 @@
 // We still have no useful σ nodes for x or y, but we do have nodes for z. This allows us to associate new information
 // with z in the branches. If we associate x ∈ [5, 5] with z1 and y ∈ [6, 6] with z2, then we can reevaluate x + y
 // inside the branches and end up with z1 ∈ [5, ∞] and z2 ∈ [11, 11].
+//
+// Note that this reevaluation is not recursive. For
+//
+// 	y := 2 * x
+// 	z := y + 1
+// 	if x == 5 {
+// 		z1 := σ(z)
+// 		println(z1)
+// 	}
+//
+// z1 will not have useful bounds, because z doesn't use x. This avoids reevaluating large parts of a function multiple
+// times, as well as having to deal with loops in the dataflow graph.
 package vrp
 
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
@@ -1019,9 +1031,6 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 			return NewInterval(l, u)
 
 		case token.SUB:
-			xval := cg.intervals[v.X]
-			yval := cg.intervals[v.Y]
-
 			if xval.Undefined() || yval.Undefined() {
 				return NewInterval(nil, nil)
 			}
@@ -1054,9 +1063,6 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 			return NewInterval(l, u)
 
 		case token.MUL:
-			xval := cg.intervals[v.X]
-			yval := cg.intervals[v.Y]
-
 			if xval.Undefined() || yval.Undefined() {
 				return NewInterval(nil, nil)
 			}
@@ -1097,7 +1103,7 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 			// If σ gets evaluated before σ.X we don't want to return the σ's intersection, which might be
 			// [-∞, ∞] and saturate all instructions using the σ.
 			//
-			// XXX can we do this without losing precision?
+			// XXX does doing this ever lose us precision?
 			return NewInterval(nil, nil)
 		}
 
