@@ -74,6 +74,9 @@
 // times, as well as having to deal with loops in the dataflow graph.
 package vrp
 
+// TODO do reevaluate recursively in _some_ cases. do it when there are no cycles, and do it in a way that doesn't
+// result in O(n²) - that is, don't reevaluate nodes whose inputs haven't changed.
+
 // XXX right now our results aren't stable and change depending on the order in which we iterate over maps. why?
 
 // OPT: constants have fixed intervals, they don't need widening or narrowing or fixpoints
@@ -1099,20 +1102,22 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 		return ret
 
 	case *ir.Sigma:
-		if cg.intervals[v.X].Undefined() {
+		var ovs []TaggedIntersection
+		ovs = append(ovs, overrides...)
+		ovs = append(ovs, cg.intersectionsFor[v]...)
+		var ival Interval
+		if len(ovs) > 0 {
+			ival = cg.eval(v.X, ovs)
+		} else {
+			ival = cg.intervals[v.X]
+		}
+
+		if ival.Undefined() {
 			// If σ gets evaluated before σ.X we don't want to return the σ's intersection, which might be
 			// [-∞, ∞] and saturate all instructions using the σ.
 			//
 			// XXX does doing this ever lose us precision?
 			return NewInterval(nil, nil)
-		}
-
-		ival := cg.intervals[v.X]
-		var ovs []TaggedIntersection
-		ovs = append(ovs, overrides...)
-		ovs = append(ovs, cg.intersectionsFor[v]...)
-		if len(ovs) > 0 {
-			ival = cg.eval(v.X, ovs)
 		}
 
 		if isec, ok := cg.intersections[v]; ok {
