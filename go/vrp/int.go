@@ -9,7 +9,7 @@ import (
 )
 
 type Int struct {
-	v     int64
+	n     int64
 	inf   int8 // -1 = -∞, 1 = ∞
 	width int8 // < 0 = unsigned, > 0 = signed
 }
@@ -32,16 +32,16 @@ func (n *Int) Add(o *Int) (*Int, bool) {
 	}
 
 	if n.width < 0 {
-		r := uint64(n.v) + uint64(o.v)
+		r := uint64(n.n) + uint64(o.n)
 		var max uint64 = 1<<(-n.width) - 1
-		of := r < uint64(n.v) || r > max
-		return &Int{v: int64(r), width: n.width}, of
+		of := r < uint64(n.n) || r > max
+		return &Int{n: int64(r), width: n.width}, of
 	} else {
 		var min int64 = -1 << (n.width - 1)
 		var max int64 = 1<<(n.width-1) - 1
-		r := n.v + o.v
-		of := (r > n.v) != (o.v > 0) || r < min || r > max
-		return &Int{v: r, width: n.width}, of
+		r := n.n + o.n
+		of := (r > n.n) != (o.n > 0) || r < min || r > max
+		return &Int{n: r, width: n.width}, of
 	}
 }
 
@@ -70,15 +70,15 @@ func (n *Int) Sub(o *Int) (*Int, bool) {
 
 	if n.width < 0 {
 		var max uint64 = 1<<(-n.width) - 1
-		r := uint64(n.v) - uint64(o.v)
-		of := r > uint64(n.v) || r > max
-		return &Int{v: int64(r), width: n.width}, of
+		r := uint64(n.n) - uint64(o.n)
+		of := r > uint64(n.n) || r > max
+		return &Int{n: int64(r), width: n.width}, of
 	} else {
 		var min int64 = -1 << (n.width - 1)
 		var max int64 = 1<<(n.width-1) - 1
-		r := n.v - o.v
-		of := (r < n.v) != (o.v > 0) || r < min || r > max
-		return &Int{v: r, width: n.width}, of
+		r := n.n - o.n
+		of := (r < n.n) != (o.n > 0) || r < min || r > max
+		return &Int{n: r, width: n.width}, of
 	}
 }
 
@@ -87,24 +87,24 @@ func (n *Int) Mul(o *Int) (*Int, bool) {
 		return &Int{inf: inf}, false
 	}
 
-	if n.v == 0 {
+	if n.n == 0 {
 		return n, false
 	}
-	if o.v == 0 {
+	if o.n == 0 {
 		return o, false
 	}
 
 	if n.width < 0 {
 		var max uint64 = 1<<(-n.width) - 1
-		r := uint64(n.v) * uint64(o.v)
-		of := r/uint64(o.v) != uint64(n.v) || r > max
-		return &Int{v: int64(r), width: n.width}, of
+		r := uint64(n.n) * uint64(o.n)
+		of := r/uint64(o.n) != uint64(n.n) || r > max
+		return &Int{n: int64(r), width: n.width}, of
 	} else {
 		var min int64 = -1 << (n.width - 1)
 		var max int64 = 1<<(n.width-1) - 1
-		r := n.v * o.v
-		of := (r < 0) != ((n.v < 0) != (o.v < 0)) || r/o.v != n.v || r < min || r > max
-		return &Int{v: r, width: n.width}, of
+		r := n.n * o.n
+		of := (r < 0) != ((n.n < 0) != (o.n < 0)) || r/o.n != n.n || r < min || r > max
+		return &Int{n: r, width: n.width}, of
 	}
 }
 
@@ -126,17 +126,17 @@ func (n *Int) Cmp(o *Int) int {
 	}
 
 	if n.width < 0 {
-		if uint64(n.v) > uint64(o.v) {
+		if uint64(n.n) > uint64(o.n) {
 			return 1
-		} else if n.v == o.v {
+		} else if n.n == o.n {
 			return 0
 		} else {
 			return -1
 		}
 	} else {
-		if n.v > o.v {
+		if n.n > o.n {
 			return 1
-		} else if n.v == o.v {
+		} else if n.n == o.n {
 			return 0
 		} else {
 			return -1
@@ -144,9 +144,9 @@ func (n *Int) Cmp(o *Int) int {
 	}
 }
 
-func (n *Int) Dec() (*Int, bool) { return n.Sub(&Int{v: 1, width: n.width}) }
-func (n *Int) Inc() (*Int, bool) { return n.Add(&Int{v: 1, width: n.width}) }
-func (n *Int) Negative() bool    { return n.width > 0 && n.v < 0 }
+func (n *Int) Dec() (*Int, bool) { return n.Sub(&Int{n: 1, width: n.width}) }
+func (n *Int) Inc() (*Int, bool) { return n.Add(&Int{n: 1, width: n.width}) }
+func (n *Int) Negative() bool    { return n.width > 0 && n.n < 0 }
 func (n *Int) Infinite() int     { return int(n.inf) }
 func (n *Int) String() string {
 	switch n.inf {
@@ -155,7 +155,7 @@ func (n *Int) String() string {
 	case 1:
 		return "∞"
 	case 0:
-		return fmt.Sprintf("%d", n.v)
+		return fmt.Sprintf("%d", n.n)
 	default:
 		panic("unreachable")
 	}
@@ -171,14 +171,14 @@ func ConstToNumeric(k *ir.Const) *Int {
 			panic("cannot represent constant")
 		}
 		width := int8(std.Sizeof(typ)) * 8
-		return &Int{v: n, width: width}
+		return &Int{n: n, width: width}
 	} else {
 		n, exact := constant.Uint64Val(constant.ToInt(k.Value))
 		if !exact {
 			panic("cannot represent constant")
 		}
 		width := int8(std.Sizeof(typ)) * 8
-		return &Int{v: int64(n), width: -width}
+		return &Int{n: int64(n), width: -width}
 	}
 }
 
@@ -186,4 +186,12 @@ func intWidth(typ types.Type) int8 {
 	// XXX don't assume 64 bit
 	std := types.StdSizes{WordSize: 8, MaxAlign: 1}
 	return int8(std.Sizeof(typ)) * 8
+}
+
+func NewInt(v uint64, typ types.Type) *Int {
+	width := intWidth(typ)
+	if (typ.Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+		width = -width
+	}
+	return &Int{n: int64(v), width: width}
 }

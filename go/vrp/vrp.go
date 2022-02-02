@@ -374,9 +374,9 @@ func minInt(typ types.Type) *Int {
 	width := intWidth(basic)
 	if (basic.Info() & types.IsUnsigned) == 0 {
 		var min int64 = -1 << (width - 1)
-		return &Int{v: min, width: width}
+		return &Int{n: min, width: width}
 	} else {
-		return &Int{v: 0, width: -width}
+		return &Int{n: 0, width: -width}
 	}
 }
 
@@ -385,16 +385,16 @@ func maxInt(typ types.Type) *Int {
 	width := intWidth(basic)
 	if (basic.Info() & types.IsUnsigned) == 0 {
 		var max int64 = 1<<(width-1) - 1
-		return &Int{v: max, width: width}
+		return &Int{n: max, width: width}
 	} else {
 		var max uint64 = 1<<width - 1
-		return &Int{v: int64(max), width: -width}
+		return &Int{n: int64(max), width: -width}
 	}
 }
 
 func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 	cg := constraintGraph{
-		intersections:    map[*ir.Sigma]Intersection{},
+		intersections:    map[ir.Value]Intersection{},
 		intersectionsFor: map[*ir.Sigma][]TaggedIntersection{},
 		nodes:            valueSet{},
 		intervals:        map[ir.Value]Interval{},
@@ -1152,7 +1152,7 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 					u = Inf
 				}
 				width := intWidth(v.Type())
-				return NewInterval(&Int{v: 0, width: width}, u)
+				return NewInterval(&Int{n: 0, width: width}, u)
 			}
 		}
 
@@ -1165,29 +1165,29 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 			"strings.LastIndexAny", "strings.LastIndexByte", "strings.LastIndexFunc":
 			// XXX don't pretend that everything uses 64 bit
 			// TODO: limit to the length of the string or slice
-			return NewInterval(&Int{v: -1, width: 64}, &Int{v: math.MaxInt64, width: 64})
+			return NewInterval(&Int{n: -1, width: 64}, &Int{n: math.MaxInt64, width: 64})
 		case "bytes.Compare", "strings.Compare":
 			// XXX don't pretend that everything uses 64 bit
 			// TODO: take string lengths into consideration
-			return NewInterval(&Int{v: -1, width: 64}, &Int{v: 1, width: 64})
+			return NewInterval(&Int{n: -1, width: 64}, &Int{n: 1, width: 64})
 		case "bytes.Count", "strings.Count":
 			// XXX don't pretend that everything uses 64 bit
 			// TODO: limit to the length of the string or slice
-			return NewInterval(&Int{v: -1, width: 64}, &Int{v: math.MaxInt64, width: 64})
+			return NewInterval(&Int{n: -1, width: 64}, &Int{n: math.MaxInt64, width: 64})
 		case "(*bytes.Buffer).Cap", "(*bytes.Buffer).Len", "(*bytes.Reader).Len", "(*bytes.Reader).Size":
 			// XXX don't pretend that everything uses 64 bit
-			return NewInterval(&Int{v: 0, width: 64}, &Int{v: math.MaxInt64, width: 64})
+			return NewInterval(&Int{n: 0, width: 64}, &Int{n: math.MaxInt64, width: 64})
 
 		case "math/rand.Int":
 			// XXX don't pretend that everything uses 64 bit
-			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
+			return NewInterval(&Int{n: 0, width: 64}, &Int{n: maxInt63, width: 64})
 		case "math/rand.Int31":
-			return NewInterval(&Int{v: 0, width: 32}, &Int{v: maxInt31, width: 32})
+			return NewInterval(&Int{n: 0, width: 32}, &Int{n: maxInt31, width: 32})
 		case "math/rand.Int31n":
 			// XXX handle the case where n > 31 bits
 			return upperMinusOne(cg, v.Call.Args[0])
 		case "math/rand.Int63":
-			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
+			return NewInterval(&Int{n: 0, width: 64}, &Int{n: maxInt63, width: 64})
 		case "math/rand.Int63n":
 			// XXX handle the case where n > 63 bits
 			return upperMinusOne(cg, v.Call.Args[0])
@@ -1196,20 +1196,20 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 			// XXX don't pretend that everything uses 64 bit
 			return upperMinusOne(cg, v.Call.Args[0])
 		case "math/rand.Uint32":
-			return NewInterval(&Int{v: 0, width: -32}, &Int{v: math.MaxUint32, width: -32})
+			return NewInterval(&Int{n: 0, width: -32}, &Int{n: math.MaxUint32, width: -32})
 		case "math/rand.Uint64":
 			m := uint64(math.MaxUint64)
-			return NewInterval(&Int{v: 0, width: -64}, &Int{v: int64(m), width: -64})
+			return NewInterval(&Int{n: 0, width: -64}, &Int{n: int64(m), width: -64})
 		case "(*math/rand.Rand).Int":
 			// XXX don't pretend that everything uses 64 bit
-			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
+			return NewInterval(&Int{n: 0, width: 64}, &Int{n: maxInt63, width: 64})
 		case "(*math/rand.Rand).Int31":
-			return NewInterval(&Int{v: 0, width: 32}, &Int{v: maxInt31, width: 32})
+			return NewInterval(&Int{n: 0, width: 32}, &Int{n: maxInt31, width: 32})
 		case "(*math/rand.Rand).Int31n":
 			// XXX handle the case where n > 31 bits
 			return upperMinusOne(cg, v.Call.Args[0])
 		case "(*math/rand.Rand).Int63":
-			return NewInterval(&Int{v: 0, width: 64}, &Int{v: maxInt63, width: 64})
+			return NewInterval(&Int{n: 0, width: 64}, &Int{n: maxInt63, width: 64})
 		case "(*math/rand.Rand).Int63n":
 			// XXX handle the case where n > 63 bits
 			return upperMinusOne(cg, v.Call.Args[0])
@@ -1217,14 +1217,14 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 			// XXX don't pretend that everything uses 64 bit
 			return upperMinusOne(cg, v.Call.Args[0])
 		case "(*math/rand.Rand).Uint32":
-			return NewInterval(&Int{v: 0, width: -32}, &Int{v: math.MaxUint32, width: -32})
+			return NewInterval(&Int{n: 0, width: -32}, &Int{n: math.MaxUint32, width: -32})
 		case "(*math/rand.Rand).Uint64":
 			m := uint64(math.MaxUint64)
-			return NewInterval(&Int{v: 0, width: -64}, &Int{v: int64(m), width: -64})
+			return NewInterval(&Int{n: 0, width: -64}, &Int{n: int64(m), width: -64})
 		case "(*math/rand.Zipf).Uint64":
 			// TODO: we could track the creation of the Zipf instance, which determines the maximum value
 			m := uint64(math.MaxUint64)
-			return NewInterval(&Int{v: 0, width: -64}, &Int{v: int64(m), width: -64})
+			return NewInterval(&Int{n: 0, width: -64}, &Int{n: int64(m), width: -64})
 		default:
 			return NewInterval(minInt(v.Type()), maxInt(v.Type()))
 		}
