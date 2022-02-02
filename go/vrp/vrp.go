@@ -1,11 +1,12 @@
 // Package vrp implements value range analysis on Go programs in SSI form.
 //
 // Our implementation uses an iterative fixpoint algorithm on an interval lattice, with jump-set widening, and futures
-// as presented in the paper "Speed And Precision in Range Analysis" by Campos et al.
+// as presented in the paper "Speed And Precision in Range Analysis" by Campos et al. It is a non-relational and sparse
+// analysis on SSI form.
 //
 // Propagating new information to old instructions
 //
-// Many implementations of VRP rely on an IR that is similar to eSSA, which renames variables that are being used in
+// Some implementations of VRP rely on an IR that is similar to eSSA, which renames variables that are being used in
 // conditionals, which allows associating information with them that holds for individual branches.
 //
 // Consider the following piece of code:
@@ -71,7 +72,8 @@
 // 	}
 //
 // z1 will not have useful bounds, because z doesn't use x. This avoids reevaluating large parts of a function multiple
-// times, as well as having to deal with loops in the dataflow graph.
+// times, as well as having to deal with loops in the dataflow graph. Reevaluating more instructions would have the same
+// effect as introducing more variables and is equivalent to making the analysis more dense.
 package vrp
 
 // TODO do reevaluate recursively in _some_ cases. do it when there are no cycles, and do it in a way that doesn't
@@ -649,24 +651,21 @@ func (cg *constraintGraph) narrow(op ir.Value) {
 
 	old := cg.intervals[op]
 
-	// OPT: if the bounds aren't able to grow, then why are we doing any comparisons/assigning new
-	// intervals? Either we went from an infinity to a narrower bound, or nothing should've changed.
+	// OPT: if the bounds aren't able to grow, then why are we doing any comparisons/assigning new intervals? Either we
+	// went from an infinity to a narrower bound, or nothing should've changed. if that is true, we don't even need to
+	// call eval if no bounds are infinite.
 	new := cg.eval(op, nil)
 
 	if old.Lower == NegInf && new.Lower != NegInf {
 		cg.intervals[op] = NewInterval(new.Lower, old.Upper)
-	} else {
-		if old.Lower.Cmp(new.Lower) == 1 {
-			cg.intervals[op] = NewInterval(new.Lower, old.Upper)
-		}
+	} else if old.Lower.Cmp(new.Lower) == 1 {
+		cg.intervals[op] = NewInterval(new.Lower, old.Upper)
 	}
 
 	if old.Upper == Inf && new.Upper != Inf {
 		cg.intervals[op] = NewInterval(old.Lower, new.Upper)
-	} else {
-		if old.Upper.Cmp(new.Upper) == -1 {
-			cg.intervals[op] = NewInterval(old.Lower, new.Upper)
-		}
+	} else if old.Upper.Cmp(new.Upper) == -1 {
+		cg.intervals[op] = NewInterval(old.Lower, new.Upper)
 	}
 }
 
