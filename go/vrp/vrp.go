@@ -319,9 +319,8 @@ type constraintGraph struct {
 	// OPT: if we wrap ir.Value in a struct with some fields, then we only need one map, which reduces the number of
 	// lookups and the memory usage.
 
-	// Map σ nodes to their intersections. In SSI form, only σ nodes will have intersections. Only conditionals
-	// cause intersections, and conditionals always cause the creation of σ nodes for all relevant values.
-	intersections map[*ir.Sigma]Intersection
+	// Map nodes to their intersections.
+	intersections map[ir.Value]Intersection
 	// Intersections that describe the range of a variable to a σ using the variable in an operation
 	// XXX we can merge this with the intersections field
 	intersectionsFor map[*ir.Sigma][]TaggedIntersection
@@ -583,6 +582,15 @@ func buildConstraintGraph(fn *ir.Function) *constraintGraph {
 			}
 
 			cg.nodes[v] = struct{}{}
+
+			if v, ok := v.(*ir.Copy); ok {
+				// Value was used to index into a slice or array, therefore it has to be >= 0 and < the length of the indexee.
+				if why, ok := v.Why.(*ir.IndexAddr); ok && why.Index == v.X {
+					// TODO the upper bound is the length of the slice
+					// XXX don't assume that everything is 64 bit
+					cg.intersections[v] = BasicIntersection{interval: NewInterval(NewInt(0, v.Type()), maxInt(types.Universe.Lookup("int64").Type()))}
+				}
+			}
 		}
 	}
 
@@ -750,7 +758,7 @@ func (cg *constraintGraph) fixIntersects(scc valueSet) {
 	}
 
 	// OPT cache this compuation. also, similar code exists in buildSCCs.
-	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
+	futuresUsedBy := map[ir.Value][]ir.Value{}
 	for σ, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
 			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], σ)
@@ -806,20 +814,20 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 			if node == activeOp {
 				extra = ", color=" + color
 			}
+			isec := cg.intersections[node]
+			if isec == nil {
+				isec = BasicIntersection{
+					interval: infinity(),
+				}
+			}
 			if σ, ok := node.(*ir.Sigma); ok {
 				var ovs []string
 				for _, ov := range cg.intersectionsFor[σ] {
 					ovs = append(ovs, fmt.Sprintf("%s ∩ %s", ov.Variable.Name(), ov.Intersection))
 				}
-				isec := cg.intersections[σ]
-				if isec == nil {
-					isec = BasicIntersection{
-						interval: infinity(),
-					}
-				}
 				fmt.Printf("%s [label=\"%s = %s ∩ %s ← {%s} ∈ %s\"%s];\n", node.Name(), node.Name(), node, isec, strings.Join(ovs, ", "), cg.intervals[node], extra)
 			} else {
-				fmt.Printf("%s [label=\"%s = %s ∈ %s\"%s];\n", node.Name(), node.Name(), node, cg.intervals[node], extra)
+				fmt.Printf("%s [label=\"%s = %s ∩ %s ∈ %s\"%s];\n", node.Name(), node.Name(), node, isec, cg.intervals[node], extra)
 			}
 		}
 		fmt.Println("}")
@@ -853,7 +861,7 @@ func (cg *constraintGraph) printSCCs(activeOp ir.Value, color string) {
 
 // sccs returns the constraint graph's strongly connected components, in topological order.
 func (cg *constraintGraph) buildSCCs() []valueSet {
-	futuresUsedBy := map[ir.Value][]*ir.Sigma{}
+	futuresUsedBy := map[ir.Value][]ir.Value{}
 	for σ, isec := range cg.intersections {
 		if isec, ok := isec.(SymbolicIntersection); ok {
 			futuresUsedBy[isec.Value] = append(futuresUsedBy[isec.Value], σ)
@@ -1130,6 +1138,17 @@ func (cg *constraintGraph) eval(v ir.Value, overrides []TaggedIntersection) Inte
 
 	case *ir.Load:
 		return NewInterval(minInt(v.Type()), maxInt(v.Type()))
+
+	case *ir.Copy:
+		ival := cg.intervals[v.X]
+		if ival.Undefined() {
+			return ival
+		}
+		isec, ok := cg.intersections[v]
+		if !ok {
+			return ival
+		}
+		return ival.Intersect(isec.Interval())
 
 	case *ir.Call:
 		const minInt31 = -1 << 30
