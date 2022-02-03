@@ -1033,19 +1033,6 @@ func copyValue(v Value, why Instruction, info CopyInfo) *Copy {
 	return c
 }
 
-func unwrap(v Value) Value {
-	for {
-		switch vv := v.(type) {
-		case *Sigma:
-			v = vv.X
-		case *Copy:
-			v = vv.X
-		default:
-			return v
-		}
-	}
-}
-
 func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 	renaming.Push()
 	defer renaming.Pop()
