@@ -1174,8 +1174,17 @@ func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 		case *Slice:
 			// Slicing tells us about some of the bounds
 			off := 0
-			rename(instr.X, instr, CopyInfoUnspecified, i)
-			off++
+			if instr.Low == nil && instr.High == nil && instr.Max == nil {
+				// If all indices are unspecified, then we can only learn something about instr.X if it might've been
+				// nil.
+				if !hasInfo(instr.X, CopyInfoNotNil) {
+					rename(instr.X, instr, CopyInfoUnspecified, i)
+					off++
+				}
+			} else {
+				rename(instr.X, instr, CopyInfoUnspecified, i)
+				off++
+			}
 			// We copy the indices even if we already know they are not negative, because we can associate numeric
 			// ranges with them.
 			if instr.Low != nil {
