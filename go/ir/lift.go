@@ -1028,9 +1028,6 @@ func copyValue(v Value, why Instruction, info CopyInfo) *Copy {
 	if refs := v.Referrers(); refs != nil {
 		*refs = append(*refs, c)
 	}
-	if refs := why.Referrers(); refs != nil {
-		*refs = append(*refs, c)
-	}
 	c.setType(v.Type())
 	c.setSource(v.Source())
 	return c
