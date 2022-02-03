@@ -610,10 +610,22 @@ type Sigma struct {
 	live bool // used during lifting
 }
 
+type CopyInfo uint64
+
+const (
+	CopyInfoUnspecified CopyInfo = 0
+	CopyInfoNotNil      CopyInfo = 1 << iota
+	CopyInfoNotZeroLength
+	CopyInfoNotNegative
+	CopyInfoSingleConcreteType
+	CopyInfoClosed
+)
+
 type Copy struct {
 	register
-	X   Value
-	Why Instruction
+	X    Value
+	Why  Instruction
+	Info CopyInfo
 }
 
 // The Phi instruction represents an SSA φ-node, which combines values

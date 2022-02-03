@@ -21,14 +21,14 @@ import (
 type BuilderMode uint
 
 const (
-	PrintPackages        BuilderMode = 1 << iota // Print package inventory to stdout
-	PrintFunctions                               // Print function IR code to stdout
-	PrintSource                                  // Print source code when printing function IR
-	LogSource                                    // Log source locations as IR builder progresses
-	SanityCheckFunctions                         // Perform sanity checking of function bodies
-	NaiveForm                                    // Build naïve IR form: don't replace local loads/stores with registers
-	GlobalDebug                                  // Enable debug info for all packages
-	SplitAfterIndexing                           // Split live range after value is used as slice/array index
+	PrintPackages            BuilderMode = 1 << iota // Print package inventory to stdout
+	PrintFunctions                                   // Print function IR code to stdout
+	PrintSource                                      // Print source code when printing function IR
+	LogSource                                        // Log source locations as IR builder progresses
+	SanityCheckFunctions                             // Perform sanity checking of function bodies
+	NaiveForm                                        // Build naïve IR form: don't replace local loads/stores with registers
+	GlobalDebug                                      // Enable debug info for all packages
+	SplitAfterNewInformation                         // Split live range after we learn something new about a value
 )
 
 const BuilderModeDoc = `Options controlling the IR builder.
@@ -66,7 +66,7 @@ func (m BuilderMode) String() string {
 	if m&NaiveForm != 0 {
 		buf.WriteByte('N')
 	}
-	if m&SplitAfterIndexing != 0 {
+	if m&SplitAfterNewInformation != 0 {
 		buf.WriteByte('I')
 	}
 	return buf.String()
@@ -92,7 +92,7 @@ func (m *BuilderMode) Set(s string) error {
 		case 'N':
 			mode |= NaiveForm
 		case 'I':
-			mode |= SplitAfterIndexing
+			mode |= SplitAfterNewInformation
 		default:
 			return fmt.Errorf("unknown BuilderMode option: %q", c)
 		}

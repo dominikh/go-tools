@@ -215,7 +215,6 @@ func lift(fn *Function) {
 					instr.index = -1
 					continue
 				}
-				index := -1
 				if numAllocs == 0 {
 					df = buildDomFrontier(fn)
 					rdf = buildPostDomFrontier(fn)
@@ -239,9 +238,8 @@ func lift(fn *Function) {
 					}
 				}
 				liftAlloc(closure, df, rdf, instr, newPhis, newSigmas)
-				index = numAllocs
+				instr.index = numAllocs
 				numAllocs++
-				instr.index = index
 			case *Defer:
 				usesDefer = true
 			case *RunDefers:
@@ -560,6 +558,9 @@ func simplifyPhisAndSigmas(newPhis newPhiMap, newSigmas newSigmaMap) {
 	for _, npList := range newPhis {
 		for _, np := range npList {
 			np.phi.live = false
+			for _, edge := range np.phi.Edges {
+				edge.setID(0)
+			}
 		}
 	}
 
@@ -1018,29 +1019,82 @@ func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 	return v
 }
 
-func splitOnIndexing(fn *Function) {
-	// Zero is reserved for values that aren't used as indices. The corresponding value in the renaming mapping will be
-	// nil.
-	var numIndices ID = 1
-	for _, b := range fn.Blocks {
-		for _, instr := range b.Instrs {
-			if instr, ok := instr.(*IndexAddr); ok {
-				idx := instr.Index
-				if idx.ID() == 0 {
-					idx.setID(numIndices)
-					numIndices++
-				}
-			}
-		}
+func copyValue(v Value, why Instruction, info CopyInfo) *Copy {
+	c := &Copy{
+		X:    v,
+		Why:  why,
+		Info: info,
 	}
+	if refs := v.Referrers(); refs != nil {
+		*refs = append(*refs, c)
+	}
+	if refs := why.Referrers(); refs != nil {
+		*refs = append(*refs, c)
+	}
+	c.setType(v.Type())
+	c.setSource(v.Source())
+	return c
+}
 
-	if numIndices > 1 {
-		renaming := make([]Value, numIndices)
-		splitOnIndexingBlock(fn.Blocks[0], renaming)
+func unwrap(v Value) Value {
+	for {
+		switch vv := v.(type) {
+		case *Sigma:
+			v = vv.X
+		case *Copy:
+			v = vv.X
+		default:
+			return v
+		}
 	}
 }
 
-func splitOnIndexingBlock(u *BasicBlock, renaming []Value) {
+func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
+	renaming.Push()
+	defer renaming.Pop()
+
+	rename := func(v Value, why Instruction, info CopyInfo, i int) {
+		c := copyValue(v, why, info)
+		c.setBlock(u)
+		renaming.Set(v, c)
+		u.Instrs = append(u.Instrs, nil)
+		copy(u.Instrs[i+2:], u.Instrs[i+1:])
+		u.Instrs[i+1] = c
+	}
+
+	replacement := func(v Value) (Value, bool) {
+		r, ok := renaming.Get(v)
+		if !ok {
+			return nil, false
+		}
+		for {
+			rr, ok := renaming.Get(r)
+			if !ok {
+				// Store replacement in the map so that future calls to replacement(v) don't have to go through the
+				// iterative process again.
+				renaming.Set(v, r)
+				return r, true
+			}
+			r = rr
+		}
+	}
+
+	var hasInfo func(v Value, info CopyInfo) bool
+	hasInfo = func(v Value, info CopyInfo) bool {
+		switch v := v.(type) {
+		case *Copy:
+			return (v.Info&info) == info || hasInfo(v.X, info)
+		case *FieldAddr, *IndexAddr, *TypeAssert, *MakeChan, *MakeMap, *MakeSlice, *Alloc:
+			return info == CopyInfoNotNil
+		case Member, *Builtin:
+			return info == CopyInfoNotNil
+		case *Sigma:
+			return hasInfo(v.X, info)
+		default:
+			return false
+		}
+	}
+
 	var args []*Value
 	for i := 0; i < len(u.Instrs); i++ {
 		instr := u.Instrs[i]
@@ -1049,60 +1103,116 @@ func splitOnIndexingBlock(u *BasicBlock, renaming []Value) {
 		}
 		args = instr.Operands(args[:0])
 		for _, arg := range args {
-			if r := renaming[(*arg).ID()]; r != nil {
+			if *arg == nil {
+				continue
+			}
+			if r, ok := replacement(*arg); ok {
 				*arg = r
 				replace(instr, *arg, r)
 			}
 		}
-		if instr, ok := instr.(*IndexAddr); ok {
-			v := &Copy{
-				X:   instr.Index,
-				Why: instr,
-			}
-			refs := instr.Index.Referrers()
-			if refs != nil {
-				*refs = append(*refs, v)
-			}
-			v.setType(instr.Index.Type())
-			v.setSource(instr.Index.Source())
-			v.setBlock(u)
-			renaming[instr.Index.ID()] = v
-			u.Instrs = append(u.Instrs, nil)
-			copy(u.Instrs[i+2:], u.Instrs[i+1:])
-			u.Instrs[i+1] = v
-			i++ // skip over instruction we just inserted
-		}
-	}
 
-	for _, succ := range u.Succs {
-		for _, instr := range succ.Instrs {
-			switch instr := instr.(type) {
-			case *Sigma:
-				if r := renaming[instr.X.ID()]; r != nil {
-					replace(instr, instr.X, r)
-				}
-			case *Phi:
-				for _, edge := range instr.Edges {
-					if r := renaming[edge.ID()]; r != nil {
-						replace(instr, edge, r)
+		// TODO write some bits on why we copy values instead of encoding the actual control flow and panics
+
+		switch instr := instr.(type) {
+		case *IndexAddr:
+			// Note that we rename instr.Index and instr.X even if they're already copies, because unique combinations
+			// of X and Index may lead to unique information.
+
+			// OPT we should rename both variables at once and avoid one memmove
+			rename(instr.Index, instr, CopyInfoNotNegative, i)
+			rename(instr.X, instr, CopyInfoNotNil, i)
+			i += 2 // skip over instructions we just inserted
+		case *FieldAddr:
+			if !hasInfo(instr.X, CopyInfoNotNil) {
+				rename(instr.X, instr, CopyInfoNotNil, i)
+				i++
+			}
+		case *TypeAssert:
+			// If we've already type asserted instr.X without comma-ok before, then it can only contain a single type,
+			// and successive type assertions, no matter the type, don't tell us anything new.
+			if !hasInfo(instr.X, CopyInfoNotNil|CopyInfoSingleConcreteType) {
+				rename(instr.X, instr, CopyInfoNotNil|CopyInfoSingleConcreteType, i)
+				i++ // skip over instruction we just inserted
+			}
+		case *Load:
+			if !hasInfo(instr.X, CopyInfoNotNil) {
+				rename(instr.X, instr, CopyInfoNotNil, i)
+				i++
+			}
+		case *Store:
+			if !hasInfo(instr.Addr, CopyInfoNotNil) {
+				rename(instr.Addr, instr, CopyInfoNotNil, i)
+				i++
+			}
+		case *MapUpdate:
+			if !hasInfo(instr.Map, CopyInfoNotNil) {
+				rename(instr.Map, instr, CopyInfoNotNil, i)
+				i++
+			}
+		case CallInstruction:
+			off := 0
+			if !instr.Common().IsInvoke() && !hasInfo(instr.Common().Value, CopyInfoNotNil) {
+				rename(instr.Common().Value, instr, CopyInfoNotNil, i)
+				off++
+			}
+			if f, ok := instr.Common().Value.(*Builtin); ok {
+				switch f.name {
+				case "close":
+					arg := instr.Common().Args[0]
+					if !hasInfo(arg, CopyInfoNotNil|CopyInfoClosed) {
+						rename(arg, instr, CopyInfoNotNil|CopyInfoClosed, i)
+						off++
 					}
 				}
-			case nil:
-			case *DebugRef:
-			default:
-				break
+			}
+			i += off
+		case *SliceToArrayPointer:
+			// A slice to array pointer conversion tells us the minimum length of the slice
+			rename(instr.X, instr, CopyInfoUnspecified, i)
+			i++
+		case *Slice:
+			// Slicing tells us about some of the bounds
+			off := 0
+			rename(instr.X, instr, CopyInfoUnspecified, i)
+			off++
+			// We copy the indices even if we already know they are not negative, because we can associate numeric
+			// ranges with them.
+			if instr.Low != nil {
+				rename(instr.Low, instr, CopyInfoNotNegative, i)
+				off++
+			}
+			if instr.High != nil {
+				rename(instr.High, instr, CopyInfoNotNegative, i)
+				off++
+			}
+			if instr.Max != nil {
+				rename(instr.Max, instr, CopyInfoNotNegative, i)
+				off++
+			}
+			i += off
+		case *StringLookup:
+			rename(instr.X, instr, CopyInfoUnspecified, i)
+			rename(instr.Index, instr, CopyInfoNotNegative, i)
+			i += 2
+		case *Recv:
+			if !hasInfo(instr.Chan, CopyInfoNotNil) {
+				// Receiving from a nil channel never completes
+				rename(instr.Chan, instr, CopyInfoNotNil, i)
+				i++
+			}
+		case *Send:
+			if !hasInfo(instr.Chan, CopyInfoNotNil) {
+				// Sending to a nil channel never completes. Sending to a closed channel panics, but whether a channel
+				// is closed isn't local to this function, so we didn't learn anything.
+				rename(instr.Chan, instr, CopyInfoNotNil, i)
+				i++
 			}
 		}
 	}
 
-	if renaming[0] != nil {
-		panic("renaming[0] has been assigned to")
-	}
-
-	r := make([]Value, len(renaming))
 	for _, v := range u.dom.children {
-		copy(r, renaming)
-		splitOnIndexingBlock(v, r)
+		splitOnNewInformation(v, renaming)
 	}
 }
 

@@ -578,12 +578,14 @@ func (f *Function) finishBody() {
 	if f.Prog.mode&NaiveForm == 0 {
 		lift(f)
 	}
-	if f.Prog.mode&SplitAfterIndexing != 0 {
-		splitOnIndexing(f)
-	}
 
-	// emit constants after lifting, because lifting may produce new constants.
+	// emit constants after lifting, because lifting may produce new constants, but before other variable splitting,
+	// because it expects constants to have been deduplicated.
 	f.emitConsts()
+
+	if f.Prog.mode&SplitAfterNewInformation != 0 {
+		splitOnNewInformation(f.Blocks[0], &StackMap{})
+	}
 
 	f.namedResults = nil // (used by lifting)
 	f.implicitResults = nil
