@@ -211,6 +211,8 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 				}
 			}
 			return true
+		case *ir.Copy:
+			return do(v.X, seen)
 		case *ir.MakeInterface:
 			terms, err := typeparams.NormalTerms(v.X.Type())
 			if len(terms) == 0 || err != nil {

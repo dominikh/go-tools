@@ -54,7 +54,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Analysis.Run on a package will see only IR objects belonging
 	// to a single Program.
 
-	mode := ir.GlobalDebug
+	mode := ir.GlobalDebug | ir.SplitAfterNewInformation
 
 	prog := ir.NewProgram(pass.Fset, mode)
 
