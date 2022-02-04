@@ -210,6 +210,8 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 				}
 			}
 			return true
+		case *ir.Copy:
+			return do(v.X, seen)
 		case *ir.MakeInterface:
 			return true
 		case *ir.TypeAssert:

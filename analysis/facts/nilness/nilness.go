@@ -228,6 +228,9 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 			return nilly
 		case *ir.TypeAssert, *ir.ChangeInterface, *ir.Field, *ir.Const, *ir.Index, *ir.MapLookup, *ir.Parameter, *ir.Recv, *ir.TypeSwitch:
 			return nilly
+		case *ir.Copy:
+			// XXX propagate nilness of the value we're copying
+			return nilly
 		default:
 			panic(fmt.Sprintf("internal error: unhandled type %T", v))
 		}

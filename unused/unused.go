@@ -1664,6 +1664,8 @@ func (g *graph) instructions(fn *ir.Function) {
 				// nothing to do
 			case *ir.SliceToArrayPointer:
 				// nothing to do
+			case *ir.Copy:
+				// nothing to do
 			default:
 				lint.ExhaustiveTypeSwitch(instr)
 			}

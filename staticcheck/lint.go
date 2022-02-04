@@ -402,7 +402,7 @@ func validateContinuousBitSize(arg *Argument, min int, max int) {
 func checkPrintfCall(call *Call, fIdx, vIdx int) {
 	f := call.Args[fIdx]
 	var args []ir.Value
-	switch v := call.Args[vIdx].Value.Value.(type) {
+	switch v := ir.Unwrap(call.Args[vIdx].Value.Value).(type) {
 	case *ir.Slice:
 		var ok bool
 		args, ok = irutil.Vararg(v)
@@ -750,7 +750,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 						verb.Raw, idx, len(args)))
 				return false
 			}
-			if arg, ok := args[idx-1].(*ir.MakeInterface); ok {
+			if arg, ok := ir.Unwrap(args[idx-1]).(*ir.MakeInterface); ok {
 				if !isInfo(arg.X.Type(), types.IsInteger) {
 					carg.Invalid(fmt.Sprintf("Printf format %s reads non-int arg #%d as argument of *", verb.Raw, idx))
 				}
@@ -786,11 +786,11 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 			carg.Invalid(fmt.Sprintf("Printf format %s reads invalid arg 0; indices are 1-based", verb.Raw))
 			return
 		} else if off != 0 {
-			arg, ok := args[off-1].(*ir.MakeInterface)
+			arg, ok := ir.Unwrap(args[off-1]).(*ir.MakeInterface)
 			if ok {
 				if !checkType(verb.Letter, arg.X.Type(), true) {
 					carg.Invalid(fmt.Sprintf("Printf format %s has arg #%d of wrong type %s",
-						verb.Raw, ptr, args[ptr-1].(*ir.MakeInterface).X.Type()))
+						verb.Raw, ptr, ir.Unwrap(args[ptr-1]).(*ir.MakeInterface).X.Type()))
 					return
 				}
 			}
@@ -4249,7 +4249,7 @@ func findSliceLenChecks(pass *analysis.Pass) {
 			if !ok {
 				continue
 			}
-			cmp, ok := ifi.Cond.(*ir.BinOp)
+			cmp, ok := ir.Unwrap(ifi.Cond).(*ir.BinOp)
 			if !ok {
 				continue
 			}
@@ -4265,32 +4265,32 @@ func findSliceLenChecks(pass *analysis.Pass) {
 				continue
 			}
 
-			rem, ok1 := cmp.X.(*ir.BinOp)
-			k, ok2 := cmp.Y.(*ir.Const)
+			rem, ok1 := ir.Unwrap(cmp.X).(*ir.BinOp)
+			k, ok2 := ir.Unwrap(cmp.Y).(*ir.Const)
 			if ok1 != ok2 {
 				continue
 			}
 			if !ok1 {
-				rem, ok1 = cmp.Y.(*ir.BinOp)
-				k, ok2 = cmp.X.(*ir.Const)
+				rem, ok1 = ir.Unwrap(cmp.Y).(*ir.BinOp)
+				k, ok2 = ir.Unwrap(cmp.X).(*ir.Const)
 			}
 			if !ok1 || !ok2 || rem.Op != token.REM || k.Value.Kind() != constant.Int || k.Uint64() != needle {
 				continue
 			}
-			k, ok = rem.Y.(*ir.Const)
+			k, ok = ir.Unwrap(rem.Y).(*ir.Const)
 			if !ok || k.Value.Kind() != constant.Int || k.Uint64() != 2 {
 				continue
 			}
 
 			// if len(foo) % 2 != 0
-			call, ok := rem.X.(*ir.Call)
+			call, ok := ir.Unwrap(rem.X).(*ir.Call)
 			if !ok || !irutil.IsCallTo(call.Common(), "len") {
 				continue
 			}
 
 			// we're checking the length of a parameter that is a slice
-			// TODO(dh): support parameters that have flown through sigmas and phis
-			param, ok := call.Call.Args[0].(*ir.Parameter)
+			// TODO(dh): support parameters that have flown through phis
+			param, ok := ir.Unwrap(call.Call.Args[0]).(*ir.Parameter)
 			if !ok {
 				continue
 			}
@@ -4348,8 +4348,8 @@ func findIndirectSliceLenChecks(pass *analysis.Pass) {
 						argi--
 					}
 
-					// TODO(dh): support parameters that have flown through sigmas and phis
-					param, ok := arg.(*ir.Parameter)
+					// TODO(dh): support parameters that have flown through phis
+					param, ok := ir.Unwrap(arg).(*ir.Parameter)
 					if !ok {
 						continue
 					}
@@ -4389,7 +4389,7 @@ func findSliceLength(v ir.Value) int {
 		}
 		return -1
 	}
-	switch v := v.(type) {
+	switch v := ir.Unwrap(v).(type) {
 	case *ir.Slice:
 		low := 0
 		high := -1
@@ -4399,7 +4399,7 @@ func findSliceLength(v ir.Value) int {
 		if v.High != nil {
 			high = val(v.High)
 		} else {
-			switch vv := v.X.(type) {
+			switch vv := ir.Unwrap(v.X).(type) {
 			case *ir.Alloc:
 				high = int(typeutil.Dereference(vv.Type()).Underlying().(*types.Array).Len())
 			case *ir.Slice:
@@ -5089,7 +5089,7 @@ func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 			seen[v] = struct{}{}
-			switch v := v.(type) {
+			switch v := ir.Unwrap(v).(type) {
 			case *ir.MakeClosure, *ir.Function:
 				if track {
 					values = append(values, v)
@@ -5151,21 +5151,21 @@ func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 					}
 				}
 
-				switch v.(type) {
+				switch ir.Unwrap(v).(type) {
 				case *ir.MakeClosure, *ir.Function:
 					report.Report(pass, cond, "the checked variable contains a function and is never nil; did you mean to call it?", opts...)
 				default:
 					report.Report(pass, cond, fallback, opts...)
 				}
 			} else {
-				if _, ok := v.(*ir.Function); ok {
+				if _, ok := ir.Unwrap(v).(*ir.Function); ok {
 					report.Report(pass, cond, "functions are never nil; did you mean to call it?")
 				} else {
 					report.Report(pass, cond, fallback)
 				}
 			}
 		} else {
-			if _, ok := v.(*ir.Function); ok {
+			if _, ok := ir.Unwrap(v).(*ir.Function); ok {
 				report.Report(pass, cond, "functions are never nil; did you mean to call it?")
 			} else {
 				report.Report(pass, cond, fallback)
