@@ -393,17 +393,28 @@ type store struct {
 	lhs    lvalue
 	rhs    Value
 	source ast.Node
+
+	// if debugRef is set no other fields will be set
+	debugRef *DebugRef
 }
 
 type storebuf struct{ stores []store }
 
 func (sb *storebuf) store(lhs lvalue, rhs Value, source ast.Node) {
-	sb.stores = append(sb.stores, store{lhs, rhs, source})
+	sb.stores = append(sb.stores, store{lhs, rhs, source, nil})
+}
+
+func (sb *storebuf) storeDebugRef(ref *DebugRef) {
+	sb.stores = append(sb.stores, store{debugRef: ref})
 }
 
 func (sb *storebuf) emit(fn *Function) {
 	for _, s := range sb.stores {
-		s.lhs.store(fn, s.rhs, s.source)
+		if s.debugRef == nil {
+			s.lhs.store(fn, s.rhs, s.source)
+		} else {
+			fn.emit(s.debugRef, nil)
+		}
 	}
 }
 
@@ -460,7 +471,14 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 				// slice and map are handled by store ops in compLit.
 				switch loc.typ().Underlying().(type) {
 				case *types.Struct, *types.Array:
-					emitDebugRef(fn, e, addr, true)
+					if sb != nil {
+						// Make sure we don't emit DebugRefs before the store has actually occured
+						if ref := makeDebugRef(fn, e, addr, true); ref != nil {
+							sb.storeDebugRef(ref)
+						}
+					} else {
+						emitDebugRef(fn, e, addr, true)
+					}
 				}
 
 				return

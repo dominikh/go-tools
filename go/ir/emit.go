@@ -47,8 +47,16 @@ func emitRecv(f *Function, ch Value, commaOk bool, typ types.Type, source ast.No
 // expression e with value v.
 //
 func emitDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) {
+	ref := makeDebugRef(f, e, v, isAddr)
+	if ref == nil {
+		return
+	}
+	f.emit(ref, nil)
+}
+
+func makeDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) *DebugRef {
 	if !f.debugInfo() {
-		return // debugging not enabled
+		return nil // debugging not enabled
 	}
 	if v == nil || e == nil {
 		panic("nil")
@@ -57,20 +65,20 @@ func emitDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) {
 	e = unparen(e)
 	if id, ok := e.(*ast.Ident); ok {
 		if isBlankIdent(id) {
-			return
+			return nil
 		}
 		obj = f.Pkg.objectOf(id)
 		switch obj.(type) {
 		case *types.Nil, *types.Const, *types.Builtin:
-			return
+			return nil
 		}
 	}
-	f.emit(&DebugRef{
+	return &DebugRef{
 		X:      v,
 		Expr:   e,
 		IsAddr: isAddr,
 		object: obj,
-	}, nil)
+	}
 }
 
 // emitArith emits to f code to compute the binary operation op(x, y)
