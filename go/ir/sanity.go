@@ -189,6 +189,8 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Load:
 	case *Parameter:
 	case *Const:
+	case *AggregateConst:
+	case *ArrayConst:
 	case *Recv:
 	case *TypeSwitch:
 	default:

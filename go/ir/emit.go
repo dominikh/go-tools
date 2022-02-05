@@ -447,15 +447,10 @@ func emitFieldSelection(f *Function, v Value, index int, wantAddr bool, id *ast.
 // and returns it.
 //
 func zeroValue(f *Function, t types.Type, source ast.Node) Value {
-	switch t.Underlying().(type) {
-	case *types.Struct, *types.Array:
-		return emitLoad(f, f.addLocal(t, source), source)
-	default:
-		return emitConst(f, zeroConst(t))
-	}
+	return emitConst(f, zeroConst(t))
 }
 
-func emitConst(f *Function, c *Const) *Const {
+func emitConst(f *Function, c Constant) Constant {
 	f.consts = append(f.consts, c)
 	return c
 }

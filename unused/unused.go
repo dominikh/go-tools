@@ -1656,6 +1656,10 @@ func (g *graph) instructions(fn *ir.Function) {
 				// nothing to do
 			case *ir.Const:
 				// nothing to do
+			case *ir.ArrayConst:
+				// nothing to do
+			case *ir.AggregateConst:
+				// nothing to do
 			case *ir.Recv:
 				// nothing to do
 			case *ir.TypeSwitch:

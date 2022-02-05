@@ -383,7 +383,7 @@ type functionBody struct {
 	implicitResults []*Alloc                 // tuple of results
 	targets         *targets                 // linked stack of branch targets
 	lblocks         map[types.Object]*lblock // labelled blocks
-	consts          []*Const
+	consts          []Constant
 	wr              *HTMLWriter
 	fakeExits       BlockSet
 	blocksets       [5]BlockSet
@@ -500,6 +500,28 @@ type Const struct {
 
 	Value constant.Value
 }
+
+type AggregateConst struct {
+	register
+
+	Values []Constant
+}
+
+type ArrayConst struct {
+	register
+}
+
+type Constant interface {
+	Instruction
+	Value
+	aConstant()
+	RelString(*types.Package) string
+	equal(Constant) bool
+}
+
+func (*Const) aConstant()          {}
+func (*AggregateConst) aConstant() {}
+func (*ArrayConst) aConstant()     {}
 
 // A Global is a named Value holding the address of a package-level
 // variable.
@@ -1931,9 +1953,11 @@ func (v *Load) Operands(rands []*Value) []*Value {
 }
 
 // Non-Instruction Values:
-func (v *Builtin) Operands(rands []*Value) []*Value   { return rands }
-func (v *FreeVar) Operands(rands []*Value) []*Value   { return rands }
-func (v *Const) Operands(rands []*Value) []*Value     { return rands }
-func (v *Function) Operands(rands []*Value) []*Value  { return rands }
-func (v *Global) Operands(rands []*Value) []*Value    { return rands }
-func (v *Parameter) Operands(rands []*Value) []*Value { return rands }
+func (v *Builtin) Operands(rands []*Value) []*Value        { return rands }
+func (v *FreeVar) Operands(rands []*Value) []*Value        { return rands }
+func (v *Const) Operands(rands []*Value) []*Value          { return rands }
+func (v *ArrayConst) Operands(rands []*Value) []*Value     { return rands }
+func (v *AggregateConst) Operands(rands []*Value) []*Value { return rands }
+func (v *Function) Operands(rands []*Value) []*Value       { return rands }
+func (v *Global) Operands(rands []*Value) []*Value         { return rands }
+func (v *Parameter) Operands(rands []*Value) []*Value      { return rands }

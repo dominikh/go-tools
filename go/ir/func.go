@@ -416,14 +416,14 @@ func (f *Function) emitConsts() {
 }
 
 func (f *Function) emitConstsFew() {
-	dedup := make([]*Const, 0, 32)
+	dedup := make([]Constant, 0, 32)
 	for _, c := range f.consts {
 		if len(*c.Referrers()) == 0 {
 			continue
 		}
 		found := false
 		for _, d := range dedup {
-			if c.typ == d.typ && c.Value == d.Value {
+			if c.equal(d) {
 				replaceAll(c, d)
 				found = true
 				break
@@ -459,9 +459,24 @@ func (f *Function) emitConstsMany() {
 			continue
 		}
 
+		var typ types.Type
+		var val constant.Value
+		switch c := c.(type) {
+		case *Const:
+			typ = c.typ
+			val = c.Value
+		case *ArrayConst:
+			// ArrayConst can only encode zero constants, so all we need is the type
+			typ = c.typ
+		case *AggregateConst:
+			// ArrayConst can only encode zero constants, so all we need is the type
+			typ = c.typ
+		default:
+			panic(fmt.Sprintf("unexpected type %T", c))
+		}
 		k := constKey{
-			typ:   c.typ,
-			value: c.Value,
+			typ:   typ,
+			value: val,
 		}
 		if dup, ok := m[k]; !ok {
 			m[k] = c

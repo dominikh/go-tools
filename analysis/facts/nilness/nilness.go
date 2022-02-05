@@ -161,7 +161,7 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 				} else {
 					return nilly
 				}
-			case *ir.TypeAssert, *ir.Next, *ir.Select, *ir.MapLookup, *ir.TypeSwitch, *ir.Recv:
+			case *ir.TypeAssert, *ir.Next, *ir.Select, *ir.MapLookup, *ir.TypeSwitch, *ir.Recv, *ir.Sigma:
 				// we don't need to look at the Extract's index
 				// because we've already checked its type.
 				return nilly

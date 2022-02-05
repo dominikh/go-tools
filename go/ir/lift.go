@@ -45,7 +45,6 @@ package ir
 import (
 	"encoding/binary"
 	"fmt"
-	"go/types"
 	"os"
 )
 
@@ -770,13 +769,6 @@ type newPhiMap [][]newPhi
 type newSigmaMap [][]newSigma
 
 func liftable(alloc *Alloc) bool {
-	// Don't lift aggregates into registers, because we don't have
-	// a way to express their zero-constants.
-	switch deref(alloc.Type()).Underlying().(type) {
-	case *types.Array, *types.Struct:
-		return false
-	}
-
 	fn := alloc.Parent()
 	// Don't lift named return values in functions that defer
 	// calls that may recover from panic.

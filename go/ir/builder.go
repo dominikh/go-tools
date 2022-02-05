@@ -1115,7 +1115,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 				if idx != nil {
 					idxval = idx.Int64() + 1
 				}
-				idx = emitConst(fn, intConst(idxval))
+				idx = emitConst(fn, intConst(idxval)).(*Const)
 			}
 			iaddr := &IndexAddr{
 				X:     array,
