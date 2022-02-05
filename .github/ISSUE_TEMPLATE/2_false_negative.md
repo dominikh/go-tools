@@ -1,6 +1,6 @@
 ---
-name: 🦆 False negative in staticcheck
-about: Your code is wrong but staticcheck doesn't complain about it.
+name: 🦆 False negative in Staticcheck
+about: Your code is wrong but Staticcheck doesn't complain about it.
 labels: false-negative, needs-triage
 title: ""
 ---
@@ -13,7 +13,7 @@ Please make sure to include the following information in your issue report:
 - The output of 'go env'
 - Exactly which command you ran
 - Output of the command and what's wrong with the output
-- Where we can read the code you're running staticcheck on
+- Where we can read the code you're running Staticcheck on
   (GitHub repo, link to playground, code embedded in the issue, ...)
 -->
 
