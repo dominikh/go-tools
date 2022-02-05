@@ -804,9 +804,7 @@ func liftable(alloc *Alloc) bool {
 	return true
 }
 
-// liftAlloc determines whether alloc can be lifted into registers,
-// and if so, it populates newPhis with all the φ-nodes it may require
-// and returns true.
+// liftAlloc lifts alloc into registers and populates newPhis and newSigmas with all the φ- and σ-nodes it may require.
 func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) {
 	fn := alloc.Parent()
 
@@ -819,10 +817,6 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 	// Compute defblocks, the set of blocks containing a
 	// definition of the alloc cell.
 	for _, instr := range *alloc.Referrers() {
-		// XXX the below comment no longer seems accurate
-		// Bail out if we discover the alloc is not liftable;
-		// the only operations permitted to use the alloc are
-		// loads/stores into the cell, and DebugRef.
 		switch instr := instr.(type) {
 		case *Store:
 			defblocks.Add(instr.Block())

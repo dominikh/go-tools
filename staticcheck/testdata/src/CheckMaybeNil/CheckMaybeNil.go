@@ -166,7 +166,8 @@ func fn16() {
 	if xs2 == nil {
 		println()
 	}
-	for _, x := range xs2 { // want `possible nil pointer dereference`
+	// this used to get flagged, but now that we correctly insert sigma nodes for range loops, we can no longer flag this
+	for _, x := range xs2 {
 		_ = x
 	}
 
