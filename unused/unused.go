@@ -1435,6 +1435,10 @@ func (g *graph) typ(t types.Type, parent types.Type) {
 			g.seeAndUse(t.At(i).Type(), t, edgeTupleElement|edgeType)
 			g.typ(t.At(i).Type(), nil)
 		}
+	case *typeutil.Iterator:
+		// (9.3) types use their underlying and element types
+		g.seeAndUse(t.Elem(), t, edgeElementType)
+		g.typ(t.Elem(), nil)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", t))
 	}

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"go/types"
 	"reflect"
+
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // Map is a hash-table-based mapping from types (types.Type) to
@@ -303,6 +305,9 @@ func (h Hasher) hashFor(t types.Type) uint32 {
 
 	case *types.Tuple:
 		return h.hashTuple(t)
+
+	case *typeutil.Iterator:
+		return 9133 + 2*h.Hash(t.Elem())
 	}
 	panic(t)
 }

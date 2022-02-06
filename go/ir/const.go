@@ -12,6 +12,8 @@ import (
 	"go/types"
 	"strconv"
 	"strings"
+
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // NewConst returns a new constant of the specified value and type.
@@ -67,7 +69,7 @@ func zeroConst(t types.Type) Constant {
 		default:
 			panic(fmt.Sprint("zeroConst for unexpected type:", t))
 		}
-	case *types.Pointer, *types.Slice, *types.Interface, *types.Chan, *types.Map, *types.Signature:
+	case *types.Pointer, *types.Slice, *types.Interface, *types.Chan, *types.Map, *types.Signature, *typeutil.Iterator:
 		return nilConst(t)
 	case *types.Named:
 		k := zeroConst(t.Underlying())
@@ -114,11 +116,6 @@ func zeroConst(t types.Type) Constant {
 			register: register{typ: t},
 			Values:   values,
 		}
-	}
-
-	switch t {
-	case tRangeIter:
-		return nilConst(types.NewPointer(t))
 	}
 
 	panic(fmt.Sprint("zeroConst: unexpected ", t))

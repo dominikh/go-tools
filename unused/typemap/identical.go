@@ -1,7 +1,10 @@
 package typemap
 
 import (
+	"fmt"
 	"go/types"
+
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // Unlike types.Identical, receivers of Signature types are not ignored.
@@ -131,10 +134,15 @@ func identical0(x, y types.Type) bool {
 			return x.Obj() == y.Obj()
 		}
 
+	case *typeutil.Iterator:
+		if y, ok := y.(*typeutil.Iterator); ok {
+			return Identical(x.Elem(), y.Elem())
+		}
+
 	case nil:
 
 	default:
-		panic("unreachable")
+		panic(fmt.Sprintf("unreachable: %T", x))
 	}
 
 	return false

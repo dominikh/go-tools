@@ -31,14 +31,9 @@ import (
 	"go/token"
 	"go/types"
 	"os"
+
+	"honnef.co/go/tools/go/types/typeutil"
 )
-
-type opaqueType struct {
-	types.Type
-	name string
-}
-
-func (t *opaqueType) String() string { return t.name }
 
 var (
 	varOk    = newVar("ok", tBool)
@@ -51,7 +46,6 @@ var (
 	tInvalid    = types.Typ[types.Invalid]
 	tString     = types.Typ[types.String]
 	tUntypedNil = types.Typ[types.UntypedNil]
-	tRangeIter  = &opaqueType{nil, "iter"} // the type of all "range" iterators
 	tEface      = types.NewInterfaceType(nil, nil).Complete()
 )
 
@@ -1925,7 +1919,11 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, source ast
 	}
 
 	rng := &Range{X: x}
-	rng.setType(tRangeIter)
+	rng.setType(typeutil.NewIterator(types.NewTuple(
+		varOk,
+		newVar("k", tk),
+		newVar("v", tv),
+	)))
 	it := fn.emit(rng, source)
 
 	loop = fn.newBasicBlock("rangeiter.loop")
@@ -1938,11 +1936,7 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, source ast
 		Iter:     it,
 		IsString: isString,
 	}
-	okv.setType(types.NewTuple(
-		varOk,
-		newVar("k", tk),
-		newVar("v", tv),
-	))
+	okv.setType(rng.typ.(*typeutil.Iterator).Elem())
 	fn.emit(okv, source)
 
 	body := fn.newBasicBlock("rangeiter.body")
