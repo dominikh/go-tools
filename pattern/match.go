@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"go/types"
 	"reflect"
+
+	"golang.org/x/exp/typeparams"
 )
 
 var tokensByString = map[string]Token{
@@ -476,14 +478,31 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	var name string
 	var obj types.Object
 
-	r, ok := match(m, Or{Nodes: []Node{Ident{Any{}}, SelectorExpr{Any{}, Any{}}}}, node)
+	base := []Node{
+		Ident{Any{}},
+		SelectorExpr{Any{}, Any{}},
+	}
+	p := Or{
+		Nodes: append(base,
+			IndexExpr{Or{Nodes: base}, Any{}},
+			IndexListExpr{Or{Nodes: base}, Any{}})}
+
+	r, ok := match(m, p, node)
 	if !ok {
 		return nil, false
 	}
 
-	switch r := r.(type) {
+	fun := r
+	switch idx := fun.(type) {
+	case *ast.IndexExpr:
+		fun = idx.X
+	case *typeparams.IndexListExpr:
+		fun = idx.X
+	}
+
+	switch fun := fun.(type) {
 	case *ast.Ident:
-		obj = m.TypesInfo.ObjectOf(r)
+		obj = m.TypesInfo.ObjectOf(fun)
 		switch obj := obj.(type) {
 		case *types.Func:
 			// OPT(dh): optimize this similar to code.FuncName
@@ -496,7 +515,7 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 			return nil, false
 		}
 	case *ast.SelectorExpr:
-		obj = m.TypesInfo.ObjectOf(r.Sel)
+		obj = m.TypesInfo.ObjectOf(fun.Sel)
 		switch obj := obj.(type) {
 		case *types.Func:
 			// OPT(dh): optimize this similar to code.FuncName

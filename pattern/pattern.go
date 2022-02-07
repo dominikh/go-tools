@@ -13,6 +13,7 @@ var (
 	_ Node = RangeStmt{}
 	_ Node = AssignStmt{}
 	_ Node = IndexExpr{}
+	_ Node = IndexListExpr{}
 	_ Node = Ident{}
 	_ Node = Builtin{}
 	_ Node = String("")
@@ -265,6 +266,11 @@ type IndexExpr struct {
 	Index Node
 }
 
+type IndexListExpr struct {
+	X       Node
+	Indices Node
+}
+
 type Node interface {
 	String() string
 	isNode()
@@ -352,6 +358,7 @@ func stringify(n Node) string {
 
 func (stmt AssignStmt) String() string              { return stringify(stmt) }
 func (expr IndexExpr) String() string               { return stringify(expr) }
+func (expr IndexListExpr) String() string           { return stringify(expr) }
 func (id Ident) String() string                     { return stringify(id) }
 func (spec ValueSpec) String() string               { return stringify(spec) }
 func (decl GenDecl) String() string                 { return stringify(decl) }
@@ -459,6 +466,7 @@ func (Any) String() string { return "_" }
 
 func (AssignStmt) isNode()              {}
 func (IndexExpr) isNode()               {}
+func (IndexListExpr) isNode()           {}
 func (Ident) isNode()                   {}
 func (ValueSpec) isNode()               {}
 func (GenDecl) isNode()                 {}
