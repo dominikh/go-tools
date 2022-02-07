@@ -15,6 +15,7 @@ import (
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/pattern"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -137,7 +138,19 @@ func ExprToString(pass *analysis.Pass, expr ast.Expr) (string, bool) {
 }
 
 func CallName(pass *analysis.Pass, call *ast.CallExpr) string {
-	switch fun := astutil.Unparen(call.Fun).(type) {
+	fun := astutil.Unparen(call.Fun)
+
+	// Instantiating a function cannot return another generic function, so doing this once is enough
+	switch idx := fun.(type) {
+	case *ast.IndexExpr:
+		fun = idx.X
+	case *typeparams.IndexListExpr:
+		fun = idx.X
+	}
+
+	// (foo)[T] is not a valid instantiationg, so no need to unparen again.
+
+	switch fun := fun.(type) {
 	case *ast.SelectorExpr:
 		fn, ok := pass.TypesInfo.ObjectOf(fun.Sel).(*types.Func)
 		if !ok {
