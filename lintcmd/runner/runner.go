@@ -1108,7 +1108,7 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 
 	var unusedResult unused.SerializedResult
 	for _, a := range all {
-		if a != root && a.Analyzer.Name == "U1000" {
+		if a != root && a.Analyzer.Name == "U1000" && !a.failed {
 			// TODO(dh): figure out a clean abstraction, instead of
 			// special-casing U1000.
 			unusedResult = unused.Serialize(a.Pass, a.Result.(unused.Result), pkg.Fset)
