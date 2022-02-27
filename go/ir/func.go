@@ -471,6 +471,8 @@ func (f *Function) emitConstsMany() {
 		case *AggregateConst:
 			// ArrayConst can only encode zero constants, so all we need is the type
 			typ = c.typ
+		case *GenericConst:
+			typ = c.typ
 		default:
 			panic(fmt.Sprintf("unexpected type %T", c))
 		}

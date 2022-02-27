@@ -287,6 +287,7 @@ const (
 	SyntheticThunk
 	SyntheticWrapper
 	SyntheticBound
+	SyntheticGeneric
 )
 
 func (syn Synthetic) String() string {
@@ -301,6 +302,8 @@ func (syn Synthetic) String() string {
 		return "wrapper"
 	case SyntheticBound:
 		return "bound"
+	case SyntheticGeneric:
+		return "generic"
 	default:
 		return fmt.Sprintf("Synthetic(%d)", syn)
 	}
@@ -348,6 +351,7 @@ type Function struct {
 	object    types.Object     // a declared *types.Func or one of its wrappers
 	method    *types.Selection // info about provenance of synthetic methods
 	Signature *types.Signature
+	generics  typeutil.Map
 
 	Synthetic Synthetic
 	parent    *Function     // enclosing function if anon; nil if global
@@ -507,7 +511,12 @@ type AggregateConst struct {
 	Values []Constant
 }
 
+// TODO add the element's zero constant to ArrayConst
 type ArrayConst struct {
+	register
+}
+
+type GenericConst struct {
 	register
 }
 
@@ -517,11 +526,13 @@ type Constant interface {
 	aConstant()
 	RelString(*types.Package) string
 	equal(Constant) bool
+	setType(types.Type)
 }
 
 func (*Const) aConstant()          {}
 func (*AggregateConst) aConstant() {}
 func (*ArrayConst) aConstant()     {}
+func (*GenericConst) aConstant()   {}
 
 // A Global is a named Value holding the address of a package-level
 // variable.
@@ -1958,6 +1969,7 @@ func (v *FreeVar) Operands(rands []*Value) []*Value        { return rands }
 func (v *Const) Operands(rands []*Value) []*Value          { return rands }
 func (v *ArrayConst) Operands(rands []*Value) []*Value     { return rands }
 func (v *AggregateConst) Operands(rands []*Value) []*Value { return rands }
+func (v *GenericConst) Operands(rands []*Value) []*Value   { return rands }
 func (v *Function) Operands(rands []*Value) []*Value       { return rands }
 func (v *Global) Operands(rands []*Value) []*Value         { return rands }
 func (v *Parameter) Operands(rands []*Value) []*Value      { return rands }

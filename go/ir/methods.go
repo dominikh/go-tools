@@ -9,6 +9,10 @@ package ir
 import (
 	"fmt"
 	"go/types"
+
+	"honnef.co/go/tools/analysis/lint"
+
+	"golang.org/x/exp/typeparams"
 )
 
 // MethodValue returns the Function implementing method sel, building
@@ -118,8 +122,20 @@ func (prog *Program) RuntimeTypes() []types.Type {
 // Panic ensues if there is none.
 //
 func (prog *Program) declaredFunc(obj *types.Func) *Function {
-	if v := prog.packageLevelValue(obj); v != nil {
-		return v.(*Function)
+	if origin := typeparams.OriginMethod(obj); origin != obj {
+		recvT := deref(obj.Type().(*types.Signature).Recv().Type()).(*types.Named)
+		if typeparams.IsTypeParam(typeparams.NamedTypeArgs(recvT).At(0)) {
+			// origin != obj because a method on a generic type is calling another method on that generic type. See https://github.com/golang/go/issues/51184.
+			return prog.packageLevelValue(origin).(*Function)
+		} else {
+			// Calling method on instantiated type, create a wrapper that calls the generic type's method
+			base := prog.packageLevelValue(origin)
+			return makeInstance(prog, base.(*Function), obj.Type().(*types.Signature))
+		}
+	} else {
+		if v := prog.packageLevelValue(obj); v != nil {
+			return v.(*Function)
+		}
 	}
 	panic("no concrete method: " + obj.String())
 }
@@ -186,7 +202,7 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 	case *types.Basic:
 		// nop
 
-	case *types.Interface:
+	case *types.Interface, *typeparams.TypeParam:
 		// nop---handled by recursion over method set.
 
 	case *types.Pointer:
@@ -234,6 +250,6 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 		}
 
 	default:
-		panic(T)
+		lint.ExhaustiveTypeSwitch(T)
 	}
 }

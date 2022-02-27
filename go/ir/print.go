@@ -215,7 +215,8 @@ func (v *MakeChan) String() string {
 
 func (v *FieldAddr) String() string {
 	from := v.Parent().pkg()
-	st := deref(v.X.Type()).Underlying().(*types.Struct)
+	// v.X.Type() might be a pointer to a type parameter whose core type is a pointer to a struct
+	st := deref(typeutil.CoreType(deref(v.X.Type()))).Underlying().(*types.Struct)
 	// Be robust against a bad index.
 	name := "?"
 	if 0 <= v.Field && v.Field < st.NumFields() {
@@ -225,7 +226,7 @@ func (v *FieldAddr) String() string {
 }
 
 func (v *Field) String() string {
-	st := v.X.Type().Underlying().(*types.Struct)
+	st := typeutil.CoreType(v.X.Type()).Underlying().(*types.Struct)
 	// Be robust against a bad index.
 	name := "?"
 	if 0 <= v.Field && v.Field < st.NumFields() {

@@ -191,6 +191,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Const:
 	case *AggregateConst:
 	case *ArrayConst:
+	case *GenericConst:
 	case *Recv:
 	case *TypeSwitch:
 	default:
@@ -445,7 +446,7 @@ func (s *sanity) checkFunction(fn *Function) bool {
 	// separate-compilation model), and error.Error.
 	if fn.Pkg == nil {
 		switch fn.Synthetic {
-		case SyntheticWrapper, SyntheticBound, SyntheticThunk:
+		case SyntheticWrapper, SyntheticBound, SyntheticThunk, SyntheticGeneric:
 		default:
 			if !strings.HasSuffix(fn.name, "Error") {
 				s.errorf("nil Pkg")
