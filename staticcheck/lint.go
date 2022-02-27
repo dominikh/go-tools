@@ -38,6 +38,7 @@ import (
 	"honnef.co/go/tools/staticcheck/fakereflect"
 	"honnef.co/go/tools/staticcheck/fakexml"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -2264,10 +2265,21 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 				body = node.Body
 				loop = node
 			case *ast.RangeStmt:
-				typ := pass.TypesInfo.TypeOf(node.X)
-				if _, ok := typ.Underlying().(*types.Map); ok {
-					// looping once over a map is a valid pattern for
-					// getting an arbitrary element.
+				terms, _ := typeparams.NormalTerms(pass.TypesInfo.TypeOf(node.X))
+				ok := typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+					switch term.Type().Underlying().(type) {
+					case *types.Slice, *types.Chan, *types.Basic, *types.Pointer, *types.Array:
+						return true
+					case *types.Map:
+						// looping once over a map is a valid pattern for
+						// getting an arbitrary element.
+						return false
+					default:
+						lint.ExhaustiveTypeSwitch(term.Type().Underlying())
+						return false
+					}
+				})
+				if !ok {
 					return true
 				}
 				body = node.Body
