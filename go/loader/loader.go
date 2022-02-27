@@ -14,6 +14,7 @@ import (
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/lintcmd/cache"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/gcexportdata"
 	"golang.org/x/tools/go/packages"
 )
@@ -232,6 +233,7 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 			Selections: make(map[*ast.SelectorExpr]*types.Selection),
 		},
 	}
+	typeparams.InitInstances(pkg.TypesInfo)
 	// runtime.SetFinalizer(pkg, func(pkg *Package) {
 	// 	log.Println("Unloading package", pkg.PkgPath)
 	// })
