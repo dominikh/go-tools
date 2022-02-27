@@ -24,6 +24,7 @@ import (
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/pattern"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -804,17 +805,23 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 		kind := "function"
 		if decl.Recv != nil {
 			kind = "method"
-			switch T := decl.Recv.List[0].Type.(type) {
-			case *ast.StarExpr:
-				if !ast.IsExported(T.X.(*ast.Ident).Name) {
-					return
-				}
+			var ident *ast.Ident
+			T := decl.Recv.List[0].Type
+			if T_, ok := T.(*ast.StarExpr); ok {
+				T = T_.X
+			}
+			switch T := T.(type) {
+			case *ast.IndexExpr:
+				ident = T.X.(*ast.Ident)
+			case *typeparams.IndexListExpr:
+				ident = T.X.(*ast.Ident)
 			case *ast.Ident:
-				if !ast.IsExported(T.Name) {
-					return
-				}
+				ident = T
 			default:
 				lint.ExhaustiveTypeSwitch(T)
+			}
+			if !ast.IsExported(ident.Name) {
+				return
 			}
 		}
 		prefix := decl.Name.Name + " "
