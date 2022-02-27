@@ -22,6 +22,7 @@ import (
 	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -73,6 +74,8 @@ var (
 )
 
 func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
+	// TODO revisit once range doesn't require a structural type
+
 	isInvariant := func(k, v types.Object, node ast.Expr) bool {
 		if code.MayHaveSideEffects(pass, node, nil) {
 			return false
@@ -228,8 +231,13 @@ func CheckIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 			val = code.BoolConst(pass, expr.Y)
 			other = expr.X
 		}
-		basic, ok := pass.TypesInfo.TypeOf(other).Underlying().(*types.Basic)
-		if !ok || basic.Kind() != types.Bool {
+
+		terms, _ := typeparams.NormalTerms(pass.TypesInfo.TypeOf(other))
+		ok := typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+			basic, ok := term.Type().Underlying().(*types.Basic)
+			return ok && basic.Kind() == types.Bool
+		})
+		if !ok {
 			return
 		}
 		op := ""
@@ -698,18 +706,30 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 
 		// finally check that xx type is one of array, slice, map or chan
 		// this is to prevent false positive in case if xx is a pointer to an array
-		var nilType string
-		switch pass.TypesInfo.TypeOf(xx).(type) {
-		case *types.Slice:
-			nilType = "nil slices"
-		case *types.Map:
-			nilType = "nil maps"
-		case *types.Chan:
-			nilType = "nil channels"
-		default:
+		typ := pass.TypesInfo.TypeOf(xx)
+		terms, _ := typeparams.NormalTerms(typ)
+		ok = typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+			switch term.Type().Underlying().(type) {
+			case *types.Slice:
+				return true
+			case *types.Map:
+				return true
+			case *types.Chan:
+				return true
+			case *types.Pointer:
+				return false
+			case *typeparams.TypeParam:
+				return false
+			default:
+				lint.ExhaustiveTypeSwitch(term.Type().Underlying())
+				return false
+			}
+		})
+		if !ok {
 			return
 		}
-		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType), report.FilterGenerated())
+
+		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", typ), report.FilterGenerated())
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
@@ -902,6 +922,7 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 }
 
 func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
+	// TODO(dh): support conversions between type parameters
 	fn := func(node ast.Node, stack []ast.Node) {
 		if unary, ok := stack[len(stack)-2].(*ast.UnaryExpr); ok && unary.Op == token.AND {
 			// Do not suggest type conversion between pointers
@@ -1012,7 +1033,7 @@ func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 			Args: []ast.Expr{ident},
 		}
 		report.Report(pass, node,
-			fmt.Sprintf("should convert %s (type %s) to %s instead of using struct literal", ident.Name, typ2.Obj().Name(), typ1.Obj().Name()),
+			fmt.Sprintf("should convert %s (type %s) to %s instead of using struct literal", ident.Name, types.TypeString(typ2, types.RelativeTo(pass.Pkg)), types.TypeString(typ1, types.RelativeTo(pass.Pkg))),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
@@ -1267,11 +1288,11 @@ func CheckMakeLenCap(pass *analysis.Pass) (interface{}, error) {
 		if m, ok := code.Match(pass, checkMakeLenCapQ1, node); ok {
 			T := m.State["typ"].(ast.Expr)
 			size := m.State["size"].(ast.Node)
-			switch pass.TypesInfo.TypeOf(T).Underlying().(type) {
-			case *types.Slice, *types.Map:
-				return
+
+			if _, ok := typeutil.CoreType(pass.TypesInfo.TypeOf(T)).Underlying().(*types.Chan); ok {
+				report.Report(pass, size, fmt.Sprintf("should use make(%s) instead", report.Render(pass, T)), report.FilterGenerated())
 			}
-			report.Report(pass, size, fmt.Sprintf("should use make(%s) instead", report.Render(pass, T)), report.FilterGenerated())
+
 		} else if m, ok := code.Match(pass, checkMakeLenCapQ2, node); ok {
 			// TODO(dh): don't consider sizes identical if they're
 			// dynamic. for example: make(T, <-ch, <-ch).
@@ -1619,13 +1640,22 @@ func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		switch m.State["x"].(types.Object).Type().Underlying().(type) {
-		case *types.Slice, *types.Map:
-			report.Report(pass, node, "unnecessary nil check around range",
-				report.ShortRange(),
-				report.FilterGenerated())
-
+		terms, _ := typeparams.NormalTerms(m.State["x"].(types.Object).Type())
+		ok = typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+			switch term.Type().Underlying().(type) {
+			case *types.Slice, *types.Map:
+				return true
+			case *typeparams.TypeParam, *types.Chan, *types.Pointer:
+				return false
+			default:
+				lint.ExhaustiveTypeSwitch(term.Type().Underlying())
+				return false
+			}
+		})
+		if !ok {
+			return
 		}
+		report.Report(pass, node, "unnecessary nil check around range", report.ShortRange(), report.FilterGenerated())
 	}
 	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil

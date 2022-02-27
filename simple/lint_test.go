@@ -21,7 +21,11 @@ func TestAll(t *testing.T) {
 		"S1010": {{Dir: "slicing"}},
 		"S1011": {{Dir: "loop-append"}},
 		"S1012": {{Dir: "time-since"}},
-		"S1016": {{Dir: "convert"}, {Dir: "convert_go17", Version: "1.7"}, {Dir: "convert_go18", Version: "1.8"}},
+		"S1016": {
+			{Dir: "convert"},
+			{Dir: "convert_go17", Version: "1.7"},
+			{Dir: "convert_go18", Version: "1.8"},
+		},
 		"S1017": {{Dir: "trim"}},
 		"S1018": {{Dir: "CheckLoopSlide"}},
 		"S1019": {{Dir: "CheckMakeLenCap"}},

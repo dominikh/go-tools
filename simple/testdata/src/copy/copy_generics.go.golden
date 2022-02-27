@@ -1,0 +1,91 @@
+//go:build go1.18
+
+package pkg
+
+func tpfn[T any]() {
+	var b1, b2 []T
+	copy(b2, b1)
+
+	copy(b2, b1)
+
+	type T2 [][16]T
+	var a T2
+	b := make([]any, len(a))
+	for i := range b {
+		b[i] = a[i]
+	}
+
+	var b3, b4 []*T
+	copy(b4, b3)
+
+	var m map[int]T
+	for i, v := range b1 {
+		m[i] = v
+	}
+
+}
+
+func tpsrc[T any]() []T { return nil }
+
+func tpfn1() {
+	// Don't flag this, the source is dynamic
+	var dst []any
+	for i := range tpsrc[any]() {
+		dst[i] = tpsrc[any]()[i]
+	}
+}
+
+func tpfn2[T any]() {
+	type T2 struct {
+		b []T
+	}
+
+	var src []T
+	var dst T2
+	copy(dst.b, src)
+}
+
+func tpfn3[T any]() {
+	var src []T
+	var dst [][]T
+	copy(dst[0], src)
+	for i, v := range src {
+		// Don't flag, destination depends on loop variable
+		dst[i][i] = v
+	}
+}
+
+func tpfn4[T any]() {
+	var b []T
+	var a1 [5]T
+	var a2 [10]T
+	var a3 [5]T
+
+	copy(a1[:], b)
+	copy(b, a1[:])
+	copy(a2[:], a1[:])
+	a3 = a1
+
+	a1p := &a1
+	a2p := &a2
+	a3p := &a3
+	copy(a1p[:], b)
+	copy(b, a1p[:])
+	copy(a2p[:], a1p[:])
+	*a3p = *a1p
+
+	copy(a2p[:], a1[:])
+	*a3p = a1
+	copy(a2[:], a1p[:])
+	a3 = *a1p
+}
+
+func tpfn5[T any]() {
+	var src, dst []T
+	copy(dst, src)
+
+	len := func([]T) int { return 0 }
+	for i := 0; i < len(src); i++ {
+		dst[i] = src[i]
+	}
+}
