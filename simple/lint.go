@@ -232,8 +232,7 @@ func CheckIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 			other = expr.X
 		}
 
-		terms, _ := typeparams.NormalTerms(pass.TypesInfo.TypeOf(other))
-		ok := typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+		ok := typeutil.All(pass.TypesInfo.TypeOf(other), func(term *typeparams.Term) bool {
 			basic, ok := term.Type().Underlying().(*types.Basic)
 			return ok && basic.Kind() == types.Bool
 		})
@@ -707,8 +706,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		// finally check that xx type is one of array, slice, map or chan
 		// this is to prevent false positive in case if xx is a pointer to an array
 		typ := pass.TypesInfo.TypeOf(xx)
-		terms, _ := typeparams.NormalTerms(typ)
-		ok = typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+		ok = typeutil.All(typ, func(term *typeparams.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice:
 				return true
@@ -1640,8 +1638,7 @@ func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		terms, _ := typeparams.NormalTerms(m.State["x"].(types.Object).Type())
-		ok = typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+		ok = typeutil.All(m.State["x"].(types.Object).Type(), func(term *typeparams.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice, *types.Map:
 				return true

@@ -1599,7 +1599,7 @@ func (c *CallCommon) Signature() *types.Signature {
 	if c.Method != nil {
 		return c.Method.Type().(*types.Signature)
 	}
-	return c.Value.Type().Underlying().(*types.Signature)
+	return typeutil.CoreType(c.Value.Type()).(*types.Signature)
 }
 
 // StaticCallee returns the callee if this is a trivially static

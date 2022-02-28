@@ -2265,8 +2265,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 				body = node.Body
 				loop = node
 			case *ast.RangeStmt:
-				terms, _ := typeparams.NormalTerms(pass.TypesInfo.TypeOf(node.X))
-				ok := typeutil.AllAndAny(terms, func(term *typeparams.Term) bool {
+				ok := typeutil.All(pass.TypesInfo.TypeOf(node.X), func(term *typeparams.Term) bool {
 					switch term.Type().Underlying().(type) {
 					case *types.Slice, *types.Chan, *types.Basic, *types.Pointer, *types.Array:
 						return true

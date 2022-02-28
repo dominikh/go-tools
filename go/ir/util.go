@@ -38,7 +38,7 @@ func isBlankIdent(e ast.Expr) bool {
 // and for type parameters whose core type is a pointer.
 func isPointer(typ types.Type) bool {
 	if ctyp := typeutil.CoreType(typ); ctyp != nil {
-		_, ok := ctyp.Underlying().(*types.Pointer)
+		_, ok := ctyp.(*types.Pointer)
 		return ok
 	}
 	_, ok := typ.Underlying().(*types.Pointer)

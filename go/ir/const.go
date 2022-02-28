@@ -49,22 +49,14 @@ func stringConst(s string) *Const {
 
 // zeroConst returns a new "zero" constant of the specified type.
 func zeroConst(t types.Type) Constant {
-	var terms []*typeparams.Term
-	if typ, ok := t.(*typeparams.TypeParam); ok {
-		var err error
-		terms, err = typeparams.NormalTerms(typ)
-		if len(terms) == 0 || err != nil {
-			var k GenericConst
-			k.setType(typ)
-			return &k
-		}
-	} else {
-		// We can't call NormalTerms for all types, because if we pass it an interface, it gets treated like a type
-		// parameter.
-		terms = []*typeparams.Term{typeparams.NewTerm(false, t)}
+	if _, ok := t.Underlying().(*types.Interface); ok && !typeparams.IsTypeParam(t) {
+		// Handle non-generic interface early to simplify following code.
+		return nilConst(t)
 	}
 
-	switch typ := typeutil.CoreType(t).(type) {
+	tset := typeutil.NewTypeSet(t)
+
+	switch typ := tset.CoreType().(type) {
 	case *types.Struct:
 		values := make([]Constant, typ.NumFields())
 		for i := 0; i < typ.NumFields(); i++ {
@@ -117,15 +109,15 @@ func zeroConst(t types.Type) Constant {
 	}
 
 	switch {
-	case typeutil.All(terms, isInfo(types.IsNumeric)):
+	case tset.All(isInfo(types.IsNumeric)):
 		return NewConst(constant.MakeInt64(0), t)
-	case typeutil.All(terms, isInfo(types.IsString)):
+	case tset.All(isInfo(types.IsString)):
 		return NewConst(constant.MakeString(""), t)
-	case typeutil.All(terms, isInfo(types.IsBoolean)):
+	case tset.All(isInfo(types.IsBoolean)):
 		return NewConst(constant.MakeBool(false), t)
-	case typeutil.All(terms, isNillable):
+	case tset.All(isNillable):
 		return nilConst(t)
-	case typeutil.All(terms, isArray):
+	case tset.All(isArray):
 		var k ArrayConst
 		k.setType(t)
 		return &k

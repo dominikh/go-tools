@@ -1151,9 +1151,8 @@ func (b *builder) arrayLen(fn *Function, elts []ast.Expr) int64 {
 // In that case, addr must hold a T, not a *T.
 //
 func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero bool, sb *storebuf) {
-	// XXX do we need the double deref?
-	typ := deref(typeutil.CoreType(deref(fn.Pkg.typeOf(e))))
-	switch t := typ.Underlying().(type) {
+	typ := deref(fn.Pkg.typeOf(e))
+	switch t := typeutil.CoreType(typ).(type) {
 	case *types.Struct:
 		if !isZero && len(e.Elts) != t.NumFields() {
 			// memclear

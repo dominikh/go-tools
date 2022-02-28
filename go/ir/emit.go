@@ -206,12 +206,12 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	ut_dst := t_dst.Underlying()
 	ut_src := t_src.Underlying()
 
-	terms_dst, _ := typeparams.NormalTerms(ut_dst)
-	terms_src, _ := typeparams.NormalTerms(ut_src)
+	tset_dst := typeutil.NewTypeSet(ut_dst)
+	tset_src := typeutil.NewTypeSet(ut_src)
 
 	// Just a change of type, but not value or representation?
-	if typeutil.AllAndAny(terms_src, func(termSrc *typeparams.Term) bool {
-		return typeutil.AllAndAny(terms_dst, func(termDst *typeparams.Term) bool {
+	if tset_src.All(func(termSrc *typeparams.Term) bool {
+		return tset_dst.All(func(termDst *typeparams.Term) bool {
 			return isValuePreserving(termSrc.Type().Underlying(), termDst.Type().Underlying())
 		})
 	}) {
@@ -262,8 +262,8 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	}
 
 	// Conversion from slice to array pointer?
-	if typeutil.AllAndAny(terms_src, func(termSrc *typeparams.Term) bool {
-		return typeutil.AllAndAny(terms_dst, func(termDst *typeparams.Term) bool {
+	if tset_src.All(func(termSrc *typeparams.Term) bool {
+		return tset_dst.All(func(termDst *typeparams.Term) bool {
 			if slice, ok := termSrc.Type().Underlying().(*types.Slice); ok {
 				if ptr, ok := termDst.Type().Underlying().(*types.Pointer); ok {
 					if arr, ok := ptr.Elem().Underlying().(*types.Array); ok && types.Identical(slice.Elem(), arr.Elem()) {
@@ -282,8 +282,8 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	// A representation-changing conversion?
 	// At least one of {ut_src,ut_dst} must be *Basic.
 	// (The other may be []byte or []rune.)
-	ok1 := typeutil.AllAndAny(terms_src, func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
-	ok2 := typeutil.AllAndAny(terms_dst, func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+	ok1 := tset_src.All(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+	ok2 := tset_dst.All(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
 	if ok1 || ok2 {
 		c := &Convert{X: val}
 		c.setType(t_dst)
@@ -429,7 +429,7 @@ func emitImplicitSelections(f *Function, v Value, indices []int, source ast.Node
 			instr.setType(types.NewPointer(fld.Type()))
 			v = f.emit(instr, source)
 			// Load the field's value iff indirectly embedded.
-			if isPointer(fld.Type()) || isPointer(typeutil.CoreType(fld.Type())) {
+			if isPointer(fld.Type()) {
 				v = emitLoad(f, v, source)
 			}
 		} else {
