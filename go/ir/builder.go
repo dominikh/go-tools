@@ -715,7 +715,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			instances := typeparams.GetInstances(fn.Pkg.info)
 			if instance, ok := instances[e]; ok {
 				// Instantiated generic function
-				return makeInstance(fn.Prog, v.(*Function), instance.Type.(*types.Signature))
+				return makeInstance(fn.Prog, v.(*Function), instance.Type.(*types.Signature), instance.TypeArgs)
 			}
 			return v // (func)
 		}
@@ -892,10 +892,15 @@ func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
 			v := b.receiver(fn, selector.X, wantAddr, escaping, sel, selector)
 			if isInterface(recv) {
 				// Invoke-mode call.
+
+				// Methods in interfaces cannot have their own type parameters, so we needn't do anything for type
+				// parameters.
 				c.Value = v
 				c.Method = obj
 			} else {
 				// "Call"-mode call.
+
+				// declaredFunc takes care of creating wrappers for functions with type parameters.
 				c.Value = fn.Prog.declaredFunc(obj)
 				c.Args = append(c.Args, v)
 			}
@@ -933,6 +938,8 @@ func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
 		// - use MethodVal logic to populate fields of c.
 	}
 	// Evaluate the function operand in the usual way.
+	//
+	// Code in expr takes care of creating wrappers for functions with type parameters.
 	c.Value = b.expr(fn, e.Fun)
 }
 
@@ -1016,7 +1023,7 @@ func (b *builder) setCall(fn *Function, e *ast.CallExpr, c *CallCommon) {
 	b.setCallFunc(fn, e, c)
 
 	// Then append the other actual parameters.
-	sig, _ := typeutil.CoreType(fn.Pkg.typeOf(e.Fun)).Underlying().(*types.Signature)
+	sig, _ := typeutil.CoreType(fn.Pkg.typeOf(e.Fun)).(*types.Signature)
 	if sig == nil {
 		panic(fmt.Sprintf("no signature for call of %s", e.Fun))
 	}

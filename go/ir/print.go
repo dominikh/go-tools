@@ -127,6 +127,10 @@ func printCall(v *CallCommon, prefix string, instr Instruction) string {
 			fmt.Fprintf(&b, "%sInvoke %s.%s", prefix, relName(v.Value, instr), v.Method.Name())
 		}
 	}
+	for _, arg := range v.TypeArgs {
+		b.WriteString(" ")
+		b.WriteString(relType(arg, instr.Parent().pkg()))
+	}
 	for _, arg := range v.Args {
 		b.WriteString(" ")
 		b.WriteString(relName(arg, instr))

@@ -21,8 +21,9 @@ package ir
 
 import (
 	"fmt"
-
 	"go/types"
+
+	"golang.org/x/exp/typeparams"
 )
 
 // -- wrappers -----------------------------------------------------------
@@ -289,22 +290,21 @@ type selectionKey struct {
 	indirect bool
 }
 
-func makeInstance(prog *Program, fn *Function, sig *types.Signature) *Function {
-	signatureIdenticalSansTypeParams := func(sig1, sig2 *types.Signature) bool {
-		if sig1.Recv() == nil || sig2.Recv() == nil {
-			return sig1.Recv() == sig2.Recv() && types.Identical(sig1.Params(), sig2.Params()) && types.Identical(sig1.Results(), sig2.Results())
-		}
-		return types.Identical(sig1.Recv().Type(), sig2.Recv().Type()) && types.Identical(sig1.Params(), sig2.Params()) && types.Identical(sig1.Results(), sig2.Results())
-	}
-	if signatureIdenticalSansTypeParams(fn.Signature, sig) {
-		// The generic function's signature is not generic itself. Neither its parameters nor its return values depend
-		// on any type parameters.
-		return fn
+// makeInstance creates a wrapper function with signature sig that calls the generic function fn.
+// If targs is not nil, fn is a function and targs describes the concrete type arguments.
+// If targs is nil, fn is a method and the type arguments are derived from the receiver.
+func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *typeparams.TypeList) *Function {
+	if sig.Recv() != nil {
+		assert(targs == nil)
+		// Methods don't have their own type parameters, but the receiver does
+		targs = typeparams.NamedTypeArgs(deref(sig.Recv().Type()).(*types.Named))
+	} else {
+		assert(targs != nil)
 	}
 
-	wrapper := fn.generics.At(sig)
+	wrapper := fn.generics.At(targs)
 	if wrapper != nil {
-		return wrapper.(*Function)
+		return wrapper
 	}
 
 	var name string
@@ -357,6 +357,10 @@ func makeInstance(prog *Program, fn *Function, sig *types.Signature) *Function {
 			c.Call.Args = append(c.Call.Args, changeType(arg, fn.Signature.Params().At(i).Type()))
 		}
 	}
+	for i := 0; i < targs.Len(); i++ {
+		arg := targs.At(i)
+		c.Call.TypeArgs = append(c.Call.TypeArgs, arg)
+	}
 	results := w.emit(&c, nil)
 	var ret Return
 	switch tresults.Len() {
@@ -378,6 +382,6 @@ func makeInstance(prog *Program, fn *Function, sig *types.Signature) *Function {
 
 	w.finishBody()
 
-	fn.generics.Set(sig, w)
+	fn.generics.Set(targs, w)
 	return w
 }

@@ -15,6 +15,7 @@ import (
 	"go/types"
 	"sync"
 
+	"golang.org/x/exp/typeparams"
 	"honnef.co/go/tools/go/types/typeutil"
 )
 
@@ -351,7 +352,7 @@ type Function struct {
 	object    types.Object     // a declared *types.Func or one of its wrappers
 	method    *types.Selection // info about provenance of synthetic methods
 	Signature *types.Signature
-	generics  typeutil.Map
+	generics  instanceWrapperMap
 
 	Synthetic Synthetic
 	parent    *Function     // enclosing function if anon; nil if global
@@ -367,6 +368,83 @@ type Function struct {
 	NoReturn  NoReturn      // Calling this function will always terminate control flow.
 
 	*functionBody
+}
+
+type instanceWrapperMap struct {
+	h       typeutil.Hasher
+	entries map[uint32][]struct {
+		key *typeparams.TypeList
+		val *Function
+	}
+	len int
+}
+
+func typeListIdentical(l1, l2 *typeparams.TypeList) bool {
+	if l1.Len() != l2.Len() {
+		return false
+	}
+	for i := 0; i < l1.Len(); i++ {
+		t1 := l1.At(i)
+		t2 := l2.At(i)
+		if !types.Identical(t1, t2) {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *instanceWrapperMap) At(key *typeparams.TypeList) *Function {
+	if m.entries == nil {
+		m.entries = make(map[uint32][]struct {
+			key *typeparams.TypeList
+			val *Function
+		})
+		m.h = typeutil.MakeHasher()
+	}
+
+	var hash uint32
+	for i := 0; i < key.Len(); i++ {
+		t := key.At(i)
+		hash += m.h.Hash(t)
+	}
+
+	for _, e := range m.entries[hash] {
+		if typeListIdentical(e.key, key) {
+			return e.val
+		}
+	}
+	return nil
+}
+
+func (m *instanceWrapperMap) Set(key *typeparams.TypeList, val *Function) {
+	if m.entries == nil {
+		m.entries = make(map[uint32][]struct {
+			key *typeparams.TypeList
+			val *Function
+		})
+		m.h = typeutil.MakeHasher()
+	}
+
+	var hash uint32
+	for i := 0; i < key.Len(); i++ {
+		t := key.At(i)
+		hash += m.h.Hash(t)
+	}
+	for i, e := range m.entries[hash] {
+		if typeListIdentical(e.key, key) {
+			m.entries[hash][i].val = val
+			return
+		}
+	}
+	m.entries[hash] = append(m.entries[hash], struct {
+		key *typeparams.TypeList
+		val *Function
+	}{key, val})
+	m.len++
+}
+
+func (m *instanceWrapperMap) Len() int {
+	return m.len
 }
 
 type NoReturn uint8
@@ -1576,10 +1654,11 @@ type anInstruction struct {
 // the last element of Args is a slice.
 //
 type CallCommon struct {
-	Value   Value       // receiver (invoke mode) or func value (call mode)
-	Method  *types.Func // abstract method (invoke mode)
-	Args    []Value     // actual parameters (in static method call, includes receiver)
-	Results Value
+	Value    Value       // receiver (invoke mode) or func value (call mode)
+	Method   *types.Func // abstract method (invoke mode)
+	Args     []Value     // actual parameters (in static method call, includes receiver)
+	TypeArgs []types.Type
+	Results  Value
 }
 
 // IsInvoke returns true if this call has "invoke" (not "call") mode.
