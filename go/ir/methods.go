@@ -122,15 +122,9 @@ func (prog *Program) RuntimeTypes() []types.Type {
 // Panic ensues if there is none.
 func (prog *Program) declaredFunc(obj *types.Func) *Function {
 	if origin := typeparams.OriginMethod(obj); origin != obj {
-		recvT := deref(obj.Type().(*types.Signature).Recv().Type()).(*types.Named)
-		if typeparams.IsTypeParam(typeparams.NamedTypeArgs(recvT).At(0)) {
-			// origin != obj because a method on a generic type is calling another method on that generic type. See https://github.com/golang/go/issues/51184.
-			return prog.packageLevelValue(origin).(*Function)
-		} else {
-			// Calling method on instantiated type, create a wrapper that calls the generic type's method
-			base := prog.packageLevelValue(origin)
-			return makeInstance(prog, base.(*Function), obj.Type().(*types.Signature), nil)
-		}
+		// Calling method on instantiated type, create a wrapper that calls the generic type's method
+		base := prog.packageLevelValue(origin)
+		return makeInstance(prog, base.(*Function), obj.Type().(*types.Signature), nil)
 	} else {
 		if v := prog.packageLevelValue(obj); v != nil {
 			return v.(*Function)
@@ -227,7 +221,7 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 	case *types.Named:
 		// A pointer-to-named type can be derived from a named
 		// type via reflection.  It may have methods too.
-		prog.needMethods(types.NewPointer(T), false)
+		prog.needMethods(types.NewPointer(t), false)
 
 		// Consider 'type T struct{S}' where S has methods.
 		// Reflection provides no way to get from T to struct{S},
