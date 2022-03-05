@@ -52,4 +52,5 @@ const (
 	edgeUsedConstant
 	edgeVarDecl
 	edgeIgnored
+	edgeSamePointer
 )
