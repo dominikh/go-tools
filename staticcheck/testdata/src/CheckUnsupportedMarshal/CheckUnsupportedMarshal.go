@@ -280,3 +280,26 @@ func otherPackageXML() {
 	var x time.Ticker
 	xml.Marshal(x) // want `unsupported type <-chan time\.Time, via x\.C`
 }
+
+type ToplevelPointerMarshalerXML struct {
+	Field map[string]string
+}
+
+func (*ToplevelPointerMarshalerXML) MarshalXML(*xml.Encoder, xml.StartElement) error {
+	return nil
+}
+
+type ToplevelPointerMarshalerText struct {
+	Field map[string]string
+}
+
+func (*ToplevelPointerMarshalerText) MarshalText() ([]byte, error) {
+	return nil, nil
+}
+
+func toplevelPointer() {
+	xml.Marshal(&ToplevelPointerMarshalerXML{})
+	xml.Marshal(&ToplevelPointerMarshalerText{})
+	xml.Marshal(ToplevelPointerMarshalerXML{})  // want `unsupported type`
+	xml.Marshal(ToplevelPointerMarshalerText{}) // want `unsupported type`
+}

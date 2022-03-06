@@ -43,11 +43,7 @@ func (enc *Encoder) Encode(v types.Type) error {
 
 func implementsMarshaler(v fakereflect.TypeAndCanAddr) bool {
 	t := v.Type
-	named, ok := t.(*types.Named)
-	if !ok {
-		return false
-	}
-	obj, _, _ := types.LookupFieldOrMethod(named, false, nil, "MarshalXML")
+	obj, _, _ := types.LookupFieldOrMethod(t, false, nil, "MarshalXML")
 	if obj == nil {
 		return false
 	}
@@ -77,11 +73,7 @@ func implementsMarshaler(v fakereflect.TypeAndCanAddr) bool {
 
 func implementsMarshalerAttr(v fakereflect.TypeAndCanAddr) bool {
 	t := v.Type
-	named, ok := t.(*types.Named)
-	if !ok {
-		return false
-	}
-	obj, _, _ := types.LookupFieldOrMethod(named, false, nil, "MarshalXMLAttr")
+	obj, _, _ := types.LookupFieldOrMethod(t, false, nil, "MarshalXMLAttr")
 	if obj == nil {
 		return false
 	}
