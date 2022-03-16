@@ -175,6 +175,11 @@ func (l *linter) Lint(cfg *packages.Config, patterns []string) (LintResult, erro
 	}
 
 	for _, uo := range unuseds {
+		if uo.obj.Kind == "type param" {
+			// We don't currently flag unused type parameters on used objects, and flagging them on unused objects isn't
+			// useful.
+			continue
+		}
 		if used[uo.key] {
 			continue
 		}

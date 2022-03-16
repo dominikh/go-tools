@@ -1,10 +1,13 @@
 package unused
 
 import (
+	"fmt"
 	"go/types"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -26,11 +29,16 @@ func (exp expectation) String() string {
 	}
 }
 
+type key struct {
+	file string
+	line int
+}
+
+func (k key) String() string {
+	return fmt.Sprintf("%s:%d", k.file, k.line)
+}
+
 func check(t *testing.T, res *analysistest.Result) {
-	type key struct {
-		file string
-		line int
-	}
 	want := map[key]expectation{}
 	files := map[string]struct{}{}
 
@@ -91,16 +99,31 @@ func check(t *testing.T, res *analysistest.Result) {
 
 	checkObjs := func(objs []types.Object, state expectation) {
 		for _, obj := range objs {
+			if obj, ok := obj.(*types.TypeName); ok {
+				if _, ok := obj.Type().(*typeparams.TypeParam); ok {
+					// we don't care about type parameters
+					continue
+				}
+			}
+			if t, ok := obj.Type().(*types.Named); ok && typeparams.NamedTypeArgs(t).Len() != 0 {
+				continue
+			}
 			posn := res.Pass.Fset.Position(obj.Pos())
 			if _, ok := files[posn.Filename]; !ok {
 				continue
 			}
 
+			// This key isn't great. Because of generics, multiple objects (instantiations of a generic type) exist at
+			// the same location. This only works because we ignore instantiations, but may lead to confusing test failures.
 			k := key{posn.Filename, posn.Line}
 			exp, ok := want[k]
 			if !ok {
-				t.Errorf("unexpected %s object at %s", state, posn)
+				t.Errorf("unexpected %s object %q at %s", state, obj, posn)
 				continue
+			}
+			if false {
+				// Sometimes useful during debugging, but too noisy to have enabled for all test failures
+				t.Logf("%s handled by %q", k, obj)
 			}
 			delete(want, k)
 			if state != exp {
@@ -124,50 +147,12 @@ func check(t *testing.T, res *analysistest.Result) {
 }
 
 func TestAll(t *testing.T) {
-	dirs := []string{
-		"tests",
-		"alias",
-		"anonymous",
-		"blank",
-		"cgo",
-		"consts",
-		"conversion",
-		"cyclic",
-		"defer",
-		"elem",
-		"embedded_call",
-		"embedding",
-		"embedding2",
-		"exported_fields",
-		"exported_fields_main",
-		"exported_method_test",
-		"fields",
-		"functions",
-		"ignored",
-		"interfaces",
-		"interfaces2",
-		"linkname",
-		"main",
-		"mapslice",
-		"methods",
-		"named",
-		"nested",
-		"nocopy",
-		"nocopy-main",
-		"pointer-type-embedding",
-		"pointers",
-		"quiet",
-		"selectors",
-		"switch_interface",
-		"tests",
-		"tests-main",
-		"type-dedup",
-		"type-dedup2",
-		"type-dedup3",
-		"types",
-		"unused-argument",
-		"unused_type",
-		"variables",
+	dirs, err := filepath.Glob(filepath.Join(analysistest.TestData(), "src", "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, dir := range dirs {
+		dirs[i] = filepath.Base(dir)
 	}
 
 	results := analysistest.Run(t, analysistest.TestData(), Analyzer.Analyzer, dirs...)
