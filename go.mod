@@ -7,6 +7,7 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e
 	golang.org/x/sys v0.0.0-20211019181941-9d821ace8654
 	golang.org/x/tools v0.1.8
+	mpldr.codes/ansi v1.5.0
 )
 
 require (

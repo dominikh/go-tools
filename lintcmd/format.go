@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"honnef.co/go/tools/analysis/lint"
+	"mpldr.codes/ansi"
 )
 
 func shortPath(path string) string {
@@ -156,6 +157,16 @@ func (o *stylishFormatter) Stats(total, errors, warnings, ignored int) {
 		o.tw.Flush()
 		fmt.Fprintln(o.W)
 	}
-	fmt.Fprintf(o.W, " ✖ %d problems (%d errors, %d warnings, %d ignored)\n",
-		total, errors, warnings, ignored)
+
+	icon := ansi.Green("✔")
+	if warnings != 0 {
+		icon = ansi.Yellow(ansi.Bold("!"))
+	}
+
+	if errors != 0 {
+		icon = ansi.Red("✘")
+	}
+
+	fmt.Fprintf(o.W, " %s %d problems (%d errors, %d warnings, %d ignored)\n",
+		icon, total, errors, warnings, ignored)
 }
