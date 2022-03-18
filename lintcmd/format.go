@@ -125,6 +125,8 @@ func (o jsonFormatter) Format(_ []*lint.Analyzer, ps []diagnostic) {
 type stylishFormatter struct {
 	W io.Writer
 
+	failon map[string]bool
+
 	prevFile string
 	tw       *tabwriter.Writer
 }
@@ -145,7 +147,13 @@ func (o *stylishFormatter) Format(_ []*lint.Analyzer, ps []diagnostic) {
 			o.prevFile = pos.Filename
 			o.tw = tabwriter.NewWriter(o.W, 0, 4, 2, ' ', 0)
 		}
-		fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, p.Category, p.Message)
+
+		codeFormatter := func(s ...interface{}) string { return ansi.Red(ansi.Bold(s...)) }
+		if !o.failon[p.Category] {
+			codeFormatter = ansi.Yellow
+		}
+
+		fmt.Fprintf(o.tw, "  (%d, %d)\t%s\t%s\n", pos.Line, pos.Column, codeFormatter(p.Category), p.Message)
 		for _, r := range p.Related {
 			fmt.Fprintf(o.tw, "    (%d, %d)\t\t  %s\n", r.Position.Line, r.Position.Column, r.Message)
 		}

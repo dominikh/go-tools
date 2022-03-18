@@ -557,12 +557,21 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 		diagnostics = filtered
 	}
 
+	fail := cmd.flags.fail
+	analyzerNames := make([]string, len(cs))
+	for i, a := range cs {
+		analyzerNames[i] = a.Analyzer.Name
+	}
+	shouldExit := filterAnalyzerNames(analyzerNames, fail)
+	shouldExit["staticcheck"] = true
+	shouldExit["compile"] = true
+
 	var f formatter
 	switch cmd.flags.formatter {
 	case "text":
 		f = textFormatter{W: os.Stdout}
 	case "stylish":
-		f = &stylishFormatter{W: os.Stdout}
+		f = &stylishFormatter{W: os.Stdout, failon: shouldExit}
 	case "json":
 		f = jsonFormatter{W: os.Stdout}
 	case "sarif":
@@ -583,15 +592,6 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 		fmt.Fprintf(os.Stderr, "unsupported output format %q\n", cmd.flags.formatter)
 		cmd.exit(2)
 	}
-
-	fail := cmd.flags.fail
-	analyzerNames := make([]string, len(cs))
-	for i, a := range cs {
-		analyzerNames[i] = a.Analyzer.Name
-	}
-	shouldExit := filterAnalyzerNames(analyzerNames, fail)
-	shouldExit["staticcheck"] = true
-	shouldExit["compile"] = true
 
 	var (
 		numErrors   int
