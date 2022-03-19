@@ -204,6 +204,11 @@ func StructFieldInfo(f fakereflect.StructField) (*fieldInfo, error) {
 		return finfo, nil
 	}
 
+	if tag == "-" {
+		// - a field with tag "-" is omitted.
+		return finfo, nil
+	}
+
 	if tag == "" {
 		// If the name part of the tag is completely empty, get
 		// default from XMLName of underlying struct if feasible,
