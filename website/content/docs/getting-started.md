@@ -37,6 +37,9 @@ Debian
 Fedora
 : [golang-honnef-tools](https://fedora.pkgs.org/33/fedora-x86_64/golang-honnef-tools-2020.1.5-2.fc33.x86_64.rpm.html)
 
+Scoop
+: [staticcheck](https://github.com/ScoopInstaller/Main/blob/master/bucket/staticcheck.json)
+
 Homebrew
 : [staticcheck](https://formulae.brew.sh/formula/staticcheck)
 
