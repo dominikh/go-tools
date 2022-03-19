@@ -46,6 +46,9 @@ MacPorts
 NixOS
 : go-tools
 
+Scoop
+: [staticcheck](https://github.com/ScoopInstaller/Main/blob/master/bucket/staticcheck.json)
+
 </div>
 
 ## Running Staticcheck
