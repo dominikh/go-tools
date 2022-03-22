@@ -3205,11 +3205,12 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if ok {
-				if std.AlternativeAvailableSince == knowledge.DeprecatedNeverUse {
+				switch std.AlternativeAvailableSince {
+				case knowledge.DeprecatedNeverUse:
 					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d because it shouldn't be used: %s", report.Render(pass, sel), std.DeprecatedSince, depr.Msg))
-				} else if std.AlternativeAvailableSince == std.DeprecatedSince || std.AlternativeAvailableSince == knowledge.DeprecatedUseNoLonger {
+				case std.DeprecatedSince, knowledge.DeprecatedUseNoLonger:
 					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d: %s", report.Render(pass, sel), std.DeprecatedSince, depr.Msg))
-				} else {
+				default:
 					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d and an alternative has been available since Go 1.%d: %s", report.Render(pass, sel), std.DeprecatedSince, std.AlternativeAvailableSince, depr.Msg))
 				}
 			} else {
