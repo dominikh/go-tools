@@ -10,6 +10,7 @@ import (
 	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -232,7 +233,8 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 
 	ret := fn.Exit.Control().(*ir.Return)
 	for i, v := range ret.Results {
-		if _, ok := fn.Signature.Results().At(i).Type().Underlying().(*types.Interface); ok {
+		typ := fn.Signature.Results().At(i).Type()
+		if _, ok := typ.Underlying().(*types.Interface); ok && !typeparams.IsTypeParam(typ) {
 			if do(v, map[ir.Value]struct{}{}) {
 				out |= 1 << i
 			}
