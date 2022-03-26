@@ -2813,7 +2813,6 @@ func CheckInfiniteRecursion(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			block := site.Block()
-			canReturn := false
 			for _, b := range fn.Blocks {
 				if block.Dominates(b) {
 					continue
@@ -2822,12 +2821,8 @@ func CheckInfiniteRecursion(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				if _, ok := b.Control().(*ir.Return); ok {
-					canReturn = true
-					break
+					return
 				}
-			}
-			if canReturn {
-				return
 			}
 			report.Report(pass, site, "infinite recursive call")
 		})
