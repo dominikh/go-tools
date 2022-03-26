@@ -3935,10 +3935,21 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 		case "string":
 			cs++
 			// only for string, floating point, integer and bool
-			T := typeutil.Dereference(pass.TypesInfo.TypeOf(field.Type).Underlying()).Underlying()
-			basic, ok := T.(*types.Basic)
-			if !ok || (basic.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString)) == 0 {
+			tset := typeutil.NewTypeSet(pass.TypesInfo.TypeOf(field.Type))
+			if len(tset.Terms) == 0 {
+				// TODO(dh): improve message, call out the use of type parameters
 				report.Report(pass, field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
+				continue
+			}
+			for _, term := range tset.Terms {
+				T := typeutil.Dereference(term.Type().Underlying())
+				for _, term2 := range typeutil.NewTypeSet(T).Terms {
+					basic, ok := term2.Type().Underlying().(*types.Basic)
+					if !ok || (basic.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString)) == 0 {
+						// TODO(dh): improve message, show how we arrived at the type
+						report.Report(pass, field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
+					}
+				}
 			}
 		case "inline":
 			ci++
