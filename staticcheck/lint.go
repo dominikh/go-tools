@@ -2944,11 +2944,13 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		binop := node.(*ast.BinaryExpr)
-		b, ok := pass.TypesInfo.TypeOf(binop).Underlying().(*types.Basic)
-		if !ok {
-			return
-		}
-		if (b.Info() & types.IsInteger) == 0 {
+		if !typeutil.All(pass.TypesInfo.TypeOf(binop), func(term *typeparams.Term) bool {
+			b, ok := term.Type().Underlying().(*types.Basic)
+			if !ok {
+				return false
+			}
+			return (b.Info() & types.IsInteger) != 0
+		}) {
 			return
 		}
 		switch binop.Op {
