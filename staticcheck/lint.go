@@ -4165,7 +4165,12 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 					ptr = instr.Addr
 				case *ir.IndexAddr:
 					ptr = instr.X
-					if _, ok := ptr.Type().Underlying().(*types.Slice); ok {
+					if typeutil.All(ptr.Type(), func(term *typeparams.Term) bool {
+						if _, ok := term.Type().Underlying().(*types.Slice); ok {
+							return true
+						}
+						return false
+					}) {
 						// indexing a nil slice does not cause a nil pointer panic
 						//
 						// Note: This also works around the bad lowering of range loops over slices
