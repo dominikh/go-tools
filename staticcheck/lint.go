@@ -1169,7 +1169,7 @@ func CheckDubiousDeferInChannelRangeLoop(pass *analysis.Pass) (interface{}, erro
 	fn := func(node ast.Node) {
 		loop := node.(*ast.RangeStmt)
 		typ := pass.TypesInfo.TypeOf(loop.X)
-		_, ok := typ.Underlying().(*types.Chan)
+		_, ok := typeutil.CoreType(typ).(*types.Chan)
 		if !ok {
 			return
 		}
