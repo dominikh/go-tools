@@ -1259,7 +1259,9 @@ func CheckLoopSlide(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if _, ok := pass.TypesInfo.TypeOf(m.State["slice"].(*ast.Ident)).Underlying().(*types.Slice); !ok {
+		typ := pass.TypesInfo.TypeOf(m.State["slice"].(*ast.Ident))
+		// The pattern probably needs a core type, but All is fine, too. Either way we only accept slices.
+		if !typeutil.All(typ, typeutil.IsSlice) {
 			return
 		}
 
