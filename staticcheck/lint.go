@@ -916,6 +916,14 @@ func isInLoop(b *ir.BasicBlock) bool {
 }
 
 func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
+	isSignal := func(pass *analysis.Pass, expr ast.Expr, name string) bool {
+		if expr, ok := expr.(*ast.SelectorExpr); ok {
+			return code.SelectorName(pass, expr) == name
+		} else {
+			return false
+		}
+	}
+
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		if !code.IsCallToAny(pass, call,
@@ -925,22 +933,22 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 
 		hasSigterm := false
 		for _, arg := range call.Args {
-			if conv, ok := arg.(*ast.CallExpr); ok && isName(pass, conv.Fun, "os.Signal") {
+			if conv, ok := arg.(*ast.CallExpr); ok && isSignal(pass, conv.Fun, "os.Signal") {
 				arg = conv.Args[0]
 			}
 
-			if isName(pass, arg, "syscall.SIGTERM") {
+			if isSignal(pass, arg, "syscall.SIGTERM") {
 				hasSigterm = true
 				break
 			}
 
 		}
 		for i, arg := range call.Args {
-			if conv, ok := arg.(*ast.CallExpr); ok && isName(pass, conv.Fun, "os.Signal") {
+			if conv, ok := arg.(*ast.CallExpr); ok && isSignal(pass, conv.Fun, "os.Signal") {
 				arg = conv.Args[0]
 			}
 
-			if isName(pass, arg, "os.Kill") || isName(pass, arg, "syscall.SIGKILL") {
+			if isSignal(pass, arg, "os.Kill") || isSignal(pass, arg, "syscall.SIGKILL") {
 				var fixes []analysis.SuggestedFix
 				if !hasSigterm {
 					nargs := make([]ast.Expr, len(call.Args))
@@ -967,7 +975,7 @@ func CheckUntrappableSignal(pass *analysis.Pass) (interface{}, error) {
 				fixes = append(fixes, edit.Fix(fmt.Sprintf("remove %s from list of arguments", report.Render(pass, arg)), edit.ReplaceWithNode(pass.Fset, call, &ncall)))
 				report.Report(pass, arg, fmt.Sprintf("%s cannot be trapped (did you mean syscall.SIGTERM?)", report.Render(pass, arg)), report.Fixes(fixes...))
 			}
-			if isName(pass, arg, "syscall.SIGSTOP") {
+			if isSignal(pass, arg, "syscall.SIGSTOP") {
 				nargs := make([]ast.Expr, 0, len(call.Args)-1)
 				for j, a := range call.Args {
 					if i == j {
@@ -2850,17 +2858,6 @@ func objectName(obj types.Object) string {
 	}
 	name += obj.Name()
 	return name
-}
-
-func isName(pass *analysis.Pass, expr ast.Expr, name string) bool {
-	var obj types.Object
-	switch expr := expr.(type) {
-	case *ast.Ident:
-		obj = pass.TypesInfo.ObjectOf(expr)
-	case *ast.SelectorExpr:
-		obj = pass.TypesInfo.ObjectOf(expr.Sel)
-	}
-	return objectName(obj) == name
 }
 
 func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
