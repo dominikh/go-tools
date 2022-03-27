@@ -13,6 +13,7 @@ import (
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
 	"golang.org/x/tools/go/analysis"
@@ -34,11 +35,11 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 			if val == nil {
 				return true
 			}
-			Tsrc, ok := val.X.Type().Underlying().(*types.Basic)
+			Tsrc, ok := typeutil.CoreType(val.X.Type()).(*types.Basic)
 			if !ok || Tsrc.Kind() != types.String {
 				return true
 			}
-			Tdst, ok := val.Type().(*types.Slice)
+			Tdst, ok := typeutil.CoreType(val.Type()).(*types.Slice)
 			if !ok {
 				return true
 			}
