@@ -1555,6 +1555,9 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		typ := pass.TypesInfo.TypeOf(arg)
+		if typeparams.IsTypeParam(typ) {
+			return
+		}
 		irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 
 		if types.TypeString(typ, nil) == "reflect.Value" {
