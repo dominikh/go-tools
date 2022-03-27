@@ -4531,7 +4531,7 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 				if !ok || !(binop.Op == token.EQL || binop.Op == token.NEQ) {
 					continue
 				}
-				if _, ok := binop.X.Type().Underlying().(*types.Interface); !ok {
+				if _, ok := binop.X.Type().Underlying().(*types.Interface); !ok || typeparams.IsTypeParam(binop.X.Type()) {
 					// TODO support swapped X and Y
 					continue
 				}
