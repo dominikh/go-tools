@@ -99,3 +99,8 @@ func All(typ types.Type, fn func(*typeparams.Term) bool) bool {
 func Any(typ types.Type, fn func(*typeparams.Term) bool) bool {
 	return NewTypeSet(typ).Any(fn)
 }
+
+func IsSlice(term *typeparams.Term) bool {
+	_, ok := term.Type().Underlying().(*types.Slice)
+	return ok
+}
