@@ -96,5 +96,6 @@ func fn2() {
 	_ = rng.Float64() - rng.Float64()
 	_ = rng.NormFloat64() - rng.NormFloat64()
 
-	_ = rand.NewSource(0) == rand.NewSource(0) // want `identical expressions`
+	// not flagged; the return value is an interface and might be a float.
+	_ = rand.NewSource(0) == rand.NewSource(0)
 }

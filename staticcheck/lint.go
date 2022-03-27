@@ -1320,22 +1320,29 @@ func CheckLoopEmptyDefault(pass *analysis.Pass) (interface{}, error) {
 func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 	var isFloat func(T types.Type) bool
 	isFloat = func(T types.Type) bool {
-		switch T := T.Underlying().(type) {
-		case *types.Basic:
-			kind := T.Kind()
-			return kind == types.Float32 || kind == types.Float64
-		case *types.Array:
-			return isFloat(T.Elem())
-		case *types.Struct:
-			for i := 0; i < T.NumFields(); i++ {
-				if !isFloat(T.Field(i).Type()) {
-					return false
-				}
-			}
+		tset := typeutil.NewTypeSet(T)
+		if len(tset.Terms) == 0 {
+			// no terms, so floats are a possibility
 			return true
-		default:
-			return false
 		}
+		return tset.Any(func(term *typeparams.Term) bool {
+			switch typ := term.Type().Underlying().(type) {
+			case *types.Basic:
+				kind := typ.Kind()
+				return kind == types.Float32 || kind == types.Float64
+			case *types.Array:
+				return isFloat(typ.Elem())
+			case *types.Struct:
+				for i := 0; i < typ.NumFields(); i++ {
+					if !isFloat(typ.Field(i).Type()) {
+						return false
+					}
+				}
+				return true
+			default:
+				return false
+			}
+		})
 	}
 
 	// TODO(dh): this check ignores the existence of side-effects and
