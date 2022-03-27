@@ -3451,7 +3451,12 @@ func CheckMapBytesKey(pass *analysis.Pass) (interface{}, error) {
 				if !ok || conv.Type() != types.Universe.Lookup("string").Type() {
 					continue
 				}
-				if s, ok := conv.X.Type().(*types.Slice); !ok || s.Elem() != types.Universe.Lookup("byte").Type() {
+				tset := typeutil.NewTypeSet(conv.X.Type())
+				// If at least one of the types is []byte, then it's more efficient to inline the conversion
+				if !tset.Any(func(term *typeparams.Term) bool {
+					s, ok := term.Type().Underlying().(*types.Slice)
+					return ok && s.Elem().Underlying() == types.Universe.Lookup("byte").Type()
+				}) {
 					continue
 				}
 				refs := conv.Referrers()
