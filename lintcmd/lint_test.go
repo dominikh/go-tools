@@ -61,7 +61,7 @@ func TestErrors(t *testing.T) {
 			t.Fatalf("got %d diagnostics, want 1", len(ps))
 		}
 		trimPosition(t, &ps[0].Position)
-		want := diagnostic{
+		want17 := diagnostic{
 			Diagnostic: runner.Diagnostic{
 				Position: token.Position{
 					Filename: "broken_typeerror/pkg.go",
@@ -74,8 +74,22 @@ func TestErrors(t *testing.T) {
 			},
 			Severity: 0,
 		}
-		if !ps[0].equal(want) {
-			t.Errorf("got %#v, want %#v", ps[0], want)
+		want18 := diagnostic{
+			Diagnostic: runner.Diagnostic{
+				Position: token.Position{
+					Filename: "broken_typeerror/pkg.go",
+					Offset:   0,
+					Line:     6,
+					Column:   6,
+				},
+				Message:  "invalid operation: x + y (mismatched types int and string)",
+				Category: "compile",
+			},
+			Severity: 0,
+		}
+
+		if !ps[0].equal(want17) && !ps[0].equal(want18) {
+			t.Errorf("got %#v, want %#v for go1.17 or %#v for go1.18", ps[0], want17, want18)
 		}
 	})
 
