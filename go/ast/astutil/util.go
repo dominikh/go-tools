@@ -278,6 +278,17 @@ func Equal(a, b ast.Node) bool {
 	case *ast.IndexExpr:
 		b := b.(*ast.IndexExpr)
 		return Equal(a.X, b.X) && Equal(a.Index, b.Index)
+	case *ast.IndexListExpr:
+		b := b.(*ast.IndexListExpr)
+		if len(a.Indices) != len(b.Indices) {
+			return false
+		}
+		for i, v := range a.Indices {
+			if !Equal(v, b.Indices[i]) {
+				return false
+			}
+		}
+		return Equal(a.X, b.X)
 	case *ast.KeyValueExpr:
 		b := b.(*ast.KeyValueExpr)
 		return Equal(a.Key, b.Key) && Equal(a.Value, b.Value)
