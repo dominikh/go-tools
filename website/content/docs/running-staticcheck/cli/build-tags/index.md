@@ -90,7 +90,7 @@ All in all, there are thousands of unique combinations.
 Checking all of these would take far too long.
 
 However, the number of build configurations you care about is probably much smaller.
-Your software probably support 2-3 operating systems on 1-2 architectures,
+Your software probably supports 2-3 operating systems on 1-2 architectures,
 and maybe has a debug and a release build.
 This makes for a lot fewer combinations that need to be checked.
 These are probably the same combinations you're already checking in CI, too, by running their tests.
