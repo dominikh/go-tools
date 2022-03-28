@@ -130,6 +130,20 @@ func CopyExpr(node ast.Expr) (ast.Expr, bool) {
 		cp.X, ok1 = CopyExpr(cp.X)
 		cp.Index, ok2 = CopyExpr(cp.Index)
 		return &cp, ok1 && ok2
+	case *ast.IndexListExpr:
+		var ok bool
+		cp := *node
+		cp.X, ok = CopyExpr(cp.X)
+		if !ok {
+			return nil, false
+		}
+		for i, v := range node.Indices {
+			cp.Indices[i], ok = CopyExpr(v)
+			if !ok {
+				return nil, false
+			}
+		}
+		return &cp, true
 	case *ast.KeyValueExpr:
 		var ok1, ok2 bool
 		cp := *node
