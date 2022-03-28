@@ -10,7 +10,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1002": {
 			"Title": "Convert untagged switch to tagged switch",
@@ -22,7 +23,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1003": {
 			"Title": "Convert if/else-if chain to tagged switch",
@@ -34,7 +36,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 4
+			"Severity": 4,
+			"MergeIf": 0
 		},
 		"QF1004": {
 			"Title": "Use strings.ReplaceAll instead of strings.Replace with n == -1",
@@ -46,7 +49,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1005": {
 			"Title": "Expand call to math.Pow",
@@ -58,7 +62,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1006": {
 			"Title": "Lift if+break into loop condition",
@@ -70,7 +75,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1007": {
 			"Title": "Merge conditional assignment into variable declaration",
@@ -82,7 +88,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1008": {
 			"Title": "Omit embedded fields from selector expression",
@@ -94,7 +101,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1009": {
 			"Title": "Use time.Time.Equal instead of == operator",
@@ -106,7 +114,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 4
+			"Severity": 4,
+			"MergeIf": 0
 		},
 		"QF1010": {
 			"Title": "Convert slice of bytes to string when printing it",
@@ -118,7 +127,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1011": {
 			"Title": "Omit redundant type from variable declaration",
@@ -130,7 +140,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"QF1012": {
 			"Title": "Use fmt.Fprintf(x, ...) instead of x.Write(fmt.Sprintf(...))",
@@ -139,10 +150,11 @@
 			"TextMarkdown": "",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 5
+			"Severity": 5,
+			"MergeIf": 0
 		},
 		"S1000": {
 			"Title": "Use plain channel send or receive instead of single-case select",
@@ -154,7 +166,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1001": {
 			"Title": "Replace for loop with call to copy",
@@ -166,7 +179,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1002": {
 			"Title": "Omit comparison with boolean constant",
@@ -178,7 +192,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1003": {
 			"Title": "Replace call to strings.Index with strings.Contains",
@@ -190,7 +205,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1004": {
 			"Title": "Replace call to bytes.Compare with bytes.Equal",
@@ -202,7 +218,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1005": {
 			"Title": "Drop unnecessary use of the blank identifier",
@@ -214,7 +231,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1006": {
 			"Title": "Use 'for { ... }' for infinite loops",
@@ -226,7 +244,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1007": {
 			"Title": "Simplify regular expression by using raw string literal",
@@ -238,7 +257,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1008": {
 			"Title": "Simplify returning boolean expression",
@@ -250,7 +270,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1009": {
 			"Title": "Omit redundant nil check on slices",
@@ -262,7 +283,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1010": {
 			"Title": "Omit default slice index",
@@ -274,7 +296,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1011": {
 			"Title": "Use a single append to concatenate two slices",
@@ -286,7 +309,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1012": {
 			"Title": "Replace time.Now().Sub(x) with time.Since(x)",
@@ -298,7 +322,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1016": {
 			"Title": "Use a type conversion instead of manually copying struct fields",
@@ -310,7 +335,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1017": {
 			"Title": "Replace manual trimming with strings.TrimPrefix",
@@ -322,7 +348,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1018": {
 			"Title": "Use 'copy' for sliding elements",
@@ -334,7 +361,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1019": {
 			"Title": "Simplify 'make' call by omitting redundant arguments",
@@ -346,7 +374,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1020": {
 			"Title": "Omit redundant nil check in type assertion",
@@ -358,7 +387,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1021": {
 			"Title": "Merge variable declaration and assignment",
@@ -370,7 +400,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1023": {
 			"Title": "Omit redundant control flow",
@@ -382,7 +413,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1024": {
 			"Title": "Replace x.Sub(time.Now()) with time.Until(x)",
@@ -394,7 +426,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1025": {
 			"Title": "Don't use fmt.Sprintf(\"%s\", x) unnecessarily",
@@ -406,7 +439,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1028": {
 			"Title": "Simplify error construction with fmt.Errorf",
@@ -418,7 +452,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1029": {
 			"Title": "Range over the string directly",
@@ -430,7 +465,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1030": {
 			"Title": "Use bytes.Buffer.String or bytes.Buffer.Bytes",
@@ -442,7 +478,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1031": {
 			"Title": "Omit redundant nil check around loop",
@@ -454,7 +491,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1032": {
 			"Title": "Use sort.Ints(x), sort.Float64s(x), and sort.Strings(x)",
@@ -466,7 +504,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1033": {
 			"Title": "Unnecessary guard around call to 'delete'",
@@ -478,7 +517,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1034": {
 			"Title": "Use result of type assertion to simplify cases",
@@ -490,7 +530,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1035": {
 			"Title": "Redundant call to net/http.CanonicalHeaderKey in method call on net/http.Header",
@@ -502,7 +543,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1036": {
 			"Title": "Unnecessary guard around map access",
@@ -514,7 +556,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1037": {
 			"Title": "Elaborate way of sleeping",
@@ -526,7 +569,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1038": {
 			"Title": "Unnecessarily complex way of printing formatted string",
@@ -538,7 +582,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"S1039": {
 			"Title": "Unnecessary use of fmt.Sprint",
@@ -550,7 +595,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"S1040": {
 			"Title": "Type assertion to current type",
@@ -562,7 +608,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		},
 		"SA1000": {
 			"Title": "Invalid regular expression",
@@ -574,7 +621,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1001": {
 			"Title": "Invalid template",
@@ -586,7 +634,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1002": {
 			"Title": "Invalid format in time.Parse",
@@ -598,7 +647,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1003": {
 			"Title": "Unsupported argument to functions in encoding/binary",
@@ -610,7 +660,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1004": {
 			"Title": "Suspiciously small untyped constant in time.Sleep",
@@ -622,7 +673,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1005": {
 			"Title": "Invalid first argument to exec.Command",
@@ -634,7 +686,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1006": {
 			"Title": "Printf with dynamic first argument and no further arguments",
@@ -646,7 +699,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1007": {
 			"Title": "Invalid URL in net/url.Parse",
@@ -658,7 +712,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1008": {
 			"Title": "Non-canonical key in http.Header map",
@@ -670,7 +725,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1010": {
 			"Title": "(*regexp.Regexp).FindAll called with n == 0, which will always return zero results",
@@ -682,7 +738,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1011": {
 			"Title": "Various methods in the 'strings' package expect valid UTF-8, but invalid input is provided",
@@ -694,7 +751,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1012": {
 			"Title": "A nil context.Context is being passed to a function, consider using context.TODO instead",
@@ -706,7 +764,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1013": {
 			"Title": "io.Seeker.Seek is being called with the whence constant as the first argument, but it should be the second",
@@ -718,7 +777,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1014": {
 			"Title": "Non-pointer value passed to Unmarshal or Decode",
@@ -730,7 +790,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1015": {
 			"Title": "Using time.Tick in a way that will leak. Consider using time.NewTicker, and only use time.Tick in tests, commands and endless functions",
@@ -742,7 +803,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1016": {
 			"Title": "Trapping a signal that cannot be trapped",
@@ -754,7 +816,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1017": {
 			"Title": "Channels used with os/signal.Notify should be buffered",
@@ -766,7 +829,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1018": {
 			"Title": "strings.Replace called with n == 0, which does nothing",
@@ -778,7 +842,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1019": {
 			"Title": "Using a deprecated function, variable, constant or field",
@@ -790,7 +855,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 2
+			"Severity": 2,
+			"MergeIf": 0
 		},
 		"SA1020": {
 			"Title": "Using an invalid host:port pair with a net.Listen-related function",
@@ -802,7 +868,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1021": {
 			"Title": "Using bytes.Equal to compare two net.IP",
@@ -814,7 +881,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1023": {
 			"Title": "Modifying the buffer in an io.Writer implementation",
@@ -826,19 +894,21 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1024": {
 			"Title": "A string cutset contains duplicate characters",
-			"Text": "The strings.TrimLeft and strings.TrimRight functions take cutsets, not\nprefixes. A cutset is treated as a set of characters to remove from a\nstring. For example,\n\n```go\nstrings.TrimLeft(\"42133word\", \"1234\"))\n```\n\nwill result in the string \"word\" – any characters that are 1, 2, 3 or\n4 are cut from the left of the string.\n\nIn order to remove one string from another, use strings.TrimPrefix instead.",
+			"Text": "The strings.TrimLeft and strings.TrimRight functions take cutsets, not\nprefixes. A cutset is treated as a set of characters to remove from a\nstring. For example,\n\n```go\nstrings.TrimLeft(\"42133word\", \"1234\")\n```\n\nwill result in the string \"word\" – any characters that are 1, 2, 3 or\n4 are cut from the left of the string.\n\nIn order to remove one string from another, use strings.TrimPrefix instead.",
 			"TitleMarkdown": "A string cutset contains duplicate characters",
-			"TextMarkdown": "The `strings.TrimLeft` and `strings.TrimRight` functions take cutsets, not\nprefixes. A cutset is treated as a set of characters to remove from a\nstring. For example,\n\n```go\nstrings.TrimLeft(\"42133word\", \"1234\"))\n```\n\nwill result in the string `\"word\"` – any characters that are 1, 2, 3 or\n4 are cut from the left of the string.\n\nIn order to remove one string from another, use `strings.TrimPrefix` instead.",
+			"TextMarkdown": "The `strings.TrimLeft` and `strings.TrimRight` functions take cutsets, not\nprefixes. A cutset is treated as a set of characters to remove from a\nstring. For example,\n\n```go\nstrings.TrimLeft(\"42133word\", \"1234\")\n```\n\nwill result in the string `\"word\"` – any characters that are 1, 2, 3 or\n4 are cut from the left of the string.\n\nIn order to remove one string from another, use `strings.TrimPrefix` instead.",
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1025": {
 			"Title": "It is not possible to use (*time.Timer).Reset's return value correctly",
@@ -850,7 +920,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1026": {
 			"Title": "Cannot marshal channels or functions",
@@ -862,7 +933,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1027": {
 			"Title": "Atomic access to 64-bit variable must be 64-bit aligned",
@@ -874,7 +946,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1028": {
 			"Title": "sort.Slice can only be used on slices",
@@ -886,7 +959,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA1029": {
 			"Title": "Inappropriate key in call to context.WithValue",
@@ -898,7 +972,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA1030": {
 			"Title": "Invalid argument in call to a strconv function",
@@ -910,7 +985,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA2000": {
 			"Title": "sync.WaitGroup.Add called inside the goroutine, leading to a race condition",
@@ -922,7 +998,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA2001": {
 			"Title": "Empty critical section, did you mean to defer the unlock?",
@@ -934,7 +1011,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA2002": {
 			"Title": "Called testing.T.FailNow or SkipNow in a goroutine, which isn't allowed",
@@ -946,7 +1024,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA2003": {
 			"Title": "Deferred Lock right after locking, likely meant to defer Unlock instead",
@@ -958,7 +1037,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA3000": {
 			"Title": "TestMain doesn't call os.Exit, hiding test failures",
@@ -970,7 +1050,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA3001": {
 			"Title": "Assigning to b.N in benchmarks distorts the results",
@@ -982,7 +1063,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA4000": {
 			"Title": "Binary operator has identical expressions on both sides",
@@ -994,7 +1076,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4001": {
 			"Title": "\u0026*x gets simplified to x, it does not copy x",
@@ -1006,7 +1089,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4003": {
 			"Title": "Comparing unsigned values against negative values is pointless",
@@ -1018,7 +1102,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4004": {
 			"Title": "The loop exits unconditionally after one iteration",
@@ -1030,7 +1115,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4005": {
 			"Title": "Field assignment that will never be observed. Did you mean to use a pointer receiver?",
@@ -1042,7 +1128,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4006": {
 			"Title": "A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?",
@@ -1054,7 +1141,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4008": {
 			"Title": "The variable in the loop condition never changes, are you incrementing the wrong variable?",
@@ -1066,7 +1154,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4009": {
 			"Title": "A function argument is overwritten before its first use",
@@ -1078,7 +1167,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4010": {
 			"Title": "The result of append will never be observed anywhere",
@@ -1090,7 +1180,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4011": {
 			"Title": "Break statement with no effect. Did you mean to break out of an outer loop?",
@@ -1102,7 +1193,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4012": {
 			"Title": "Comparing a value against NaN even though no value is equal to NaN",
@@ -1114,7 +1206,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4013": {
 			"Title": "Negating a boolean twice (!!b) is the same as writing b. This is either redundant, or a typo.",
@@ -1126,7 +1219,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4014": {
 			"Title": "An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either",
@@ -1138,7 +1232,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4015": {
 			"Title": "Calling functions like math.Ceil on floats converted from integers doesn't do anything useful",
@@ -1150,7 +1245,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4016": {
 			"Title": "Certain bitwise operations, such as x ^ 0, do not do anything useful",
@@ -1162,7 +1258,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4017": {
 			"Title": "A pure function's return value is discarded, making the call pointless",
@@ -1174,7 +1271,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4018": {
 			"Title": "Self-assignment of variables",
@@ -1186,7 +1284,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4019": {
 			"Title": "Multiple, identical build constraints in the same file",
@@ -1198,7 +1297,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4020": {
 			"Title": "Unreachable case clause in a type switch",
@@ -1210,7 +1310,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA4021": {
 			"Title": "'x = append(y)' is equivalent to 'x = y'",
@@ -1222,7 +1323,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4022": {
 			"Title": "Comparing the address of a variable against nil",
@@ -1234,7 +1336,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4023": {
 			"Title": "Impossible comparison of interface value with untyped nil",
@@ -1246,7 +1349,8 @@
 			"Since": "2020.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4024": {
 			"Title": "Checking for impossible return value from a builtin function",
@@ -1258,7 +1362,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4025": {
 			"Title": "Integer division of literals that results in zero",
@@ -1270,7 +1375,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4026": {
 			"Title": "Go constants cannot express negative zero",
@@ -1282,7 +1388,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4027": {
 			"Title": "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL",
@@ -1294,7 +1401,8 @@
 			"Since": "2021.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4028": {
 			"Title": "x % 1 is always zero",
@@ -1303,10 +1411,11 @@
 			"TextMarkdown": "",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4029": {
 			"Title": "Ineffective attempt at sorting slice",
@@ -1315,10 +1424,11 @@
 			"TextMarkdown": "`sort.Float64Slice`, `sort.IntSlice`, and `sort.StringSlice` are\ntypes, not functions. Doing `x = sort.StringSlice(x)` does nothing,\nespecially not sort any values. The correct usage is\n`sort.Sort(sort.StringSlice(x))` or `sort.StringSlice(x).Sort()`,\nbut there are more convenient helpers, namely `sort.Float64s`,\n`sort.Ints`, and `sort.Strings`.",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4030": {
 			"Title": "Ineffective attempt at generating random number",
@@ -1327,10 +1437,11 @@
 			"TextMarkdown": "Functions in the `math/rand` package that accept upper limits, such\nas `Intn`, generate random numbers in the half-open interval [0,n). In\nother words, the generated numbers will be `\u003e= 0` and `\u003c n` – they\ndon't include `n`. `rand.Intn(1)` therefore doesn't generate `0`\nor `1`, it always generates `0`.",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA4031": {
 			"Title": "Checking never-nil value against nil",
@@ -1339,10 +1450,11 @@
 			"TextMarkdown": "",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5000": {
 			"Title": "Assignment to nil map",
@@ -1354,7 +1466,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA5001": {
 			"Title": "Deferring Close before checking for a possible error",
@@ -1366,7 +1479,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5002": {
 			"Title": "The empty for loop ('for {}') spins and can block the scheduler",
@@ -1378,7 +1492,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5003": {
 			"Title": "Defers in infinite loops will never execute",
@@ -1390,7 +1505,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5004": {
 			"Title": "'for { select { ...' with an empty default branch spins",
@@ -1402,7 +1518,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5005": {
 			"Title": "The finalizer references the finalized object, preventing garbage collection",
@@ -1414,7 +1531,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5007": {
 			"Title": "Infinite recursive call",
@@ -1426,7 +1544,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5008": {
 			"Title": "Invalid struct tag",
@@ -1438,7 +1557,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5009": {
 			"Title": "Invalid Printf call",
@@ -1450,7 +1570,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA5010": {
 			"Title": "Impossible type assertion",
@@ -1462,7 +1583,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5011": {
 			"Title": "Possible nil pointer dereference",
@@ -1474,7 +1596,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA5012": {
 			"Title": "Passing odd-sized slice to function expecting even size",
@@ -1486,7 +1609,8 @@
 			"Since": "2020.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 1
+			"Severity": 1,
+			"MergeIf": 0
 		},
 		"SA6000": {
 			"Title": "Using regexp.Match or related in a loop, should use regexp.Compile",
@@ -1498,7 +1622,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA6001": {
 			"Title": "Missing an optimization opportunity when indexing maps by byte slices",
@@ -1510,7 +1635,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA6002": {
 			"Title": "Storing non-pointer values in sync.Pool allocates memory",
@@ -1522,7 +1648,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA6003": {
 			"Title": "Converting a string to a slice of runes before ranging over it",
@@ -1534,7 +1661,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA6005": {
 			"Title": "Inefficient string comparison with strings.ToLower or strings.ToUpper",
@@ -1546,7 +1674,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9001": {
 			"Title": "Defers in range loops may not run when you expect them to",
@@ -1558,7 +1687,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9002": {
 			"Title": "Using a non-octal os.FileMode that looks like it was meant to be in octal.",
@@ -1570,7 +1700,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9003": {
 			"Title": "Empty body in an if or else branch",
@@ -1582,7 +1713,8 @@
 			"Since": "2017.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9004": {
 			"Title": "Only the first constant has an explicit type",
@@ -1594,7 +1726,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9005": {
 			"Title": "Trying to marshal a struct with no public fields nor custom marshaling",
@@ -1606,7 +1739,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 1
 		},
 		"SA9006": {
 			"Title": "Dubious bit shifting of a fixed size integer value",
@@ -1618,7 +1752,8 @@
 			"Since": "2020.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9007": {
 			"Title": "Deleting a directory that shouldn't be deleted",
@@ -1627,10 +1762,11 @@
 			"TextMarkdown": "It is virtually never correct to delete system directories such as\n/tmp or the user's home directory. However, it can be fairly easy to\ndo by mistake, for example by mistakingly using `os.TempDir` instead\nof `ioutil.TempDir`, or by forgetting to add a suffix to the result\nof `os.UserHomeDir`.\n\nWriting\n\n```go\nd := os.TempDir()\ndefer os.RemoveAll(d)\n```\n\nin your unit tests will have a devastating effect on the stability of your system.\n\nThis check flags attempts at deleting the following directories:\n\n- os.TempDir\n- os.UserCacheDir\n- os.UserConfigDir\n- os.UserHomeDir",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"SA9008": {
 			"Title": "else branch of a type assertion is probably not reading the right value",
@@ -1639,10 +1775,11 @@
 			"TextMarkdown": "When declaring variables as part of an `if` statement (like in `if\nfoo := ...; foo {`), the same variables will also be in the scope of\nthe `else` branch. This means that in the following example\n\n```go\nif x, ok := x.(int); ok {\n    // ...\n} else {\n    fmt.Println(\"unexpected type %T\", x)\n}\n```\n\n`x` in the `else` branch will refer to the `x` from `x, ok\n:=`; it will not refer to the `x` that is being type-asserted. The\nresult of a failed type assertion is the zero value of the type that\nis being asserted to, so `x` in the else branch will always have the\nvalue `0` and the type `int`.",
 			"Before": "",
 			"After": "",
-			"Since": "Unreleased",
+			"Since": "2022.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 3
+			"Severity": 3,
+			"MergeIf": 0
 		},
 		"ST1000": {
 			"Title": "Incorrect or missing package comment",
@@ -1654,7 +1791,8 @@
 			"Since": "2019.1",
 			"NonDefault": true,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1001": {
 			"Title": "Dot imports are discouraged",
@@ -1668,7 +1806,8 @@
 			"Options": [
 				"dot_import_whitelist"
 			],
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1003": {
 			"Title": "Poorly chosen identifier",
@@ -1682,7 +1821,8 @@
 			"Options": [
 				"initialisms"
 			],
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1005": {
 			"Title": "Incorrectly formatted error string",
@@ -1694,7 +1834,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1006": {
 			"Title": "Poorly chosen receiver name",
@@ -1706,7 +1847,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1008": {
 			"Title": "A function's error value should be its last return value",
@@ -1718,7 +1860,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1011": {
 			"Title": "Poorly chosen name for variable of type time.Duration",
@@ -1730,7 +1873,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1012": {
 			"Title": "Poorly chosen name for error variable",
@@ -1742,7 +1886,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1013": {
 			"Title": "Should use constants for HTTP error codes, not magic numbers",
@@ -1756,7 +1901,8 @@
 			"Options": [
 				"http_status_code_whitelist"
 			],
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1015": {
 			"Title": "A switch's default case should be the first or last case",
@@ -1768,7 +1914,8 @@
 			"Since": "2019.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1016": {
 			"Title": "Use consistent method receiver names",
@@ -1780,7 +1927,8 @@
 			"Since": "2019.1",
 			"NonDefault": true,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1017": {
 			"Title": "Don't use Yoda conditions",
@@ -1792,7 +1940,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1018": {
 			"Title": "Avoid zero-width and control characters in string literals",
@@ -1804,7 +1953,8 @@
 			"Since": "2019.2",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1019": {
 			"Title": "Importing the same package multiple times",
@@ -1816,7 +1966,8 @@
 			"Since": "2020.1",
 			"NonDefault": false,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1020": {
 			"Title": "The documentation of an exported function should start with the function's name",
@@ -1828,7 +1979,8 @@
 			"Since": "2020.1",
 			"NonDefault": true,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1021": {
 			"Title": "The documentation of an exported type should start with type's name",
@@ -1840,7 +1992,8 @@
 			"Since": "2020.1",
 			"NonDefault": true,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1022": {
 			"Title": "The documentation of an exported variable or constant should start with variable's name",
@@ -1852,7 +2005,8 @@
 			"Since": "2020.1",
 			"NonDefault": true,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 0
 		},
 		"ST1023": {
 			"Title": "Redundant type in variable declaration",
@@ -1864,7 +2018,8 @@
 			"Since": "2021.1",
 			"NonDefault": true,
 			"Options": null,
-			"Severity": 0
+			"Severity": 0,
+			"MergeIf": 1
 		}
 	},
 	"ByCategory": {
