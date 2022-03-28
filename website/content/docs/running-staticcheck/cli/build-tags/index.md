@@ -98,11 +98,6 @@ This will become useful in a bit.
 
 ### The `-merge` flag
 
-{{% alert title="Unreleased feature" color="warning" %}}
-The `-merge` flag is only available on the master branch of Staticcheck.
-It will be part of the next release.
-{{% /alert %}}
-
 Using the `-merge` flag, Staticcheck can merge the results of multiple runs.
 It decides on a per-check basis whether any run or all runs have to have reported an issue for it to be valid.
 It also takes into consideration which files were checked by which run, to reduce false negatives.
@@ -132,11 +127,6 @@ This allows for workflows like
 This multi-step workflow of generating per-run output and merging it makes it possible to run Staticcheck on different systems before merging the results, which might be especially required when using cgo.
 
 ### The `-matrix` flag
-
-{{% alert title="Unreleased features" color="warning" %}}
-The `-matrix` flag is only available on the master branch of Staticcheck.
-It will be part of the next release.
-{{% /alert %}}
 
 With the `-matrix` flag, you can instruct Staticcheck to check multiple build configurations at once and merge the results.
 In other words, it automates running Staticcheck multiple times and merging results afterwards.
