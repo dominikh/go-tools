@@ -275,6 +275,18 @@ func MayHaveSideEffects(pass *analysis.Pass, expr ast.Expr, purity facts.PurityR
 		return false
 	case *ast.IndexExpr:
 		return MayHaveSideEffects(pass, expr.X, purity) || MayHaveSideEffects(pass, expr.Index, purity)
+	case *typeparams.IndexListExpr:
+		// In theory, none of the checks are necessary, as IndexListExpr only involves types. But there is no harm in
+		// being safe.
+		if MayHaveSideEffects(pass, expr.X, purity) {
+			return true
+		}
+		for _, idx := range expr.Indices {
+			if MayHaveSideEffects(pass, idx, purity) {
+				return true
+			}
+		}
+		return false
 	case *ast.KeyValueExpr:
 		return MayHaveSideEffects(pass, expr.Key, purity) || MayHaveSideEffects(pass, expr.Value, purity)
 	case *ast.SelectorExpr:
