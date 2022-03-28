@@ -141,7 +141,7 @@ if someCondition {
 
 	"QF1012": {
 		Title:    `Use \'fmt.Fprintf(x, ...)\' instead of \'x.Write(fmt.Sprintf(...))\'`,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityHint,
 	},
 })

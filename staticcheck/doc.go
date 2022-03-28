@@ -747,7 +747,7 @@ As a consequence, the following code pattern is an expensive no-op:
 
 	"SA4028": {
 		Title:    `\'x % 1\' is always zero`,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants
 	},
@@ -762,7 +762,7 @@ especially not sort any values. The correct usage is
 but there are more convenient helpers, namely \'sort.Float64s\',
 \'sort.Ints\', and \'sort.Strings\'.
 `,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},
@@ -775,14 +775,14 @@ as \'Intn\', generate random numbers in the half-open interval [0,n). In
 other words, the generated numbers will be \'>= 0\' and \'< n\' – they
 don't include \'n\'. \'rand.Intn(1)\' therefore doesn't generate \'0\'
 or \'1\', it always generates \'0\'.`,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},
 
 	"SA4031": {
 		Title:    `Checking never-nil value against nil`,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},
@@ -1271,7 +1271,7 @@ This check flags attempts at deleting the following directories:
 - os.UserConfigDir
 - os.UserHomeDir
 `,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},
@@ -1295,7 +1295,7 @@ result of a failed type assertion is the zero value of the type that
 is being asserted to, so \'x\' in the else branch will always have the
 value \'0\' and the type \'int\'.
 `,
-		Since:    "Unreleased",
+		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},
