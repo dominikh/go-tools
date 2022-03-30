@@ -134,8 +134,9 @@ This is useful when all configurations can be checked on a single system, for ex
 
 When using the `-matrix` flag, Staticcheck reads a build matrix from standard input.
 The build matrix uses a line-based format, where each non-empty line specifies a build name, environment variables and command-line flags.
-A line is of the format `<name>: [environment variables] [flags]`, for example `linux-debug: GOOS=linux -tags=debug -some-flag="some value"`.
+A line is of the format `<name>: [environment variables] [flags]`, for example `linux_debug: GOOS=linux -tags=debug -some-flag="some value"`.
 Environment variables and flags get passed to `go` when Staticcheck analyzes code, so you can use all flags that `go` supports, such as `-tags` or `-gcflags`, although few flags other than `-tags` are really useful.
+Valid build names consist of letters, numbers and underscores.
 
 Here is an example of using a build matrix:
 
