@@ -282,8 +282,8 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	// A representation-changing conversion?
 	// At least one of {ut_src,ut_dst} must be *Basic.
 	// (The other may be []byte or []rune.)
-	ok1 := tset_src.All(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
-	ok2 := tset_dst.All(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+	ok1 := tset_src.Any(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+	ok2 := tset_dst.Any(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
 	if ok1 || ok2 {
 		c := &Convert{X: val}
 		c.setType(t_dst)
