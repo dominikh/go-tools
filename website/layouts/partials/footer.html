@@ -60,7 +60,7 @@
   <div class="container-fluid mx-sm-5">
 	<div class="row">
 	  <div class="col-12">
-		{{ range $cp := .Site.Params.copyrights }}
+		{{ range $cp := .Site.Data.copyrights.copyrights }}
 		<small class="text-white">{{ $cp | safeHTML }}</small><br>
 		{{ end }}
 		{{ with .Site.Params.privacy_policy }}<small class="ml-1"><a href="{{ . }}">{{ T "footer_privacy_policy" }}</a></small>{{ end }}

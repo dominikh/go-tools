@@ -37,11 +37,6 @@ unsafe = true
       style = "tango"
 
 [params]
-copyrights = [
-  "© 2019 Dominik Honnef All Rights Reserved.",
-  "© 2018 Google LLC All rights reserved. Google and the Google logo are registered trademarks of Google LLC.",
-  "The Staticcheck logo was designed by <a href='https://egonelbre.com/'>Egon Elbre</a> and is based on the Go gopher, which was designed by <a href='http://reneefrench.blogspot.com/'>Renee French</a> and is licensed under the Creative Commons 3.0 Attributions license.",
-]
 description = 'Staticcheck is a state of the art linter for the Go programming language'
 images = ['/img/logo.webp']
 title = 'Staticcheck'
