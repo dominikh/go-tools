@@ -71,6 +71,7 @@ for os in ${SYSTEMS[@]}; do
 done
 
 build "darwin" "amd64"
+build "darwin" "arm64"
 
 for arch in armv5l armv6l armv7l arm64; do
     build "linux" "$arch"
