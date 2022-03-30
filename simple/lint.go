@@ -779,7 +779,7 @@ var checkLoopAppendQ = pattern.MustParse(`
 		nil
 		_
 		x
-		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs (IndexExpr val@(Object _) key)])])])
+		[(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs (IndexExpr x key)])])])
 	(RangeStmt
 		key
 		nil
@@ -795,8 +795,8 @@ func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		val := m.State["val"].(types.Object)
-		if refersTo(pass, m.State["lhs"].(ast.Expr), val) {
+		val, ok := m.State["val"].(types.Object)
+		if ok && refersTo(pass, m.State["lhs"].(ast.Expr), val) {
 			return
 		}
 
