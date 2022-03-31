@@ -113,6 +113,15 @@ var textMarshalerType = types.NewInterfaceType([]*types.Func{
 
 var N = 0
 
+type CyclicTypeError struct {
+	Type types.Type
+	Path string
+}
+
+func (err *CyclicTypeError) Error() string {
+	return "cyclic type"
+}
+
 // marshalValue writes one or more XML elements representing val.
 // If val was obtained from a struct field, finfo must have its details.
 func (e *Encoder) marshalValue(val fakereflect.TypeAndCanAddr, finfo *fieldInfo, startTemplate *StartElement, stack string) error {
@@ -122,11 +131,17 @@ func (e *Encoder) marshalValue(val fakereflect.TypeAndCanAddr, finfo *fieldInfo,
 	e.seen[val] = struct{}{}
 
 	// Drill into interfaces and pointers.
+	seen := map[fakereflect.TypeAndCanAddr]struct{}{}
 	for val.IsInterface() || val.IsPtr() {
 		if val.IsInterface() {
 			return nil
 		}
 		val = val.Elem()
+		if _, ok := seen[val]; ok {
+			// Loop in type graph, e.g. 'type P *P'
+			return &CyclicTypeError{val.Type, stack}
+		}
+		seen[val] = struct{}{}
 	}
 
 	// Check for marshaler.

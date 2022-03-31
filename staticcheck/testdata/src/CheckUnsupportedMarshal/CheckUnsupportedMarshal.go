@@ -303,3 +303,15 @@ func toplevelPointer() {
 	xml.Marshal(ToplevelPointerMarshalerXML{})  // want `unsupported type`
 	xml.Marshal(ToplevelPointerMarshalerText{}) // want `unsupported type`
 }
+
+func cyclicPointer() {
+	type P *P
+	type S2 struct {
+		Bar P
+	}
+	type S1 struct {
+		Foo S2
+	}
+	var s S1
+	xml.Marshal(s) // want `cyclic type P, via x\.Foo\.Bar`
+}
