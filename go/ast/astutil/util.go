@@ -218,8 +218,8 @@ func CopyExpr(node ast.Expr) (ast.Expr, bool) {
 	case *ast.StructType:
 		cp := *node
 		return &cp, true
-	case *ast.FuncLit:
-		// TODO(dh): implement copying of function literals.
+	case *ast.FuncLit, *ast.FuncType:
+		// TODO(dh): implement copying of function literals and types.
 		return nil, false
 	case *ast.ChanType:
 		var ok bool
