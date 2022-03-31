@@ -28,6 +28,11 @@ func fn1() {
 		b3 = append(b3, v)
 	}
 
+	var a4 []int
+	for i := range fn6() {
+		a4 = append(a4, fn6()[i])
+	}
+
 	var m map[string]int
 	var c []int
 	for _, v := range m {
@@ -86,4 +91,8 @@ func fn5() {
 		out = append(m2[tt.F], tt)
 	}
 	_ = out
+}
+
+func fn6() []int {
+	return []int{1, 2, 3}
 }

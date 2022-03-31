@@ -55,7 +55,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"S1011": {
 		Run:      CheckLoopAppend,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, facts.Generated, facts.Purity},
 	},
 	"S1012": {
 		Run:      CheckTimeSince,

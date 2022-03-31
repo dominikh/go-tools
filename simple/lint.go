@@ -13,6 +13,7 @@ import (
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
+	"honnef.co/go/tools/analysis/facts"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ast/astutil"
@@ -789,6 +790,8 @@ var checkLoopAppendQ = pattern.MustParse(`
 		(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]))`)
 
 func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
+	pure := pass.ResultOf[facts.Purity].(facts.PurityResult)
+
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, checkLoopAppendQ, node)
 		if !ok {
@@ -797,6 +800,10 @@ func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 
 		val, ok := m.State["val"].(types.Object)
 		if ok && refersTo(pass, m.State["lhs"].(ast.Expr), val) {
+			return
+		}
+
+		if code.MayHaveSideEffects(pass, m.State["x"].(ast.Expr), pure) {
 			return
 		}
 
