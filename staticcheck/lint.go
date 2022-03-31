@@ -897,6 +897,13 @@ func checkUnsupportedMarshalXML(call *Call) {
 			} else {
 				arg.Invalid(fmt.Sprintf("trying to marshal unsupported type %s, via %s", typ, err.Path))
 			}
+		case *fakexml.CyclicTypeError:
+			typ := types.TypeString(err.Type, types.RelativeTo(arg.Value.Value.Parent().Pkg.Pkg))
+			if err.Path == "x" {
+				arg.Invalid(fmt.Sprintf("trying to marshal cyclic type %s", typ))
+			} else {
+				arg.Invalid(fmt.Sprintf("trying to marshal cyclic type %s, via %s", typ, err.Path))
+			}
 		case *fakexml.TagPathError:
 			// Vet does a better job at reporting this error, because it can flag the actual struct tags, not just the call to Marshal
 		default:
