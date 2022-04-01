@@ -207,4 +207,7 @@ func test() {
 
 	var v1 interface{} = 0
 	_ = v1 == nil // want `never true; the lhs`
+
+	_ = any((*int)(nil)) == nil // want `never true`
+	_ = any((error)(nil)) == nil
 }
