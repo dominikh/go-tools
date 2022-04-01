@@ -4592,6 +4592,14 @@ func CheckTypedNilInterface(pass *analysis.Pass) (interface{}, error) {
 					default:
 						panic("unreachable")
 					}
+
+					terms, err := typeparams.NormalTerms(x.X.Type())
+					if len(terms) == 0 || err != nil {
+						// Type is a type parameter with no type terms (or we couldn't determine the terms). Such a type
+						// _can_ be nil when put in an interface value.
+						continue
+					}
+
 					if report.HasRange(x.X) {
 						report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
 							report.Related(x.X, "the lhs of the comparison gets its value from here and has a concrete type"))

@@ -212,6 +212,15 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 			}
 			return true
 		case *ir.MakeInterface:
+			terms, err := typeparams.NormalTerms(v.X.Type())
+			if len(terms) == 0 || err != nil {
+				// Type is a type parameter with no type terms (or we couldn't determine the terms). Such a type
+				// _can_ be nil when put in an interface value.
+				//
+				// There is no instruction that can create a guaranteed non-nil instance of a type parameter without
+				// type constraints, so we return false right away, without checking v.X's typedness.
+				return false
+			}
 			return true
 		case *ir.TypeAssert:
 			// type assertions fail for untyped nils. Either we have a
