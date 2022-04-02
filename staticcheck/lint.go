@@ -2852,21 +2852,6 @@ func CheckInfiniteRecursion(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func objectName(obj types.Object) string {
-	if obj == nil {
-		return "<nil>"
-	}
-	var name string
-	if obj.Pkg() != nil && obj.Pkg().Scope().Lookup(obj.Name()) == obj {
-		s := obj.Pkg().Path()
-		if s != "" {
-			name += s + "."
-		}
-	}
-	name += obj.Name()
-	return name
-}
-
 func CheckLeakyTimeTick(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		if code.IsMainLike(pass) || code.IsInTest(pass, fn) {
