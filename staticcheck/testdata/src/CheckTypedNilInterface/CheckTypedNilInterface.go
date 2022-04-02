@@ -211,3 +211,5 @@ func test() {
 	_ = any((*int)(nil)) == nil // want `never true`
 	_ = any((error)(nil)) == nil
 }
+
+type any = interface{}
