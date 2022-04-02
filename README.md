@@ -20,15 +20,13 @@ You can find extensive documentation on Staticcheck on [its website](https://sta
 
 ### Releases
 
-It is recommended that you run released versions of the tools. These
-releases can be found as git tags (e.g. `2019.1`) as well as prebuilt
-binaries in the [releases tab](https://github.com/dominikh/go-tools/releases).
+It is recommended that you run released versions of the tools.
+These releases can be found as git tags (e.g. `2022.1`).
 
-The easiest way of using the releases from source is to use a Go
-package manager such as Godep or Go modules. Alternatively you can use
-a combination of `git clone -b` and `go get` to check out the
-appropriate tag and download its dependencies.
+The easiest way of installing a release is by using `go install`, for example `go install honnef.co/go/tools/cmd/staticcheck@2022.1`.
+Alternatively, we also offer [prebuilt binaries](https://github.com/dominikh/go-tools/releases).
 
+You can find more information about installation and releases in the [documentation](https://staticcheck.io/docs/getting-started/).
 
 ### Master
 
@@ -62,4 +60,5 @@ backwards-incompatible changes.
 
 ## System requirements
 
-We support the last two versions of Go.
+Releases support the current and previous version of Go at the time of release.
+The master branch supports the current version of Go.
