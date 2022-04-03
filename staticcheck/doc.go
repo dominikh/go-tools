@@ -446,7 +446,7 @@ falsify results.`,
 		Title:    `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
-		MergeIf:  lint.MergeIfAny,
+		MergeIf:  lint.MergeIfAll,
 	},
 
 	"SA4009": {
