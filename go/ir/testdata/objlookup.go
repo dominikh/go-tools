@@ -1,4 +1,5 @@
-//+build ignore
+//go:build ignore
+// +build ignore
 
 package main
 
@@ -81,12 +82,12 @@ func main() {
 
 	var v7 S    //@ ir(v7,"&Alloc")
 	v7.x = 1    //@ ir(v7,"&Alloc"), ir(x,"&FieldAddr")
-	print(v7.x) //@ ir(v7,"&Alloc"), ir(x,"&FieldAddr")
+	print(v7.x) //@ ir(v7,"Load"), ir(x,"Field")
 
 	var v8 [1]int //@ ir(v8,"&Alloc")
 	v8[0] = 0     //@ ir(v8,"&Alloc")
 	print(v8[:])  //@ ir(v8,"&Alloc")
-	_ = v8[0]     //@ ir(v8,"&Alloc")
+	_ = v8[0]     //@ ir(v8,"Load")
 	_ = v8[:][0]  //@ ir(v8,"&Alloc")
 	v8ptr := &v8  //@ ir(v8ptr,"Alloc"), ir(v8,"&Alloc")
 	_ = v8ptr[0]  //@ ir(v8ptr,"Alloc")
@@ -146,9 +147,13 @@ func main() {
 	}
 
 	// .Op is an inter-package FieldVal-selection.
-	var err os.PathError //@ ir(err,"&Alloc")
-	_ = err.Op           //@ ir(err,"&Alloc"), ir(Op,"&FieldAddr")
-	_ = &err.Op          //@ ir(err,"&Alloc"), ir(Op,"&FieldAddr")
+	var err1 os.PathError //@ ir(err1,"&Alloc")
+	_ = err1.Op           //@ ir(err1,"Load"), ir(Op,"Field")
+	_ = &err1.Op          //@ ir(err1,"&Alloc"), ir(Op,"&FieldAddr")
+
+	// .Op is an inter-package FieldVal-selection.
+	var err2 os.PathError //@ ir(err2,"AggregateConst")
+	_ = err2.Op           //@ ir(err2,"AggregateConst"), ir(Op,"Field")
 
 	// Exercise corner-cases of lvalues vs rvalues.
 	// (Guessing IsAddr from the 'pointerness' won't cut it here.)

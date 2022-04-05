@@ -38,6 +38,9 @@ import (
 	"golang.org/x/exp/typeparams"
 )
 
+// if set to true, we will use FieldAddr and IndexAddr whenever possible
+const preferPointerArithmetic = false
+
 var (
 	varOk    = newVar("ok", tBool)
 	varIndex = newVar("index", tInt)
@@ -557,7 +560,7 @@ func (b *builder) expr(fn *Function, e ast.Expr) Value {
 	}
 
 	var v Value
-	if tv.Addressable() {
+	if tv.Addressable() && preferPointerArithmetic {
 		// Prefer pointer arithmetic ({Index,Field}Addr) followed
 		// by Load over subelement extraction (e.g. Index, Field),
 		// to avoid large copies.
