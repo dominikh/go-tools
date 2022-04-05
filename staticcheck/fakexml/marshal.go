@@ -344,8 +344,6 @@ func (e *Encoder) marshalStruct(tinfo *typeInfo, val fakereflect.TypeAndCanAddr,
 					continue
 				}
 			}
-
-			vf = indirect(vf)
 			continue
 
 		case fComment:
