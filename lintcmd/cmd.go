@@ -393,8 +393,8 @@ func (cmd *Command) Run() {
 			var err error
 			bconfs, err = parseBuildConfigs(os.Stdin)
 			if err != nil {
-				if err, ok := err.(parseBuildConfigError); ok {
-					fmt.Fprintf(os.Stderr, "<stdin>:%d couldn't parse build matrix: %s\n", err.line, err.err)
+				if perr, ok := err.(parseBuildConfigError); ok {
+					fmt.Fprintf(os.Stderr, "<stdin>:%d couldn't parse build matrix: %s\n", perr.line, perr.err)
 				} else {
 					fmt.Fprintln(os.Stderr, err)
 				}
