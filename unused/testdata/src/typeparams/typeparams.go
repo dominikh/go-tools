@@ -70,3 +70,17 @@ func Fn9[T struct { // used
 type s2 struct{} // used
 
 func fn10[E any](x []E) {} // unused
+
+type Tree[T any] struct { // used
+	Root *Node[T] // used
+}
+
+type Node[T any] struct { // used
+	Tree *Tree[T] // used
+}
+
+type foo struct{} // used
+
+type Bar *Node[foo] // used
+
+func (n Node[T]) anyMethod() {} // unused
