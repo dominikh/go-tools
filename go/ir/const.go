@@ -147,6 +147,11 @@ func (c *Const) RelString(from *types.Package) string {
 }
 
 func (c *Const) String() string {
+	if c.block == nil {
+		// Constants don't have a block till late in the compilation process. But we want to print consts during
+		// debugging.
+		return c.RelString(nil)
+	}
 	return c.RelString(c.Parent().pkg())
 }
 
@@ -170,15 +175,18 @@ func (v *AggregateConst) RelString(pkg *types.Package) string {
 	return fmt.Sprintf("AggregateConst <%s> (%s)", relType(v.Type(), pkg), strings.Join(values, ", "))
 }
 
+func (v *AggregateConst) String() string {
+	if v.block == nil {
+		return v.RelString(nil)
+	}
+	return v.RelString(v.Parent().pkg())
+}
+
 func (v *GenericConst) RelString(pkg *types.Package) string {
 	return fmt.Sprintf("GenericConst <%s>", relType(v.Type(), pkg))
 }
 
 func (v *GenericConst) String() string {
-	return v.RelString(v.Parent().pkg())
-}
-
-func (v *AggregateConst) String() string {
 	return v.RelString(v.Parent().pkg())
 }
 
