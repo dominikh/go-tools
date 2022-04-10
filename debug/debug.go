@@ -2,7 +2,9 @@
 package debug
 
 import (
+	"bytes"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"go/types"
@@ -33,4 +35,11 @@ func TypeCheck(src string) (*ast.File, *types.Package, *types.Info, error) {
 		return nil, nil, nil, err
 	}
 	return f, pkg, info, nil
+}
+
+func FormatNode(node ast.Node) string {
+	var buf bytes.Buffer
+	fset := token.NewFileSet()
+	format.Node(&buf, fset, node)
+	return buf.String()
 }
