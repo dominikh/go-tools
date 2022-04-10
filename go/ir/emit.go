@@ -301,8 +301,6 @@ func emitStore(f *Function, addr, val Value, source ast.Node) *Store {
 		Addr: addr,
 		Val:  emitConv(f, val, deref(addr.Type()), source),
 	}
-	// make sure we call getMem after the call to emitConv, which may
-	// itself update the memory state
 	f.emit(s, source)
 	return s
 }
