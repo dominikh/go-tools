@@ -951,11 +951,23 @@ func replaceAll(x, y Value) {
 	pxrefs := x.Referrers()
 	pyrefs := y.Referrers()
 	for _, instr := range *pxrefs {
-		rands = instr.Operands(rands[:0]) // recycle storage
-		for _, rand := range rands {
-			if *rand != nil {
-				if *rand == x {
-					*rand = y
+		switch instr := instr.(type) {
+		case *CompositeValue:
+			// Special case CompositeValue because it might have very large lists of operands
+			//
+			// OPT(dh): this loop is still expensive for large composite values
+			for i, rand := range instr.Values {
+				if rand == x {
+					instr.Values[i] = y
+				}
+			}
+		default:
+			rands = instr.Operands(rands[:0]) // recycle storage
+			for _, rand := range rands {
+				if *rand != nil {
+					if *rand == x {
+						*rand = y
+					}
 				}
 			}
 		}

@@ -326,6 +326,31 @@ func (s *ConstantSwitch) String() string {
 	return b.String()
 }
 
+func (v *CompositeValue) String() string {
+	var b bytes.Buffer
+	from := v.Parent().pkg()
+	fmt.Fprintf(&b, "CompositeValue <%s>", relType(v.Type(), from))
+	if v.NumSet >= len(v.Values) {
+		// All values provided
+		fmt.Fprint(&b, " [all]")
+	} else if v.Bitmap.BitLen() == 0 {
+		// No values provided
+		fmt.Fprint(&b, " [none]")
+	} else {
+		// Some values provided
+		bits := []byte(fmt.Sprintf("%0*b", len(v.Values), &v.Bitmap))
+		for i := 0; i < len(bits)/2; i++ {
+			o := len(bits) - 1 - i
+			bits[i], bits[o] = bits[o], bits[i]
+		}
+		fmt.Fprintf(&b, " [%s]", bits)
+	}
+	for _, vv := range v.Values {
+		fmt.Fprintf(&b, " %s", relName(vv, v))
+	}
+	return b.String()
+}
+
 func (s *TypeSwitch) String() string {
 	from := s.Parent().pkg()
 	var b bytes.Buffer

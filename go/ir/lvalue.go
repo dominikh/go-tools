@@ -52,6 +52,34 @@ func (a *address) typ() types.Type {
 	return deref(a.addr.Type())
 }
 
+type compositeElement struct {
+	cv   *CompositeValue
+	idx  int
+	t    types.Type
+	expr ast.Expr
+}
+
+func (ce *compositeElement) load(fn *Function, source ast.Node) Value {
+	panic("not implemented")
+}
+
+func (ce *compositeElement) store(fn *Function, v Value, source ast.Node) {
+	v = emitConv(fn, v, ce.t, source)
+	ce.cv.Values[ce.idx] = v
+	if ce.expr != nil {
+		// store.Val is v, converted for assignability.
+		emitDebugRef(fn, ce.expr, v, false)
+	}
+}
+
+func (ce *compositeElement) address(fn *Function) Value {
+	panic("not implemented")
+}
+
+func (ce *compositeElement) typ() types.Type {
+	return ce.t
+}
+
 // An element is an lvalue represented by m[k], the location of an
 // element of a map.  These locations are not addressable
 // since pointers cannot be formed from them, but they do support

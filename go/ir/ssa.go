@@ -13,6 +13,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"math/big"
 	"sync"
 
 	"honnef.co/go/tools/go/types/typeutil"
@@ -593,6 +594,17 @@ type Const struct {
 type AggregateConst struct {
 	register
 
+	Values []Value
+}
+
+type CompositeValue struct {
+	register
+
+	// Bitmap records which elements were explicitly provided. For example, [4]byte{2: x} would have a bitmap of 0010.
+	Bitmap big.Int
+	// The number of bits set in Bitmap
+	NumSet int
+	// Dense list of values in the composite literal. Omitted elements are filled in with zero values.
 	Values []Value
 }
 
@@ -2050,6 +2062,13 @@ func (v *Load) Operands(rands []*Value) []*Value {
 }
 
 func (v *AggregateConst) Operands(rands []*Value) []*Value {
+	for i := range v.Values {
+		rands = append(rands, &v.Values[i])
+	}
+	return rands
+}
+
+func (v *CompositeValue) Operands(rands []*Value) []*Value {
 	for i := range v.Values {
 		rands = append(rands, &v.Values[i])
 	}

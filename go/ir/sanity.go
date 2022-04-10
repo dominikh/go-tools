@@ -194,6 +194,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *GenericConst:
 	case *Recv:
 	case *TypeSwitch:
+	case *CompositeValue:
 	default:
 		panic(fmt.Sprintf("Unknown instruction type: %T", instr))
 	}
