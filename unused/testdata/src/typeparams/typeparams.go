@@ -89,3 +89,17 @@ func fn11[T ~struct{ Field int }]() { // unused
 	// don't crash because of the composite literal
 	_ = T{Field: 42}
 }
+
+type convertGeneric1 struct { // used
+	field int // used
+}
+
+type convertGeneric2 struct { // used
+	field int // used
+}
+
+var _ = convertGeneric1{}.field // mark field as used
+
+func Fn12[T1 convertGeneric1, T2 convertGeneric2](a T1) { // used
+	_ = T2(a) // conversion marks T2.field as used
+}

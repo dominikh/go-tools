@@ -1662,8 +1662,8 @@ func (g *graph) instructions(fn *ir.Function) {
 			case *ir.ChangeType:
 				// conversion type handled generically
 
-				s1, ok1 := typeutil.Dereference(instr.Type()).Underlying().(*types.Struct)
-				s2, ok2 := typeutil.Dereference(instr.X.Type()).Underlying().(*types.Struct)
+				s1, ok1 := typeutil.CoreType(typeutil.Dereference(instr.Type())).(*types.Struct)
+				s2, ok2 := typeutil.CoreType(typeutil.Dereference(instr.X.Type())).(*types.Struct)
 				if ok1 && ok2 {
 					// Converting between two structs. The fields are
 					// relevant for the conversion, but only if the
