@@ -1630,12 +1630,17 @@ func (g *graph) instructions(fn *ir.Function) {
 			}
 			switch instr := instr.(type) {
 			case *ir.Field:
+				// Can't access fields via generics, for now.
+
 				st := instr.X.Type().Underlying().(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
 				g.seeAndUse(field, fnObj, edgeFieldAccess)
 			case *ir.FieldAddr:
-				st := typeutil.Dereference(instr.X.Type()).Underlying().(*types.Struct)
+				// User code can't access fields on type parameters, but composite literals are still possible, which
+				// compile to FieldAddr + Store.
+
+				st := typeutil.CoreType(typeutil.Dereference(instr.X.Type())).(*types.Struct)
 				field := st.Field(instr.Field)
 				// (4.7) functions use fields they access
 				g.seeAndUse(field, fnObj, edgeFieldAccess)
