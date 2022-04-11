@@ -84,3 +84,8 @@ type foo struct{} // used
 type Bar *Node[foo] // used
 
 func (n Node[T]) anyMethod() {} // unused
+
+func fn11[T ~struct{ Field int }]() { // unused
+	// don't crash because of the composite literal
+	_ = T{Field: 42}
+}
