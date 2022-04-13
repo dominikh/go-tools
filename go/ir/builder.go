@@ -2357,7 +2357,7 @@ start:
 			block = fn.labelledBlock(s.Label)._goto
 		}
 		j := emitJump(fn, block, s)
-		j.Comment = s.Tok.String()
+		j.comment = s.Tok.String()
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 
 	case *ast.BlockStmt:

@@ -870,6 +870,10 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 			default:
 				buf.WriteString(instr.String())
 			}
+			if instr != nil && instr.Comment() != "" {
+				buf.WriteString(" # ")
+				buf.WriteString(instr.Comment())
+			}
 			buf.WriteString("\n")
 
 			if f.Prog.mode&PrintSource != 0 {

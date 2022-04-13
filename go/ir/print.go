@@ -288,8 +288,8 @@ func (s *Jump) String() string {
 		block = s.block.Succs[0].Index
 	}
 	str := fmt.Sprintf("Jump → b%d", block)
-	if s.Comment != "" {
-		str = fmt.Sprintf("%s # %s", str, s.Comment)
+	if s.Comment() != "" {
+		str = fmt.Sprintf("%s # %s", str, s.Comment())
 	}
 	return str
 }
