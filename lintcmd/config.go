@@ -51,9 +51,6 @@ func parseBuildConfigs(r io.Reader) ([]BuildConfig, error) {
 }
 
 func parseBuildConfig(line string) (name string, envs []string, flags []string, err error) {
-	if line == "" {
-		return "", nil, nil, errors.New("couldn't parse empty build config")
-	}
 	if strings.Index(line, ":") == len(line)-1 {
 		name = line[:len(line)-1]
 	} else {

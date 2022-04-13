@@ -42,13 +42,6 @@ var buildConfigTests = []struct {
 		nil,
 		true,
 	},
-	{
-		"",
-		"",
-		nil,
-		nil,
-		true,
-	},
 }
 
 func FuzzParseBuildConfig(f *testing.F) {
