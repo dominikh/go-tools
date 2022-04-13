@@ -9,7 +9,7 @@ package main
 // non-nil Value of the same type as e and of kind 'kind'.
 
 func f(spilled, unspilled int) {
-	_ = /*@Load*/ (spilled)
+	_ = /*@Parameter*/ (spilled)
 	_ = /*@Parameter*/ (unspilled)
 	_ = /*@nil*/ (1 + 2) // (constant)
 	i := 0
@@ -41,6 +41,8 @@ func f(spilled, unspilled int) {
 	_ = /*@Slice*/ (make([]int, 0))
 	_ = /*@MakeClosure*/ (func() { print(spilled) })
 
+	_ = /*@Load*/ (spilled)
+
 	sl := []int{}
 	_ = /*@Slice*/ (sl[:0])
 
@@ -65,8 +67,9 @@ func f(spilled, unspilled int) {
 	// Exercise corner-cases of lvalues vs rvalues.
 	type N *N
 	var n N
-	/*@Load*/ (n) = /*@Load*/ (n)
+	/*@Const*/ (n) = /*@Const*/ (n)
 	/*@ChangeType*/ (n) = /*@Alloc*/ (&n)
+	/*@Load*/ (n) = /*@Load*/ (n)
 	/*@Load*/ (n) = /*@Load*/ (*n)
 	/*@Load*/ (n) = /*@Load*/ (**n)
 }

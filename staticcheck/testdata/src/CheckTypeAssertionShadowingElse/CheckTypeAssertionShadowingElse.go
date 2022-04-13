@@ -12,9 +12,9 @@ func fn1(x interface{}) {
 
 	if x, ok := x.(int); ok {
 	} else {
-		// No diagnostic because x escapes
-		_ = x
+		_ = x // want `x refers to the result of a failed type assertion`
 		_ = &x
+		_ = x
 	}
 
 	if y, ok := x.(int); ok {

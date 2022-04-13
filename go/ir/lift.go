@@ -156,6 +156,19 @@ func clearInstrs(instrs []Instruction) {
 	}
 }
 
+func numberNodesPerBlock(f *Function) {
+	for _, b := range f.Blocks {
+		var base ID
+		for _, instr := range b.Instrs {
+			if instr == nil {
+				continue
+			}
+			instr.setID(base)
+			base++
+		}
+	}
+}
+
 // lift replaces local and new Allocs accessed only with
 // load/store by IR registers, inserting φ- and σ-nodes where necessary.
 // The result is a program in pruned SSI form.
@@ -204,16 +217,27 @@ func lift(fn *Function) {
 	// Determine which allocs we can lift and number them densely.
 	// The renaming phase uses this numbering for compact maps.
 	numAllocs := 0
+
+	instructions := make(BlockMap[liftInstructions], len(fn.Blocks))
+	for i := range instructions {
+		instructions[i].insertInstructions = map[Instruction][]Instruction{}
+	}
+
+	// Number nodes, for liftable
+	numberNodesPerBlock(fn)
+
 	for _, b := range fn.Blocks {
 		b.gaps = 0
 		b.rundefers = 0
+
 		for _, instr := range b.Instrs {
 			switch instr := instr.(type) {
 			case *Alloc:
-				if !liftable(instr) {
+				if !liftable(instr, instructions) {
 					instr.index = -1
 					continue
 				}
+
 				if numAllocs == 0 {
 					df = buildDomFrontier(fn)
 					rdf = buildPostDomFrontier(fn)
@@ -236,7 +260,6 @@ func lift(fn *Function) {
 						}
 					}
 				}
-				liftAlloc(closure, df, rdf, instr, newPhis, newSigmas)
 				instr.index = numAllocs
 				numAllocs++
 			case *Defer:
@@ -248,6 +271,39 @@ func lift(fn *Function) {
 	}
 
 	if numAllocs > 0 {
+		for _, b := range fn.Blocks {
+			work := instructions[b.Index]
+			for _, rename := range work.renameAllocs {
+				for _, instr_ := range b.Instrs[rename.startingAt:] {
+					replace(instr_, rename.from, rename.to)
+				}
+			}
+		}
+
+		for _, b := range fn.Blocks {
+			work := instructions[b.Index]
+			if len(work.insertInstructions) != 0 {
+				newInstrs := make([]Instruction, 0, len(fn.Blocks)+len(work.insertInstructions)*3)
+				for _, instr := range b.Instrs {
+					if add, ok := work.insertInstructions[instr]; ok {
+						newInstrs = append(newInstrs, add...)
+					}
+					newInstrs = append(newInstrs, instr)
+				}
+				b.Instrs = newInstrs
+			}
+		}
+
+		// TODO(dh): remove inserted allocs that end up unused after lifting.
+
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				if instr, ok := instr.(*Alloc); ok && instr.index >= 0 {
+					liftAlloc(closure, df, rdf, instr, newPhis, newSigmas)
+				}
+			}
+		}
+
 		// renaming maps an alloc (keyed by index) to its replacement
 		// value.  Initially the renaming contains nil, signifying the
 		// zero constant of the appropriate type; we construct the
@@ -696,6 +752,8 @@ func (c closure) reachable(id int) []interval {
 }
 
 func (c closure) walk(current *BasicBlock, b *BasicBlock, visited []bool) {
+	// TODO(dh): the 'current' argument seems to be unused
+	// TODO(dh): there's no reason for this to be a method
 	visited[b.Index] = true
 	for _, succ := range b.Succs {
 		if visited[succ.Index] {
@@ -763,8 +821,65 @@ type newSigma struct {
 	sigmas []*Sigma
 }
 
-func liftable(alloc *Alloc) bool {
-	fn := alloc.Parent()
+type liftInstructions struct {
+	insertInstructions map[Instruction][]Instruction
+	renameAllocs       []struct {
+		from       *Alloc
+		to         *Alloc
+		startingAt int
+	}
+}
+
+// liftable determines if alloc can be lifted, and records instructions to split partially liftable allocs.
+//
+// In the trivial case, all uses of the alloc can be lifted. This is the case when it is only used for storing into and
+// loading from. In that case, no instructions are recorded.
+//
+// In the more complex case, the alloc is used for storing into and loading from, but it is also used as a value, for
+// example because it gets passed to a function, e.g. fn(&x). In this case, uses of the alloc fall into one of two
+// categories: those that can be lifted and those that can't. A boundary forms between these two categories in the
+// function's control flow: Once an unliftable use is encountered, the alloc is no longer liftable for the remainder of
+// the basic block the use is in, nor in any blocks reachable from it.
+//
+// We record instructions that split the alloc into two allocs: one that is used in liftable uses, and one that is used
+// in unliftable uses. Whenever we encounter a boundary between liftable and unliftable uses or blocks, we emit a pair
+// of Load and Store that copy the value from the liftable alloc into the unliftable alloc. Taking these instructions
+// into account, the normal lifting machinery will completely lift the liftable alloc, store the correct lifted values
+// into the unliftable alloc, and will not at all lift the unliftable alloc.
+//
+// In Go syntax, the transformation looks somewhat like this:
+//
+// 	func foo() {
+// 		x := 32
+// 		if cond {
+// 			println(x)
+// 			escape(&x)
+// 			println(x)
+// 		} else {
+// 			println(x)
+// 		}
+// 		println(x)
+// 	}
+//
+// transforms into
+//
+// 	func fooSplitAlloc() {
+// 		x := 32
+// 		var x_ int
+// 		if cond {
+// 			println(x)
+// 			x_ = x
+// 			escape(&x_)
+// 			println(x_)
+// 		} else {
+// 			println(x)
+// 			x_ = x
+// 		}
+// 		println(x_)
+// 	}
+func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
+	fn := alloc.block.parent
+
 	// Don't lift named return values in functions that defer
 	// calls that may recover from panic.
 	if fn.hasDefer {
@@ -775,24 +890,247 @@ func liftable(alloc *Alloc) bool {
 		}
 	}
 
-	for _, instr := range *alloc.Referrers() {
+	type blockDesc struct {
+		// is the block (partially) unliftable, because it contains unliftable instructions or is reachable by an unliftable block
+		isUnliftable     bool
+		hasLiftableLoad  bool
+		hasLiftableOther bool
+		// we need to emit stores in predecessors because the unliftable use is in a phi
+		storeInPreds bool
+
+		lastLiftable    int
+		firstUnliftable int
+	}
+	blocks := make(BlockMap[blockDesc], len(fn.Blocks))
+	for _, b := range fn.Blocks {
+		blocks[b.Index].lastLiftable = -1
+		blocks[b.Index].firstUnliftable = len(b.Instrs) + 1
+	}
+
+	// Look at all uses of the alloc and deduce which blocks have liftable or unliftable instructions.
+	for _, instr := range alloc.referrers {
+		// Find the first unliftable use
+
+		desc := &blocks[instr.Block().Index]
+		hasUnliftable := false
+		inHead := false
 		switch instr := instr.(type) {
 		case *Store:
 			if instr.Val == alloc {
-				return false // address used as value
-			}
-			if instr.Addr != alloc {
-				panic("Alloc.Referrers is inconsistent")
+				hasUnliftable = true
 			}
 		case *Load:
-			if instr.X != alloc {
-				panic("Alloc.Referrers is inconsistent")
-			}
-
 		case *DebugRef:
-			// ok
+		case *Phi, *Sigma:
+			inHead = true
+			hasUnliftable = true
 		default:
-			return false
+			hasUnliftable = true
+		}
+
+		if hasUnliftable {
+			desc.isUnliftable = true
+			if int(instr.ID()) < desc.firstUnliftable {
+				desc.firstUnliftable = int(instr.ID())
+			}
+			if inHead {
+				desc.storeInPreds = true
+				desc.firstUnliftable = 0
+			}
+		}
+	}
+
+	for _, instr := range alloc.referrers {
+		// Find the last liftable use, taking the previously calculated firstUnliftable into consideration
+
+		desc := &blocks[instr.Block().Index]
+		if int(instr.ID()) >= desc.firstUnliftable {
+			continue
+		}
+		hasLiftable := false
+		switch instr := instr.(type) {
+		case *Store:
+			if instr.Val != alloc {
+				desc.hasLiftableOther = true
+				hasLiftable = true
+			}
+		case *Load:
+			desc.hasLiftableLoad = true
+			hasLiftable = true
+		case *DebugRef:
+			desc.hasLiftableOther = true
+		}
+		if hasLiftable {
+			if int(instr.ID()) > desc.lastLiftable {
+				desc.lastLiftable = int(instr.ID())
+			}
+		}
+	}
+
+	for i := range blocks {
+		// Update firstUnliftable to be one after lastLiftable. We do this to include the unliftable's preceding
+		// DebugRefs in the renaming.
+		blocks[i].firstUnliftable = blocks[i].lastLiftable + 1
+	}
+
+	// If a block is reachable by a (partially) unliftable block, then the entirety of the block is unliftable. In that
+	// case, stores have to be inserted in the predecessors.
+	//
+	// TODO(dh): this isn't always necessary. If the block is reachable by itself, i.e. part of a loop, then if the
+	// Alloc instruction is itself part of that loop, then there is a subset of instructions in the loop that can be
+	// lifted. For example:
+	//
+	// 	for {
+	// 		x := 42
+	// 		println(x)
+	// 		escape(&x)
+	// 	}
+	//
+	// The x that escapes in one iteration of the loop isn't the same x that we read from on the next iteration.
+	seen := make(BlockMap[bool], len(fn.Blocks))
+	var dfs func(b *BasicBlock)
+	dfs = func(b *BasicBlock) {
+		if seen[b.Index] {
+			return
+		}
+		seen[b.Index] = true
+		desc := &blocks[b.Index]
+		desc.hasLiftableLoad = false
+		desc.hasLiftableOther = false
+		desc.isUnliftable = true
+		desc.firstUnliftable = 0
+		desc.storeInPreds = true
+		for _, succ := range b.Succs {
+			dfs(succ)
+		}
+	}
+	for _, b := range fn.Blocks {
+		if blocks[b.Index].isUnliftable {
+			for _, succ := range b.Succs {
+				dfs(succ)
+			}
+		}
+	}
+
+	hasLiftableLoad := false
+	hasLiftableOther := false
+	hasUnliftable := false
+	for _, b := range fn.Blocks {
+		desc := blocks[b.Index]
+		hasLiftableLoad = hasLiftableLoad || desc.hasLiftableLoad
+		hasLiftableOther = hasLiftableOther || desc.hasLiftableOther
+		if desc.isUnliftable {
+			hasUnliftable = true
+		}
+	}
+	if !hasLiftableLoad && !hasLiftableOther {
+		// There are no liftable uses
+		return false
+	} else if !hasUnliftable {
+		// The alloc is entirely liftable without splitting
+		return true
+	} else if !hasLiftableLoad {
+		// The alloc is not entirely liftable, and the only liftable uses are stores. While some of those stores could
+		// get lifted away, it would also lead to an infinite loop when lifting to a fixpoint, because the newly created
+		// allocs also get stored into repeatable and that's their only liftable uses.
+		return false
+	}
+
+	// We need to insert stores for the new alloc. If a (partially) unliftable block has no unliftable
+	// predecessors and the use isn't in a phi node, then the store can be inserted right before the unliftable use.
+	// Otherwise, stores have to be inserted at the end of all liftable predecessors.
+
+	newAlloc := &Alloc{Heap: true}
+	newAlloc.setBlock(alloc.block)
+	newAlloc.setType(alloc.typ)
+	newAlloc.setSource(alloc.source)
+	newAlloc.index = -1
+	newAlloc.comment = "split alloc"
+
+	{
+		work := instructions[alloc.block.Index]
+		work.insertInstructions[alloc] = append(work.insertInstructions[alloc], newAlloc)
+	}
+
+	predHasStore := make(BlockMap[bool], len(fn.Blocks))
+	for _, b := range fn.Blocks {
+		desc := &blocks[b.Index]
+		bWork := &instructions[b.Index]
+
+		if desc.isUnliftable {
+			bWork.renameAllocs = append(bWork.renameAllocs, struct {
+				from       *Alloc
+				to         *Alloc
+				startingAt int
+			}{
+				alloc, newAlloc, int(desc.firstUnliftable),
+			})
+		}
+
+		if !desc.isUnliftable {
+			continue
+		}
+
+		propagate := func(in *BasicBlock, before Instruction) {
+			load := &Load{
+				X: alloc,
+			}
+			store := &Store{
+				Addr: newAlloc,
+				Val:  load,
+			}
+			load.setType(deref(alloc.typ))
+			load.setBlock(in)
+			load.comment = "split alloc"
+			store.setBlock(in)
+			updateOperandReferrers(load)
+			updateOperandReferrers(store)
+			store.comment = "split alloc"
+
+			entry := &instructions[in.Index]
+			entry.insertInstructions[before] = append(entry.insertInstructions[before], load, store)
+		}
+
+		if desc.storeInPreds {
+			// emit stores at the end of liftable preds
+			for _, pred := range b.Preds {
+				if blocks[pred.Index].isUnliftable {
+					continue
+				}
+
+				if !alloc.block.Dominates(pred) {
+					// Consider this cfg:
+					//
+					//      1
+					//     /|
+					//    / |
+					//   ↙  ↓
+					//  2--→3
+					//
+					// with an Alloc in block 2. It doesn't make sense to insert a store in block 1 for the jump to
+					// block 3, because 1 can never see the Alloc in the first place.
+					//
+					// Ignoring phi nodes, an Alloc always dominates all of its uses, and phi nodes don't matter here,
+					// because for the incoming edges that do matter, we do emit the stores.
+
+					continue
+				}
+
+				if predHasStore[pred.Index] {
+					// Don't generate redundant propagations. Not only is it unnecessary, it can lead to infinite loops
+					// when trying to lift to a fix point, because redundant stores are liftable.
+					continue
+				}
+
+				predHasStore[pred.Index] = true
+
+				before := pred.Instrs[len(pred.Instrs)-1]
+				propagate(pred, before)
+			}
+		} else {
+			// emit store before the first unliftable use
+			before := b.Instrs[desc.firstUnliftable]
+			propagate(b, before)
 		}
 	}
 
@@ -1347,7 +1685,6 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigm
 	// fresh copy of the renaming map for each subtree.
 	r := make([]Value, len(renaming))
 	for _, v := range u.dom.children {
-		// XXX add debugging
 		copy(r, renaming)
 
 		// on entry to a block, the incoming sigma nodes become the new values for their alloc
@@ -1403,4 +1740,13 @@ func simplifyConstantCompositeValues(fn *Function) bool {
 	}
 
 	return changed
+}
+
+func updateOperandReferrers(instr Instruction) {
+	for _, op := range instr.Operands(nil) {
+		refs := (*op).Referrers()
+		if refs != nil {
+			*refs = append(*refs, instr)
+		}
+	}
 }

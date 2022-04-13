@@ -191,6 +191,8 @@ type Instruction interface {
 	setSource(ast.Node)
 	setID(ID)
 
+	Comment() string
+
 	// String returns the disassembled form of this value.
 	//
 	// Examples of Instructions that are Values:
@@ -1324,7 +1326,6 @@ type Extract struct {
 //
 type Jump struct {
 	anInstruction
-	Comment string
 }
 
 // The Unreachable pseudo-instruction signals that execution cannot
@@ -1624,7 +1625,12 @@ func (n *node) Pos() token.Pos {
 // It provides the implementations of the Block and setBlock methods.
 type anInstruction struct {
 	node
-	block *BasicBlock // the basic block of this instruction
+	block   *BasicBlock // the basic block of this instruction
+	comment string
+}
+
+func (instr anInstruction) Comment() string {
+	return instr.comment
 }
 
 // CallCommon is contained by Go, Defer and Call to hold the
