@@ -145,3 +145,6 @@ func assert(x bool) {
 		panic("failed assertion")
 	}
 }
+
+// BlockMap is a mapping from basic blocks (identified by their indices) to values.
+type BlockMap[T any] []T

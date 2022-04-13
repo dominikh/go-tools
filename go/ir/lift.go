@@ -64,7 +64,7 @@ const debugLifting = false
 // domFrontier's methods mutate the slice's elements but not its
 // length, so their receivers needn't be pointers.
 //
-type domFrontier [][]*BasicBlock
+type domFrontier BlockMap[[]*BasicBlock]
 
 func (df domFrontier) add(u, v *BasicBlock) {
 	df[u.Index] = append(df[u.Index], v)
@@ -105,7 +105,7 @@ func buildDomFrontier(fn *Function) domFrontier {
 	return df
 }
 
-type postDomFrontier [][]*BasicBlock
+type postDomFrontier BlockMap[[]*BasicBlock]
 
 func (rdf postDomFrontier) add(u, v *BasicBlock) {
 	rdf[u.Index] = append(rdf[u.Index], v)
@@ -187,8 +187,8 @@ func lift(fn *Function) {
 	var df domFrontier
 	var rdf postDomFrontier
 	var closure *closure
-	var newPhis newPhiMap
-	var newSigmas newSigmaMap
+	var newPhis BlockMap[[]newPhi]
+	var newSigmas BlockMap[[]newSigma]
 
 	// During this pass we will replace some BasicBlock.Instrs
 	// (allocs, loads and stores) with nil, keeping a count in
@@ -220,8 +220,8 @@ func lift(fn *Function) {
 					if len(fn.Blocks) > 2 {
 						closure = transitiveClosure(fn)
 					}
-					newPhis = make(newPhiMap, len(fn.Blocks))
-					newSigmas = make(newSigmaMap, len(fn.Blocks))
+					newPhis = make(BlockMap[[]newPhi], len(fn.Blocks))
+					newSigmas = make(BlockMap[[]newSigma], len(fn.Blocks))
 
 					if debugLifting {
 						title := false
@@ -394,7 +394,7 @@ func hasDirectReferrer(instr Instruction) bool {
 	return false
 }
 
-func markLiveNodes(blocks []*BasicBlock, newPhis newPhiMap, newSigmas newSigmaMap) {
+func markLiveNodes(blocks []*BasicBlock, newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
 	// Phis and sigmas may become dead due to optimization passes. We may also insert more nodes than strictly
 	// necessary, e.g. sigma nodes for constants, which will never be used.
 
@@ -461,7 +461,7 @@ func markLiveSigma(sigma *Sigma) {
 // and replaces trivial phis with non-phi alternatives. Phi
 // nodes where all edges are identical, or consist of only the phi
 // itself and one other value, may be replaced with the value.
-func simplifyPhisAndSigmas(newPhis newPhiMap, newSigmas newSigmaMap) {
+func simplifyPhisAndSigmas(newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
 	// temporary numbering of values used in phis so that we can build map keys
 	var id ID
 	for _, npList := range newPhis {
@@ -652,7 +652,7 @@ func (s *BlockSet) Take() int {
 
 type closure struct {
 	span       []uint32
-	reachables []interval
+	reachables BlockMap[interval]
 }
 
 type interval uint32
@@ -707,7 +707,7 @@ func (c closure) walk(current *BasicBlock, b *BasicBlock, visited []bool) {
 }
 
 func transitiveClosure(fn *Function) *closure {
-	reachable := make([]bool, len(fn.Blocks))
+	reachable := make(BlockMap[bool], len(fn.Blocks))
 	c := &closure{}
 	c.span = make([]uint32, len(fn.Blocks)+1)
 
@@ -763,11 +763,6 @@ type newSigma struct {
 	sigmas []*Sigma
 }
 
-// newPhiMap records for each basic block, the set of newPhis that
-// must be prepended to the block.
-type newPhiMap [][]newPhi
-type newSigmaMap [][]newSigma
-
 func liftable(alloc *Alloc) bool {
 	fn := alloc.Parent()
 	// Don't lift named return values in functions that defer
@@ -805,7 +800,7 @@ func liftable(alloc *Alloc) bool {
 }
 
 // liftAlloc lifts alloc into registers and populates newPhis and newSigmas with all the φ- and σ-nodes it may require.
-func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis newPhiMap, newSigmas newSigmaMap) {
+func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
 	fn := alloc.Parent()
 
 	defblocks := fn.blockset(0)
@@ -1204,7 +1199,7 @@ func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 // dominating stored value; newPhis[x] is the set of new φ-nodes to be
 // prepended to block x.
 //
-func rename(u *BasicBlock, renaming []Value, newPhis newPhiMap, newSigmas newSigmaMap) {
+func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
 	// Each φ-node becomes the new name for its associated Alloc.
 	for _, np := range newPhis[u.Index] {
 		phi := np.phi
