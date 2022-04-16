@@ -721,6 +721,7 @@ type Alloc struct {
 	register
 	Heap  bool
 	index int // dense numbering; for lifting
+	sroad bool
 }
 
 var _ Instruction = (*Sigma)(nil)

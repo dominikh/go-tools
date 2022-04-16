@@ -45,7 +45,14 @@ package ir
 import (
 	"encoding/binary"
 	"fmt"
+	"go/ast"
+	"go/types"
 	"os"
+
+	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/go/types/typeutil"
+
+	"golang.org/x/exp/slices"
 )
 
 // If true, show diagnostic information at each step of lifting.
@@ -1751,4 +1758,298 @@ func updateOperandReferrers(instr Instruction) {
 			*refs = append(*refs, instr)
 		}
 	}
+}
+
+func sroa(fn *Function) bool {
+	changed := false
+	maps := sroaResult{
+		allocs:     make(map[*Alloc][]Value),
+		stores:     make(map[*Store][]Instruction),
+		loads:      make(map[*Load][]Instruction),
+		fieldAddrs: make(map[*FieldAddr]struct{}),
+		debugRefs:  make(map[*DebugRef]struct{}),
+		returns:    make(map[*Return][]Instruction),
+	}
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			alloc, ok := instr.(*Alloc)
+			if !ok {
+				continue
+			}
+			ok = sroaAlloc(alloc, maps)
+			changed = ok || changed
+		}
+	}
+
+	for _, b := range fn.Blocks {
+		newInstrs := make([]Instruction, 0, len(b.Instrs))
+		for _, instr := range b.Instrs {
+			switch instr := instr.(type) {
+			case *Alloc:
+				if r, ok := maps.allocs[instr]; ok {
+					for _, rr := range r {
+						newInstrs = append(newInstrs, rr.(Instruction))
+					}
+					killInstruction(instr)
+				} else {
+					newInstrs = append(newInstrs, instr)
+				}
+			case *Load:
+				if r, ok := maps.loads[instr]; ok {
+					newInstrs = append(newInstrs, r...)
+					killInstruction(instr)
+				} else {
+					newInstrs = append(newInstrs, instr)
+				}
+			case *Store:
+				if r, ok := maps.stores[instr]; ok {
+					newInstrs = append(newInstrs, r...)
+					killInstruction(instr)
+				} else {
+					newInstrs = append(newInstrs, instr)
+				}
+			case *FieldAddr:
+				if _, ok := maps.fieldAddrs[instr]; ok {
+					killInstruction(instr)
+				} else {
+					newInstrs = append(newInstrs, instr)
+				}
+			case *DebugRef:
+				if _, ok := maps.debugRefs[instr]; ok {
+					killInstruction(instr)
+				} else {
+					newInstrs = append(newInstrs, instr)
+				}
+			case *Return:
+				if r, ok := maps.returns[instr]; ok {
+					newInstrs = append(newInstrs, r...)
+				}
+				newInstrs = append(newInstrs, instr)
+			default:
+				newInstrs = append(newInstrs, instr)
+			}
+		}
+		b.Instrs = newInstrs
+	}
+	return changed
+}
+
+type sroaResult struct {
+	allocs     map[*Alloc][]Value
+	stores     map[*Store][]Instruction
+	loads      map[*Load][]Instruction
+	fieldAddrs map[*FieldAddr]struct{}
+	debugRefs  map[*DebugRef]struct{}
+	returns    map[*Return][]Instruction
+}
+
+func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
+	if alloc.sroad {
+		return false
+	}
+
+	st, ok := deref(alloc.typ).Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+
+	// First determine if we can SROA this alloc
+	for _, ref := range alloc.referrers {
+		switch ref := ref.(type) {
+		case *FieldAddr, *Load, *DebugRef:
+		case *Store:
+			if ref.Addr != alloc || ref.Val == alloc {
+				// XXX isn't the || redundant?
+				return false
+			}
+		case *Return:
+			// If the only escaping use of the alloc are returns, then we can create new allocs on the spot
+		default:
+			// TODO if there is only a single escaping use then we can create a new alloc on the spot
+
+			return false
+		}
+	}
+
+	// Next do the actual operation
+	for i := 0; i < st.NumFields(); i++ {
+		field := st.Field(i)
+
+		v := &Alloc{}
+		v.comment = fmt.Sprintf("sroa %s.%s", deref(alloc.typ), field.Name())
+		v.setType(types.NewPointer(field.Type()))
+		v.setBlock(alloc.block)
+		alloc.Parent().Locals = append(alloc.Parent().Locals, v)
+		maps.allocs[alloc] = append(maps.allocs[alloc], v)
+	}
+
+	load := func(ref Instruction) []Instruction {
+		instrs := make([]Instruction, 0, len(maps.allocs[alloc]))
+
+		cv := &CompositeValue{
+			Values: make([]Value, len(maps.allocs[alloc])),
+			NumSet: len(maps.allocs[alloc]),
+		}
+		cv.setType(deref(alloc.typ))
+		cv.setBlock(ref.Block())
+		for i, v := range maps.allocs[alloc] {
+			cv.Bitmap.SetBit(&cv.Bitmap, i, 1)
+			load := &Load{X: v}
+			load.setType(deref(v.Type()))
+			load.setSource(ref.Source())
+			load.setBlock(ref.Block())
+			updateOperandReferrers(load)
+			cv.Values[i] = load
+			instrs = append(instrs, load)
+		}
+		updateOperandReferrers(cv)
+		instrs = append(instrs, cv)
+		return instrs
+	}
+
+	for _, ref := range alloc.referrers {
+		switch ref := ref.(type) {
+		case *FieldAddr:
+			replaceAll(ref, maps.allocs[alloc][ref.Field])
+			maps.fieldAddrs[ref] = struct{}{}
+		case *Load:
+			instrs := load(ref)
+			cv := instrs[len(instrs)-1].(Value)
+			replaceAll(ref, cv)
+			maps.loads[ref] = append(maps.loads[ref], instrs...)
+		case *Store:
+			// Instead of accessing CompositeValue.Values directly, we instead generate Field instructions. That way,
+			// the code-level composite literal will result in a single instruction. For checks like SA4006 this does
+			// mean that all values in the composite literal are considered used. But that's better than the current
+			// alternative, which is to break entirely, because our DebugRef machienry isn't set up for a single AST
+			// expression resulting in many instructions. It does mean that consumers of the IR need to do a bit more
+			// work to get to the value, having to figure out that Field n on a CompositeValue refers trivially to
+			// CompositeValue.Values[n].
+
+			if ref.Addr != alloc {
+				panic("unreachable")
+			}
+
+			st := typeutil.CoreType(ref.Val.Type()).(*types.Struct)
+			for i := 0; i < st.NumFields(); i++ {
+				v := &Field{
+					X:     ref.Val,
+					Field: i,
+				}
+				v.setBlock(ref.block)
+				v.setSource(ref.source)
+				v.setType(st.Field(i).Type())
+				updateOperandReferrers(v)
+
+				addr := maps.allocs[alloc][i]
+				store := &Store{
+					Addr: addr,
+					Val:  v,
+				}
+				store.setSource(ref.source)
+				store.setBlock(ref.block)
+				updateOperandReferrers(store)
+
+				maps.stores[ref] = append(maps.stores[ref], v, store)
+			}
+		case *DebugRef:
+			maps.debugRefs[ref] = struct{}{}
+		case *Return:
+			// TODO(dh): we can generalize this: any heap allocation whose address is only relevant for the return can
+			// be moved to the heap in the final step. it's not specific to SROA.
+
+			ret := &Alloc{Heap: true, sroad: true}
+			ret.comment = "SROA sink"
+			ret.setBlock(ref.block)
+			ret.setType(alloc.typ)
+			updateOperandReferrers(ret)
+
+			instrs := load(ref)
+			cv := instrs[len(instrs)-1].(Value)
+			store := &Store{
+				Addr: ret,
+				Val:  cv,
+			}
+			store.setBlock(ref.block)
+			store.setSource(ref.source)
+			updateOperandReferrers(store)
+			instrs = append(instrs, store)
+
+			replace(ref, alloc, ret)
+
+			instrs = slices.Insert(instrs, 0, Instruction(ret))
+			maps.returns[ref] = instrs
+		default:
+			lint.ExhaustiveTypeSwitch(ref)
+		}
+	}
+
+	return true
+}
+
+func simplifyForwardingCompositeValues(fn *Function) {
+	for _, b := range fn.Blocks {
+		for i, instr := range b.Instrs {
+			cv, ok := instr.(*CompositeValue)
+			if !ok {
+				continue
+			}
+			base, ok := simplifyForwardingCompositeValue(cv)
+			if !ok {
+				continue
+			}
+			replaceAll(cv, base)
+			killInstruction(cv)
+			b.Instrs[i] = nil
+		}
+	}
+
+	// Kill dead fields
+	for _, b := range fn.Blocks {
+		for i, instr := range b.Instrs {
+			f, ok := instr.(*Field)
+			if !ok {
+				continue
+			}
+			if len(f.referrers) != 0 {
+				continue
+			}
+			killInstruction(f)
+			b.Instrs[i] = nil
+		}
+	}
+}
+
+func simplifyForwardingCompositeValue(cv *CompositeValue) (*CompositeValue, bool) {
+	if len(cv.Values) == 0 {
+		return nil, false
+	}
+	if _, ok := cv.source.(*ast.CompositeLit); ok {
+		// Don't replace CompositeValues that were generated in response to user code
+		return nil, false
+	}
+
+	var base *CompositeValue
+	for i, v := range cv.Values {
+		vf, ok := v.(*Field)
+		if !ok {
+			return nil, false
+		}
+		if vf.Field != i {
+			return nil, false
+		}
+		vfcv, ok := vf.X.(*CompositeValue)
+		if !ok {
+			return nil, false
+		}
+		if i == 0 {
+			base = vfcv
+		} else {
+			if vfcv != base {
+				return nil, false
+			}
+		}
+	}
+
+	return base, true
 }
