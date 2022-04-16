@@ -178,7 +178,7 @@ func numberNodesPerBlock(f *Function) {
 // - Def/use info (Operands and Referrers) is up-to-date.
 // - The dominator tree is up-to-date.
 //
-func lift(fn *Function) {
+func lift(fn *Function) bool {
 	// TODO(adonovan): opt: lots of little optimizations may be
 	// worthwhile here, especially if they cause us to avoid
 	// buildDomFrontier.  For example:
@@ -436,6 +436,8 @@ func lift(fn *Function) {
 		fn.Locals[i] = nil
 	}
 	fn.Locals = fn.Locals[:j]
+
+	return numAllocs > 0
 }
 
 func hasDirectReferrer(instr Instruction) bool {
