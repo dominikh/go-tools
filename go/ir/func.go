@@ -539,7 +539,8 @@ func (f *Function) finishBody() {
 	buildPostDomTree(f)
 
 	if f.Prog.mode&NaiveForm == 0 {
-		lift(f)
+		for lift(f) {
+		}
 		if doSimplifyConstantCompositeValues {
 			for simplifyConstantCompositeValues(f) {
 			}
