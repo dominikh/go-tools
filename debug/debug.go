@@ -8,8 +8,6 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-
-	"golang.org/x/exp/typeparams"
 )
 
 // TypeCheck parses and type-checks a single-file Go package from a string.
@@ -29,8 +27,8 @@ func TypeCheck(src string) (*ast.File, *types.Package, *types.Info, error) {
 		Selections: map[*ast.SelectorExpr]*types.Selection{},
 		Scopes:     map[ast.Node]*types.Scope{},
 		InitOrder:  []*types.Initializer{},
+		Instances:  map[*ast.Ident]types.Instance{},
 	}
-	typeparams.InitInstances(info)
 	if err := types.NewChecker(nil, fset, pkg, info).Files([]*ast.File{f}); err != nil {
 		return nil, nil, nil, err
 	}

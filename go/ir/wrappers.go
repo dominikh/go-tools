@@ -22,8 +22,6 @@ package ir
 import (
 	"fmt"
 	"go/types"
-
-	"golang.org/x/exp/typeparams"
 )
 
 // -- wrappers -----------------------------------------------------------
@@ -293,11 +291,11 @@ type selectionKey struct {
 // makeInstance creates a wrapper function with signature sig that calls the generic function fn.
 // If targs is not nil, fn is a function and targs describes the concrete type arguments.
 // If targs is nil, fn is a method and the type arguments are derived from the receiver.
-func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *typeparams.TypeList) *Function {
+func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *types.TypeList) *Function {
 	if sig.Recv() != nil {
 		assert(targs == nil)
 		// Methods don't have their own type parameters, but the receiver does
-		targs = typeparams.NamedTypeArgs(deref(sig.Recv().Type()).(*types.Named))
+		targs = deref(sig.Recv().Type()).(*types.Named).TypeArgs()
 	} else {
 		assert(targs != nil)
 	}

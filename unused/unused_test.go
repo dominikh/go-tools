@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -100,12 +99,12 @@ func check(t *testing.T, res *analysistest.Result) {
 	checkObjs := func(objs []types.Object, state expectation) {
 		for _, obj := range objs {
 			if obj, ok := obj.(*types.TypeName); ok {
-				if _, ok := obj.Type().(*typeparams.TypeParam); ok {
+				if _, ok := obj.Type().(*types.TypeParam); ok {
 					// we don't care about type parameters
 					continue
 				}
 			}
-			if t, ok := obj.Type().(*types.Named); ok && typeparams.NamedTypeArgs(t).Len() != 0 {
+			if t, ok := obj.Type().(*types.Named); ok && t.TypeArgs().Len() != 0 {
 				continue
 			}
 			posn := res.Pass.Fset.Position(obj.Pos())

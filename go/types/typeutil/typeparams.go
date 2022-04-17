@@ -8,7 +8,7 @@ import (
 )
 
 type TypeSet struct {
-	Terms []*typeparams.Term
+	Terms []*types.Term
 	empty bool
 }
 
@@ -67,7 +67,7 @@ func CoreType(typ types.Type) types.Type {
 
 // All calls fn for each term in the type set and reports whether all invocations returned true.
 // If the type set is empty or unconstrained, All immediately returns false.
-func (ts TypeSet) All(fn func(*typeparams.Term) bool) bool {
+func (ts TypeSet) All(fn func(*types.Term) bool) bool {
 	if len(ts.Terms) == 0 {
 		return false
 	}
@@ -81,7 +81,7 @@ func (ts TypeSet) All(fn func(*typeparams.Term) bool) bool {
 
 // Any calls fn for each term in the type set and reports whether any invocation returned true.
 // It stops after the first call that returned true.
-func (ts TypeSet) Any(fn func(*typeparams.Term) bool) bool {
+func (ts TypeSet) Any(fn func(*types.Term) bool) bool {
 	for _, term := range ts.Terms {
 		if fn(term) {
 			return true
@@ -91,16 +91,16 @@ func (ts TypeSet) Any(fn func(*typeparams.Term) bool) bool {
 }
 
 // All is a wrapper for NewTypeSet(typ).All(fn).
-func All(typ types.Type, fn func(*typeparams.Term) bool) bool {
+func All(typ types.Type, fn func(*types.Term) bool) bool {
 	return NewTypeSet(typ).All(fn)
 }
 
 // Any is a wrapper for NewTypeSet(typ).Any(fn).
-func Any(typ types.Type, fn func(*typeparams.Term) bool) bool {
+func Any(typ types.Type, fn func(*types.Term) bool) bool {
 	return NewTypeSet(typ).Any(fn)
 }
 
-func IsSlice(term *typeparams.Term) bool {
+func IsSlice(term *types.Term) bool {
 	_, ok := term.Type().Underlying().(*types.Slice)
 	return ok
 }

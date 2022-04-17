@@ -712,8 +712,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			if _, ok := obj.(*types.Var); ok {
 				return emitLoad(fn, v, e) // var (address)
 			}
-			instances := typeparams.GetInstances(fn.Pkg.info)
-			if instance, ok := instances[e]; ok {
+			if instance, ok := fn.Pkg.info.Instances[e]; ok {
 				// Instantiated generic function
 				return makeInstance(fn.Prog, v.(*Function), instance.Type.(*types.Signature), instance.TypeArgs)
 			}
@@ -830,7 +829,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			panic("unexpected container type in IndexExpr: " + t.String())
 		}
 
-	case *typeparams.IndexListExpr:
+	case *ast.IndexListExpr:
 		// Instantiating a generic function
 		return b.expr(fn, e.X)
 

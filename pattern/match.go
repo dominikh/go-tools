@@ -6,8 +6,6 @@ import (
 	"go/token"
 	"go/types"
 	"reflect"
-
-	"golang.org/x/exp/typeparams"
 )
 
 var tokensByString = map[string]Token{
@@ -496,7 +494,7 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	switch idx := fun.(type) {
 	case *ast.IndexExpr:
 		fun = idx.X
-	case *typeparams.IndexListExpr:
+	case *ast.IndexListExpr:
 		fun = idx.X
 	}
 

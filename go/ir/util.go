@@ -16,8 +16,6 @@ import (
 
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
-
-	"golang.org/x/exp/typeparams"
 )
 
 //// AST utilities
@@ -51,7 +49,7 @@ func isInterface(T types.Type) bool { return types.IsInterface(T) }
 func deref(typ types.Type) types.Type {
 	orig := typ
 
-	if t, ok := typ.(*typeparams.TypeParam); ok {
+	if t, ok := typ.(*types.TypeParam); ok {
 		if ctyp := typeutil.CoreType(t); ctyp != nil {
 			typ = ctyp
 		}

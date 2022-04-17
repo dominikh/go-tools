@@ -195,7 +195,7 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 	case *types.Basic:
 		// nop
 
-	case *types.Interface, *typeparams.TypeParam:
+	case *types.Interface, *types.TypeParam:
 		// nop---handled by recursion over method set.
 
 	case *types.Pointer:

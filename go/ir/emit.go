@@ -210,8 +210,8 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	tset_src := typeutil.NewTypeSet(ut_src)
 
 	// Just a change of type, but not value or representation?
-	if tset_src.All(func(termSrc *typeparams.Term) bool {
-		return tset_dst.All(func(termDst *typeparams.Term) bool {
+	if tset_src.All(func(termSrc *types.Term) bool {
+		return tset_dst.All(func(termDst *types.Term) bool {
 			return isValuePreserving(termSrc.Type().Underlying(), termDst.Type().Underlying())
 		})
 	}) {
@@ -262,8 +262,8 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	}
 
 	// Conversion from slice to array pointer?
-	if tset_src.All(func(termSrc *typeparams.Term) bool {
-		return tset_dst.All(func(termDst *typeparams.Term) bool {
+	if tset_src.All(func(termSrc *types.Term) bool {
+		return tset_dst.All(func(termDst *types.Term) bool {
 			if slice, ok := termSrc.Type().Underlying().(*types.Slice); ok {
 				if ptr, ok := termDst.Type().Underlying().(*types.Pointer); ok {
 					if arr, ok := ptr.Elem().Underlying().(*types.Array); ok && types.Identical(slice.Elem(), arr.Elem()) {
@@ -282,8 +282,8 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 	// A representation-changing conversion?
 	// At least one of {ut_src,ut_dst} must be *Basic.
 	// (The other may be []byte or []rune.)
-	ok1 := tset_src.Any(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
-	ok2 := tset_dst.Any(func(term *typeparams.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+	ok1 := tset_src.Any(func(term *types.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+	ok2 := tset_dst.Any(func(term *types.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
 	if ok1 || ok2 {
 		c := &Convert{X: val}
 		c.setType(t_dst)

@@ -233,7 +233,7 @@ func CheckIfBoolCmp(pass *analysis.Pass) (interface{}, error) {
 			other = expr.X
 		}
 
-		ok := typeutil.All(pass.TypesInfo.TypeOf(other), func(term *typeparams.Term) bool {
+		ok := typeutil.All(pass.TypesInfo.TypeOf(other), func(term *types.Term) bool {
 			basic, ok := term.Type().Underlying().(*types.Basic)
 			return ok && basic.Kind() == types.Bool
 		})
@@ -707,7 +707,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		// finally check that xx type is one of array, slice, map or chan
 		// this is to prevent false positive in case if xx is a pointer to an array
 		typ := pass.TypesInfo.TypeOf(xx)
-		ok = typeutil.All(typ, func(term *typeparams.Term) bool {
+		ok = typeutil.All(typ, func(term *types.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice:
 				return true
@@ -717,7 +717,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 				return true
 			case *types.Pointer:
 				return false
-			case *typeparams.TypeParam:
+			case *types.TypeParam:
 				return false
 			default:
 				lint.ExhaustiveTypeSwitch(term.Type().Underlying())
@@ -1666,11 +1666,11 @@ func CheckNilCheckAroundRange(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		ok = typeutil.All(m.State["x"].(types.Object).Type(), func(term *typeparams.Term) bool {
+		ok = typeutil.All(m.State["x"].(types.Object).Type(), func(term *types.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice, *types.Map:
 				return true
-			case *typeparams.TypeParam, *types.Chan, *types.Pointer:
+			case *types.TypeParam, *types.Chan, *types.Pointer:
 				return false
 			default:
 				lint.ExhaustiveTypeSwitch(term.Type().Underlying())

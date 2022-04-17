@@ -24,7 +24,6 @@ import (
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/pattern"
 
-	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -813,7 +812,7 @@ func CheckExportedFunctionDocs(pass *analysis.Pass) (interface{}, error) {
 			switch T := T.(type) {
 			case *ast.IndexExpr:
 				ident = T.X.(*ast.Ident)
-			case *typeparams.IndexListExpr:
+			case *ast.IndexListExpr:
 				ident = T.X.(*ast.Ident)
 			case *ast.Ident:
 				ident = T

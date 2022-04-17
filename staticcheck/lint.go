@@ -1340,7 +1340,7 @@ func CheckLhsRhsIdentical(pass *analysis.Pass) (interface{}, error) {
 			// no terms, so floats are a possibility
 			return true
 		}
-		return tset.Any(func(term *typeparams.Term) bool {
+		return tset.Any(func(term *types.Term) bool {
 			switch typ := term.Type().Underlying().(type) {
 			case *types.Basic:
 				kind := typ.Kind()
@@ -2287,7 +2287,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 				body = node.Body
 				loop = node
 			case *ast.RangeStmt:
-				ok := typeutil.All(pass.TypesInfo.TypeOf(node.X), func(term *typeparams.Term) bool {
+				ok := typeutil.All(pass.TypesInfo.TypeOf(node.X), func(term *types.Term) bool {
 					switch term.Type().Underlying().(type) {
 					case *types.Slice, *types.Chan, *types.Basic, *types.Pointer, *types.Array:
 						return true
@@ -2940,7 +2940,7 @@ func CheckRepeatedIfElse(pass *analysis.Pass) (interface{}, error) {
 func CheckSillyBitwiseOps(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		binop := node.(*ast.BinaryExpr)
-		if !typeutil.All(pass.TypesInfo.TypeOf(binop), func(term *typeparams.Term) bool {
+		if !typeutil.All(pass.TypesInfo.TypeOf(binop), func(term *types.Term) bool {
 			b, ok := term.Type().Underlying().(*types.Basic)
 			if !ok {
 				return false
@@ -3452,7 +3452,7 @@ func CheckMapBytesKey(pass *analysis.Pass) (interface{}, error) {
 				}
 				tset := typeutil.NewTypeSet(conv.X.Type())
 				// If at least one of the types is []byte, then it's more efficient to inline the conversion
-				if !tset.Any(func(term *typeparams.Term) bool {
+				if !tset.Any(func(term *types.Term) bool {
 					s, ok := term.Type().Underlying().(*types.Slice)
 					return ok && s.Elem().Underlying() == types.Universe.Lookup("byte").Type()
 				}) {
@@ -4162,7 +4162,7 @@ func CheckMaybeNil(pass *analysis.Pass) (interface{}, error) {
 					ptr = instr.Addr
 				case *ir.IndexAddr:
 					ptr = instr.X
-					if typeutil.All(ptr.Type(), func(term *typeparams.Term) bool {
+					if typeutil.All(ptr.Type(), func(term *types.Term) bool {
 						if _, ok := term.Type().Underlying().(*types.Slice); ok {
 							return true
 						}

@@ -77,7 +77,7 @@ func zeroConst(t types.Type) Constant {
 		}
 	}
 
-	isNillable := func(term *typeparams.Term) bool {
+	isNillable := func(term *types.Term) bool {
 		switch typ := term.Type().Underlying().(type) {
 		case *types.Pointer, *types.Slice, *types.Interface, *types.Chan, *types.Map, *types.Signature, *typeutil.Iterator:
 			return true
@@ -93,8 +93,8 @@ func zeroConst(t types.Type) Constant {
 		}
 	}
 
-	isInfo := func(info types.BasicInfo) func(*typeparams.Term) bool {
-		return func(term *typeparams.Term) bool {
+	isInfo := func(info types.BasicInfo) func(*types.Term) bool {
+		return func(term *types.Term) bool {
 			basic, ok := term.Type().Underlying().(*types.Basic)
 			if !ok {
 				return false
@@ -103,7 +103,7 @@ func zeroConst(t types.Type) Constant {
 		}
 	}
 
-	isArray := func(term *typeparams.Term) bool {
+	isArray := func(term *types.Term) bool {
 		_, ok := term.Type().Underlying().(*types.Array)
 		return ok
 	}

@@ -15,7 +15,6 @@ import (
 	"go/types"
 	"sync"
 
-	"golang.org/x/exp/typeparams"
 	"honnef.co/go/tools/go/types/typeutil"
 )
 
@@ -373,13 +372,13 @@ type Function struct {
 type instanceWrapperMap struct {
 	h       typeutil.Hasher
 	entries map[uint32][]struct {
-		key *typeparams.TypeList
+		key *types.TypeList
 		val *Function
 	}
 	len int
 }
 
-func typeListIdentical(l1, l2 *typeparams.TypeList) bool {
+func typeListIdentical(l1, l2 *types.TypeList) bool {
 	if l1.Len() != l2.Len() {
 		return false
 	}
@@ -393,10 +392,10 @@ func typeListIdentical(l1, l2 *typeparams.TypeList) bool {
 	return true
 }
 
-func (m *instanceWrapperMap) At(key *typeparams.TypeList) *Function {
+func (m *instanceWrapperMap) At(key *types.TypeList) *Function {
 	if m.entries == nil {
 		m.entries = make(map[uint32][]struct {
-			key *typeparams.TypeList
+			key *types.TypeList
 			val *Function
 		})
 		m.h = typeutil.MakeHasher()
@@ -416,10 +415,10 @@ func (m *instanceWrapperMap) At(key *typeparams.TypeList) *Function {
 	return nil
 }
 
-func (m *instanceWrapperMap) Set(key *typeparams.TypeList, val *Function) {
+func (m *instanceWrapperMap) Set(key *types.TypeList, val *Function) {
 	if m.entries == nil {
 		m.entries = make(map[uint32][]struct {
-			key *typeparams.TypeList
+			key *types.TypeList
 			val *Function
 		})
 		m.h = typeutil.MakeHasher()
@@ -437,7 +436,7 @@ func (m *instanceWrapperMap) Set(key *typeparams.TypeList, val *Function) {
 		}
 	}
 	m.entries[hash] = append(m.entries[hash], struct {
-		key *typeparams.TypeList
+		key *types.TypeList
 		val *Function
 	}{key, val})
 	m.len++
