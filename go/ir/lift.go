@@ -1970,17 +1970,20 @@ func simplifyForwardingCompositeValues(fn *Function) {
 
 	// Kill dead fields
 	for _, b := range fn.Blocks {
-		for i, instr := range b.Instrs {
-			f, ok := instr.(*Field)
-			if !ok {
+		n := 0
+		for _, instr := range b.Instrs {
+			if instr == nil {
 				continue
 			}
-			if len(f.referrers) != 0 {
-				continue
+			if f, ok := instr.(*Field); ok && len(f.referrers) == 0 {
+				killInstruction(f)
+			} else {
+				b.Instrs[n] = instr
+				n++
 			}
-			killInstruction(f)
-			b.Instrs[i] = nil
 		}
+		clearInstrs(b.Instrs[n:])
+		b.Instrs = b.Instrs[:n]
 	}
 }
 
