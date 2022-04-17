@@ -167,7 +167,7 @@ func (v *AggregateConst) RelString(pkg *types.Package) string {
 	values := make([]string, len(v.Values))
 	for i, v := range v.Values {
 		if v != nil {
-			values[i] = v.RelString(pkg)
+			values[i] = v.Name()
 		} else {
 			values[i] = "nil"
 		}
