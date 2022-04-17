@@ -81,9 +81,14 @@ func main() {
 	print(v5)           //@ ir(v5,"Const")
 	print(v6)           //@ ir(v6,"Const")
 
-	var v7 S    //@ ir(v7,"&Alloc")
-	v7.x = 1    //@ ir(v7,"&Alloc"), ir(x,"&FieldAddr")
-	print(v7.x) //@ ir(v7,"&Alloc"), ir(x,"&FieldAddr")
+	var v7 S
+	v7.x = 1    //@ ir(x,"Const")
+	print(v7.x) //@ ir(x,"Const")
+
+	var v7_1 S    //@ ir(v7_1,"&Alloc")
+	_ = &v7_1     //@ ir(v7_1,"&Alloc")
+	v7_1.x = 1    //@ ir(v7_1,"&Alloc"), ir(x,"&FieldAddr")
+	print(v7_1.x) //@ ir(v7_1,"&Alloc"), ir(x,"&FieldAddr")
 
 	var v8 [1]int //@ ir(v8,"&Alloc")
 	v8[0] = 0     //@ ir(v8,"&Alloc")
@@ -148,9 +153,9 @@ func main() {
 	}
 
 	// .Op is an inter-package FieldVal-selection.
-	var err os.PathError //@ ir(err,"&Alloc")
-	_ = err.Op           //@ ir(err,"&Alloc"), ir(Op,"&FieldAddr")
-	_ = &err.Op          //@ ir(err,"&Alloc"), ir(Op,"&FieldAddr")
+	var err os.PathError
+	_ = err.Op  //@ ir(Op,"Const")
+	_ = &err.Op //@ ir(Op,"&Alloc")
 
 	// Exercise corner-cases of lvalues vs rvalues.
 	// (Guessing IsAddr from the 'pointerness' won't cut it here.)
