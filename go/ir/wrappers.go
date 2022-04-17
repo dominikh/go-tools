@@ -259,7 +259,7 @@ func makeThunk(prog *Program, sel *types.Selection) *Function {
 	defer prog.methodsMu.Unlock()
 
 	// Canonicalize key.recv to avoid constructing duplicate thunks.
-	canonRecv, ok := prog.canon.At(key.recv).(types.Type)
+	canonRecv, ok := prog.canon.At(key.recv)
 	if !ok {
 		canonRecv = key.recv
 		prog.canon.Set(key.recv, canonRecv)

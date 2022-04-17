@@ -64,7 +64,7 @@ type methodSet struct {
 // Precondition: !isInterface(T).
 // EXCLUSIVE_LOCKS_REQUIRED(prog.methodsMu)
 func (prog *Program) createMethodSet(T types.Type) *methodSet {
-	mset, ok := prog.methodSets.At(T).(*methodSet)
+	mset, ok := prog.methodSets.At(T)
 	if !ok {
 		mset = &methodSet{mapping: make(map[string]*Function)}
 		prog.methodSets.Set(T, mset)
@@ -110,8 +110,8 @@ func (prog *Program) RuntimeTypes() []types.Type {
 	defer prog.methodsMu.Unlock()
 
 	var res []types.Type
-	prog.methodSets.Iterate(func(T types.Type, v interface{}) {
-		if v.(*methodSet).complete {
+	prog.methodSets.Iterate(func(T types.Type, v *methodSet) {
+		if v.complete {
 			res = append(res, T)
 		}
 	})
@@ -162,7 +162,7 @@ func (prog *Program) needMethodsOf(T types.Type) {
 //
 func (prog *Program) needMethods(T types.Type, skip bool) {
 	// Each package maintains its own set of types it has visited.
-	if prevSkip, ok := prog.runtimeTypes.At(T).(bool); ok {
+	if prevSkip, ok := prog.runtimeTypes.At(T); ok {
 		// needMethods(T) was previously called
 		if !prevSkip || skip {
 			return // already seen, with same or false 'skip' value

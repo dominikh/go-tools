@@ -31,9 +31,9 @@ type Program struct {
 	MethodSets typeutil.MethodSetCache     // cache of type-checker's method-sets
 
 	methodsMu    sync.Mutex                 // guards the following maps:
-	methodSets   typeutil.Map               // maps type to its concrete methodSet
-	runtimeTypes typeutil.Map               // types for which rtypes are needed
-	canon        typeutil.Map               // type canonicalization map
+	methodSets   typeutil.Map[*methodSet]   // maps type to its concrete methodSet
+	runtimeTypes typeutil.Map[bool]         // types for which rtypes are needed
+	canon        typeutil.Map[types.Type]   // type canonicalization map
 	bounds       map[*types.Func]*Function  // bounds for curried x.Method closures
 	thunks       map[selectionKey]*Function // thunks for T.Method expressions
 }
