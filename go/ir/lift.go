@@ -1763,12 +1763,10 @@ func updateOperandReferrers(instr Instruction) {
 func sroa(fn *Function) bool {
 	changed := false
 	maps := sroaResult{
-		allocs:     make(map[*Alloc][]Value),
-		stores:     make(map[*Store][]Instruction),
-		loads:      make(map[*Load][]Instruction),
-		fieldAddrs: make(map[*FieldAddr]struct{}),
-		debugRefs:  make(map[*DebugRef]struct{}),
-		returns:    make(map[*Return][]Instruction),
+		allocs: make(map[*Alloc][]Value),
+
+		prepend: map[Instruction][]Instruction{},
+		delete:  map[Instruction]struct{}{},
 	}
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
@@ -1784,48 +1782,12 @@ func sroa(fn *Function) bool {
 	for _, b := range fn.Blocks {
 		newInstrs := make([]Instruction, 0, len(b.Instrs))
 		for _, instr := range b.Instrs {
-			switch instr := instr.(type) {
-			case *Alloc:
-				if r, ok := maps.allocs[instr]; ok {
-					for _, rr := range r {
-						newInstrs = append(newInstrs, rr.(Instruction))
-					}
-					killInstruction(instr)
-				} else {
-					newInstrs = append(newInstrs, instr)
-				}
-			case *Load:
-				if r, ok := maps.loads[instr]; ok {
-					newInstrs = append(newInstrs, r...)
-					killInstruction(instr)
-				} else {
-					newInstrs = append(newInstrs, instr)
-				}
-			case *Store:
-				if r, ok := maps.stores[instr]; ok {
-					newInstrs = append(newInstrs, r...)
-					killInstruction(instr)
-				} else {
-					newInstrs = append(newInstrs, instr)
-				}
-			case *FieldAddr:
-				if _, ok := maps.fieldAddrs[instr]; ok {
-					killInstruction(instr)
-				} else {
-					newInstrs = append(newInstrs, instr)
-				}
-			case *DebugRef:
-				if _, ok := maps.debugRefs[instr]; ok {
-					killInstruction(instr)
-				} else {
-					newInstrs = append(newInstrs, instr)
-				}
-			case *Return:
-				if r, ok := maps.returns[instr]; ok {
-					newInstrs = append(newInstrs, r...)
-				}
-				newInstrs = append(newInstrs, instr)
-			default:
+			if r, ok := maps.prepend[instr]; ok {
+				newInstrs = append(newInstrs, r...)
+			}
+			if _, ok := maps.delete[instr]; ok {
+				killInstruction(instr)
+			} else {
 				newInstrs = append(newInstrs, instr)
 			}
 		}
@@ -1835,12 +1797,10 @@ func sroa(fn *Function) bool {
 }
 
 type sroaResult struct {
-	allocs     map[*Alloc][]Value
-	stores     map[*Store][]Instruction
-	loads      map[*Load][]Instruction
-	fieldAddrs map[*FieldAddr]struct{}
-	debugRefs  map[*DebugRef]struct{}
-	returns    map[*Return][]Instruction
+	allocs map[*Alloc][]Value
+
+	prepend map[Instruction][]Instruction
+	delete  map[Instruction]struct{}
 }
 
 func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
@@ -1881,6 +1841,8 @@ func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
 		v.setBlock(alloc.block)
 		alloc.Parent().Locals = append(alloc.Parent().Locals, v)
 		maps.allocs[alloc] = append(maps.allocs[alloc], v)
+		maps.prepend[alloc] = append(maps.prepend[alloc], v)
+		maps.delete[alloc] = struct{}{}
 	}
 
 	load := func(ref Instruction) []Instruction {
@@ -1911,12 +1873,13 @@ func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
 		switch ref := ref.(type) {
 		case *FieldAddr:
 			replaceAll(ref, maps.allocs[alloc][ref.Field])
-			maps.fieldAddrs[ref] = struct{}{}
+			maps.delete[ref] = struct{}{}
 		case *Load:
 			instrs := load(ref)
 			cv := instrs[len(instrs)-1].(Value)
 			replaceAll(ref, cv)
-			maps.loads[ref] = append(maps.loads[ref], instrs...)
+			maps.prepend[ref] = append(maps.prepend[ref], instrs...)
+			maps.delete[ref] = struct{}{}
 		case *Store:
 			// Instead of accessing CompositeValue.Values directly, we instead generate Field instructions. That way,
 			// the code-level composite literal will result in a single instruction. For checks like SA4006 this does
@@ -1950,10 +1913,11 @@ func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
 				store.setBlock(ref.block)
 				updateOperandReferrers(store)
 
-				maps.stores[ref] = append(maps.stores[ref], v, store)
+				maps.prepend[ref] = append(maps.prepend[ref], v, store)
+				maps.delete[ref] = struct{}{}
 			}
 		case *DebugRef:
-			maps.debugRefs[ref] = struct{}{}
+			maps.delete[ref] = struct{}{}
 		case *Return:
 			// TODO(dh): we can generalize this: any heap allocation whose address is only relevant for the return can
 			// be moved to the heap in the final step. it's not specific to SROA.
@@ -1978,7 +1942,7 @@ func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
 			replace(ref, alloc, ret)
 
 			instrs = slices.Insert(instrs, 0, Instruction(ret))
-			maps.returns[ref] = instrs
+			maps.prepend[ref] = append(maps.prepend[ref], instrs...)
 		default:
 			lint.ExhaustiveTypeSwitch(ref)
 		}
