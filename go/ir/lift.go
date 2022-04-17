@@ -1813,6 +1813,10 @@ func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
 		return false
 	}
 
+	if st.NumFields() == 0 {
+		return false
+	}
+
 	// First determine if we can SROA this alloc
 	for _, ref := range alloc.referrers {
 		switch ref := ref.(type) {
@@ -1951,7 +1955,9 @@ func sroaAlloc(alloc *Alloc, maps sroaResult) bool {
 	return true
 }
 
-func simplifyForwardingCompositeValues(fn *Function) {
+func simplifyForwardingCompositeValues(fn *Function) bool {
+	changed := false
+
 	for _, b := range fn.Blocks {
 		for i, instr := range b.Instrs {
 			cv, ok := instr.(*CompositeValue)
@@ -1962,6 +1968,7 @@ func simplifyForwardingCompositeValues(fn *Function) {
 			if !ok {
 				continue
 			}
+			changed = true
 			replaceAll(cv, base)
 			killInstruction(cv)
 			b.Instrs[i] = nil
@@ -1976,6 +1983,7 @@ func simplifyForwardingCompositeValues(fn *Function) {
 				continue
 			}
 			if f, ok := instr.(*Field); ok && len(f.referrers) == 0 {
+				changed = true
 				killInstruction(f)
 			} else {
 				b.Instrs[n] = instr
@@ -1985,6 +1993,8 @@ func simplifyForwardingCompositeValues(fn *Function) {
 		clearInstrs(b.Instrs[n:])
 		b.Instrs = b.Instrs[:n]
 	}
+
+	return changed
 }
 
 func simplifyForwardingCompositeValue(cv *CompositeValue) (*CompositeValue, bool) {

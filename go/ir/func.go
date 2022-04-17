@@ -539,11 +539,14 @@ func (f *Function) finishBody() {
 	buildPostDomTree(f)
 
 	if f.Prog.mode&NaiveForm == 0 {
-		sroa(f)
-		simplifyForwardingCompositeValues(f)
-		for lift(f) {
-			sroa(f)
-			simplifyForwardingCompositeValues(f)
+		for {
+			changed := false
+			changed = sroa(f) || changed
+			changed = simplifyForwardingCompositeValues(f) || changed
+			changed = lift(f) || changed
+			if !changed {
+				break
+			}
 		}
 		if doSimplifyConstantCompositeValues {
 			for simplifyConstantCompositeValues(f) {
