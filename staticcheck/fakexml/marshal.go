@@ -102,7 +102,7 @@ func implementsMarshalerAttr(v fakereflect.TypeAndCanAddr) bool {
 }
 
 var textMarshalerType = types.NewInterfaceType([]*types.Func{
-	types.NewFunc(token.NoPos, nil, "MarshalText", types.NewSignature(nil,
+	types.NewFunc(token.NoPos, nil, "MarshalText", types.NewSignatureType(nil, nil, nil,
 		types.NewTuple(),
 		types.NewTuple(
 			types.NewVar(token.NoPos, nil, "", types.NewSlice(types.Typ[types.Byte])),

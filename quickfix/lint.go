@@ -878,7 +878,7 @@ var (
 			args))`)
 
 	writerInterface = types.NewInterfaceType([]*types.Func{
-		types.NewFunc(token.NoPos, nil, "Write", types.NewSignature(nil,
+		types.NewFunc(token.NoPos, nil, "Write", types.NewSignatureType(nil, nil, nil,
 			types.NewTuple(types.NewVar(token.NoPos, nil, "", types.NewSlice(types.Typ[types.Byte]))),
 			types.NewTuple(
 				types.NewVar(token.NoPos, nil, "", types.Typ[types.Int]),
@@ -889,7 +889,7 @@ var (
 	}, nil).Complete()
 
 	stringWriterInterface = types.NewInterfaceType([]*types.Func{
-		types.NewFunc(token.NoPos, nil, "WriteString", types.NewSignature(nil,
+		types.NewFunc(token.NoPos, nil, "WriteString", types.NewSignatureType(nil, nil, nil,
 			types.NewTuple(types.NewVar(token.NoPos, nil, "", types.Universe.Lookup("string").Type())),
 			types.NewTuple(
 				types.NewVar(token.NoPos, nil, "", types.Typ[types.Int]),
