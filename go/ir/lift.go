@@ -1362,3 +1362,45 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigm
 	}
 
 }
+
+func simplifyConstantCompositeValues(fn *Function) bool {
+	changed := false
+
+	for _, b := range fn.Blocks {
+		n := 0
+		for _, instr := range b.Instrs {
+			replaced := false
+
+			if cv, ok := instr.(*CompositeValue); ok {
+				ac := &AggregateConst{}
+				ac.typ = cv.typ
+				replaced = true
+				for _, v := range cv.Values {
+					if c, ok := v.(Constant); ok {
+						ac.Values = append(ac.Values, c)
+					} else {
+						replaced = false
+						break
+					}
+				}
+				if replaced {
+					replaceAll(cv, emitConst(fn, ac))
+					killInstruction(cv)
+				}
+
+			}
+
+			if replaced {
+				changed = true
+			} else {
+				b.Instrs[n] = instr
+				n++
+			}
+		}
+
+		clearInstrs(b.Instrs[n:])
+		b.Instrs = b.Instrs[:n]
+	}
+
+	return changed
+}

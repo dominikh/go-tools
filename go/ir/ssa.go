@@ -19,6 +19,12 @@ import (
 	"honnef.co/go/tools/go/types/typeutil"
 )
 
+const (
+	// Replace CompositeValue with only constant values with AggregateConst. Currently disabled because it breaks field
+	// tracking in U1000.
+	doSimplifyConstantCompositeValues = false
+)
+
 type ID int
 
 // A Program is a partial or complete Go program converted to IR form.

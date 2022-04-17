@@ -540,6 +540,10 @@ func (f *Function) finishBody() {
 
 	if f.Prog.mode&NaiveForm == 0 {
 		lift(f)
+		if doSimplifyConstantCompositeValues {
+			for simplifyConstantCompositeValues(f) {
+			}
+		}
 	}
 
 	// emit constants after lifting, because lifting may produce new constants, but before other variable splitting,
