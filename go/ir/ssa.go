@@ -456,6 +456,11 @@ const (
 	NeverReturns
 )
 
+type constValue struct {
+	c   Constant
+	idx int
+}
+
 type functionBody struct {
 	// The following fields are set transiently during building,
 	// then cleared.
@@ -465,7 +470,7 @@ type functionBody struct {
 	implicitResults []*Alloc                 // tuple of results
 	targets         *targets                 // linked stack of branch targets
 	lblocks         map[types.Object]*lblock // labelled blocks
-	consts          []Constant
+	consts          map[constKey]constValue
 	wr              *HTMLWriter
 	fakeExits       BlockSet
 	blocksets       [5]BlockSet

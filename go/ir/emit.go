@@ -489,7 +489,39 @@ func zeroValue(f *Function, t types.Type, source ast.Node) Value {
 	return emitConst(f, zeroConst(t))
 }
 
+type constKey struct {
+	typ   types.Type
+	value constant.Value
+}
+
 func emitConst(f *Function, c Constant) Constant {
-	f.consts = append(f.consts, c)
-	return c
+	if f.consts == nil {
+		f.consts = map[constKey]constValue{}
+	}
+
+	typ := c.Type()
+	var val constant.Value
+	switch c := c.(type) {
+	case *Const:
+		val = c.Value
+	case *ArrayConst, *AggregateConst, *GenericConst:
+		// These can only represent zero values, so all we need is the type
+	default:
+		panic(fmt.Sprintf("unexpected type %T", c))
+	}
+	k := constKey{
+		typ:   typ,
+		value: val,
+	}
+	dup, ok := f.consts[k]
+	if ok {
+		return dup.c
+	} else {
+		c.setBlock(f.Blocks[0])
+		f.consts[k] = constValue{
+			c:   c,
+			idx: len(f.consts),
+		}
+		return c
+	}
 }

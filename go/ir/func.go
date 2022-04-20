@@ -10,12 +10,12 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/constant"
 	"go/format"
 	"go/token"
 	"go/types"
 	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -406,100 +406,23 @@ func (f *Function) emitConsts() {
 	// TODO(dh): our deduplication only works on booleans and
 	// integers. other constants are represented as pointers to
 	// things.
-	if len(f.consts) == 0 {
-		return
-	} else if len(f.consts) <= 32 {
-		f.emitConstsFew()
-	} else {
-		f.emitConstsMany()
-	}
-}
-
-func (f *Function) emitConstsFew() {
-	dedup := make([]Constant, 0, 32)
+	head := make([]constValue, 0, len(f.consts))
 	for _, c := range f.consts {
-		if len(*c.Referrers()) == 0 {
+		if len(*c.c.Referrers()) == 0 {
 			continue
 		}
-		found := false
-		for _, d := range dedup {
-			if c.equal(d) {
-				replaceAll(c, d)
-				found = true
-				break
-			}
-		}
-		if !found {
-			dedup = append(dedup, c)
-		}
+		head = append(head, c)
 	}
-
-	instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(dedup))
-	for i, c := range dedup {
-		instrs[i] = c
-		c.setBlock(f.Blocks[0])
+	sort.Slice(head, func(i, j int) bool {
+		return head[i].idx < head[j].idx
+	})
+	entry := f.Blocks[0]
+	instrs := make([]Instruction, len(entry.Instrs)+len(head))
+	for i, c := range head {
+		instrs[i] = c.c
 	}
-	copy(instrs[len(dedup):], f.Blocks[0].Instrs)
-	f.Blocks[0].Instrs = instrs
-	f.consts = nil
-}
-
-func (f *Function) emitConstsMany() {
-	type constKey struct {
-		typ   types.Type
-		value constant.Value
-	}
-
-	m := make(map[constKey]Value, len(f.consts))
-	areNil := 0
-	for i, c := range f.consts {
-		if len(*c.Referrers()) == 0 {
-			f.consts[i] = nil
-			areNil++
-			continue
-		}
-
-		var typ types.Type
-		var val constant.Value
-		switch c := c.(type) {
-		case *Const:
-			typ = c.typ
-			val = c.Value
-		case *ArrayConst:
-			// ArrayConst can only encode zero constants, so all we need is the type
-			typ = c.typ
-		case *AggregateConst:
-			// ArrayConst can only encode zero constants, so all we need is the type
-			typ = c.typ
-		case *GenericConst:
-			typ = c.typ
-		default:
-			panic(fmt.Sprintf("unexpected type %T", c))
-		}
-		k := constKey{
-			typ:   typ,
-			value: val,
-		}
-		if dup, ok := m[k]; !ok {
-			m[k] = c
-		} else {
-			f.consts[i] = nil
-			areNil++
-			replaceAll(c, dup)
-		}
-	}
-
-	instrs := make([]Instruction, len(f.Blocks[0].Instrs)+len(f.consts)-areNil)
-	i := 0
-	for _, c := range f.consts {
-		if c != nil {
-			instrs[i] = c
-			c.setBlock(f.Blocks[0])
-			i++
-		}
-	}
-	copy(instrs[i:], f.Blocks[0].Instrs)
-	f.Blocks[0].Instrs = instrs
+	copy(instrs[len(head):], entry.Instrs)
+	entry.Instrs = instrs
 	f.consts = nil
 }
 
