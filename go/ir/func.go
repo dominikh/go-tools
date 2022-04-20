@@ -17,6 +17,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // addEdge adds a control-flow graph edge from from to to.
@@ -408,8 +410,12 @@ func buildReferrers(f *Function) {
 }
 
 func (f *Function) emitConsts() {
-	if len(f.Blocks) == 0 {
+	defer func() {
 		f.consts = nil
+		f.aggregateConsts = typeutil.Map[[]*AggregateConst]{}
+	}()
+
+	if len(f.Blocks) == 0 {
 		return
 	}
 
@@ -429,13 +435,18 @@ func (f *Function) emitConsts() {
 		return head[i].idx < head[j].idx
 	})
 	entry := f.Blocks[0]
-	instrs := make([]Instruction, len(entry.Instrs)+len(head))
-	for i, c := range head {
-		instrs[i] = c.c
+	instrs := make([]Instruction, 0, len(entry.Instrs)+len(head))
+	for _, c := range head {
+		instrs = append(instrs, c.c)
 	}
-	copy(instrs[len(head):], entry.Instrs)
+	f.aggregateConsts.Iterate(func(key types.Type, value []*AggregateConst) {
+		for _, c := range value {
+			instrs = append(instrs, c)
+		}
+	})
+
+	instrs = append(instrs, entry.Instrs...)
 	entry.Instrs = instrs
-	f.consts = nil
 }
 
 // buildFakeExits ensures that every block in the function is

@@ -261,7 +261,15 @@ func (c *AggregateConst) equal(o Constant) bool {
 		return false
 	}
 	// TODO(dh): don't use == for types, this will miss identical pointer types, among others
-	return c.typ == oc.typ
+	if c.typ != oc.typ {
+		return false
+	}
+	for i, v := range c.Values {
+		if !v.(Constant).equal(oc.Values[i].(Constant)) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *ArrayConst) equal(o Constant) bool {

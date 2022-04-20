@@ -470,11 +470,14 @@ type functionBody struct {
 	implicitResults []*Alloc                 // tuple of results
 	targets         *targets                 // linked stack of branch targets
 	lblocks         map[types.Object]*lblock // labelled blocks
+
 	consts          map[constKey]constValue
-	wr              *HTMLWriter
-	fakeExits       BlockSet
-	blocksets       [5]BlockSet
-	hasDefer        bool
+	aggregateConsts typeutil.Map[[]*AggregateConst]
+
+	wr        *HTMLWriter
+	fakeExits BlockSet
+	blocksets [5]BlockSet
+	hasDefer  bool
 
 	// a contiguous block of instructions that will be used by blocks,
 	// to avoid making multiple allocations.

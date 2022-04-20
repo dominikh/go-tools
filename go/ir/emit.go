@@ -507,11 +507,24 @@ func emitConst(f *Function, c Constant) Constant {
 	case *ArrayConst, *GenericConst:
 		// These can only represent zero values, so all we need is the type
 	case *AggregateConst:
-		// These can only represent zero values, so all we need is the type
+		candidates, _ := f.aggregateConsts.At(c.typ)
+		for _, candidate := range candidates {
+			if c.equal(candidate) {
+				return candidate
+			}
+		}
 
 		for i := range c.Values {
 			c.Values[i] = emitConst(f, c.Values[i].(Constant))
 		}
+
+		c.setBlock(f.Blocks[0])
+		rands := c.Operands(nil)
+		updateOperandsReferrers(c, rands)
+		candidates = append(candidates, c)
+		f.aggregateConsts.Set(c.typ, candidates)
+		return c
+
 	default:
 		panic(fmt.Sprintf("unexpected type %T", c))
 	}
