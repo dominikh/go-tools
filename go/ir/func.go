@@ -366,34 +366,44 @@ func numberNodes(f *Function) {
 	}
 }
 
+func updateOperandsReferrers(instr Instruction, ops []*Value) {
+	for _, op := range ops {
+		if r := *op; r != nil {
+			if refs := (*op).Referrers(); refs != nil {
+				if len(*refs) == 0 {
+					// per median, each value has two referrers, so we can avoid one call into growslice
+					//
+					// Note: we experimented with allocating
+					// sequential scratch space, but we
+					// couldn't find a value that gave better
+					// performance than making many individual
+					// allocations
+					*refs = make([]Instruction, 1, 2)
+					(*refs)[0] = instr
+				} else {
+					*refs = append(*refs, instr)
+				}
+			}
+		}
+	}
+}
+
 // buildReferrers populates the def/use information in all non-nil
 // Value.Referrers slice.
 // Precondition: all such slices are initially empty.
 func buildReferrers(f *Function) {
 	var rands []*Value
+
 	for _, b := range f.Blocks {
 		for _, instr := range b.Instrs {
 			rands = instr.Operands(rands[:0]) // recycle storage
-			for _, rand := range rands {
-				if r := *rand; r != nil {
-					if ref := r.Referrers(); ref != nil {
-						if len(*ref) == 0 {
-							// per median, each value has two referrers, so we can avoid one call into growslice
-							//
-							// Note: we experimented with allocating
-							// sequential scratch space, but we
-							// couldn't find a value that gave better
-							// performance than making many individual
-							// allocations
-							*ref = make([]Instruction, 1, 2)
-							(*ref)[0] = instr
-						} else {
-							*ref = append(*ref, instr)
-						}
-					}
-				}
-			}
+			updateOperandsReferrers(instr, rands)
 		}
+	}
+
+	for _, c := range f.consts {
+		rands = c.c.Operands(rands[:0])
+		updateOperandsReferrers(c.c, rands)
 	}
 }
 
@@ -409,9 +419,11 @@ func (f *Function) emitConsts() {
 	head := make([]constValue, 0, len(f.consts))
 	for _, c := range f.consts {
 		if len(*c.c.Referrers()) == 0 {
-			continue
+			// TODO(dh): killing a const may make other consts dead, too
+			killInstruction(c.c)
+		} else {
+			head = append(head, c)
 		}
-		head = append(head, c)
 	}
 	sort.Slice(head, func(i, j int) bool {
 		return head[i].idx < head[j].idx
@@ -925,5 +937,14 @@ func (f *Function) initHTML(name string) {
 	}
 	if rel := f.RelString(nil); rel == name {
 		f.wr = NewHTMLWriter("ir.html", rel, "")
+	}
+}
+
+func killInstruction(instr Instruction) {
+	ops := instr.Operands(nil)
+	for _, op := range ops {
+		if refs := (*op).Referrers(); refs != nil {
+			*refs = removeInstr(*refs, instr)
+		}
 	}
 }

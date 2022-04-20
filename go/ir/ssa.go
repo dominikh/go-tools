@@ -591,7 +591,7 @@ type Const struct {
 type AggregateConst struct {
 	register
 
-	Values []Constant
+	Values []Value
 }
 
 // TODO add the element's zero constant to ArrayConst
@@ -2047,13 +2047,19 @@ func (v *Load) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
 }
 
+func (v *AggregateConst) Operands(rands []*Value) []*Value {
+	for i := range v.Values {
+		rands = append(rands, &v.Values[i])
+	}
+	return rands
+}
+
 // Non-Instruction Values:
-func (v *Builtin) Operands(rands []*Value) []*Value        { return rands }
-func (v *FreeVar) Operands(rands []*Value) []*Value        { return rands }
-func (v *Const) Operands(rands []*Value) []*Value          { return rands }
-func (v *ArrayConst) Operands(rands []*Value) []*Value     { return rands }
-func (v *AggregateConst) Operands(rands []*Value) []*Value { return rands }
-func (v *GenericConst) Operands(rands []*Value) []*Value   { return rands }
-func (v *Function) Operands(rands []*Value) []*Value       { return rands }
-func (v *Global) Operands(rands []*Value) []*Value         { return rands }
-func (v *Parameter) Operands(rands []*Value) []*Value      { return rands }
+func (v *Builtin) Operands(rands []*Value) []*Value      { return rands }
+func (v *FreeVar) Operands(rands []*Value) []*Value      { return rands }
+func (v *Const) Operands(rands []*Value) []*Value        { return rands }
+func (v *ArrayConst) Operands(rands []*Value) []*Value   { return rands }
+func (v *GenericConst) Operands(rands []*Value) []*Value { return rands }
+func (v *Function) Operands(rands []*Value) []*Value     { return rands }
+func (v *Global) Operands(rands []*Value) []*Value       { return rands }
+func (v *Parameter) Operands(rands []*Value) []*Value    { return rands }

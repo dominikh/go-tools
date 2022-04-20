@@ -504,8 +504,14 @@ func emitConst(f *Function, c Constant) Constant {
 	switch c := c.(type) {
 	case *Const:
 		val = c.Value
-	case *ArrayConst, *AggregateConst, *GenericConst:
+	case *ArrayConst, *GenericConst:
 		// These can only represent zero values, so all we need is the type
+	case *AggregateConst:
+		// These can only represent zero values, so all we need is the type
+
+		for i := range c.Values {
+			c.Values[i] = emitConst(f, c.Values[i].(Constant))
+		}
 	default:
 		panic(fmt.Sprintf("unexpected type %T", c))
 	}
@@ -522,6 +528,8 @@ func emitConst(f *Function, c Constant) Constant {
 			c:   c,
 			idx: len(f.consts),
 		}
+		rands := c.Operands(nil)
+		updateOperandsReferrers(c, rands)
 		return c
 	}
 }

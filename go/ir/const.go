@@ -58,7 +58,7 @@ func zeroConst(t types.Type) Constant {
 
 	switch typ := tset.CoreType().(type) {
 	case *types.Struct:
-		values := make([]Constant, typ.NumFields())
+		values := make([]Value, typ.NumFields())
 		for i := 0; i < typ.NumFields(); i++ {
 			values[i] = zeroConst(typ.Field(i).Type())
 		}
@@ -67,7 +67,7 @@ func zeroConst(t types.Type) Constant {
 			Values:   values,
 		}
 	case *types.Tuple:
-		values := make([]Constant, typ.Len())
+		values := make([]Value, typ.Len())
 		for i := 0; i < typ.Len(); i++ {
 			values[i] = zeroConst(typ.At(i).Type())
 		}
