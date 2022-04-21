@@ -24,7 +24,7 @@ func match(fset *token.FileSet, pat pattern.Pattern, f *ast.File) {
 		for _, rel := range pat.Relevant {
 			if rel == reflect.TypeOf(node) {
 				m := &pattern.Matcher{}
-				if m.Match(pat.Root, node) {
+				if m.Match(pat, node) {
 					fmt.Printf("%s: ", fset.Position(node.Pos()))
 					format.Node(os.Stdout, fset, node)
 					fmt.Println()

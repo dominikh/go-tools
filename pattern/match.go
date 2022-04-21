@@ -91,24 +91,29 @@ type Matcher struct {
 	TypesInfo *types.Info
 	State     State
 
-	setBindings [][]string
+	bindingsMapping []string
+
+	setBindings []uint64
 }
 
-func (m *Matcher) set(key string, value interface{}) {
-	m.State[key] = value
-	set := m.setBindings[len(m.setBindings)-1]
-	set = append(set, key)
-	m.setBindings[len(m.setBindings)-1] = set
+func (m *Matcher) set(b Binding, value interface{}) {
+	m.State[b.Name] = value
+	m.setBindings[len(m.setBindings)-1] |= 1 << b.idx
 }
 
 func (m *Matcher) push() {
-	m.setBindings = append(m.setBindings, nil)
+	m.setBindings = append(m.setBindings, 0)
 }
 
 func (m *Matcher) pop() {
 	set := m.setBindings[len(m.setBindings)-1]
-	for _, key := range set {
-		delete(m.State, key)
+	if set != 0 {
+		for i := 0; i < len(m.bindingsMapping); i++ {
+			if (set & (1 << i)) != 0 {
+				key := m.bindingsMapping[i]
+				delete(m.State, key)
+			}
+		}
 	}
 	m.setBindings = m.setBindings[:len(m.setBindings)-1]
 }
@@ -117,10 +122,11 @@ func (m *Matcher) merge() {
 	m.setBindings = m.setBindings[:len(m.setBindings)-1]
 }
 
-func (m *Matcher) Match(a Node, b ast.Node) bool {
+func (m *Matcher) Match(a Pattern, b ast.Node) bool {
+	m.bindingsMapping = a.Bindings
 	m.State = State{}
 	m.push()
-	_, ok := match(m, a, b)
+	_, ok := match(m, a.Root, b)
 	m.merge()
 	if len(m.setBindings) != 0 {
 		panic(fmt.Sprintf("%d entries left on the stack, expected none", len(m.setBindings)))
@@ -128,7 +134,7 @@ func (m *Matcher) Match(a Node, b ast.Node) bool {
 	return ok
 }
 
-func Match(a Node, b ast.Node) (*Matcher, bool) {
+func Match(a Pattern, b ast.Node) (*Matcher, bool) {
 	m := &Matcher{}
 	ret := m.Match(a, b)
 	return m, ret
@@ -406,7 +412,7 @@ func (b Binding) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	}
 	new, ret := match(m, b.Node, node)
 	if ret {
-		m.set(b.Name, new)
+		m.set(b, new)
 	}
 	return new, ret
 }
