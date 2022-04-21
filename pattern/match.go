@@ -85,31 +85,46 @@ type matcher interface {
 	Match(*Matcher, interface{}) (interface{}, bool)
 }
 
-type State = map[string]interface{}
+type State = map[string]any
 
 type Matcher struct {
 	TypesInfo *types.Info
 	State     State
+
+	setBindings [][]string
 }
 
-func (m *Matcher) fork() *Matcher {
-	state := make(State, len(m.State))
-	for k, v := range m.State {
-		state[k] = v
-	}
-	return &Matcher{
-		TypesInfo: m.TypesInfo,
-		State:     state,
-	}
+func (m *Matcher) set(key string, value interface{}) {
+	m.State[key] = value
+	set := m.setBindings[len(m.setBindings)-1]
+	set = append(set, key)
+	m.setBindings[len(m.setBindings)-1] = set
 }
 
-func (m *Matcher) merge(mc *Matcher) {
-	m.State = mc.State
+func (m *Matcher) push() {
+	m.setBindings = append(m.setBindings, nil)
+}
+
+func (m *Matcher) pop() {
+	set := m.setBindings[len(m.setBindings)-1]
+	for _, key := range set {
+		delete(m.State, key)
+	}
+	m.setBindings = m.setBindings[:len(m.setBindings)-1]
+}
+
+func (m *Matcher) merge() {
+	m.setBindings = m.setBindings[:len(m.setBindings)-1]
 }
 
 func (m *Matcher) Match(a Node, b ast.Node) bool {
 	m.State = State{}
+	m.push()
 	_, ok := match(m, a, b)
+	m.merge()
+	if len(m.setBindings) != 0 {
+		panic(fmt.Sprintf("%d entries left on the stack, expected none", len(m.setBindings)))
+	}
 	return ok
 }
 
@@ -391,7 +406,7 @@ func (b Binding) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	}
 	new, ret := match(m, b.Node, node)
 	if ret {
-		m.State[b.Name] = new
+		m.set(b.Name, new)
 	}
 	return new, ret
 }
@@ -532,10 +547,12 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 
 func (or Or) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	for _, opt := range or.Nodes {
-		mc := m.fork()
-		if ret, ok := match(mc, opt, node); ok {
-			m.merge(mc)
+		m.push()
+		if ret, ok := match(m, opt, node); ok {
+			m.merge()
 			return ret, true
+		} else {
+			m.pop()
 		}
 	}
 	return nil, false
