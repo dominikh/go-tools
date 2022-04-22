@@ -8,24 +8,24 @@ func fn() {
 		s2 = "bar"
 	)
 
-	if strings.EqualFold(s1, s2) { // want `should use strings\.EqualFold instead`
+	if strings.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
 		panic("")
 	}
 
-	if strings.EqualFold(s1, s2) { // want `should use strings\.EqualFold instead`
+	if strings.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
 		panic("")
 	}
 
-	if !strings.EqualFold(s1, s2) { // want `should use strings\.EqualFold instead`
+	if !strings.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
 		panic("")
 	}
 
-	switch strings.EqualFold(s1, s2) { // want `should use strings\.EqualFold instead`
+	switch strings.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
 	case true, false:
 		panic("")
 	}
 
-	if strings.EqualFold(s1, s2) || s1+s2 == s2+s1 { // want `should use strings\.EqualFold instead`
+	if strings.EqualFold(s1, s2) || s1+s2 == s2+s1 { //@ diag(`should use strings.EqualFold instead`)
 		panic("")
 	}
 

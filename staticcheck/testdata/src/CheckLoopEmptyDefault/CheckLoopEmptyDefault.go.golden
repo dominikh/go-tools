@@ -10,7 +10,7 @@ func fn() {
 	for {
 		select {
 		case <-ch:
-			// want `should not have an empty default case`
+			//@ diag(`should not have an empty default case`)
 		}
 	}
 

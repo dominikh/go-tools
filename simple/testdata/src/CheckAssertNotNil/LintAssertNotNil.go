@@ -1,9 +1,9 @@
 package pkg
 
 func fn(i interface{}, x interface{}) {
-	if _, ok := i.(string); ok && i != nil { // want `when ok is true, i can't be nil`
+	if _, ok := i.(string); ok && i != nil { //@ diag(`when ok is true, i can't be nil`)
 	}
-	if _, ok := i.(string); i != nil && ok { // want `when ok is true, i can't be nil`
+	if _, ok := i.(string); i != nil && ok { //@ diag(`when ok is true, i can't be nil`)
 	}
 	if _, ok := i.(string); i != nil || ok {
 	}
@@ -12,12 +12,12 @@ func fn(i interface{}, x interface{}) {
 	if _, ok := i.(string); i == nil && ok {
 	}
 	if i != nil {
-		if _, ok := i.(string); ok { // want `when ok is true, i can't be nil`
+		if _, ok := i.(string); ok { //@ diag(`when ok is true, i can't be nil`)
 		}
 	}
 	if i != nil {
 		// This gets flagged because of https://github.com/dominikh/go-tools/issues/1047
-		if _, ok := i.(string); ok { // want `when ok is true, i can't be nil`
+		if _, ok := i.(string); ok { //@ diag(`when ok is true, i can't be nil`)
 		} else {
 			//
 		}

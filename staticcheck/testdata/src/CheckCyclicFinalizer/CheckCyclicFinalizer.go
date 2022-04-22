@@ -8,9 +8,9 @@ import (
 func fn() {
 	var x *int
 	foo := func(y *int) { fmt.Println(x) }
-	runtime.SetFinalizer(x, foo) // want `the finalizer closes over the object, preventing the finalizer from ever running \(at .+:10:9`
+	runtime.SetFinalizer(x, foo) //@ diag(re`the finalizer closes over the object, preventing the finalizer from ever running \(at .+:10:9`)
 	runtime.SetFinalizer(x, nil)
-	runtime.SetFinalizer(x, func(_ *int) { // want `the finalizer closes over the object, preventing the finalizer from ever running \(at .+:13:26`
+	runtime.SetFinalizer(x, func(_ *int) { //@ diag(re`the finalizer closes over the object, preventing the finalizer from ever running \(at .+:13:26`)
 		fmt.Println(x)
 	})
 

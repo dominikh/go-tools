@@ -4,15 +4,15 @@ import "testing"
 
 func fn1() {
 	var t *testing.T
-	go func() { // want `the goroutine calls T\.Fatal, which must be called in the same goroutine as the test`
+	go func() { //@ diag(`the goroutine calls T.Fatal, which must be called in the same goroutine as the test`)
 		t.Fatal()
 	}()
-	go fn2(t) // want `the goroutine calls T\.Fatal, which must be called in the same goroutine as the test`
+	go fn2(t) //@ diag(`the goroutine calls T.Fatal, which must be called in the same goroutine as the test`)
 
 	fn := func() {
 		t.Fatal()
 	}
-	go fn() // want `the goroutine calls T\.Fatal, which must be called in the same goroutine as the test`
+	go fn() //@ diag(`the goroutine calls T.Fatal, which must be called in the same goroutine as the test`)
 }
 
 func fn2(t *testing.T) {

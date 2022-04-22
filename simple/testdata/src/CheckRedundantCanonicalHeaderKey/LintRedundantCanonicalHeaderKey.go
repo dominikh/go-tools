@@ -9,10 +9,10 @@ func fn1() {
 	var headers http.Header
 
 	// Matches
-	headers.Add(http.CanonicalHeaderKey("test"), "test") // want `calling net/http.CanonicalHeaderKey on the 'key' argument of`
-	headers.Del(http.CanonicalHeaderKey("test"))         // want `calling net/http.CanonicalHeaderKey on the 'key' argument of`
-	headers.Get(http.CanonicalHeaderKey("test"))         // want `calling net/http.CanonicalHeaderKey on the 'key' argument of`
-	headers.Set(http.CanonicalHeaderKey("test"), "test") // want `calling net/http.CanonicalHeaderKey on the 'key' argument of`
+	headers.Add(http.CanonicalHeaderKey("test"), "test") //@ diag(`calling net/http.CanonicalHeaderKey on the 'key' argument of`)
+	headers.Del(http.CanonicalHeaderKey("test"))         //@ diag(`calling net/http.CanonicalHeaderKey on the 'key' argument of`)
+	headers.Get(http.CanonicalHeaderKey("test"))         //@ diag(`calling net/http.CanonicalHeaderKey on the 'key' argument of`)
+	headers.Set(http.CanonicalHeaderKey("test"), "test") //@ diag(`calling net/http.CanonicalHeaderKey on the 'key' argument of`)
 
 	// Non-matches
 	headers.Add("test", "test")

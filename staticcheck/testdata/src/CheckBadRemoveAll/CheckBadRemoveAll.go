@@ -7,7 +7,7 @@ import (
 
 func fn1() {
 	x := os.TempDir()
-	defer os.RemoveAll(x) // want `deletes the user's entire temporary directory`
+	defer os.RemoveAll(x) //@ diag(`deletes the user's entire temporary directory`)
 
 	x = ""
 }
@@ -15,7 +15,7 @@ func fn1() {
 func fn2() {
 	x := os.TempDir()
 	if true {
-		os.RemoveAll(x) // want `deletes the user's entire temporary directory`
+		os.RemoveAll(x) //@ diag(`deletes the user's entire temporary directory`)
 	}
 }
 
@@ -30,11 +30,11 @@ func fn3() {
 
 func fn4() {
 	x, _ := os.UserCacheDir()
-	os.RemoveAll(x) // want `deletes the user's entire cache directory`
+	os.RemoveAll(x) //@ diag(`deletes the user's entire cache directory`)
 
 	x, _ = os.UserConfigDir()
-	os.RemoveAll(x) // want `deletes the user's entire config directory`
+	os.RemoveAll(x) //@ diag(`deletes the user's entire config directory`)
 
 	x, _ = os.UserHomeDir()
-	os.RemoveAll(x) // want `deletes the user's entire home directory`
+	os.RemoveAll(x) //@ diag(`deletes the user's entire home directory`)
 }

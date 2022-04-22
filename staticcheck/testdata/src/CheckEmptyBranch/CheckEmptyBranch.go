@@ -1,10 +1,10 @@
 package pkg
 
 func fn1() {
-	if true { // want `empty branch`
+	if true { //@ diag(`empty branch`)
 	}
-	if true { // want `empty branch`
-	} else { // want `empty branch`
+	if true { //@ diag(`empty branch`)
+	} else { //@ diag(`empty branch`)
 	}
 	if true {
 		println()
@@ -12,10 +12,10 @@ func fn1() {
 
 	if true {
 		println()
-	} else { // want `empty branch`
+	} else { //@ diag(`empty branch`)
 	}
 
-	if true { // want `empty branch`
+	if true { //@ diag(`empty branch`)
 		// TODO handle error
 	}
 
@@ -25,6 +25,6 @@ func fn1() {
 	}
 
 	if true {
-	} else if false { // want `empty branch`
+	} else if false { //@ diag(`empty branch`)
 	}
 }

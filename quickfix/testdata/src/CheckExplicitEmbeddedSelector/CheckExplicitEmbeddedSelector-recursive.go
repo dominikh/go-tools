@@ -23,5 +23,5 @@ func fn() {
 	_ = t1.Next.Foo
 	_ = t2.T2.Foo
 	_ = t2.T2.F
-	_ = t2.T3.F2 // want `could remove embedded field "T3" from selector`
+	_ = t2.T3.F2 //@ diag(`could remove embedded field "T3" from selector`)
 }

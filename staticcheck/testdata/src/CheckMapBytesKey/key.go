@@ -5,7 +5,7 @@ func fn() {
 	var b []byte
 	_ = m[string(b)]
 	_ = m[string(b)]
-	s1 := string(b) // want `m\[string\(key\)\] would be more efficient than k := string\(key\); m\[k\]`
+	s1 := string(b) //@ diag(`m[string(key)] would be more efficient than k := string(key); m[k]`)
 	_ = m[s1]
 	_ = m[s1]
 

@@ -6,7 +6,7 @@ var bar bool
 var baz bool
 
 func fn() {
-	x := foo() || (bar && !baz) // want `merge conditional assignment`
+	x := foo() || (bar && !baz) //@ diag(`merge conditional assignment`)
 
 	x = false
 	if foo() || (bar && !baz) {
@@ -29,7 +29,7 @@ func fn() {
 		x = true
 	}
 
-	b := !(foo() || (bar && !baz)) // want `merge conditional assignment`
+	b := !(foo() || (bar && !baz)) //@ diag(`merge conditional assignment`)
 
 	c := false
 	if true {

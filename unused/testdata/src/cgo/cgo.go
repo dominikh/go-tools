@@ -1,6 +1,6 @@
 package pkg
 
 //go:cgo_export_dynamic
-func foo() {} // used
+func foo() {} //@ used(true)
 
-func bar() {} // unused
+func bar() {} //@ used(false)

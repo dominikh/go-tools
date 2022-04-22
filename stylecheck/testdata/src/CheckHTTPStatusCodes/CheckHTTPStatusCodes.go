@@ -5,10 +5,10 @@ import "net/http"
 
 func fn() {
 	// Check all the supported functions
-	http.Error(nil, "", 506)         // want `http\.StatusVariantAlsoNegotiates`
-	http.Redirect(nil, nil, "", 506) // want `http\.StatusVariantAlsoNegotiates`
-	http.StatusText(506)             // want `http\.StatusVariantAlsoNegotiates`
-	http.RedirectHandler("", 506)    // want `http\.StatusVariantAlsoNegotiates`
+	http.Error(nil, "", 506)         //@ diag(`http.StatusVariantAlsoNegotiates`)
+	http.Redirect(nil, nil, "", 506) //@ diag(`http.StatusVariantAlsoNegotiates`)
+	http.StatusText(506)             //@ diag(`http.StatusVariantAlsoNegotiates`)
+	http.RedirectHandler("", 506)    //@ diag(`http.StatusVariantAlsoNegotiates`)
 
 	// Don't flag literals with no known constant
 	http.StatusText(600)

@@ -1,17 +1,17 @@
 package pkg
 
-type t1 struct{} // unused
+type t1 struct{} //@ used(false)
 
-func (t1) Fn() {} // unused
+func (t1) Fn() {} //@ used(false)
 
-type t2 struct{} // used
+type t2 struct{} //@ used(true)
 
-func (*t2) Fn() {} // used
+func (*t2) Fn() {} //@ used(true)
 
-func init() { // used
+func init() { //@ used(true)
 	(*t2).Fn(nil)
 }
 
-type t3 struct{} // unused
+type t3 struct{} //@ used(false)
 
-func (t3) fn() // unused
+func (t3) fn() //@ used(false)

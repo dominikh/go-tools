@@ -26,7 +26,7 @@ func main() {
 
 	// Then replace the err type with *CustomError
 	val, err := SomeFunc()
-	if err != nil { // want `this comparison is always true`
+	if err != nil { //@ diag(`this comparison is always true`)
 		panic(err)
 	}
 

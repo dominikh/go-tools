@@ -6,34 +6,34 @@ import (
 )
 
 func fn() {
-	_ = strings.ContainsRune("", 'x') // want ` strings\.ContainsRune`
-	_ = strings.ContainsRune("", 'x') // want ` strings\.ContainsRune`
+	_ = strings.ContainsRune("", 'x') //@ diag(` strings.ContainsRune`)
+	_ = strings.ContainsRune("", 'x') //@ diag(` strings.ContainsRune`)
 	_ = strings.IndexRune("", 'x') > 0
 	_ = strings.IndexRune("", 'x') >= -1
-	_ = strings.ContainsRune("", 'x')  // want ` strings\.ContainsRune`
-	_ = !strings.ContainsRune("", 'x') // want `!strings\.ContainsRune`
+	_ = strings.ContainsRune("", 'x')  //@ diag(` strings.ContainsRune`)
+	_ = !strings.ContainsRune("", 'x') //@ diag(`!strings.ContainsRune`)
 	_ = strings.IndexRune("", 'x') != 0
-	_ = !strings.ContainsRune("", 'x') // want `!strings\.ContainsRune`
+	_ = !strings.ContainsRune("", 'x') //@ diag(`!strings.ContainsRune`)
 
-	_ = strings.ContainsAny("", "") // want ` strings\.ContainsAny`
-	_ = strings.ContainsAny("", "") // want ` strings\.ContainsAny`
+	_ = strings.ContainsAny("", "") //@ diag(` strings.ContainsAny`)
+	_ = strings.ContainsAny("", "") //@ diag(` strings.ContainsAny`)
 	_ = strings.IndexAny("", "") > 0
 	_ = strings.IndexAny("", "") >= -1
-	_ = strings.ContainsAny("", "")  // want ` strings\.ContainsAny`
-	_ = !strings.ContainsAny("", "") // want `!strings\.ContainsAny`
+	_ = strings.ContainsAny("", "")  //@ diag(` strings.ContainsAny`)
+	_ = !strings.ContainsAny("", "") //@ diag(`!strings.ContainsAny`)
 	_ = strings.IndexAny("", "") != 0
-	_ = !strings.ContainsAny("", "") // want `!strings\.ContainsAny`
+	_ = !strings.ContainsAny("", "") //@ diag(`!strings.ContainsAny`)
 
-	_ = strings.Contains("", "") // want ` strings\.Contains`
-	_ = strings.Contains("", "") // want ` strings\.Contains`
+	_ = strings.Contains("", "") //@ diag(` strings.Contains`)
+	_ = strings.Contains("", "") //@ diag(` strings.Contains`)
 	_ = strings.Index("", "") > 0
 	_ = strings.Index("", "") >= -1
-	_ = strings.Contains("", "")  // want ` strings\.Contains`
-	_ = !strings.Contains("", "") // want `!strings\.Contains`
+	_ = strings.Contains("", "")  //@ diag(` strings.Contains`)
+	_ = !strings.Contains("", "") //@ diag(`!strings.Contains`)
 	_ = strings.Index("", "") != 0
-	_ = !strings.Contains("", "") // want `!strings\.Contains`
+	_ = !strings.Contains("", "") //@ diag(`!strings.Contains`)
 
-	_ = bytes.ContainsRune(nil, 'x') // want ` bytes\.ContainsRune`
-	_ = bytes.ContainsAny(nil, "")   // want ` bytes\.ContainsAny`
-	_ = bytes.Contains(nil, nil)     // want ` bytes\.Contains`
+	_ = bytes.ContainsRune(nil, 'x') //@ diag(` bytes.ContainsRune`)
+	_ = bytes.ContainsAny(nil, "")   //@ diag(` bytes.ContainsAny`)
+	_ = bytes.Contains(nil, nil)     //@ diag(` bytes.Contains`)
 }

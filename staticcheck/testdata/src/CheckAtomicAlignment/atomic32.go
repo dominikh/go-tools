@@ -13,14 +13,14 @@ type T struct {
 func fn() {
 	var v T
 	atomic.AddInt64(&v.A, 0)
-	atomic.AddInt64(&v.C, 0) // want `address of non 64-bit aligned field C passed to sync/atomic.AddInt64`
-	atomic.LoadInt64(&v.C)   // want `address of non 64-bit aligned field C passed to sync/atomic.LoadInt64`
+	atomic.AddInt64(&v.C, 0) //@ diag(`address of non 64-bit aligned field C passed to sync/atomic.AddInt64`)
+	atomic.LoadInt64(&v.C)   //@ diag(`address of non 64-bit aligned field C passed to sync/atomic.LoadInt64`)
 }
 
 func fn2(t *T) {
 	addr := &t.C
 	if true {
-		atomic.LoadInt64(addr) // want `address of non 64-bit`
+		atomic.LoadInt64(addr) //@ diag(`address of non 64-bit`)
 	} else {
 		_ = addr
 	}

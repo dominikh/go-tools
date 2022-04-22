@@ -3,7 +3,7 @@ package pkg
 func fn() {
 	for false {
 	}
-	for true { // want `should use for`
+	for true { //@ diag(`should use for`)
 	}
 	for {
 	}

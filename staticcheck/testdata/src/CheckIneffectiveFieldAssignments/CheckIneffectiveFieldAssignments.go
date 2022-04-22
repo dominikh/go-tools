@@ -19,20 +19,20 @@ type T3 struct {
 
 func (v T1) fn1() {
 	v.x = 1
-	v.y = 1 // want `ineffective assignment to field T1.y`
+	v.y = 1 //@ diag(`ineffective assignment to field T1.y`)
 	println(v.x)
 }
 
 func (v T1) fn2() {
 	println(v.x)
-	v.x = 1 // want `ineffective assignment to field T1.x`
+	v.x = 1 //@ diag(`ineffective assignment to field T1.x`)
 }
 
 func (v T1) fn3() {
 	if true {
 		println(v.x)
 	}
-	v.x = 1 // want `ineffective assignment to field T1.x`
+	v.x = 1 //@ diag(`ineffective assignment to field T1.x`)
 }
 
 func (v T1) fn10() {
@@ -49,7 +49,7 @@ func (v T1) fn4() {
 
 func (v T1) fn5() {
 	v.dump()
-	v.x = 1 // want `ineffective assignment to field T1.x`
+	v.x = 1 //@ diag(`ineffective assignment to field T1.x`)
 }
 
 func (v T1) fn6() {
@@ -65,7 +65,7 @@ func (v T1) fn7() {
 }
 
 func (v T1) fn8() {
-	v.x++ // want `ineffective assignment to field T1.x`
+	v.x++ //@ diag(`ineffective assignment to field T1.x`)
 }
 
 func (v T1) fn9() {

@@ -8,17 +8,17 @@ import (
 func fn() {
 	time.Sleep(0)
 
-	select { // want `should use time.Sleep`
+	select { //@ diag(`should use time.Sleep`)
 	case <-time.After(0):
 	}
 
-	select { // want `should use time.Sleep`
+	select { //@ diag(`should use time.Sleep`)
 	case <-time.After(0):
 		fmt.Println("yay")
 	}
 
 	const d = 0
-	select { // want `should use time.Sleep`
+	select { //@ diag(`should use time.Sleep`)
 	case <-time.After(d):
 	}
 

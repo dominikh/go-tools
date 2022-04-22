@@ -7,22 +7,22 @@ func fn1() {
 	var z map[string][]int
 	var a bool
 
-	switch { // want `could use tagged switch on x`
+	switch { //@ diag(`could use tagged switch on x`)
 	case x == 4: // comment
 	case x == 1 || x == 2, x == 3:
 	}
 
-	switch { // want `could use tagged switch on x`
+	switch { //@ diag(`could use tagged switch on x`)
 	case x == 1 || x == 2, x == 3:
 	case x == 4:
 	default:
 	}
 
-	switch { // want `could use tagged switch on z\[""\]\[0\]`
+	switch { //@ diag(`could use tagged switch on z[""][0]`)
 	case z[""][0] == 1 || z[""][0] == 2:
 	}
 
-	switch { // want `could use tagged switch on a`
+	switch { //@ diag(`could use tagged switch on a`)
 	case a == (x == y) || a == (x != y):
 	}
 

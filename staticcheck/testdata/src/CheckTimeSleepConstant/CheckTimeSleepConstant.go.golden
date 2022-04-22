@@ -7,8 +7,8 @@ const c1 = 1
 const c2 = 200
 
 func fn() {
-	time.Sleep(1 * time.Nanosecond)  // want `sleeping for 1`
-	time.Sleep(42 * time.Nanosecond) // want `sleeping for 42`
+	time.Sleep(1 * time.Nanosecond)  //@ diag(`sleeping for 1`)
+	time.Sleep(42 * time.Nanosecond) //@ diag(`sleeping for 42`)
 	time.Sleep(201)
 	time.Sleep(c1)
 	time.Sleep(c2)
@@ -25,8 +25,8 @@ const c1 = 1
 const c2 = 200
 
 func fn() {
-	time.Sleep(1 * time.Second)  // want `sleeping for 1`
-	time.Sleep(42 * time.Second) // want `sleeping for 42`
+	time.Sleep(1 * time.Second)  //@ diag(`sleeping for 1`)
+	time.Sleep(42 * time.Second) //@ diag(`sleeping for 42`)
 	time.Sleep(201)
 	time.Sleep(c1)
 	time.Sleep(c2)

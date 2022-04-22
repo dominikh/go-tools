@@ -8,12 +8,12 @@ import (
 
 func fn(s string) {
 	fn2 := func() string { return "" }
-	fmt.Print(fn2())      // want `should use print-style function`
-	_ = fmt.Sprint(fn2()) // want `should use print-style function`
-	log.Print(fn2())      // want `should use print-style function`
-	fmt.Print(s)          // want `should use print-style function`
+	fmt.Print(fn2())      //@ diag(`should use print-style function`)
+	_ = fmt.Sprint(fn2()) //@ diag(`should use print-style function`)
+	log.Print(fn2())      //@ diag(`should use print-style function`)
+	fmt.Print(s)          //@ diag(`should use print-style function`)
 	fmt.Printf(s, "")
-	fmt.Fprint(os.Stdout, s) // want `should use print-style function`
+	fmt.Fprint(os.Stdout, s) //@ diag(`should use print-style function`)
 	fmt.Fprintf(os.Stdout, s, "")
 
 	fmt.Printf(fn2(), "")

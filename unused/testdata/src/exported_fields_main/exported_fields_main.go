@@ -1,14 +1,14 @@
 package main
 
-type t1 struct { // used
-	F1 int // used
+type t1 struct { //@ used(true)
+	F1 int //@ used(true)
 }
 
-type T2 struct { // used
-	F2 int // used
+type T2 struct { //@ used(true)
+	F2 int //@ used(true)
 }
 
-func init() { // used
+func init() { //@ used(true)
 	_ = t1{}
 	_ = T2{}
 }

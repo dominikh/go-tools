@@ -1,26 +1,26 @@
 package main
 
-type myNoCopy1 struct{}  // used
-type myNoCopy2 struct{}  // used
-type locker struct{}     // unused
-type someStruct struct { // unused
+type myNoCopy1 struct{}  //@ used(true)
+type myNoCopy2 struct{}  //@ used(true)
+type locker struct{}     //@ used(false)
+type someStruct struct { //@ used(false)
 	x int
 }
 
-func (myNoCopy1) Lock()      {} // used
-func (recv myNoCopy2) Lock() {} // used
-func (locker) Lock()         {} // unused
-func (locker) Unlock()       {} // unused
-func (someStruct) Lock()     {} // unused
+func (myNoCopy1) Lock()      {} //@ used(true)
+func (recv myNoCopy2) Lock() {} //@ used(true)
+func (locker) Lock()         {} //@ used(false)
+func (locker) Unlock()       {} //@ used(false)
+func (someStruct) Lock()     {} //@ used(false)
 
-type T struct { // used
-	noCopy1 myNoCopy1  // used
-	noCopy2 myNoCopy2  // used
-	field1  someStruct // unused
-	field2  locker     // unused
-	field3  int        // unused
+type T struct { //@ used(true)
+	noCopy1 myNoCopy1  //@ used(true)
+	noCopy2 myNoCopy2  //@ used(true)
+	field1  someStruct //@ used(false)
+	field2  locker     //@ used(false)
+	field3  int        //@ used(false)
 }
 
-func main() { // used
+func main() { //@ used(true)
 	_ = T{}
 }

@@ -3,35 +3,35 @@ package pkg
 func fn1() {
 	var foo []int
 
-	if len(foo) < 0 { // want `len does not return negative values`
+	if len(foo) < 0 { //@ diag(`len does not return negative values`)
 		println("test")
 	}
 
 	switch {
-	case len(foo) < 0: // want `negative`
+	case len(foo) < 0: //@ diag(`negative`)
 		println("test")
 	}
 
-	for len(foo) < 0 { // want `negative`
+	for len(foo) < 0 { //@ diag(`negative`)
 		println("test")
 	}
 
-	println(len(foo) < 0) // want `negative`
+	println(len(foo) < 0) //@ diag(`negative`)
 
-	if 0 > cap(foo) { // want `cap does not return negative values`
+	if 0 > cap(foo) { //@ diag(`cap does not return negative values`)
 		println("test")
 	}
 
 	switch {
-	case 0 > cap(foo): // want `negative`
+	case 0 > cap(foo): //@ diag(`negative`)
 		println("test")
 	}
 
-	for 0 > cap(foo) { // want `negative`
+	for 0 > cap(foo) { //@ diag(`negative`)
 		println("test")
 	}
 
-	println(0 > cap(foo)) // want `negative`
+	println(0 > cap(foo)) //@ diag(`negative`)
 }
 
 func fn2() {

@@ -1,9 +1,9 @@
 package pkg
 
-func a() { // unused
+func a() { //@ used(false)
 	b()
 }
 
-func b() { // unused
+func b() { //@ used(false)
 	a()
 }

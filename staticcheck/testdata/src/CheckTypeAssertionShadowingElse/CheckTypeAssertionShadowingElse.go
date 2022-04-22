@@ -4,7 +4,7 @@ func fn1(x interface{}) {
 	if x, ok := x.(int); ok {
 		_ = x
 	} else {
-		_ = x // want `x refers to the result of a failed type assertion`
+		_ = x //@ diag(`x refers to the result of a failed type assertion`)
 		x = 1
 		// No diagnostic, x is no longer the zero value
 		_ = x
@@ -40,7 +40,7 @@ func fn1(x interface{}) {
 
 	if x, ok := x.(*int); ok {
 		_ = x
-	} else if x != nil { // want `x refers to`
-	} else if x == nil { // want `x refers to`
+	} else if x != nil { //@ diag(`x refers to`)
+	} else if x == nil { //@ diag(`x refers to`)
 	}
 }

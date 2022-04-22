@@ -4,19 +4,19 @@ func fn() {
 	var m map[string]int
 
 	// with :=
-	for x := range m { // want `unnecessary assignment to the blank identifier`
+	for x := range m { //@ diag(`unnecessary assignment to the blank identifier`)
 		_ = x
 	}
 	// with =
 	var y string
 	_ = y
-	for y = range m { // want `unnecessary assignment to the blank identifier`
+	for y = range m { //@ diag(`unnecessary assignment to the blank identifier`)
 	}
 
-	for range m { // want `unnecessary assignment to the blank identifier`
+	for range m { //@ diag(`unnecessary assignment to the blank identifier`)
 	}
 
-	for range m { // want `unnecessary assignment to the blank identifier`
+	for range m { //@ diag(`unnecessary assignment to the blank identifier`)
 	}
 
 	// all OK:

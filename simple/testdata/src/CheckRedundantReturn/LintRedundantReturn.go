@@ -1,11 +1,11 @@
 package pkg
 
 func fn1() {
-	return // want `redundant return`
+	return //@ diag(`redundant return`)
 }
 
 func fn2(a int) {
-	return // want `redundant return`
+	return //@ diag(`redundant return`)
 }
 
 func fn3() int {
@@ -30,11 +30,11 @@ func fn6() {
 func fn7() {
 	return
 	println("foo")
-	return // want `redundant return`
+	return //@ diag(`redundant return`)
 }
 
 func fn8() {
 	_ = func() {
-		return // want `redundant return`
+		return //@ diag(`redundant return`)
 	}
 }

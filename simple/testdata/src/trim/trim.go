@@ -17,11 +17,11 @@ func fn() {
 
 	var id1 = "a string value"
 	var id2 string
-	if strings.HasPrefix(id1, s1) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, s1) { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		id1 = id1[len(s1):]
 	}
 
-	if strings.HasPrefix(id1, s1) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, s1) { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		id1 = strings.TrimPrefix(id1, s1)
 	}
 
@@ -29,34 +29,34 @@ func fn() {
 		id1 = strings.TrimPrefix(id1, s2)
 	}
 
-	if strings.Contains(id1, s1) { // want `should replace.*with.*strings\.Replace`
+	if strings.Contains(id1, s1) { //@ diag(re`should replace.*with.*strings\.Replace`)
 		id1 = strings.Replace(id1, s1, "something", 123)
 	}
 
-	if strings.HasSuffix(id1, s2) { // want `should replace.*with.*strings\.TrimSuffix`
+	if strings.HasSuffix(id1, s2) { //@ diag(re`should replace.*with.*strings\.TrimSuffix`)
 		id1 = id1[:len(id1)-len(s2)]
 	}
 
 	var x, y []string
 	var i int
-	if strings.HasPrefix(x[i], s1) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(x[i], s1) { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		x[i] = x[i][len(s1):]
 	}
 
-	if strings.HasPrefix(x[i], y[i]) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(x[i], y[i]) { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		x[i] = x[i][len(y[i]):]
 	}
 
 	var t struct{ x string }
-	if strings.HasPrefix(t.x, s1) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(t.x, s1) { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		t.x = t.x[len(s1):]
 	}
 
-	if strings.HasPrefix(id1, "test") { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, "test") { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		id1 = id1[len("test"):]
 	}
 
-	if strings.HasPrefix(id1, "test") { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, "test") { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		id1 = id1[4:]
 	}
 
@@ -69,12 +69,12 @@ func fn() {
 	}
 
 	var b1, b2 []byte
-	if bytes.HasPrefix(b1, b2) { // want `should replace.*with.*bytes\.TrimPrefix`
+	if bytes.HasPrefix(b1, b2) { //@ diag(re`should replace.*with.*bytes\.TrimPrefix`)
 		b1 = b1[len(b2):]
 	}
 
 	id3 := s2
-	if strings.HasPrefix(id1, id3) { // want `should replace.*with.*strings\.TrimPrefix`
+	if strings.HasPrefix(id1, id3) { //@ diag(re`should replace.*with.*strings\.TrimPrefix`)
 		id1 = id1[len(id3):]
 	}
 
@@ -148,15 +148,15 @@ func fn2() {
 	var s string
 	const id = ".json"
 
-	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
+	if strings.HasSuffix(s, ".json") { //@ diag(re`should replace.*with.*strings\.TrimSuffix`)
 		s = strings.TrimSuffix(s, ".json")
 	}
 
-	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
+	if strings.HasSuffix(s, ".json") { //@ diag(re`should replace.*with.*strings\.TrimSuffix`)
 		s = s[:len(s)-len(".json")]
 	}
 
-	if strings.HasSuffix(s, ".json") { // want `should replace.*with.*strings\.TrimSuffix`
+	if strings.HasSuffix(s, ".json") { //@ diag(re`should replace.*with.*strings\.TrimSuffix`)
 		s = s[:len(s)-5]
 	}
 

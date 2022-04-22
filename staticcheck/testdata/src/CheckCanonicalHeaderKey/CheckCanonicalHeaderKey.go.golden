@@ -7,10 +7,10 @@ func fn() {
 	var r http.Request
 	h := http.Header{}
 	var m map[string][]string
-	_ = h["Foo"]                        // want `keys in http\.Header are canonicalized`
-	_ = h[http.CanonicalHeaderKey(hdr)] //  want `keys in http\.Header are canonicalized`
+	_ = h["Foo"]                        //@ diag(`keys in http.Header are canonicalized`)
+	_ = h[http.CanonicalHeaderKey(hdr)] //@ diag(`keys in http.Header are canonicalized`)
 	h["foo"] = nil
-	_ = r.Header["Foo"] // want `keys in http\.Header are canonicalized`
+	_ = r.Header["Foo"] //@ diag(`keys in http.Header are canonicalized`)
 	r.Header["foo"] = nil
 	_ = m["foo"]
 }

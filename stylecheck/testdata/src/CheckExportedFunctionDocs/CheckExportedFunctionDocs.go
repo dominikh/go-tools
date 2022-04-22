@@ -6,7 +6,7 @@ func foo() {}
 // Foo is amazing
 func Foo() {}
 
-// Whatever // want `comment on exported function`
+// Whatever //@ diag(`comment on exported function`)
 func Bar() {}
 
 type T struct{}
@@ -17,7 +17,7 @@ func (T) foo() {}
 // Foo is amazing
 func (T) Foo() {}
 
-// Whatever // want `comment on exported method`
+// Whatever //@ diag(`comment on exported method`)
 func (T) Bar() {}
 
 //
@@ -38,6 +38,6 @@ func F1() {} // we pretend that directives aren't part of the doc string, just l
 // F2 is amazing
 func F2() {}
 
-//some:directive // want `comment on exported function`
+//some:directive //@ diag(`comment on exported function`)
 // Whatever
 func F3() {}

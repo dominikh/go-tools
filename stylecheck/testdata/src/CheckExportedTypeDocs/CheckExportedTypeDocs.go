@@ -3,14 +3,14 @@ package pkg
 // Some type
 type t1 struct{}
 
-// Some type // want `comment on exported type`
+// Some type //@ diag(`comment on exported type`)
 type T2 struct{}
 
 // T3 is amazing
 type T3 struct{}
 
 type (
-	// Some type // want `comment on exported type`
+	// Some type //@ diag(`comment on exported type`)
 	T4 struct{}
 	// The T5 type is amazing
 	T5 struct{}
@@ -52,7 +52,7 @@ type T12 struct{} // we pretend that directives aren't part of the doc string, j
 // T13 is amazing
 type T13 struct{}
 
-//some:directive // want `comment on exported type`
+//some:directive //@ diag(`comment on exported type`)
 // Whatever
 type T14 struct{}
 

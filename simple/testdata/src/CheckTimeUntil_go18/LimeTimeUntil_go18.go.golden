@@ -3,7 +3,7 @@ package pkg
 import "time"
 
 func fn(t time.Time) {
-	time.Until(t) // want `time\.Until`
+	time.Until(t) //@ diag(`time.Until`)
 	t.Sub(t)
 	t2 := time.Now()
 	t.Sub(t2)

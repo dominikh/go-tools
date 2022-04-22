@@ -10,13 +10,13 @@ import (
 func fn() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	signal.Ignore()           // want `cannot be trapped`
-	signal.Ignore(os.Kill)    // want `cannot be trapped`
-	signal.Notify(c, os.Kill) // want `cannot be trapped`
-	signal.Reset(os.Kill)     // want `cannot be trapped`
-	signal.Ignore()           // want `cannot be trapped`
-	signal.Notify(c)          // want `cannot be trapped`
-	signal.Reset()            // want `cannot be trapped`
+	signal.Ignore()           //@ diag(`cannot be trapped`)
+	signal.Ignore(os.Kill)    //@ diag(`cannot be trapped`)
+	signal.Notify(c, os.Kill) //@ diag(`cannot be trapped`)
+	signal.Reset(os.Kill)     //@ diag(`cannot be trapped`)
+	signal.Ignore()           //@ diag(`cannot be trapped`)
+	signal.Notify(c)          //@ diag(`cannot be trapped`)
+	signal.Reset()            //@ diag(`cannot be trapped`)
 }
 
 -- remove os.Kill from list of arguments --
@@ -31,13 +31,13 @@ import (
 func fn() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	signal.Ignore(os.Signal(syscall.SIGKILL)) // want `cannot be trapped`
-	signal.Ignore()                           // want `cannot be trapped`
-	signal.Notify(c)                          // want `cannot be trapped`
-	signal.Reset()                            // want `cannot be trapped`
-	signal.Ignore(syscall.SIGKILL)            // want `cannot be trapped`
-	signal.Notify(c, syscall.SIGKILL)         // want `cannot be trapped`
-	signal.Reset(syscall.SIGKILL)             // want `cannot be trapped`
+	signal.Ignore(os.Signal(syscall.SIGKILL)) //@ diag(`cannot be trapped`)
+	signal.Ignore()                           //@ diag(`cannot be trapped`)
+	signal.Notify(c)                          //@ diag(`cannot be trapped`)
+	signal.Reset()                            //@ diag(`cannot be trapped`)
+	signal.Ignore(syscall.SIGKILL)            //@ diag(`cannot be trapped`)
+	signal.Notify(c, syscall.SIGKILL)         //@ diag(`cannot be trapped`)
+	signal.Reset(syscall.SIGKILL)             //@ diag(`cannot be trapped`)
 }
 
 -- use syscall.SIGTERM instead of syscall.SIGKILL --
@@ -52,13 +52,13 @@ import (
 func fn() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	signal.Ignore(syscall.SIGTERM)    // want `cannot be trapped`
-	signal.Ignore(os.Kill)            // want `cannot be trapped`
-	signal.Notify(c, os.Kill)         // want `cannot be trapped`
-	signal.Reset(os.Kill)             // want `cannot be trapped`
-	signal.Ignore(syscall.SIGTERM)    // want `cannot be trapped`
-	signal.Notify(c, syscall.SIGTERM) // want `cannot be trapped`
-	signal.Reset(syscall.SIGTERM)     // want `cannot be trapped`
+	signal.Ignore(syscall.SIGTERM)    //@ diag(`cannot be trapped`)
+	signal.Ignore(os.Kill)            //@ diag(`cannot be trapped`)
+	signal.Notify(c, os.Kill)         //@ diag(`cannot be trapped`)
+	signal.Reset(os.Kill)             //@ diag(`cannot be trapped`)
+	signal.Ignore(syscall.SIGTERM)    //@ diag(`cannot be trapped`)
+	signal.Notify(c, syscall.SIGTERM) //@ diag(`cannot be trapped`)
+	signal.Reset(syscall.SIGTERM)     //@ diag(`cannot be trapped`)
 }
 
 -- use syscall.SIGTERM instead of os.Kill --
@@ -73,11 +73,11 @@ import (
 func fn() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	signal.Ignore(os.Signal(syscall.SIGKILL)) // want `cannot be trapped`
-	signal.Ignore(syscall.SIGTERM)            // want `cannot be trapped`
-	signal.Notify(c, syscall.SIGTERM)         // want `cannot be trapped`
-	signal.Reset(syscall.SIGTERM)             // want `cannot be trapped`
-	signal.Ignore(syscall.SIGKILL)            // want `cannot be trapped`
-	signal.Notify(c, syscall.SIGKILL)         // want `cannot be trapped`
-	signal.Reset(syscall.SIGKILL)             // want `cannot be trapped`
+	signal.Ignore(os.Signal(syscall.SIGKILL)) //@ diag(`cannot be trapped`)
+	signal.Ignore(syscall.SIGTERM)            //@ diag(`cannot be trapped`)
+	signal.Notify(c, syscall.SIGTERM)         //@ diag(`cannot be trapped`)
+	signal.Reset(syscall.SIGTERM)             //@ diag(`cannot be trapped`)
+	signal.Ignore(syscall.SIGKILL)            //@ diag(`cannot be trapped`)
+	signal.Notify(c, syscall.SIGKILL)         //@ diag(`cannot be trapped`)
+	signal.Reset(syscall.SIGKILL)             //@ diag(`cannot be trapped`)
 }

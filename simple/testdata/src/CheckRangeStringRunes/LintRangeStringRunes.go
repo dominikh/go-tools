@@ -7,7 +7,7 @@ func fn(s string, s2 String) {
 		println(r)
 	}
 
-	for _, r := range []rune(s) { // want `should range over string`
+	for _, r := range []rune(s) { //@ diag(`should range over string`)
 		println(r)
 	}
 
@@ -17,7 +17,7 @@ func fn(s string, s2 String) {
 	}
 
 	x := []rune(s)
-	for _, r := range x { // want `should range over string`
+	for _, r := range x { //@ diag(`should range over string`)
 		println(r)
 	}
 
@@ -27,7 +27,7 @@ func fn(s string, s2 String) {
 	}
 	println(y[0])
 
-	for _, r := range []rune(s2) { // want `should range over string`
+	for _, r := range []rune(s2) { //@ diag(`should range over string`)
 		println(r)
 	}
 }

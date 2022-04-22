@@ -12,7 +12,7 @@ func tpfn1[T []int](x T) {
 }
 
 func tpfn2[T *int,](x T) {
-	_ = *x // want `possible nil pointer dereference`
+	_ = *x //@ diag(`possible nil pointer dereference`)
 	if x == nil {
 		return
 	}

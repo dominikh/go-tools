@@ -11,5 +11,5 @@ type LMap[K comparable, V any] struct {
 
 func (lm *LMap[K, V]) MarshalJSON() {
 	json.Marshal(lm.M1)
-	json.Marshal(lm.M2) // want `unsupported type`
+	json.Marshal(lm.M2) //@ diag(`unsupported type`)
 }

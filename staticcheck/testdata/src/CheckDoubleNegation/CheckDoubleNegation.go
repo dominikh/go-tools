@@ -1,15 +1,15 @@
 package pkg
 
 func fn(b1, b2 bool) {
-	if !!b1 { // want `negating a boolean twice`
+	if !!b1 { //@ diag(`negating a boolean twice`)
 		println()
 	}
 
-	if b1 && !!b2 { // want `negating a boolean twice`
+	if b1 && !!b2 { //@ diag(`negating a boolean twice`)
 		println()
 	}
 
-	if !(!b1) { // want `negating a boolean twice`
+	if !(!b1) { //@ diag(`negating a boolean twice`)
 		println()
 	}
 

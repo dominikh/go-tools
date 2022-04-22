@@ -6,12 +6,12 @@ func fn() {
 	var a bool
 
 	switch x {
-	case 1, 2: // want `could use tagged switch on x`
+	case 1, 2: //@ diag(`could use tagged switch on x`)
 	case 3:
 	}
 
 	switch x {
-	case 1, 2: // want `could use tagged switch on x`
+	case 1, 2: //@ diag(`could use tagged switch on x`)
 	case 3:
 	default:
 	}
@@ -22,18 +22,18 @@ func fn() {
 	}
 
 	switch a {
-	case x == y: // want `could use tagged switch on a`
+	case x == y: //@ diag(`could use tagged switch on a`)
 	case x != y:
 	}
 
 	switch z[0] {
-	case 1, 2: // want `could use tagged switch on z\[0\]`
+	case 1, 2: //@ diag(`could use tagged switch on z[0]`)
 	case 3:
 	}
 
 	for {
 		switch x {
-		case 1, 2: // want `could use tagged switch on x`
+		case 1, 2: //@ diag(`could use tagged switch on x`)
 		case 3:
 		}
 	}
