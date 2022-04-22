@@ -4,8 +4,8 @@ import "fmt"
 
 func fn1() {
 	var s []int
-	s = append(s, 1) // want `this result of append is never used`
-	s = append(s, 1) // want `this result of append is never used`
+	s = append(s, 1) //@ diag(`this result of append is never used`)
+	s = append(s, 1) //@ diag(`this result of append is never used`)
 }
 
 func fn2() (named []int) {
@@ -15,12 +15,12 @@ func fn2() (named []int) {
 
 func fn3() {
 	s := make([]int, 0)
-	s = append(s, 1) // want `this result of append is never used`
+	s = append(s, 1) //@ diag(`this result of append is never used`)
 }
 
 func fn3_1(n int) {
 	s := make([]int, n)
-	s = append(s, 1) // want `this result of append is never used`
+	s = append(s, 1) //@ diag(`this result of append is never used`)
 }
 
 func fn4() []int {
@@ -61,7 +61,7 @@ func fn10() {
 func fn11() {
 	var s []int
 	for x := 0; x < 10; x++ {
-		s = append(s, 1) // want `this result of append is never used`
+		s = append(s, 1) //@ diag(`this result of append is never used`)
 	}
 }
 
@@ -130,7 +130,7 @@ func fn19() [4]int {
 func fn20() {
 	var x [4]int
 	s := x[:]
-	s = append(s, 1) // want `this result of append is never used`
+	s = append(s, 1) //@ diag(`this result of append is never used`)
 }
 
 func fn21() {
@@ -171,7 +171,7 @@ func fn25() {
 	if true {
 		s = append(s, 1)
 	}
-	s = append(s, 2) // want `this result of append is never used`
+	s = append(s, 2) //@ diag(`this result of append is never used`)
 }
 
 func fn26() {
@@ -190,7 +190,7 @@ func fn27() {
 	} else {
 		s = make([]byte, 0, 2)
 	}
-	s = append(s, 1) // want `this result of append is never used`
+	s = append(s, 1) //@ diag(`this result of append is never used`)
 }
 
 func fn28() {

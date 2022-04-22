@@ -2,15 +2,15 @@
 package pkg
 
 func fn(x string, y int) {
-	if x == "" { // want `Yoda`
+	if x == "" { //@ diag(`Yoda`)
 	}
-	if y == 0 { // want `Yoda`
+	if y == 0 { //@ diag(`Yoda`)
 	}
 	if 0 > y {
 	}
 	if "" == "" {
 	}
 
-	if "" == "" || y == 0 { // want `Yoda`
+	if "" == "" || y == 0 { //@ diag(`Yoda`)
 	}
 }

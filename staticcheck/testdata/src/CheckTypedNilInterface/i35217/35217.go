@@ -20,5 +20,5 @@ func calculate() (int, *someError) {
 func main() {
 	err := errors.New("ERROR")
 	num, err := calculate()
-	fmt.Println(num, err, err == nil) // want `this comparison is never true`
+	fmt.Println(num, err, err == nil) //@ diag(`this comparison is never true`)
 }

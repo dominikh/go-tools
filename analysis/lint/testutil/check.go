@@ -12,99 +12,17 @@ import (
 	"go/format"
 	"go/token"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
-	"text/scanner"
 
 	"honnef.co/go/tools/internal/diff/myers"
 	"honnef.co/go/tools/lintcmd/runner"
 
+	"golang.org/x/tools/go/expect"
 	"golang.org/x/tools/txtar"
 )
-
-type expectation struct {
-	kind string // either "fact" or "diagnostic"
-	name string // name of object to which fact belongs, or "package" ("fact" only)
-	rx   *regexp.Regexp
-}
-
-func (ex expectation) String() string {
-	return fmt.Sprintf("%s %s:%q", ex.kind, ex.name, ex.rx) // for debugging
-}
-
-// sanitize removes the GOPATH portion of the filename,
-// typically a gnarly /tmp directory, and returns the rest.
-func sanitize(gopath, filename string) string {
-	prefix := gopath + string(os.PathSeparator) + "src" + string(os.PathSeparator)
-	return filepath.ToSlash(strings.TrimPrefix(filename, prefix))
-}
-
-// parseExpectations parses the content of a "// want ..." comment
-// and returns the expectations, a mixture of diagnostics ("rx") and
-// facts (name:"rx").
-func parseExpectations(text string) (lineDelta int, expects []expectation, err error) {
-	var scanErr string
-	sc := new(scanner.Scanner).Init(strings.NewReader(text))
-	sc.Error = func(s *scanner.Scanner, msg string) {
-		scanErr = msg // e.g. bad string escape
-	}
-	sc.Mode = scanner.ScanIdents | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanInts
-
-	scanRegexp := func(tok rune) (*regexp.Regexp, error) {
-		if tok != scanner.String && tok != scanner.RawString {
-			return nil, fmt.Errorf("got %s, want regular expression",
-				scanner.TokenString(tok))
-		}
-		pattern, _ := strconv.Unquote(sc.TokenText()) // can't fail
-		return regexp.Compile(pattern)
-	}
-
-	for {
-		tok := sc.Scan()
-		switch tok {
-		case '+':
-			tok = sc.Scan()
-			if tok != scanner.Int {
-				return 0, nil, fmt.Errorf("got +%s, want +Int", scanner.TokenString(tok))
-			}
-			lineDelta, _ = strconv.Atoi(sc.TokenText())
-		case scanner.String, scanner.RawString:
-			rx, err := scanRegexp(tok)
-			if err != nil {
-				return 0, nil, err
-			}
-			expects = append(expects, expectation{"diagnostic", "", rx})
-
-		case scanner.Ident:
-			name := sc.TokenText()
-			tok = sc.Scan()
-			if tok != ':' {
-				return 0, nil, fmt.Errorf("got %s after %s, want ':'",
-					scanner.TokenString(tok), name)
-			}
-			tok = sc.Scan()
-			rx, err := scanRegexp(tok)
-			if err != nil {
-				return 0, nil, err
-			}
-			expects = append(expects, expectation{"fact", name, rx})
-
-		case scanner.EOF:
-			if scanErr != "" {
-				return 0, nil, fmt.Errorf("%s", scanErr)
-			}
-			return lineDelta, expects, nil
-
-		default:
-			return 0, nil, fmt.Errorf("unexpected %s", scanner.TokenString(tok))
-		}
-	}
-}
 
 func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 	// Process each result (package) separately, matching up the suggested
@@ -247,67 +165,84 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 	}
 }
 
-func Check(t *testing.T, gopath string, diagnostics []runner.Diagnostic, wants []runner.Want, facts []runner.TestFact) {
+func Check(t *testing.T, gopath string, diagnostics []runner.Diagnostic, facts []runner.TestFact) {
 	type key struct {
 		file string
 		line int
 	}
 
-	want := make(map[key][]expectation)
+	want := make(map[key][]*expect.Note)
 
-	// processComment parses expectations out of comments.
-	processComment := func(filename string, linenum int, text string) {
-		text = strings.TrimSpace(text)
+	fset := token.NewFileSet()
+	seen := map[string]struct{}{}
+	for _, diag := range diagnostics {
+		file := diag.Position.Filename
+		if _, ok := seen[file]; !ok {
+			seen[file] = struct{}{}
 
-		// Any comment starting with "want" is treated
-		// as an expectation, even without following whitespace.
-		if rest := strings.TrimPrefix(text, "want"); rest != text {
-			lineDelta, expects, err := parseExpectations(rest)
+			notes, err := expect.Parse(fset, file, nil)
 			if err != nil {
-				t.Errorf("%s:%d: in 'want' comment: %s", filename, linenum, err)
-				return
+				t.Fatal(err)
 			}
-			if expects != nil {
-				want[key{filename, linenum + lineDelta}] = expects
+			for _, note := range notes {
+				k := key{
+					file: file,
+					line: fset.PositionFor(note.Pos, false).Line,
+				}
+				want[k] = append(want[k], note)
 			}
 		}
 	}
 
-	for _, want := range wants {
-		filename := sanitize(gopath, want.Position.Filename)
-		processComment(filename, want.Position.Line, want.Comment)
-	}
-
-	checkMessage := func(posn token.Position, kind, name, message string) {
-		posn.Filename = sanitize(gopath, posn.Filename)
+	check := func(posn token.Position, message string, kind string, argIdx int, identifier string) {
 		k := key{posn.Filename, posn.Line}
 		expects := want[k]
 		var unmatched []string
 		for i, exp := range expects {
-			if exp.kind == kind && exp.name == name {
-				if exp.rx.MatchString(message) {
+			if exp.Name == kind {
+				if kind == "fact" && exp.Args[0] != expect.Identifier(identifier) {
+					continue
+				}
+				matched := false
+				switch arg := exp.Args[argIdx].(type) {
+				case string:
+					matched = strings.Contains(message, arg)
+				case *regexp.Regexp:
+					matched = arg.MatchString(message)
+				default:
+					t.Fatalf("unexpected argument type %T", arg)
+				}
+				if matched {
 					// matched: remove the expectation.
 					expects[i] = expects[len(expects)-1]
 					expects = expects[:len(expects)-1]
 					want[k] = expects
 					return
 				}
-				unmatched = append(unmatched, fmt.Sprintf("%q", exp.rx))
+				unmatched = append(unmatched, fmt.Sprintf("%q", exp.Args[argIdx]))
 			}
 		}
 		if unmatched == nil {
-			t.Errorf("%v: unexpected %s: %v", posn, kind, message)
+			t.Errorf("%v: unexpected diag: %v", posn, message)
 		} else {
-			t.Errorf("%v: %s %q does not match pattern %s",
-				posn, kind, message, strings.Join(unmatched, " or "))
+			t.Errorf("%v: diag %q does not match pattern %s",
+				posn, message, strings.Join(unmatched, " or "))
 		}
+	}
+
+	checkDiag := func(posn token.Position, message string) {
+		check(posn, message, "diag", 0, "")
+	}
+
+	checkFact := func(posn token.Position, name, message string) {
+		check(posn, message, "fact", 1, name)
 	}
 
 	// Check the diagnostics match expectations.
 	for _, f := range diagnostics {
 		// TODO(matloob): Support ranges in analysistest.
 		posn := f.Position
-		checkMessage(posn, "diagnostic", "", f.Message)
+		checkDiag(posn, f.Message)
 	}
 
 	// Check the facts match expectations.
@@ -319,7 +254,7 @@ func Check(t *testing.T, gopath string, diagnostics []runner.Diagnostic, wants [
 			posn.Line = 1
 		}
 
-		checkMessage(posn, "fact", name, fact.FactString)
+		checkFact(posn, name, fact.FactString)
 	}
 
 	// Reject surplus expectations.
@@ -332,7 +267,7 @@ func Check(t *testing.T, gopath string, diagnostics []runner.Diagnostic, wants [
 	var surplus []string
 	for key, expects := range want {
 		for _, exp := range expects {
-			err := fmt.Sprintf("%s:%d: no %s was reported matching %q", key.file, key.line, exp.kind, exp.rx)
+			err := fmt.Sprintf("%s:%d: no %s was reported matching %q", key.file, key.line, exp.Name, exp.Args)
 			surplus = append(surplus, err)
 		}
 	}

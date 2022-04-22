@@ -20,7 +20,7 @@ func main() {
 	err := errorNil()
 	fmt.Println(err != nil)
 	err = structNil()
-	fmt.Println(err != nil) // want `this comparison is always true`
+	fmt.Println(err != nil) //@ diag(`this comparison is always true`)
 	err = errorNil()
 	fmt.Println(err != nil)
 }

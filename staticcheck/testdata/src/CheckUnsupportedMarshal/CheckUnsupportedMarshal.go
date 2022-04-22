@@ -78,37 +78,37 @@ func fn() {
 	var t11 Recursive
 	json.Marshal(t1)
 	json.Marshal(t2)
-	json.Marshal(t3) // want `unsupported type chan int, via x\.Ch`
+	json.Marshal(t3) //@ diag(`unsupported type chan int, via x.Ch`)
 	json.Marshal(t4)
-	json.Marshal(t5) // want `unsupported type func\(\), via x\.B`
+	json.Marshal(t5) //@ diag(`unsupported type func(), via x.B`)
 	json.Marshal(t6)
 	(*json.Encoder)(nil).Encode(t1)
 	(*json.Encoder)(nil).Encode(t2)
-	(*json.Encoder)(nil).Encode(t3) // want `unsupported type chan int, via x\.Ch`
+	(*json.Encoder)(nil).Encode(t3) //@ diag(`unsupported type chan int, via x.Ch`)
 	(*json.Encoder)(nil).Encode(t4)
-	(*json.Encoder)(nil).Encode(t5) // want `unsupported type func\(\), via x\.B`
+	(*json.Encoder)(nil).Encode(t5) //@ diag(`unsupported type func(), via x.B`)
 	(*json.Encoder)(nil).Encode(t6)
 
 	xml.Marshal(t1)
 	xml.Marshal(t2)
-	xml.Marshal(t3) // want `unsupported type chan int, via x\.Ch`
+	xml.Marshal(t3) //@ diag(`unsupported type chan int, via x.Ch`)
 	xml.Marshal(t4)
 	xml.Marshal(t5)
-	xml.Marshal(t6) // want `unsupported type func\(\), via x\.B`
+	xml.Marshal(t6) //@ diag(`unsupported type func(), via x.B`)
 	(*xml.Encoder)(nil).Encode(t1)
 	(*xml.Encoder)(nil).Encode(t2)
-	(*xml.Encoder)(nil).Encode(t3) // want `unsupported type chan int, via x\.C`
+	(*xml.Encoder)(nil).Encode(t3) //@ diag(`unsupported type chan int, via x.C`)
 	(*xml.Encoder)(nil).Encode(t4)
 	(*xml.Encoder)(nil).Encode(t5)
-	(*xml.Encoder)(nil).Encode(t6) // want `unsupported type func\(\), via x\.B`
+	(*xml.Encoder)(nil).Encode(t6) //@ diag(`unsupported type func(), via x.B`)
 
-	json.Marshal(t8)  // want `unsupported type chan int, via x\.T7\.T3\.Ch`
-	json.Marshal(t9)  // want `unsupported type PointerMarshaler, via x\.F`
+	json.Marshal(t8)  //@ diag(`unsupported type chan int, via x.T7.T3.Ch`)
+	json.Marshal(t9)  //@ diag(`unsupported type PointerMarshaler, via x.F`)
 	json.Marshal(&t9) // this is fine, t9 is addressable, therefore T9.D is, too
 	json.Marshal(t10) // this is fine, T10.F.D is addressable
 
-	xml.Marshal(t8)  // want `unsupported type chan int, via x\.T7\.T3\.Ch`
-	xml.Marshal(t9)  // want `unsupported type PointerMarshaler, via x\.F`
+	xml.Marshal(t8)  //@ diag(`unsupported type chan int, via x.T7.T3.Ch`)
+	xml.Marshal(t9)  //@ diag(`unsupported type PointerMarshaler, via x.F`)
 	xml.Marshal(&t9) // this is fine, t9 is addressable, therefore T9.D is, too
 	xml.Marshal(t10) // this is fine, T10.F.D is addressable
 
@@ -123,19 +123,19 @@ func addressabilityJSON() {
 		F PointerMarshaler
 	}
 	var d [4]PointerMarshaler
-	json.Marshal(a) // want `unsupported type PointerMarshaler$`
+	json.Marshal(a) //@ diag(re`unsupported type PointerMarshaler$`)
 	json.Marshal(&a)
 	json.Marshal(b)
 	json.Marshal(&b)
-	json.Marshal(c) // want `unsupported type PointerMarshaler, via x\.F`
+	json.Marshal(c) //@ diag(`unsupported type PointerMarshaler, via x.F`)
 	json.Marshal(&c)
-	json.Marshal(d) // want `unsupported type PointerMarshaler, via x\[0\]`
+	json.Marshal(d) //@ diag(`unsupported type PointerMarshaler, via x[0]`)
 	json.Marshal(&d)
 
 	var m1 map[string]PointerMarshaler
-	json.Marshal(m1)                                // want `unsupported type PointerMarshaler, via x\[k\]`
-	json.Marshal(&m1)                               // want `unsupported type PointerMarshaler, via x\[k\]`
-	json.Marshal([]map[string]PointerMarshaler{m1}) // want `unsupported type PointerMarshaler, via x\[0\]\[k\]`
+	json.Marshal(m1)                                //@ diag(`unsupported type PointerMarshaler, via x[k]`)
+	json.Marshal(&m1)                               //@ diag(`unsupported type PointerMarshaler, via x[k]`)
+	json.Marshal([]map[string]PointerMarshaler{m1}) //@ diag(`unsupported type PointerMarshaler, via x[0][k]`)
 
 	var m2 map[string]*PointerMarshaler
 	json.Marshal(m2)
@@ -151,13 +151,13 @@ func addressabilityXML() {
 		F       PointerMarshaler
 	}
 	var d [4]PointerMarshaler
-	xml.Marshal(a) // want `unsupported type PointerMarshaler$`
+	xml.Marshal(a) //@ diag(re`unsupported type PointerMarshaler$`)
 	xml.Marshal(&a)
 	xml.Marshal(b)
 	xml.Marshal(&b)
-	xml.Marshal(c) // want `unsupported type PointerMarshaler, via x\.F`
+	xml.Marshal(c) //@ diag(`unsupported type PointerMarshaler, via x.F`)
 	xml.Marshal(&c)
-	xml.Marshal(d) // want `unsupported type PointerMarshaler, via x\[0\]`
+	xml.Marshal(d) //@ diag(`unsupported type PointerMarshaler, via x[0]`)
 	xml.Marshal(&d)
 }
 
@@ -166,12 +166,12 @@ func mapsJSON() {
 	var bad map[interface{}]string
 	// the map key has to be statically known good; it must be a number or a string
 	json.Marshal(good)
-	json.Marshal(bad) // want `unsupported type map\[interface\{\}\]string$`
+	json.Marshal(bad) //@ diag(`unsupported type map[interface{}]string`)
 
 	var m1 map[string]PointerMarshaler
-	json.Marshal(m1)                                // want `unsupported type PointerMarshaler, via x\[k\]`
-	json.Marshal(&m1)                               // want `unsupported type PointerMarshaler, via x\[k\]`
-	json.Marshal([]map[string]PointerMarshaler{m1}) // want `unsupported type PointerMarshaler, via x\[0\]\[k\]`
+	json.Marshal(m1)                                //@ diag(`unsupported type PointerMarshaler, via x[k]`)
+	json.Marshal(&m1)                               //@ diag(`unsupported type PointerMarshaler, via x[k]`)
+	json.Marshal([]map[string]PointerMarshaler{m1}) //@ diag(`unsupported type PointerMarshaler, via x[0][k]`)
 
 	var m2 map[string]*PointerMarshaler
 	json.Marshal(m2)
@@ -195,14 +195,14 @@ func mapsJSON() {
 
 	json.Marshal(m5)
 	json.Marshal(m6)
-	json.Marshal(m7) // want `unsupported type map\[PointerMarshaler\]string$`
+	json.Marshal(m7) //@ diag(`unsupported type map[PointerMarshaler]string`)
 	json.Marshal(m8)
 }
 
 func mapsXML() {
 	// encoding/xml doesn't support any maps
 	var bad map[string]string
-	xml.Marshal(bad) // want `unsupported type`
+	xml.Marshal(bad) //@ diag(`unsupported type`)
 }
 
 func fieldPriorityJSON() {
@@ -224,7 +224,7 @@ func fieldPriorityJSON() {
 		F int
 		lT4
 	}
-	json.Marshal(lT3{}) // want `unsupported type chan int, via x\.lT4\.C`
+	json.Marshal(lT3{}) //@ diag(`unsupported type chan int, via x.lT4.C`)
 }
 
 func fieldPriorityXML() {
@@ -246,7 +246,7 @@ func fieldPriorityXML() {
 		F int
 		lT4
 	}
-	xml.Marshal(lT3{}) // want `unsupported type chan int, via x\.lT4\.C`
+	xml.Marshal(lT3{}) //@ diag(`unsupported type chan int, via x.lT4.C`)
 }
 
 func longPathJSON() {
@@ -257,12 +257,12 @@ func longPathJSON() {
 			}
 		}
 	}
-	json.Marshal(foo) // want `unsupported type chan int, via x\.Field\.Field2\[0\].Map\[k\]`
+	json.Marshal(foo) //@ diag(`unsupported type chan int, via x.Field.Field2[0].Map[k]`)
 }
 
 func otherPackageJSON() {
 	var x time.Ticker
-	json.Marshal(x) // want `unsupported type <-chan time\.Time, via x\.C`
+	json.Marshal(x) //@ diag(`unsupported type <-chan time.Time, via x.C`)
 }
 
 func longPathXML() {
@@ -273,12 +273,12 @@ func longPathXML() {
 			}
 		}
 	}
-	xml.Marshal(foo) // want `unsupported type map\[string\]chan int, via x\.Field\.Field2\[0\].Map`
+	xml.Marshal(foo) //@ diag(`unsupported type map[string]chan int, via x.Field.Field2[0].Map`)
 }
 
 func otherPackageXML() {
 	var x time.Ticker
-	xml.Marshal(x) // want `unsupported type <-chan time\.Time, via x\.C`
+	xml.Marshal(x) //@ diag(`unsupported type <-chan time.Time, via x.C`)
 }
 
 type ToplevelPointerMarshalerXML struct {
@@ -300,8 +300,8 @@ func (*ToplevelPointerMarshalerText) MarshalText() ([]byte, error) {
 func toplevelPointer() {
 	xml.Marshal(&ToplevelPointerMarshalerXML{})
 	xml.Marshal(&ToplevelPointerMarshalerText{})
-	xml.Marshal(ToplevelPointerMarshalerXML{})  // want `unsupported type`
-	xml.Marshal(ToplevelPointerMarshalerText{}) // want `unsupported type`
+	xml.Marshal(ToplevelPointerMarshalerXML{})  //@ diag(`unsupported type`)
+	xml.Marshal(ToplevelPointerMarshalerText{}) //@ diag(`unsupported type`)
 }
 
 func cyclicPointer() {
@@ -313,5 +313,5 @@ func cyclicPointer() {
 		Foo S2
 	}
 	var s S1
-	xml.Marshal(s) // want `cyclic type P, via x\.Foo\.Bar`
+	xml.Marshal(s) //@ diag(`cyclic type P, via x.Foo.Bar`)
 }

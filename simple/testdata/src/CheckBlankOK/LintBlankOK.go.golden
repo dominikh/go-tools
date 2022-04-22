@@ -5,8 +5,8 @@ func fn() {
 	var ch chan int
 	var fn func() (int, bool)
 
-	x := m[0] // want `unnecessary assignment to the blank identifier`
-	x = <-ch  // want `unnecessary assignment to the blank identifier`
+	x := m[0] //@ diag(`unnecessary assignment to the blank identifier`)
+	x = <-ch  //@ diag(`unnecessary assignment to the blank identifier`)
 	x, _ = fn()
 	_ = x
 }

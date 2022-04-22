@@ -5,7 +5,7 @@ func fn() {
 	var bs []int
 	var offset int
 
-	for i := 0; i < n; i++ { // want `should use copy\(\) instead of loop for sliding slice elements`
+	for i := 0; i < n; i++ { //@ diag(`should use copy() instead of loop for sliding slice elements`)
 		bs[i] = bs[offset+i]
 	}
 

@@ -20,7 +20,7 @@ func main() {
 	var e error
 	e = f()
 	// e should be nil ?
-	if e != nil { // want `this comparison is always true`
+	if e != nil { //@ diag(`this comparison is always true`)
 		fmt.Println("NOT NIL")
 	} else {
 		fmt.Println("NIL")

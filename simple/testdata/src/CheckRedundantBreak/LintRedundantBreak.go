@@ -4,7 +4,7 @@ func fn(x int) {
 	switch x {
 	case 1:
 		println()
-		break // want `redundant break`
+		break //@ diag(`redundant break`)
 	case 2:
 		println()
 	case 3:

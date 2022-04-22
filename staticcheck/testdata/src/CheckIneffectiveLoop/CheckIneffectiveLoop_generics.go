@@ -25,7 +25,7 @@ func _[T []int]() {
 		if true {
 			println()
 		}
-		break // want `the surrounding loop is unconditionally terminated`
+		break //@ diag(`the surrounding loop is unconditionally terminated`)
 	}
 }
 
@@ -34,6 +34,6 @@ func _[T any, S ~[]T](x S) {
 		if true {
 			println()
 		}
-		break // want `the surrounding loop is unconditionally terminated`
+		break //@ diag(`the surrounding loop is unconditionally terminated`)
 	}
 }

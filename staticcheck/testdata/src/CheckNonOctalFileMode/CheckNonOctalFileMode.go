@@ -3,7 +3,7 @@ package pkg
 import "os"
 
 func fn() {
-	os.OpenFile("", 0, 644) // want `file mode.+`
+	os.OpenFile("", 0, 644) //@ diag(`file mode`)
 }
 
 func fn2() (string, int, os.FileMode) {

@@ -4,13 +4,13 @@ import "fmt"
 
 func fn1() {
 	var x int
-	x = gen() // want `this value of x is never used`
+	x = gen() //@ diag(`this value of x is never used`)
 	x = gen()
 	println(x)
 
 	var y int
 	if true {
-		y = gen() // want `this value of y is never used`
+		y = gen() //@ diag(`this value of y is never used`)
 	}
 	y = gen()
 	println(y)
@@ -22,7 +22,7 @@ func gen() int {
 }
 
 func fn2() {
-	x, y := gen(), gen() // want `this value of x is never used` `this value of y is never used`
+	x, y := gen(), gen() //@ diag(`this value of x is never used`), diag(`this value of y is never used`)
 	x, y = gen(), gen()
 	println(x, y)
 }
@@ -43,16 +43,16 @@ func gen2() (int, int) {
 }
 
 func fn4() {
-	x, y := gen2() // want `this value of x is never used`
+	x, y := gen2() //@ diag(`this value of x is never used`)
 	println(y)
-	x, y = gen2() // want `this value of x is never used` `this value of y is never used`
-	x, _ = gen2() // want `this value of x is never used`
+	x, y = gen2() //@ diag(`this value of x is never used`), diag(`this value of y is never used`)
+	x, _ = gen2() //@ diag(`this value of x is never used`)
 	x, y = gen2()
 	println(x, y)
 }
 
 func fn5(m map[string]string) {
-	v, ok := m[""] // want `this value of v is never used` `this value of ok is never used`
+	v, ok := m[""] //@ diag(`this value of v is never used`), diag(`this value of ok is never used`)
 	v, ok = m[""]
 	println(v, ok)
 }
@@ -66,7 +66,7 @@ func fn6() {
 func fn7() {
 	func() {
 		var x int
-		x = gen() // want `this value of x is never used`
+		x = gen() //@ diag(`this value of x is never used`)
 		x = gen()
 		println(x)
 	}()
@@ -75,7 +75,7 @@ func fn7() {
 func fn() int { println(); return 0 }
 
 var y = func() {
-	v := fn() // want `never used`
+	v := fn() //@ diag(`never used`)
 	v = fn()
 	println(v)
 }
@@ -85,7 +85,7 @@ func fn8() {
 	switch x {
 	}
 
-	y := gen() // want `this value of y is never used`
+	y := gen() //@ diag(`this value of y is never used`)
 	y = gen()
 	switch y {
 	}
@@ -98,9 +98,9 @@ func fn8() {
 	switch a {
 	}
 
-	b, c := gen2() // want `this value of b is never used`
+	b, c := gen2() //@ diag(`this value of b is never used`)
 	println(c)
-	b, c = gen2() // want `this value of c is never used`
+	b, c = gen2() //@ diag(`this value of c is never used`)
 	switch b {
 	}
 }
@@ -108,7 +108,7 @@ func fn8() {
 func fn9() {
 	xs := []int{}
 	for _, x := range xs {
-		foo, err := work(x) // want `this value of foo is never used`
+		foo, err := work(x) //@ diag(`this value of foo is never used`)
 		if err != nil {
 			return
 		}
@@ -127,7 +127,7 @@ func resolveWeakTypes(types []int) {
 		if true {
 			_ = runEnd
 		}
-		i = runEnd // want `this value of i is never used`
+		i = runEnd //@ diag(`this value of i is never used`)
 	}
 }
 

@@ -8,6 +8,6 @@ func fn1[T []int | *[4]int](a T) {
 }
 
 func fn2[T []int | []string | map[string]int](a T) {
-	if a != nil && len(a) > 0 { // want `should omit nil check`
+	if a != nil && len(a) > 0 { //@ diag(`should omit nil check`)
 	}
 }

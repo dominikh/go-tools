@@ -3,5 +3,5 @@
 package pkg
 
 func tpfn[T int](x T) {
-	_ = x & 0 // want `always equals 0`
+	_ = x & 0 //@ diag(`always equals 0`)
 }

@@ -14,16 +14,16 @@ const (
 )
 
 func fn(x int) {
-	println(x | 0)        // want `x \| 0 always equals x`
-	println(x & 0)        // want `x & 0 always equals 0`
-	println(x ^ 0)        // want `x \^ 0 always equals x`
-	println((x << 5) | 0) // want `\(x << 5\) \| 0 always equals \(x << 5\)`
+	println(x | 0)        //@ diag(`x | 0 always equals x`)
+	println(x & 0)        //@ diag(`x & 0 always equals 0`)
+	println(x ^ 0)        //@ diag(`x ^ 0 always equals x`)
+	println((x << 5) | 0) //@ diag(`(x << 5) | 0 always equals (x << 5)`)
 	println(x | 1)
 	println(x << 0)
 
 	println(x | a)
-	println(x | b) // want `x \| b always equals x; b is defined as iota`
-	println(x & b) // want `x & b always equals 0; b is defined as iota`
+	println(x | b) //@ diag(`x | b always equals x; b is defined as iota`)
+	println(x & b) //@ diag(`x & b always equals 0; b is defined as iota`)
 	println(x | c)
 
 	// d is iota, but its value is 1

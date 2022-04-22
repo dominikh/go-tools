@@ -5,11 +5,11 @@ func fn() {
 	var z []int
 	var a bool
 
-	if x == 1 || x == 2 { // want `could use tagged switch on x`
+	if x == 1 || x == 2 { //@ diag(`could use tagged switch on x`)
 	} else if x == 3 {
 	}
 
-	if x == 1 || x == 2 { // want `could use tagged switch on x`
+	if x == 1 || x == 2 { //@ diag(`could use tagged switch on x`)
 	} else if x == 3 {
 	} else {
 	}
@@ -19,16 +19,16 @@ func fn() {
 	} else {
 	}
 
-	if a == (x == y) { // want `could use tagged switch on a`
+	if a == (x == y) { //@ diag(`could use tagged switch on a`)
 	} else if a == (x != y) {
 	}
 
-	if z[0] == 1 || z[0] == 2 { // want `could use tagged switch on z\[0\]`
+	if z[0] == 1 || z[0] == 2 { //@ diag(`could use tagged switch on z[0]`)
 	} else if z[0] == 3 {
 	}
 
 	for {
-		if x == 1 || x == 2 { // want `could use tagged switch on x`
+		if x == 1 || x == 2 { //@ diag(`could use tagged switch on x`)
 		} else if x == 3 {
 		}
 	}

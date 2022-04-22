@@ -177,23 +177,23 @@ func gen22() interface{} {
 func test() {
 	_ = gen1() == nil
 	_ = gen2() == nil
-	_ = gen3() == nil // want `never true`
+	_ = gen3() == nil //@ diag(`never true`)
 	{
 		_, r2, r3 := gen4()
-		_ = r2 == nil // want `never true`
+		_ = r2 == nil //@ diag(`never true`)
 		_ = r3 == nil
 	}
-	_ = gen5() == nil // want `never true`
+	_ = gen5() == nil //@ diag(`never true`)
 	_ = gen6(false) == nil
-	_ = gen7() == nil    // want `never true`
-	_ = gen8(nil) == nil // want `never true`
-	_ = gen9() == nil    // want `never true`
-	_ = gen10() == nil   // want `never true`
+	_ = gen7() == nil    //@ diag(`never true`)
+	_ = gen8(nil) == nil //@ diag(`never true`)
+	_ = gen9() == nil    //@ diag(`never true`)
+	_ = gen10() == nil   //@ diag(`never true`)
 	_ = gen11() == nil
-	_ = gen12(true) == nil // want `never true`
-	_ = gen13() == nil     // want `never true`
-	_ = gen14(nil) == nil  // want `never true`
-	_ = gen15() == nil     // want `never true`
+	_ = gen12(true) == nil //@ diag(`never true`)
+	_ = gen13() == nil     //@ diag(`never true`)
+	_ = gen14(nil) == nil  //@ diag(`never true`)
+	_ = gen15() == nil     //@ diag(`never true`)
 	_ = gen16() == nil
 	_ = gen17(nil) == nil
 	{
@@ -203,12 +203,12 @@ func test() {
 	_ = gen19() == nil
 	_ = gen20() == nil
 	_ = gen21() == nil
-	_ = gen22() == nil // want `never true`
+	_ = gen22() == nil //@ diag(`never true`)
 
 	var v1 interface{} = 0
-	_ = v1 == nil // want `never true; the lhs`
+	_ = v1 == nil //@ diag(`never true; the lhs`)
 
-	_ = any((*int)(nil)) == nil // want `never true`
+	_ = any((*int)(nil)) == nil //@ diag(`never true`)
 	_ = any((error)(nil)) == nil
 }
 

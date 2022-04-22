@@ -9,6 +9,6 @@ type FunctionCallContinuedInner struct{ F9 int }
 
 func fnCall() {
 	var call FunctionCallOuter
-	_ = call.FunctionCallInner.F8().FunctionCallContinuedInner.F9 // want `could remove embedded field "FunctionCallInner" from selector` `could remove embedded field "FunctionCallContinuedInner" from selector` `could simplify selectors`
+	_ = call.FunctionCallInner.F8().FunctionCallContinuedInner.F9 //@ diag(`could remove embedded field "FunctionCallInner" from selector`), diag(`could remove embedded field "FunctionCallContinuedInner" from selector`), diag(`could simplify selectors`)
 	_ = call.F8().F9                                              // minimal form
 }

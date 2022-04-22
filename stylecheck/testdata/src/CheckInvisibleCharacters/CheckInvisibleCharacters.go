@@ -2,13 +2,13 @@
 package pkg
 
 var (
-	a = ""  // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = ""  //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬" //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬" //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )

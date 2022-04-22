@@ -5,57 +5,57 @@ import (
 	"unsafe"
 )
 
-type t1 struct { // used
-	a int // used
-	b int // used
+type t1 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-type t2 struct { // used
-	a int // used
-	b int // used
+type t2 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-type t3 struct { // used
-	a int // used
-	b int // unused
+type t3 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(false)
 }
 
-type t4 struct { // used
-	a int // used
-	b int // unused
+type t4 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(false)
 }
 
-type t5 struct { // used
-	a int // used
-	b int // used
+type t5 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-type t6 struct { // used
-	a int // used
-	b int // used
+type t6 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-type t7 struct { // used
-	a int // used
-	b int // used
+type t7 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-type t8 struct { // used
-	a int // used
-	b int // used
+type t8 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-type t9 struct { // used
-	Offset int64 // used
-	Err    error // used
+type t9 struct { //@ used(true)
+	Offset int64 //@ used(true)
+	Err    error //@ used(true)
 }
 
-type t10 struct { // used
-	a int // used
-	b int // used
+type t10 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(true)
 }
 
-func fn() { // used
+func fn() { //@ used(true)
 	// All fields in t2 used because they're initialised in t1
 	v1 := t1{0, 1}
 	v2 := t2(v1)
@@ -89,4 +89,4 @@ func fn() { // used
 	_ = v10
 }
 
-func init() { fn() } // used
+func init() { fn() } //@ used(true)

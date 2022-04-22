@@ -1,34 +1,34 @@
 package pkg
 
-type iface interface { // unused
+type iface interface { //@ used(false)
 	foo()
 }
 
-type t1 struct{} // unused
-func (t1) foo()  {} // unused
+type t1 struct{} //@ used(false)
+func (t1) foo()  {} //@ used(false)
 
-type t2 struct{} // used
+type t2 struct{} //@ used(true)
 
-func (t t2) bar(arg int) (ret int) { return 0 } // unused
+func (t t2) bar(arg int) (ret int) { return 0 } //@ used(false)
 
-func init() { // used
+func init() { //@ used(true)
 	_ = t2{}
 }
 
-type t3 struct { // unused
+type t3 struct { //@ used(false)
 	a int
 	b int
 }
 
-type T struct{} // used
+type T struct{} //@ used(true)
 
-func fn1() { // unused
+func fn1() { //@ used(false)
 	meh := func(arg T) {
 	}
 	meh(T{})
 }
 
-type localityList []int // unused
+type localityList []int //@ used(false)
 
-func (l *localityList) Fn1() {} // unused
-func (l *localityList) Fn2() {} // unused
+func (l *localityList) Fn1() {} //@ used(false)
+func (l *localityList) Fn2() {} //@ used(false)

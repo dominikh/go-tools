@@ -3,7 +3,7 @@ package pkg
 // Whatever
 var a int
 
-// Whatever // want `should be of the form`
+// Whatever //@ diag(`should be of the form`)
 var B int
 
 // Whatever
@@ -36,6 +36,6 @@ var G int // we pretend that directives aren't part of the doc string, just like
 // H is amazing
 var H int
 
-//some:directive // want `should be of the form`
+//some:directive //@ diag(`should be of the form`)
 // Whatever
 var I int

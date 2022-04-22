@@ -1,3 +1,3 @@
 package pkg
 
-func (t9) fn2() {} // used
+func (t9) fn2() {} //@ used(true)

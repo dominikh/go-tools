@@ -3,21 +3,21 @@
 package pkg
 
 func _[T int | string](x []T) {
-	if x != nil { // want `unnecessary nil check around range`
+	if x != nil { //@ diag(`unnecessary nil check around range`)
 		for range x {
 		}
 	}
 }
 
 func _[T int | string, S []T](x S) {
-	if x != nil { // want `unnecessary nil check around range`
+	if x != nil { //@ diag(`unnecessary nil check around range`)
 		for range x {
 		}
 	}
 }
 
 func _[T []string](x T) {
-	if x != nil { // want `unnecessary nil check around range`
+	if x != nil { //@ diag(`unnecessary nil check around range`)
 		for range x {
 		}
 	}

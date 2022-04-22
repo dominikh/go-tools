@@ -31,7 +31,7 @@ func SyncPublicMethod(input int) iface {
 func main() {
 	for i := 0; i < 10; i++ {
 		k := SyncPublicMethod(i)
-		if k == nil { // want `this comparison is never true`
+		if k == nil { //@ diag(`this comparison is never true`)
 			log.Println("never printed")
 			return
 		}

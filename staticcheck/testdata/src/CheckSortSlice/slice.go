@@ -25,15 +25,15 @@ func fn(arg1 interface{}, arg2 []int) {
 	sort.Slice(arg2, nil)
 	sort.Slice(v1, nil)
 	sort.Slice(v2, nil)
-	sort.Slice(v3, nil) // want `sort\.Slice must only be called on slices, was called on \[1\]int`
-	sort.Slice(v4, nil) // want `sort\.Slice must only be called on slices, was called on string`
+	sort.Slice(v3, nil) //@ diag(`sort.Slice must only be called on slices, was called on [1]int`)
+	sort.Slice(v4, nil) //@ diag(`sort.Slice must only be called on slices, was called on string`)
 	sort.Slice(v5, nil)
 	sort.Slice(v6, nil)
 	sort.Slice(v7, nil)
-	sort.Slice(v8, nil) // want `sort\.Slice must only be called on slices, was called on int`
+	sort.Slice(v8, nil) //@ diag(`sort.Slice must only be called on slices, was called on int`)
 	sort.Slice([]int{}, nil)
-	sort.Slice(0, nil)         // want `sort\.Slice must only be called on slices, was called on int`
-	sort.Slice(nil, nil)       // want `cannot call sort\.Slice on nil literal`
-	sort.SliceIsSorted(0, nil) // want `sort\.SliceIsSorted must only be called on slices, was called on int`
-	sort.SliceStable(0, nil)   // want `sort\.SliceStable must only be called on slices, was called on int`
+	sort.Slice(0, nil)         //@ diag(`sort.Slice must only be called on slices, was called on int`)
+	sort.Slice(nil, nil)       //@ diag(`cannot call sort.Slice on nil literal`)
+	sort.SliceIsSorted(0, nil) //@ diag(`sort.SliceIsSorted must only be called on slices, was called on int`)
+	sort.SliceStable(0, nil)   //@ diag(`sort.SliceStable must only be called on slices, was called on int`)
 }

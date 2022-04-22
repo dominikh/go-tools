@@ -31,7 +31,7 @@ func main() {
 		reflect.ValueOf(n).IsNil())
 	n2 := MakeNil()
 	fmt.Printf("%t %#v %s %t\n",
-		n2 == nil, // want `this comparison is never true`
+		n2 == nil, //@ diag(`this comparison is never true`)
 		n2,
 		reflect.ValueOf(n2).Kind(),
 		reflect.ValueOf(n2).IsNil())

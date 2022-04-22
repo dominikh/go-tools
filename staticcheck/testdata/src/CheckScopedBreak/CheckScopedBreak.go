@@ -5,16 +5,16 @@ func fn() {
 	for {
 		switch {
 		case true:
-			break // want `ineffective break statement`
+			break //@ diag(`ineffective break statement`)
 		default:
-			break // want `ineffective break statement`
+			break //@ diag(`ineffective break statement`)
 		}
 	}
 
 	for {
 		select {
 		case <-ch:
-			break // want `ineffective break statement`
+			break //@ diag(`ineffective break statement`)
 		}
 	}
 
@@ -25,7 +25,7 @@ func fn() {
 
 		switch {
 		case true:
-			break // want `ineffective break statement`
+			break //@ diag(`ineffective break statement`)
 		}
 
 		switch {
@@ -37,9 +37,9 @@ func fn() {
 		switch {
 		case true:
 			if true {
-				break // want `ineffective break statement`
+				break //@ diag(`ineffective break statement`)
 			} else {
-				break // want `ineffective break statement`
+				break //@ diag(`ineffective break statement`)
 			}
 		}
 	}
@@ -66,7 +66,7 @@ label:
 	for range ([]int)(nil) {
 		switch {
 		default:
-			break // want `ineffective break statement`
+			break //@ diag(`ineffective break statement`)
 		}
 	}
 }

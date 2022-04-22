@@ -1,16 +1,16 @@
 package pkg
 
-type t1 struct { // used
-	a int // used
-	b int // unused
+type t1 struct { //@ used(true)
+	a int //@ used(true)
+	b int //@ used(false)
 }
 
-type t2 struct { // used
-	a int // unused
-	b int // used
+type t2 struct { //@ used(true)
+	a int //@ used(false)
+	b int //@ used(true)
 }
 
-func Fn() { // used
+func Fn() { //@ used(true)
 	x := t1{}
 	y := t2{}
 	println(x.a)

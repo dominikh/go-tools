@@ -3,15 +3,15 @@
 package pkg
 
 var (
-	a = "\a" // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = "\a" //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬\a" //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬\a" //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )
 
 -- delete control character U+0007 --
@@ -19,15 +19,15 @@ est`
 package pkg
 
 var (
-	a = ""   // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = ""   //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬"   //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬"   //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )
 
 -- delete format character U+200B --
@@ -35,15 +35,15 @@ est`
 package pkg
 
 var (
-	a = ""  // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = ""  //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `ZeroWidth` // want `Unicode format character U\+200B`
+	e = `ZeroWidth` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬"  //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )
 
 -- replace format character U+200B with '\u200b' --
@@ -51,15 +51,15 @@ est`
 package pkg
 
 var (
-	a = ""  // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = ""  //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero\u200bWidth` // want `Unicode format character U\+200B`
+	e = `Zero\u200bWidth` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬"  //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )
 
 -- delete all control characters --
@@ -67,15 +67,15 @@ est`
 package pkg
 
 var (
-	a = "" // want `Unicode control character U\+0007`
-	b = ""  // want `Unicode control characters`
+	a = "" //@ diag(`Unicode control character U+0007`)
+	b = ""  //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬"  //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )
 
 -- replace all control characters with escape sequences --
@@ -83,15 +83,15 @@ est`
 package pkg
 
 var (
-	a = ""      // want `Unicode control character U\+0007`
-	b = "\a\x1a" // want `Unicode control characters`
+	a = ""      //@ diag(`Unicode control character U+0007`)
+	b = "\a\x1a" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬"  //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬​" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
 )
 
 
@@ -100,15 +100,15 @@ est`
 package pkg
 
 var (
-	a = ""  // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = ""  //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬" //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬"  // want `Unicode format and control characters`
+	g = "👩🏽‍🔬" //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬"  //@ diag(`Unicode format and control characters`)
 )
 
 -- replace all format and control characters with escape sequences --
@@ -116,13 +116,13 @@ est`
 package pkg
 
 var (
-	a = ""  // want `Unicode control character U\+0007`
-	b = "" // want `Unicode control characters`
+	a = ""  //@ diag(`Unicode control character U+0007`)
+	b = "" //@ diag(`Unicode control characters`)
 	c = "Test	test"
 	d = `T
 est`
-	e = `Zero​Width` // want `Unicode format character U\+200B`
+	e = `Zero​Width` //@ diag(`Unicode format character U+200B`)
 	f = "\u200b"
-	g = "👩🏽‍🔬"        //  want `Unicode control character U\+0007`
-	h = "👩🏽‍🔬\a\u200b" // want `Unicode format and control characters`
+	g = "👩🏽‍🔬"        //@ diag(`Unicode control character U+0007`)
+	h = "👩🏽‍🔬\a\u200b" //@ diag(`Unicode format and control characters`)
 )

@@ -12,7 +12,7 @@ type T struct{}
 func (*T) Foo() {}
 
 func fn3() {
-	fn1(context.Background()) // want `do not pass a nil Context`
+	fn1(context.Background()) //@ diag(`do not pass a nil Context`)
 	fn1(context.TODO())
 	fn2("", nil)
 	fn4()
@@ -37,7 +37,7 @@ type T struct{}
 func (*T) Foo() {}
 
 func fn3() {
-	fn1(context.TODO()) // want `do not pass a nil Context`
+	fn1(context.TODO()) //@ diag(`do not pass a nil Context`)
 	fn1(context.TODO())
 	fn2("", nil)
 	fn4()

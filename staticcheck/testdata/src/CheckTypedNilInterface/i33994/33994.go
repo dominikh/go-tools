@@ -8,7 +8,7 @@ import (
 func main() {
 	var err = errors.New("errors msg")
 	name, err := GetName()
-	if err != nil { // want `this comparison is always true`
+	if err != nil { //@ diag(`this comparison is always true`)
 		fmt.Println(err)
 	} else {
 		fmt.Println(name)

@@ -8,8 +8,8 @@ func fn() {
 	regexp.MatchReader(".", nil)
 
 	for {
-		regexp.Match(".", nil)       // want `calling regexp\.Match in a loop has poor performance`
-		regexp.MatchString(".", "")  // want `calling regexp\.MatchString in a loop has poor performance`
-		regexp.MatchReader(".", nil) // want `calling regexp\.MatchReader in a loop has poor performance`
+		regexp.Match(".", nil)       //@ diag(`calling regexp.Match in a loop has poor performance`)
+		regexp.MatchString(".", "")  //@ diag(`calling regexp.MatchString in a loop has poor performance`)
+		regexp.MatchReader(".", nil) //@ diag(`calling regexp.MatchReader in a loop has poor performance`)
 	}
 }

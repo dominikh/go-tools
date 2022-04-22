@@ -22,5 +22,5 @@ func TestWebSocketClient_basic(t *testing.T) {
 
 	err2 := error(nil)
 	err2 = getNilCustomError()
-	fmt.Println(err2 == nil) // want `this comparison is never true`
+	fmt.Println(err2 == nil) //@ diag(`this comparison is never true`)
 }

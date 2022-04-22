@@ -18,20 +18,20 @@ func gen3() MyInt         { return 0 }
 var a int = gen1()
 
 func fn() {
-	var _ int = gen1()           // want `could omit type int`
-	var a int = Y                // want `could omit type int`
-	var b int = 1                // want `could omit type int`
+	var _ int = gen1()           //@ diag(`could omit type int`)
+	var a int = Y                //@ diag(`could omit type int`)
+	var b int = 1                //@ diag(`could omit type int`)
 	var c int = 1.0              // different default type
 	var d MyInt = 1              // different default type
-	var e io.ReadCloser = gen2() // want `could omit type io.ReadCloser`
+	var e io.ReadCloser = gen2() //@ diag(`could omit type io.ReadCloser`)
 	var f io.Reader = gen2()     // different interface type
-	var g float64 = math.Pi      // want `could omit type float64`
-	var h bool = true            // want `could omit type bool`
-	var i string = ""            // want `could omit type string`
-	var j MyInt = gen3()         // want `could omit type MyInt`
+	var g float64 = math.Pi      //@ diag(`could omit type float64`)
+	var h bool = true            //@ diag(`could omit type bool`)
+	var i string = ""            //@ diag(`could omit type string`)
+	var j MyInt = gen3()         //@ diag(`could omit type MyInt`)
 	var k uint8 = Y              // different default type on constant
 	var l uint8 = (Y + Y) / 2    // different default type on rhs
-	var m int = (Y + Y) / 2      // want `could omit type int`
+	var m int = (Y + Y) / 2      //@ diag(`could omit type int`)
 
 	_, _, _, _, _, _, _, _, _, _, _, _, _ = a, b, c, d, e, f, g, h, i, j, k, l, m
 }

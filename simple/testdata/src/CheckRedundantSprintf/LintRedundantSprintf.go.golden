@@ -39,17 +39,17 @@ func fn() {
 	var t9 T9
 	var t10 T10
 	var t11 T11
-	_ = "test"      // want `is already a string`
-	_ = string(t1)  // want `is a string`
-	_ = string(t2)  // want `is a string`
-	_ = t3.String() // want `should use String\(\) instead of fmt\.Sprintf`
-	_ = t3.String() // want `is already a string`
+	_ = "test"      //@ diag(`is already a string`)
+	_ = string(t1)  //@ diag(`is a string`)
+	_ = string(t2)  //@ diag(`is a string`)
+	_ = t3.String() //@ diag(`should use String() instead of fmt.Sprintf`)
+	_ = t3.String() //@ diag(`is already a string`)
 	_ = fmt.Sprintf("%s", t4)
 	_ = fmt.Sprintf("%s", t5)
 	_ = fmt.Sprintf("%s %s", t1, t2)
 	_ = fmt.Sprintf("%v", t1)
-	_ = t6.String() // want `should use String\(\) instead of fmt\.Sprintf`
-	_ = string(t7)  // want `underlying type is a slice of bytes`
+	_ = t6.String() //@ diag(`should use String() instead of fmt.Sprintf`)
+	_ = string(t7)  //@ diag(`underlying type is a slice of bytes`)
 	_ = fmt.Sprintf("%s", t8)
 
 	// don't simplify types that implement fmt.Formatter

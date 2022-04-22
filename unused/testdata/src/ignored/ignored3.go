@@ -2,6 +2,6 @@
 
 package pkg
 
-type t9 struct{} // used
+type t9 struct{} //@ used(true)
 
-func (t9) fn1() {} // used
+func (t9) fn1() {} //@ used(true)

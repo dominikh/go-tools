@@ -18,14 +18,14 @@ func main() {
 		}
 	}
 
-	if str != nil { // want `unnecessary nil check around range`
+	if str != nil { //@ diag(`unnecessary nil check around range`)
 		for _, s := range str {
 			s = s + "A"
 		}
 	}
 
 	var nilMap map[string]int
-	if nilMap != nil { // want `unnecessary nil check around range`
+	if nilMap != nil { //@ diag(`unnecessary nil check around range`)
 		for key, value := range nilMap {
 			nilMap[key] = value + 1
 		}

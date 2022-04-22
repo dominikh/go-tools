@@ -3,7 +3,7 @@ package pkg
 func fn() bool { return true }
 func fn1() bool {
 	x := true
-	if x { // want `should use 'return x'`
+	if x { //@ diag(`should use 'return x'`)
 		return true
 	}
 	return false
@@ -31,21 +31,21 @@ func fn3() int {
 func fn4() bool { return true }
 
 func fn5() bool {
-	if fn() { // want `should use 'return !fn\(\)'`
+	if fn() { //@ diag(`should use 'return !fn()'`)
 		return false
 	}
 	return true
 }
 
 func fn6() bool {
-	if fn3() != fn3() { // want `should use 'return fn3\(\) != fn3\(\)'`
+	if fn3() != fn3() { //@ diag(`should use 'return fn3() != fn3()'`)
 		return true
 	}
 	return false
 }
 
 func fn7() bool {
-	if 1 > 2 { // want `should use 'return 1 > 2'`
+	if 1 > 2 { //@ diag(`should use 'return 1 > 2'`)
 		return true
 	}
 	return false
@@ -66,14 +66,14 @@ func fn9(x int) bool {
 }
 
 func fn10(x int) bool {
-	if x > 0 { // want `should use 'return x <= 0'`
+	if x > 0 { //@ diag(`should use 'return x <= 0'`)
 		return false
 	}
 	return true
 }
 
 func fn11(x bool) bool {
-	if x { // want `should use 'return !x'`
+	if x { //@ diag(`should use 'return !x'`)
 		return false
 	}
 	return true
@@ -81,28 +81,28 @@ func fn11(x bool) bool {
 
 func fn12() bool {
 	var x []bool
-	if x[0] { // want `should use 'return !x\[0\]'`
+	if x[0] { //@ diag(`should use 'return !x[0]'`)
 		return false
 	}
 	return true
 }
 
 func fn13(a, b int) bool {
-	if a != b { // want `should use 'return a == b' instead of 'if a != b`
+	if a != b { //@ diag(`should use 'return a == b' instead of 'if a != b`)
 		return false
 	}
 	return true
 }
 
 func fn14(a, b int) bool {
-	if a >= b { // want `should use 'return a < b' instead of 'if a >= b`
+	if a >= b { //@ diag(`should use 'return a < b' instead of 'if a >= b`)
 		return false
 	}
 	return true
 }
 
 func fn15() bool {
-	if !fn() { // want `should use 'return fn\(\)'`
+	if !fn() { //@ diag(`should use 'return fn()'`)
 		return false
 	}
 	return true
@@ -115,7 +115,7 @@ func fn16() <-chan bool {
 }
 
 func fn17() bool {
-	if <-fn16() { // want `should use 'return !<-fn16\(\)'`
+	if <-fn16() { //@ diag(`should use 'return !<-fn16()'`)
 		return false
 	}
 	return true
@@ -127,7 +127,7 @@ func fn18() *bool {
 }
 
 func fn19() bool {
-	if *fn18() { // want `should use 'return !\*fn18\(\)'`
+	if *fn18() { //@ diag(`should use 'return !*fn18()'`)
 		return false
 	}
 	return true

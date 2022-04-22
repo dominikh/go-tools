@@ -8,9 +8,9 @@ import (
 )
 
 func fn1() {
-	strings.Replace("", "", "", 1) // want `is a pure function but its return value is ignored`
-	foo(1, 2)                      // want `is a pure function but its return value is ignored`
-	baz(1, 2)                      // want `is a pure function but its return value is ignored`
+	strings.Replace("", "", "", 1) //@ diag(`is a pure function but its return value is ignored`)
+	foo(1, 2)                      //@ diag(`is a pure function but its return value is ignored`)
+	baz(1, 2)                      //@ diag(`is a pure function but its return value is ignored`)
 	_, x := baz(1, 2)
 	_ = x
 	bar(1, 2)
@@ -18,7 +18,7 @@ func fn1() {
 
 func fn2() {
 	r, _ := http.NewRequest("GET", "/", nil)
-	r.WithContext(context.Background()) // want `is a pure function but its return value is ignored`
+	r.WithContext(context.Background()) //@ diag(`is a pure function but its return value is ignored`)
 }
 
 func foo(a, b int) int        { return a + b }

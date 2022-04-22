@@ -9,42 +9,42 @@ func fn() {
 	const t T = false
 	if x == t {
 	}
-	if fn1() { // want `simplified to fn1\(\)`
+	if fn1() { //@ diag(`simplified to fn1()`)
 	}
-	if !fn1() { // want `simplified to !fn1\(\)`
+	if !fn1() { //@ diag(`simplified to !fn1()`)
 	}
-	if !fn1() { // want `simplified to !fn1\(\)`
+	if !fn1() { //@ diag(`simplified to !fn1()`)
 	}
-	if fn1() { // want `simplified to fn1\(\)`
+	if fn1() { //@ diag(`simplified to fn1()`)
 	}
-	if fn1() && (fn1() || fn1()) || (fn1() && fn1()) { // want `simplified to \(fn1\(\) && fn1\(\)\)`
+	if fn1() && (fn1() || fn1()) || (fn1() && fn1()) { //@ diag(`simplified to (fn1() && fn1())`)
 	}
 
-	if !(fn1() && fn2()) { // want `simplified to !\(fn1\(\) && fn2\(\)\)`
+	if !(fn1() && fn2()) { //@ diag(`simplified to !(fn1() && fn2())`)
 	}
 
 	var y bool
-	for !y { // want `simplified to !y`
+	for !y { //@ diag(`simplified to !y`)
 	}
-	if !y { // want `simplified to !y`
+	if !y { //@ diag(`simplified to !y`)
 	}
-	if y { // want `simplified to y`
+	if y { //@ diag(`simplified to y`)
 	}
-	if y { // want `simplified to y`
+	if y { //@ diag(`simplified to y`)
 	}
-	if !y { // want `simplified to !y`
+	if !y { //@ diag(`simplified to !y`)
 	}
-	if !y { // want `simplified to !y`
+	if !y { //@ diag(`simplified to !y`)
 	}
-	if y { // want `simplified to y`
+	if y { //@ diag(`simplified to y`)
 	}
-	if y { // want `simplified to y`
+	if y { //@ diag(`simplified to y`)
 	}
-	if !y { // want `simplified to !y`
+	if !y { //@ diag(`simplified to !y`)
 	}
-	if !y { // want `simplified to !y`
+	if !y { //@ diag(`simplified to !y`)
 	}
-	if y { // want `simplified to y`
+	if y { //@ diag(`simplified to y`)
 	}
 	if !y == !false { // not matched because we expect true/false on one side, not !false
 	}

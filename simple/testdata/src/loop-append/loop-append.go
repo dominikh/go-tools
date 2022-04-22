@@ -13,17 +13,17 @@ func fn1() {
 	}
 
 	var a, b []int
-	for _, v := range a { // want `should replace loop`
+	for _, v := range a { //@ diag(`should replace loop`)
 		b = append(b, v)
 	}
 
 	var a2, b2 []int
-	for i := range a2 { // want `should replace loop`
+	for i := range a2 { //@ diag(`should replace loop`)
 		b2 = append(b2, a2[i])
 	}
 
 	var a3, b3 []int
-	for i := range a3 { // want `should replace loop`
+	for i := range a3 { //@ diag(`should replace loop`)
 		v := a3[i]
 		b3 = append(b3, v)
 	}
@@ -99,7 +99,7 @@ func fn6() []int {
 
 func fn7() {
 	var x []int
-	for _, v := range fn6() { // want `should replace loop`
+	for _, v := range fn6() { //@ diag(`should replace loop`)
 		// Purity doesn't matter here
 		x = append(x, v)
 	}

@@ -231,16 +231,8 @@ func (r Result) Load() (ResultData, error) {
 	return out, err
 }
 
-type Want struct {
-	Position token.Position
-	Comment  string
-}
-
 // TestData contains extra information about analysis runs that is only available in test mode.
 type TestData struct {
-	// Wants contains a list of '// want' comments extracted from Go files.
-	// These comments are used in unit tests.
-	Wants []Want
 	// Facts contains facts produced by analyzers for a package.
 	// Unlike vetx, this list only contains facts specific to this package,
 	// not all facts for the transitive closure of dependencies.
@@ -634,7 +626,6 @@ func (r *subrunner) do(act action) error {
 
 		if r.TestMode {
 			out := TestData{
-				Wants: result.wants,
 				Facts: result.testFacts,
 			}
 			a.testData, err = r.writeCacheGob(a, "testdata", out)
@@ -691,7 +682,6 @@ type packageActionResult struct {
 
 	// Only set when using test mode
 	testFacts []TestFact
-	wants     []Want
 }
 
 func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
@@ -727,41 +717,9 @@ func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
 	}
 	res, err := r.runAnalyzers(a, pkg)
 
-	var wants []Want
-	if r.TestMode {
-		// Extract 'want' comments from parsed Go files.
-		for _, f := range pkg.Syntax {
-			for _, cgroup := range f.Comments {
-				for _, c := range cgroup.List {
-
-					text := strings.TrimPrefix(c.Text, "//")
-					if text == c.Text { // not a //-comment.
-						text = strings.TrimPrefix(text, "/*")
-						text = strings.TrimSuffix(text, "*/")
-					}
-
-					// Hack: treat a comment of the form "//...// want..."
-					// or "/*...// want... */
-					// as if it starts at 'want'.
-					// This allows us to add comments on comments,
-					// as required when testing the buildtag analyzer.
-					if i := strings.Index(text, "// want"); i >= 0 {
-						text = text[i+len("// "):]
-					}
-
-					posn := pkg.Fset.Position(c.Pos())
-					wants = append(wants, Want{Position: posn, Comment: text})
-				}
-			}
-		}
-
-		// TODO(dh): add support for non-Go files
-	}
-
 	return packageActionResult{
 		facts:     res.facts,
 		testFacts: res.testFacts,
-		wants:     wants,
 		diags:     res.diagnostics,
 		unused:    res.unused,
 		dirs:      dirs,

@@ -3,10 +3,10 @@ package pkg
 func fn() {
 	var ch chan int
 	<-ch
-	<-ch // want `unnecessary assignment to the blank identifier`
+	<-ch //@ diag(`unnecessary assignment to the blank identifier`)
 	select {
 	case <-ch:
-	case <-ch: // want `unnecessary assignment to the blank identifier`
+	case <-ch: //@ diag(`unnecessary assignment to the blank identifier`)
 	}
 	x := <-ch
 	y, _ := <-ch, <-ch

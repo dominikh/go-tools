@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"golang.org/x/tools/go/analysis/analysistest"
+	"golang.org/x/tools/go/expect"
 )
 
 type expectation bool
@@ -55,42 +56,20 @@ func check(t *testing.T, res *analysistest.Result) {
 			continue
 		}
 		files[filename] = struct{}{}
-		for _, cgroup := range f.Comments {
-		commentLoop:
-			for _, c := range cgroup.List {
-				text := strings.TrimPrefix(c.Text, "//")
-				if text == c.Text {
-					continue // not a //-comment
+		notes, err := expect.ExtractGo(res.Pass.Fset, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, note := range notes {
+			posn := res.Pass.Fset.PositionFor(note.Pos, false)
+			switch note.Name {
+			case "used":
+				if !isTest {
+					want[key{posn.Filename, posn.Line}] = expectation(note.Args[0].(bool))
 				}
-
-				fields := strings.Fields(text)
-				posn := res.Pass.Fset.Position(c.Pos())
-				for _, field := range fields {
-					switch field {
-					case "used", "unused", "used_test", "unused_test":
-					default:
-						continue commentLoop
-					}
-				}
-				for _, field := range fields {
-					switch field {
-					case "used":
-						if !isTest {
-							want[key{posn.Filename, posn.Line}] = shouldBeUsed
-						}
-					case "unused":
-						if !isTest {
-							want[key{posn.Filename, posn.Line}] = shouldBeUnused
-						}
-					case "used_test":
-						if isTest {
-							want[key{posn.Filename, posn.Line}] = shouldBeUsed
-						}
-					case "unused_test":
-						if isTest {
-							want[key{posn.Filename, posn.Line}] = shouldBeUnused
-						}
-					}
+			case "used_test":
+				if isTest {
+					want[key{posn.Filename, posn.Line}] = expectation(note.Args[0].(bool))
 				}
 			}
 		}
@@ -139,7 +118,7 @@ func check(t *testing.T, res *analysistest.Result) {
 		if b {
 			exp = "used"
 		} else {
-			exp = "unused "
+			exp = "unused"
 		}
 		t.Errorf("did not see expected %s object %s:%d", exp, key.file, key.line)
 	}

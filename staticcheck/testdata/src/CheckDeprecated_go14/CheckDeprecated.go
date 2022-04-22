@@ -8,12 +8,12 @@ import (
 	"syscall"
 )
 
-var _ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
+var _ = syscall.StringByteSlice("") //@ diag(`Use ByteSliceFromString instead`)
 
 func fn1(err error) {
 	var r *http.Request
 	_ = r.Cancel
-	_ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
+	_ = syscall.StringByteSlice("") //@ diag(`Use ByteSliceFromString instead`)
 	_ = os.SEEK_SET
 	var _ flate.ReadError
 

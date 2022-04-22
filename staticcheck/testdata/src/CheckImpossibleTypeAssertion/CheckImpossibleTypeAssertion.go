@@ -21,11 +21,11 @@ type i4 interface {
 
 func fn() {
 	var v1 i1
-	_ = v1.(i2) // want `impossible type assertion; i1 and i2 contradict each other`
+	_ = v1.(i2) //@ diag(`impossible type assertion; i1 and i2 contradict each other`)
 	_ = v1.(i3)
 	_ = v1.(i4)
-	_ = v1.(fmt.Stringer) // want `impossible type assertion; i1 and fmt.Stringer contradict each other`
-	_ = v1.(interface {   // want `i1 and.+String.+contradict each other`
+	_ = v1.(fmt.Stringer) //@ diag(`impossible type assertion; i1 and fmt.Stringer contradict each other`)
+	_ = v1.(interface {   //@ diag(re`i1 and.+String.+contradict each other`)
 		String() string
 	})
 }

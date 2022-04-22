@@ -10,6 +10,6 @@ type unexportedSamePackageInner struct {
 
 func fnUnexported() {
 	var unexportedSame UnexportedSamePackageOuter
-	_ = unexportedSame.F10 // want `could remove embedded field "unexportedSamePackageInner" from selector`
+	_ = unexportedSame.F10 //@ diag(`could remove embedded field "unexportedSamePackageInner" from selector`)
 	_ = unexportedSame.F10 // minimal form
 }

@@ -1,14 +1,14 @@
 package pkg
 
-type I interface { // used
-	foo() // used
+type I interface { //@ used(true)
+	foo() //@ used(true)
 }
 
-type T struct{} // used
+type T struct{} //@ used(true)
 
-func (T) foo() {} // used
-func (T) bar() {} // unused
+func (T) foo() {} //@ used(true)
+func (T) bar() {} //@ used(false)
 
 var _ struct {
-	T // used
+	T //@ used(true)
 }

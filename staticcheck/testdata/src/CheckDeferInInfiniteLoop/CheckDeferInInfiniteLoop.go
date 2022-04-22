@@ -2,10 +2,10 @@ package pkg
 
 func fn() {
 	for {
-		defer println() // want `will never run`
+		defer println() //@ diag(`will never run`)
 	}
 	for {
-		defer println() // want `will never run`
+		defer println() //@ diag(`will never run`)
 		go func() {
 			return
 		}()

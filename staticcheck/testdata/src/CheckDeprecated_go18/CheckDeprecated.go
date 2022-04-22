@@ -8,25 +8,25 @@ import (
 	"syscall"
 )
 
-var _ = syscall.StringByteSlice("") // want `Use ByteSliceFromString instead`
+var _ = syscall.StringByteSlice("") //@ diag(`Use ByteSliceFromString instead`)
 
 func fn1(err error) {
 	var r http.Request
 	var rp *http.Request
-	_ = r.Cancel                        // want `deprecated since Go 1\.7:.+If a Request's Cancel field and context are both`
-	_ = rp.Cancel                       // want `deprecated since Go 1\.7:.+If a Request's Cancel field and context are both`
-	_ = syscall.StringByteSlice("")     // want `Use ByteSliceFromString instead`
-	_ = os.SEEK_SET                     // want `Use io\.SeekStart, io\.SeekCurrent, and io\.SeekEnd`
-	if err == http.ErrWriteAfterFlush { // want `ErrWriteAfterFlush is no longer`
+	_ = r.Cancel                        //@ diag(re`deprecated since Go 1\.7:.+If a Request's Cancel field and context are both`)
+	_ = rp.Cancel                       //@ diag(re`deprecated since Go 1\.7:.+If a Request's Cancel field and context are both`)
+	_ = syscall.StringByteSlice("")     //@ diag(`Use ByteSliceFromString instead`)
+	_ = os.SEEK_SET                     //@ diag(`Use io.SeekStart, io.SeekCurrent, and io.SeekEnd`)
+	if err == http.ErrWriteAfterFlush { //@ diag(`ErrWriteAfterFlush is no longer`)
 		println()
 	}
-	var _ flate.ReadError // want `No longer returned`
+	var _ flate.ReadError //@ diag(`No longer returned`)
 
 	var tr *http.Transport
-	tr.CancelRequest(nil) // want `CancelRequest has been deprecated`
+	tr.CancelRequest(nil) //@ diag(`CancelRequest has been deprecated`)
 
 	var conn driver.Conn
-	conn.Begin() // want `Begin has been deprecated`
+	conn.Begin() //@ diag(`Begin has been deprecated`)
 }
 
 // Deprecated: Don't use this.

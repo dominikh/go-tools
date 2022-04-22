@@ -6,7 +6,7 @@ import (
 )
 
 func fn1(x *int) {
-	_ = *x // want `possible nil pointer dereference`
+	_ = *x //@ diag(`possible nil pointer dereference`)
 	if x != nil {
 		return
 	}
@@ -25,7 +25,7 @@ func fn2(x *int) {
 	if x == nil {
 		println("we should return")
 	}
-	_ = *x // want `possible nil pointer dereference`
+	_ = *x //@ diag(`possible nil pointer dereference`)
 }
 
 func fn3(x *int) {
@@ -45,7 +45,7 @@ func fn5(x *int) {
 	if x == nil {
 		x = gen()
 	}
-	_ = *x // want `possible nil pointer dereference`
+	_ = *x //@ diag(`possible nil pointer dereference`)
 	if x == nil {
 		println("we should return")
 	}
@@ -116,7 +116,7 @@ func fn11(x *int) {
 	if x == nil {
 		die2(true)
 	}
-	_ = *x // want `possible nil pointer dereference`
+	_ = *x //@ diag(`possible nil pointer dereference`)
 }
 
 func doPanic() { panic("") }
@@ -175,7 +175,7 @@ func fn16() {
 	if xs3 == nil {
 		println()
 	}
-	for _, x := range *xs3 { // want `possible nil pointer dereference`
+	for _, x := range *xs3 { //@ diag(`possible nil pointer dereference`)
 		_ = x
 	}
 

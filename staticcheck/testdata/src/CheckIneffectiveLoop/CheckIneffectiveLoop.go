@@ -5,7 +5,7 @@ func fn() {
 		if true {
 			println()
 		}
-		break // want `the surrounding loop is unconditionally terminated`
+		break //@ diag(`the surrounding loop is unconditionally terminated`)
 	}
 	for {
 		if true {
@@ -18,7 +18,7 @@ func fn() {
 		if true {
 			println()
 		}
-		break // want `the surrounding loop is unconditionally terminated`
+		break //@ diag(`the surrounding loop is unconditionally terminated`)
 	}
 	for range (map[int]int)(nil) {
 		if true {
@@ -52,6 +52,6 @@ var z = func() {
 		if true {
 			println()
 		}
-		break // want `the surrounding loop is unconditionally terminated`
+		break //@ diag(`the surrounding loop is unconditionally terminated`)
 	}
 }

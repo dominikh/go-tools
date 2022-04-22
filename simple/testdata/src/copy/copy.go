@@ -2,11 +2,11 @@ package pkg
 
 func fn() {
 	var b1, b2 []byte
-	for i, v := range b1 { // want `should use copy`
+	for i, v := range b1 { //@ diag(`should use copy`)
 		b2[i] = v
 	}
 
-	for i := range b1 { // want `should use copy`
+	for i := range b1 { //@ diag(`should use copy`)
 		b2[i] = b1[i]
 	}
 
@@ -18,7 +18,7 @@ func fn() {
 	}
 
 	var b3, b4 []*byte
-	for i := range b3 { // want `should use copy`
+	for i := range b3 { //@ diag(`should use copy`)
 		b4[i] = b3[i]
 	}
 
@@ -46,7 +46,7 @@ func fn2() {
 
 	var src []byte
 	var dst T
-	for i, v := range src { // want `should use copy`
+	for i, v := range src { //@ diag(`should use copy`)
 		dst.b[i] = v
 	}
 }
@@ -54,7 +54,7 @@ func fn2() {
 func fn3() {
 	var src []byte
 	var dst [][]byte
-	for i, v := range src { // want `should use copy`
+	for i, v := range src { //@ diag(`should use copy`)
 		dst[0][i] = v
 	}
 	for i, v := range src {
@@ -73,52 +73,52 @@ func fn4() {
 	var a2 [10]byte
 	var a3 [5]byte
 
-	for i := range b { // want `should use copy`
+	for i := range b { //@ diag(`should use copy`)
 		a1[i] = b[i]
 	}
-	for i := range a1 { // want `should use copy`
+	for i := range a1 { //@ diag(`should use copy`)
 		b[i] = a1[i]
 	}
-	for i := range a1 { // want `should use copy`
+	for i := range a1 { //@ diag(`should use copy`)
 		a2[i] = a1[i]
 	}
-	for i := range a1 { // want `should copy arrays using assignment`
+	for i := range a1 { //@ diag(`should copy arrays using assignment`)
 		a3[i] = a1[i]
 	}
 
 	a1p := &a1
 	a2p := &a2
 	a3p := &a3
-	for i := range b { // want `should use copy`
+	for i := range b { //@ diag(`should use copy`)
 		a1p[i] = b[i]
 	}
-	for i := range a1p { // want `should use copy`
+	for i := range a1p { //@ diag(`should use copy`)
 		b[i] = a1p[i]
 	}
-	for i := range a1p { // want `should use copy`
+	for i := range a1p { //@ diag(`should use copy`)
 		a2p[i] = a1p[i]
 	}
-	for i := range a1p { // want `should copy arrays using assignment`
+	for i := range a1p { //@ diag(`should copy arrays using assignment`)
 		a3p[i] = a1p[i]
 	}
 
-	for i := range a1 { // want `should use copy`
+	for i := range a1 { //@ diag(`should use copy`)
 		a2p[i] = a1[i]
 	}
-	for i := range a1 { // want `should copy arrays using assignment`
+	for i := range a1 { //@ diag(`should copy arrays using assignment`)
 		a3p[i] = a1[i]
 	}
-	for i := range a1p { // want `should use copy`
+	for i := range a1p { //@ diag(`should use copy`)
 		a2[i] = a1p[i]
 	}
-	for i := range a1p { // want `should copy arrays using assignment`
+	for i := range a1p { //@ diag(`should copy arrays using assignment`)
 		a3[i] = a1p[i]
 	}
 }
 
 func fn5() {
 	var src, dst []byte
-	for i := 0; i < len(src); i++ { // want `should use copy`
+	for i := 0; i < len(src); i++ { //@ diag(`should use copy`)
 		dst[i] = src[i]
 	}
 

@@ -8,7 +8,7 @@ func tpfn1[T comparable](x T) {
 }
 
 func tpfn2[T int | string](x T) {
-	if x != x { // want `identical expressions`
+	if x != x { //@ diag(`identical expressions`)
 	}
 }
 
@@ -18,7 +18,7 @@ func tpfn3[T int | float64](x T) {
 }
 
 func tpfn4[E int | int64, T [4]E](x T) {
-	if x != x { // want `identical expressions`
+	if x != x { //@ diag(`identical expressions`)
 	}
 }
 

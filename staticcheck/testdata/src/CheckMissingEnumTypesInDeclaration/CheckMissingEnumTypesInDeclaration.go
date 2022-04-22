@@ -10,7 +10,7 @@ const (
 )
 
 const (
-	c6 int = 1 // want `only the first constant in this group has an explicit type`
+	c6 int = 1 //@ diag(`only the first constant in this group has an explicit type`)
 	c7     = 2 // comment for testing https://github.com/dominikh/go-tools/issues/866
 	c8     = 3
 )
@@ -46,7 +46,7 @@ const (
 	c23 int = 1
 	c24 int = 2
 
-	c25 string = "" // want `only the first constant in this group has an explicit type`
+	c25 string = "" //@ diag(`only the first constant in this group has an explicit type`)
 	c26        = ""
 
 	c27     = 1
@@ -56,12 +56,12 @@ const (
 	c30     = 2
 	c31 int = 2
 
-	c32 string = "" // want `only the first constant in this group has an explicit type`
+	c32 string = "" //@ diag(`only the first constant in this group has an explicit type`)
 	c33        = ""
 )
 
 const (
-	c34 int = 1 // want `only the first constant in this group has an explicit type`
+	c34 int = 1 //@ diag(`only the first constant in this group has an explicit type`)
 	c35     = 2
 
 	c36 int = 2
@@ -73,7 +73,7 @@ const (
 )
 
 const (
-	c39 int8 = 1.0 // want `only the first constant in this group has an explicit type`
+	c39 int8 = 1.0 //@ diag(`only the first constant in this group has an explicit type`)
 	c40      = 'a'
 	c41      = 3
 )
@@ -81,6 +81,6 @@ const (
 type String string
 
 const (
-	c42 String = "" // want `only the first constant in this group has an explicit type`
+	c42 String = "" //@ diag(`only the first constant in this group has an explicit type`)
 	c43        = ""
 )

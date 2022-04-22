@@ -8,11 +8,11 @@ type PartialMultiLevel2Inner2 struct{ F7 int }
 
 func fnPartialMulti() {
 	var partialMulti PartialMultiLevel
-	_ = partialMulti.F3.BasicOuter.F1            // want `could remove embedded field "BasicOuter" from selector`
-	_ = partialMulti.F3.BasicOuter.BasicInner.F1 // want `could remove embedded field "BasicOuter" from selector` `could remove embedded field "BasicInner" from selector` `could simplify selectors`
+	_ = partialMulti.F3.BasicOuter.F1            //@ diag(`could remove embedded field "BasicOuter" from selector`)
+	_ = partialMulti.F3.BasicOuter.BasicInner.F1 //@ diag(`could remove embedded field "BasicOuter" from selector`), diag(`could remove embedded field "BasicInner" from selector`), diag(`could simplify selectors`)
 	_ = partialMulti.F3.F1                       // minimal form
 
 	var partialMulti2 PartialMultiLevel2Outer
-	_ = partialMulti2.PartialMultiLevel2Inner.F6.PartialMultiLevel2Inner2.F7 // want `could remove embedded field "PartialMultiLevel2Inner2" from selector` `could remove embedded field "PartialMultiLevel2Inner" from selector` `could simplify selectors`
+	_ = partialMulti2.PartialMultiLevel2Inner.F6.PartialMultiLevel2Inner2.F7 //@ diag(`could remove embedded field "PartialMultiLevel2Inner2" from selector`), diag(`could remove embedded field "PartialMultiLevel2Inner" from selector`), diag(`could simplify selectors`)
 	_ = partialMulti2.F6.F7                                                  // minimal form
 }
