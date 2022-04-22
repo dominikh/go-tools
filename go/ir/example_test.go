@@ -55,7 +55,7 @@ func main() {
 func Example_buildPackage() {
 	// Parse the source files.
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "hello.go", hello, parser.ParseComments)
+	f, err := parser.ParseFile(fset, "hello.go", hello, parser.ParseComments|parser.SkipObjectResolution)
 	if err != nil {
 		fmt.Print(err) // parse error
 		return

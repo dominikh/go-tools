@@ -24,7 +24,7 @@ func init() {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		f, err := goparser.ParseFile(fset, path, nil, 0)
+		f, err := goparser.ParseFile(fset, path, nil, goparser.SkipObjectResolution)
 		if err != nil {
 			return nil
 		}

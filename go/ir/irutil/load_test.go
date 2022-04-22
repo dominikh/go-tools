@@ -34,7 +34,7 @@ func TestBuildPackage(t *testing.T) {
 	// IR program it builds in ../ir/builder_test.go.
 
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "hello.go", hello, 0)
+	f, err := parser.ParseFile(fset, "hello.go", hello, parser.SkipObjectResolution)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ b1: ← b0 # exit
 
 func TestBuildPackage_MissingImport(t *testing.T) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "bad.go", `package bad; import "missing"`, 0)
+	f, err := parser.ParseFile(fset, "bad.go", `package bad; import "missing"`, parser.SkipObjectResolution)
 	if err != nil {
 		t.Fatal(err)
 	}

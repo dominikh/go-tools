@@ -50,7 +50,7 @@ func noBadNodes(node ast.Node) bool {
 
 func parseType(fset *token.FileSet, src string) (ast.Expr, *ast.File, error) {
 	asType := execTmpl(tmplType, src)
-	f, err := parser.ParseFile(fset, "", asType, 0)
+	f, err := parser.ParseFile(fset, "", asType, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -72,13 +72,13 @@ func parseDetectingNode(fset *token.FileSet, src string) (interface{}, error) {
 	var mainErr error
 
 	// first try as a whole file
-	if f, err := parser.ParseFile(fset, "", src, 0); err == nil && noBadNodes(f) {
+	if f, err := parser.ParseFile(fset, "", src, parser.SkipObjectResolution); err == nil && noBadNodes(f) {
 		return f, nil
 	}
 
 	// then as a single declaration, or many
 	asDecl := execTmpl(tmplDecl, src)
-	if f, err := parser.ParseFile(fset, "", asDecl, 0); err == nil && noBadNodes(f) {
+	if f, err := parser.ParseFile(fset, "", asDecl, parser.SkipObjectResolution); err == nil && noBadNodes(f) {
 		if len(f.Decls) == 1 {
 			return f.Decls[0], nil
 		}
@@ -87,7 +87,7 @@ func parseDetectingNode(fset *token.FileSet, src string) (interface{}, error) {
 
 	// then as value expressions
 	asExprs := execTmpl(tmplExprs, src)
-	if f, err := parser.ParseFile(fset, "", asExprs, 0); err == nil && noBadNodes(f) {
+	if f, err := parser.ParseFile(fset, "", asExprs, parser.SkipObjectResolution); err == nil && noBadNodes(f) {
 		vs := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec)
 		cl := vs.Values[0].(*ast.CompositeLit)
 		if len(cl.Elts) == 1 {
@@ -98,7 +98,7 @@ func parseDetectingNode(fset *token.FileSet, src string) (interface{}, error) {
 
 	// then try as statements
 	asStmts := execTmpl(tmplStmts, src)
-	if f, err := parser.ParseFile(fset, "", asStmts, 0); err == nil && noBadNodes(f) {
+	if f, err := parser.ParseFile(fset, "", asStmts, parser.SkipObjectResolution); err == nil && noBadNodes(f) {
 		bl := f.Decls[0].(*ast.FuncDecl).Body
 		if len(bl.List) == 1 {
 			return bl.List[0], nil
@@ -119,7 +119,7 @@ func parseDetectingNode(fset *token.FileSet, src string) (interface{}, error) {
 
 	// value specs
 	asValSpec := execTmpl(tmplValSpec, src)
-	if f, err := parser.ParseFile(fset, "", asValSpec, 0); err == nil && noBadNodes(f) {
+	if f, err := parser.ParseFile(fset, "", asValSpec, parser.SkipObjectResolution); err == nil && noBadNodes(f) {
 		vs := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec)
 		return vs, nil
 	}

@@ -254,7 +254,7 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 		if fi.Size() >= MaxFileSize {
 			return nil, errMaxFileSize
 		}
-		af, err := parser.ParseFile(prog.fset, file, f, parser.ParseComments)
+		af, err := parser.ParseFile(prog.fset, file, f, parser.ParseComments|parser.SkipObjectResolution)
 		f.Close()
 		if err != nil {
 			pkg.Errors = append(pkg.Errors, convertError(err)...)

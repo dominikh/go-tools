@@ -332,7 +332,7 @@ func testValueForExpr(t *testing.T, testfile string) {
 // an error has already been reported in that case.
 //
 func findInterval(t *testing.T, fset *token.FileSet, input, substr string) (f *ast.File, start, end token.Pos) {
-	f, err := parser.ParseFile(fset, "<input>", input, 0)
+	f, err := parser.ParseFile(fset, "<input>", input, parser.SkipObjectResolution)
 	if err != nil {
 		t.Errorf("parse error: %s", err)
 		return

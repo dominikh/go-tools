@@ -14,7 +14,7 @@ import (
 // The package must not have any imports.
 func TypeCheck(src string) (*ast.File, *types.Package, *types.Info, error) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "foo.go", src, parser.ParseComments)
+	f, err := parser.ParseFile(fset, "foo.go", src, parser.ParseComments|parser.SkipObjectResolution)
 	if err != nil {
 		return nil, nil, nil, err
 	}
