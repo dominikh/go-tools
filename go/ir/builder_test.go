@@ -51,7 +51,7 @@ func main() {
 
 	// Parse the file.
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "input.go", input, 0)
+	f, err := parser.ParseFile(fset, "input.go", input, parser.SkipObjectResolution)
 	if err != nil {
 		t.Error(err)
 		return
