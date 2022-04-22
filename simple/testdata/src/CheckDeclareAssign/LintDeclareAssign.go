@@ -33,4 +33,10 @@ func fn() {
 	// do stuff
 	b = 2
 	_ = b
+
+	var c int
+	unrelated = 1
+	_ = c
 }
+
+var unrelated int

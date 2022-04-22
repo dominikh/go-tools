@@ -1598,7 +1598,7 @@ func CheckEarlyDefer(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				continue
 			}
-			if ident.Obj != lhs.Obj {
+			if pass.TypesInfo.ObjectOf(ident) != pass.TypesInfo.ObjectOf(lhs) {
 				continue
 			}
 			if sel.Sel.Name != "Close" {
@@ -2129,7 +2129,7 @@ func CheckLoopCondition(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				return true
 			}
-			if x.Obj != lhs.Obj {
+			if pass.TypesInfo.ObjectOf(x) != pass.TypesInfo.ObjectOf(lhs) {
 				return true
 			}
 			if _, ok := loop.Post.(*ast.IncDecStmt); !ok {
@@ -2269,13 +2269,13 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 		if body == nil {
 			return
 		}
-		labels := map[*ast.Object]ast.Stmt{}
+		labels := map[types.Object]ast.Stmt{}
 		ast.Inspect(body, func(node ast.Node) bool {
 			label, ok := node.(*ast.LabeledStmt)
 			if !ok {
 				return true
 			}
-			labels[label.Label.Obj] = label.Stmt
+			labels[pass.TypesInfo.ObjectOf(label.Label)] = label.Stmt
 			return true
 		})
 
@@ -2327,11 +2327,11 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 				case *ast.BranchStmt:
 					switch stmt.Tok {
 					case token.BREAK:
-						if stmt.Label == nil || labels[stmt.Label.Obj] == loop {
+						if stmt.Label == nil || labels[pass.TypesInfo.ObjectOf(stmt.Label)] == loop {
 							unconditionalExit = stmt
 						}
 					case token.CONTINUE:
-						if stmt.Label == nil || labels[stmt.Label.Obj] == loop {
+						if stmt.Label == nil || labels[pass.TypesInfo.ObjectOf(stmt.Label)] == loop {
 							unconditionalExit = nil
 							return false
 						}
@@ -2353,7 +2353,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 						unconditionalExit = nil
 						return false
 					case token.CONTINUE:
-						if branch.Label != nil && labels[branch.Label.Obj] != loop {
+						if branch.Label != nil && labels[pass.TypesInfo.ObjectOf(branch.Label)] != loop {
 							return true
 						}
 						unconditionalExit = nil

@@ -1009,7 +1009,7 @@ func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 			// All fields must be initialized from the same object
-			if ident != nil && ident.Obj != id.Obj {
+			if ident != nil && pass.TypesInfo.ObjectOf(ident) != pass.TypesInfo.ObjectOf(id) {
 				return
 			}
 			typ2, _ = t.(*types.Named)
@@ -1070,7 +1070,7 @@ func CheckTrim(pass *analysis.Pass) (interface{}, error) {
 
 		switch node1 := node1.(type) {
 		case *ast.Ident:
-			return node1.Obj == node2.(*ast.Ident).Obj
+			return pass.TypesInfo.ObjectOf(node1) == pass.TypesInfo.ObjectOf(node2.(*ast.Ident))
 		case *ast.SelectorExpr, *ast.IndexExpr:
 			return astutil.Equal(node1, node2)
 		case *ast.BasicLit:
@@ -1396,7 +1396,7 @@ func CheckDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 			}
 			for _, lhs := range assign.Lhs {
 				if oident, ok := lhs.(*ast.Ident); ok {
-					if oident.Obj == ident.Obj {
+					if pass.TypesInfo.ObjectOf(oident) == pass.TypesInfo.ObjectOf(ident) {
 						num++
 					}
 				}
@@ -1437,7 +1437,7 @@ func CheckDeclareAssign(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				continue
 			}
-			if vspec.Names[0].Obj != ident.Obj {
+			if pass.TypesInfo.ObjectOf(vspec.Names[0]) != pass.TypesInfo.ObjectOf(ident) {
 				continue
 			}
 

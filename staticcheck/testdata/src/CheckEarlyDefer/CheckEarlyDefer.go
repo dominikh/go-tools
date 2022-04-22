@@ -35,4 +35,12 @@ func fn2() {
 	if err != nil {
 		println()
 	}
+
+	// Don't flag this, we're closing a different reader
+	x, err := fn1()
+	defer rc.Close()
+	if err != nil {
+		println()
+	}
+	_ = x
 }
