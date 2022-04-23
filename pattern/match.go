@@ -317,7 +317,7 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 		}
 	}
 
-	panic(fmt.Sprintf("unsupported comparison: %T and %T", l, r))
+	return nil, false
 }
 
 // Match a Node with an AST node
