@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(CallExpr fun [arg2 arg1])")

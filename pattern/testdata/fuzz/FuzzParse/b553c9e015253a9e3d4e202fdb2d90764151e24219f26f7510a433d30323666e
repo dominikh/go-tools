@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t(Or\n\t\t(BinaryExpr\n\t\t\t(IntegerLiteral \"0\")\n\t\t\t\">\"\n\t\t\t(CallExpr builtin@(Builtin (Or \"len\" \"cap\")) _))\n\t\t(BinaryExpr\n\t\t\t(CallExpr builtin@(Builtin (Or \"len\" \"cap\")) _)\n\t\t\t\"<\"\n\t\t\t(IntegerLiteral \"0\")))\n")

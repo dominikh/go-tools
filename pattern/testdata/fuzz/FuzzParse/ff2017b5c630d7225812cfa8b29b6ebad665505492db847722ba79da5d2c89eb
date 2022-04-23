@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(Or\n\t\t\t(AssignStmt _ (Or \">>=\" \"<<=\") _)\n\t\t\t(BinaryExpr _ (Or \">>\" \"<<\") _))\n\t")

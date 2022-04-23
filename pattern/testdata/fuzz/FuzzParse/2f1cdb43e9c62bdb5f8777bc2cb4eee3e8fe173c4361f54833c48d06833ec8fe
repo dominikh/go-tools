@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(IfStmt\n\t\t\tnil\n\t\t\t(BinaryExpr lhs@(Object _) \"!=\" (Builtin \"nil\"))\n\t\t\t[\n\t\t\t\tifstmt@(IfStmt\n\t\t\t\t\t(AssignStmt [(Ident \"_\") ok@(Object _)] _ [(TypeAssertExpr lhs _)])\n\t\t\t\t\tok\n\t\t\t\t\t_\n\t\t\t\t\tnil)\n\t\t\t]\n\t\t\tnil)")

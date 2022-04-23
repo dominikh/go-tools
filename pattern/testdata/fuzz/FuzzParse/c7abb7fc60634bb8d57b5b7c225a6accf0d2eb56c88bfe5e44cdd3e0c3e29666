@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(IfStmt _ cond@(BinaryExpr lhs op@(Or \"==\" \"!=\") (Builtin \"nil\")) _ _)")

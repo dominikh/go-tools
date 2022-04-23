@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(ForStmt a a a(IfStmt a b(BranchStmt nil a)a):a)")

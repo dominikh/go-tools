@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n(Or\n\t(RangeStmt\n\t\t(Ident \"_\")\n\t\tval@(Object _)\n\t\t_\n\t\tx\n\t\t[(AssignStmt [lhs] \"=\" [(CallExpr (Builtin \"append\") [lhs val])])])\n\t(RangeStmt\n\t\tidx@(Ident _)\n\t\tnil\n\t\t_\n\t\tx\n\t\t[(AssignStmt [lhs] \"=\" [(CallExpr (Builtin \"append\") [lhs (IndexExpr x idx)])])])\n\t(RangeStmt\n\t\tidx@(Ident _)\n\t\tnil\n\t\t_\n\t\tx\n\t\t[(AssignStmt val@(Object _) \":=\" (IndexExpr x idx))\n\t\t(AssignStmt [lhs] \"=\" [(CallExpr (Builtin \"append\") [lhs val])])]))")

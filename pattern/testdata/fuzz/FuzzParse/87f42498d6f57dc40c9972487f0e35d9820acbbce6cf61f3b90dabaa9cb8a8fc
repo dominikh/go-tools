@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(AssignStmt[a(Ident\"_\")]a(Or(IndexExpr_a)(UnaryExpr\"\"a)))")

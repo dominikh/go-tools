@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(AssignStmt x@(Object _) \":=\" assign@(Builtin b@(Or \"true\" \"false\")))")

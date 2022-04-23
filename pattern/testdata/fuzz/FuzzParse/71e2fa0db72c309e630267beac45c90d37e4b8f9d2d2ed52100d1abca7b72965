@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t(Or\n\t\t(UnaryExpr\n\t\t\t\"-\"\n\t\t\t(BasicLit \"FLOAT\" \"0.0\"))\n\n\t\t(UnaryExpr\n\t\t\t\"-\"\n\t\t\t(CallExpr conv@(Object (Or \"float32\" \"float64\")) lit@(Or (BasicLit \"INT\" \"0\") (BasicLit \"FLOAT\" \"0.0\"))))\n\n\t\t(CallExpr\n\t\t\tconv@(Object (Or \"float32\" \"float64\"))\n\t\t\t(UnaryExpr \"-\" lit@(BasicLit \"INT\" \"0\"))))")

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(ReturnStmt [ret@(Builtin (Or \"true\" \"false\"))])")

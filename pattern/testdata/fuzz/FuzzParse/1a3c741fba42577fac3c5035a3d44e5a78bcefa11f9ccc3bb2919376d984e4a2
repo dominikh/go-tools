@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(BinaryExpr left@(TrulyConstantExpression _) tok@(Or \"==\" \"!=\") right@(Not (TrulyConstantExpression _)))")

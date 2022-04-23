@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t(IfStmt\n\t\tnil\n\t\t(BinaryExpr x@(Object _) \"!=\" (Builtin \"nil\"))\n\t\t[(RangeStmt _ _ _ x _)]\n\t\tnil)")

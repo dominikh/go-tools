@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(IfStmt nil cond [(AssignStmt x@(Object _) \"=\" (Builtin b@(Or \"true\" \"false\")))] nil)")

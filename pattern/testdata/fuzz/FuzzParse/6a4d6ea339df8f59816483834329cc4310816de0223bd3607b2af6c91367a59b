@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(AssignStmt\n\t\t\t[_ (Ident \"_\")]\n\t\t\t_\n\t\t\t(Or\n\t\t\t\t(IndexExpr _ _)\n\t\t\t\t(UnaryExpr \"<-\" _))) ")

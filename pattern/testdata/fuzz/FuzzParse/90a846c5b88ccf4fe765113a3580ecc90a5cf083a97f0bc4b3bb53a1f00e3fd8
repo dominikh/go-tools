@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(SliceExpr x@(Object _) low (CallExpr (Builtin \"len\") [x]) nil)")

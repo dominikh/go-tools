@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(Or\n\t(CallExpr fn@(Function \"strings.Replace\") [_ _ _ lit@(IntegerLiteral \"-1\")])\n\t(CallExpr fn@(Function \"strings.SplitN\") [_ _ lit@(IntegerLiteral \"-1\")])\n\t(CallExpr fn@(Function \"strings.SplitAfterN\") [_ _ lit@(IntegerLiteral \"-1\")])\n\t(CallExpr fn@(Function \"bytes.Replace\") [_ _ _ lit@(IntegerLiteral \"-1\")])\n\t(CallExpr fn@(Function \"bytes.SplitN\") [_ _ lit@(IntegerLiteral \"-1\")])\n\t(CallExpr fn@(Function \"bytes.SplitAfterN\") [_ _ lit@(IntegerLiteral \"-1\")]))")

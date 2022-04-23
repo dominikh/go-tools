@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t(IfStmt\n\t\t(AssignStmt\n\t\t\t[(Ident \"_\") ok@(Ident _)]\n\t\t\t\":=\"\n\t\t\t(IndexExpr m key))\n\t\tok\n\t\t[call@(CallExpr (Builtin \"delete\") [m key])]\n\t\tnil)")

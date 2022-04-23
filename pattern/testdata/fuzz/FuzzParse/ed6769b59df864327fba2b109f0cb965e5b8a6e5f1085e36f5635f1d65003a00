@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(CallExpr\n\t\t\t(Ident \"copy\")\n\t\t\t[(SliceExpr slice nil limit nil)\n\t\t\t\t(SliceExpr slice offset nil nil)])")

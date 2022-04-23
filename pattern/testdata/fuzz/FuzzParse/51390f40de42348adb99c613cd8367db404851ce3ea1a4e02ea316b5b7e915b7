@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(ForStmt\n\t\t\t(AssignStmt initvar@(Ident _) _ (IntegerLiteral \"0\"))\n\t\t\t(BinaryExpr initvar \"<\" limit@(Ident _))\n\t\t\t(IncDecStmt initvar \"++\")\n\t\t\t[(AssignStmt\n\t\t\t\t(IndexExpr slice@(Ident _) initvar)\n\t\t\t\t\"=\"\n\t\t\t\t(IndexExpr slice (BinaryExpr offset@(Ident _) \"+\" initvar)))])")

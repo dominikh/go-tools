@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(ForStmt nil nil nil if@(IfStmt nil cond (BranchStmt \"BREAK\" nil) nil):_)")

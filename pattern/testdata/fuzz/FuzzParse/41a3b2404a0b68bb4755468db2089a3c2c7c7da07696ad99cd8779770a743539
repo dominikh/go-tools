@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(Or\n\t\t\t(CallExpr\n\t\t\t\tfn@(Or\n\t\t\t\t\t(Function \"fmt.Print\")\n\t\t\t\t\t(Function \"fmt.Sprint\")\n\t\t\t\t\t(Function \"fmt.Println\")\n\t\t\t\t\t(Function \"fmt.Sprintln\"))\n\t\t\t\t[(CallExpr (Function \"fmt.Sprintf\") f:_)])\n\t\t\t(CallExpr\n\t\t\t\tfn@(Or\n\t\t\t\t\t(Function \"fmt.Fprint\")\n\t\t\t\t\t(Function \"fmt.Fprintln\"))\n\t\t\t\t[_ (CallExpr (Function \"fmt.Sprintf\") f:_)]))")

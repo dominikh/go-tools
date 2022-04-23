@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(BinaryExpr\n\t\t(UnaryExpr \"&\" _)\n\t\t(Or \"==\" \"!=\")\n\t\t(Builtin \"nil\"))")

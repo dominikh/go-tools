@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(CallExpr (SelectorExpr (Ident \"strings\") (Ident \"EqualFold\")) [a b])")

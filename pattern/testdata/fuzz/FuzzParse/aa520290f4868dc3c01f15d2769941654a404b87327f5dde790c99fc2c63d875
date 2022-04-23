@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(IfStmt (AssignStmt [obj@(Ident _) ok@(Ident _)] \":=\" assert@(TypeAssertExpr obj _)) ok _ elseBranch)")

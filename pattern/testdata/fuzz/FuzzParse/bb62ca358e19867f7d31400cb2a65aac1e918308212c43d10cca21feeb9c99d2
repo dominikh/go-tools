@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("\n\t\t(TypeSwitchStmt\n\t\t\tnil\n\t\t\texpr@(TypeAssertExpr ident@(Ident _) _)\n\t\t\tbody)")

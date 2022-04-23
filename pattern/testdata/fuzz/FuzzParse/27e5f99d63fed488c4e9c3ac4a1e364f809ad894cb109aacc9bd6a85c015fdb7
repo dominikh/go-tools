@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("(IfStmt nil cond [(ReturnStmt [ret@(Builtin (Or \"true\" \"false\"))])] nil)")
