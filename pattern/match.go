@@ -225,14 +225,24 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 		}
 	}
 
+	// TODO(dh): the three blocks handling slices can be combined into a single block if we use reflection
+
 	{
 		ln, ok1 := l.([]ast.Expr)
 		rn, ok2 := r.([]ast.Expr)
 		if ok1 || ok2 {
 			if ok1 && !ok2 {
-				rn = []ast.Expr{r.(ast.Expr)}
+				cast, ok := r.(ast.Expr)
+				if !ok {
+					return nil, false
+				}
+				rn = []ast.Expr{cast}
 			} else if !ok1 && ok2 {
-				ln = []ast.Expr{l.(ast.Expr)}
+				cast, ok := l.(ast.Expr)
+				if !ok {
+					return nil, false
+				}
+				ln = []ast.Expr{cast}
 			}
 
 			if len(ln) != len(rn) {
@@ -252,9 +262,17 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 		rn, ok2 := r.([]ast.Stmt)
 		if ok1 || ok2 {
 			if ok1 && !ok2 {
-				rn = []ast.Stmt{r.(ast.Stmt)}
+				cast, ok := r.(ast.Stmt)
+				if !ok {
+					return nil, false
+				}
+				rn = []ast.Stmt{cast}
 			} else if !ok1 && ok2 {
-				ln = []ast.Stmt{l.(ast.Stmt)}
+				cast, ok := l.(ast.Stmt)
+				if !ok {
+					return nil, false
+				}
+				ln = []ast.Stmt{cast}
 			}
 
 			if len(ln) != len(rn) {
@@ -274,9 +292,17 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 		rn, ok2 := r.([]*ast.Field)
 		if ok1 || ok2 {
 			if ok1 && !ok2 {
-				rn = []*ast.Field{r.(*ast.Field)}
+				cast, ok := r.(*ast.Field)
+				if !ok {
+					return nil, false
+				}
+				rn = []*ast.Field{cast}
 			} else if !ok1 && ok2 {
-				ln = []*ast.Field{l.(*ast.Field)}
+				cast, ok := l.(*ast.Field)
+				if !ok {
+					return nil, false
+				}
+				ln = []*ast.Field{cast}
 			}
 
 			if len(ln) != len(rn) {
