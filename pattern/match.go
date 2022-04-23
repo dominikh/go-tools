@@ -158,7 +158,11 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 	case *ast.BlockStmt:
 		return match(m, l.List, r)
 	case *ast.FieldList:
-		return match(m, l.List, r)
+		if l == nil {
+			return match(m, nil, r)
+		} else {
+			return match(m, l.List, r)
+		}
 	}
 
 	switch r := r.(type) {
