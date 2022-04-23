@@ -505,7 +505,16 @@ func (tok Token) Match(m *Matcher, node interface{}) (interface{}, bool) {
 }
 
 func (Nil) Match(m *Matcher, node interface{}) (interface{}, bool) {
-	return nil, isNil(node) || reflect.ValueOf(node).IsNil()
+	if isNil(node) {
+		return nil, true
+	}
+	v := reflect.ValueOf(node)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return nil, v.IsNil()
+	default:
+		return nil, false
+	}
 }
 
 func (builtin Builtin) Match(m *Matcher, node interface{}) (interface{}, bool) {
