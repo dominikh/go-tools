@@ -149,9 +149,11 @@ var nodeToASTTypes = map[reflect.Type][]reflect.Type{
 }
 
 var requiresTypeInfo = map[string]bool{
-	"Function": true,
-	"Builtin":  true,
-	"Object":   true,
+	"Function":                true,
+	"Builtin":                 true,
+	"Object":                  true,
+	"IntegerLiteral":          true,
+	"TrulyConstantExpression": true,
 }
 
 type Parser struct {
