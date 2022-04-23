@@ -12,7 +12,7 @@ type Pattern struct {
 	Root Node
 	// Relevant contains instances of ast.Node that could potentially
 	// initiate a successful match of the pattern.
-	Relevant []reflect.Type
+	Relevant map[reflect.Type]struct{}
 
 	// Mapping from binding index to binding name
 	Bindings []string
@@ -27,27 +27,29 @@ func MustParse(s string) Pattern {
 	return pat
 }
 
-func roots(node Node) []reflect.Type {
+func roots(node Node, m map[reflect.Type]struct{}) {
 	switch node := node.(type) {
 	case Or:
-		var out []reflect.Type
 		for _, el := range node.Nodes {
-			out = append(out, roots(el)...)
+			roots(el, m)
 		}
-		return out
 	case Not:
-		return roots(node.Node)
+		roots(node.Node, m)
 	case Binding:
-		return roots(node.Node)
+		roots(node.Node, m)
 	case Nil, nil:
 		// this branch is reached via bindings
-		return allTypes
+		for _, T := range allTypes {
+			m[T] = struct{}{}
+		}
 	default:
 		Ts, ok := nodeToASTTypes[reflect.TypeOf(node)]
 		if !ok {
 			panic(fmt.Sprintf("internal error: unhandled type %T", node))
 		}
-		return Ts
+		for _, T := range Ts {
+			m[T] = struct{}{}
+		}
 	}
 }
 
@@ -212,9 +214,12 @@ func (p *Parser) Parse(s string) (Pattern, error) {
 	for name, idx := range p.bindings {
 		bindings[idx] = name
 	}
+
+	relevant := map[reflect.Type]struct{}{}
+	roots(root, relevant)
 	return Pattern{
 		Root:     root,
-		Relevant: roots(root),
+		Relevant: relevant,
 		Bindings: bindings,
 	}, nil
 }

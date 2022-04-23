@@ -21,20 +21,17 @@ func match(fset *token.FileSet, pat pattern.Pattern, f *ast.File) {
 			return true
 		}
 
-		for _, rel := range pat.Relevant {
-			if rel == reflect.TypeOf(node) {
-				m := &pattern.Matcher{}
-				if m.Match(pat, node) {
-					fmt.Printf("%s: ", fset.Position(node.Pos()))
-					format.Node(os.Stdout, fset, node)
-					fmt.Println()
-				}
-
-				// OPT(dh): we could further speed this up by not
-				// chasing down impossible subtrees. For example,
-				// we'll never find an ImportSpec beneath a FuncLit.
-				return true
+		if _, ok := pat.Relevant[reflect.TypeOf(node)]; ok {
+			m := &pattern.Matcher{}
+			if m.Match(pat, node) {
+				fmt.Printf("%s: ", fset.Position(node.Pos()))
+				format.Node(os.Stdout, fset, node)
+				fmt.Println()
 			}
+
+			// OPT(dh): we could further speed this up by not
+			// chasing down impossible subtrees. For example,
+			// we'll never find an ImportSpec beneath a FuncLit.
 		}
 		return true
 	})
