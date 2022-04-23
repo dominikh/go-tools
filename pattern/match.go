@@ -373,6 +373,9 @@ func matchNodeAST(m *Matcher, a Node, b interface{}) (interface{}, bool) {
 		return b, true
 	case nil:
 		return nil, a == Nil{}
+	case string, token.Token:
+		// 'a' can't be a String, Token, or Binding or we'd be using their Match implementations.
+		return nil, false
 	default:
 		panic(fmt.Sprintf("unhandled type %T", b))
 	}
