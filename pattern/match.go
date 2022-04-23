@@ -309,6 +309,13 @@ func matchNodeAST(m *Matcher, a Node, b interface{}) (interface{}, bool) {
 			return nil, false
 		}
 		return match(m, a, b[0])
+	case []*ast.Field:
+		// 'a' is not a List or we'd be using its Match
+		// implementation
+		if len(b) != 1 {
+			return nil, false
+		}
+		return match(m, a, b[0])
 	case ast.Node:
 		ra := reflect.ValueOf(a)
 		rb := reflect.ValueOf(b).Elem()
