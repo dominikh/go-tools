@@ -876,6 +876,11 @@ func CheckExportedTypeDocs(pass *analysis.Pass) (interface{}, error) {
 				}
 			}
 
+			// Check comment before we strip articles in case the type's name is an article.
+			if strings.HasPrefix(text, node.Name.Name+" ") {
+				return false
+			}
+
 			s := text
 			articles := [...]string{"A", "An", "The"}
 			for _, a := range articles {

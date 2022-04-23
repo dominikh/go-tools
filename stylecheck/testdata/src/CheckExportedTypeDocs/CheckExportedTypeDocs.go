@@ -55,3 +55,6 @@ type T13 struct{}
 //some:directive // want `comment on exported type`
 // Whatever
 type T14 struct{}
+
+// A does stuff.
+type A struct{}
