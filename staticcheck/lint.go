@@ -1034,7 +1034,8 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 		}
 		if err != nil {
 			// TODO(dominikh): whitelist other parse errors, if any
-			if strings.Contains(err.Error(), "unexpected") {
+			if strings.Contains(err.Error(), "unexpected") ||
+				strings.Contains(err.Error(), "bad character") {
 				report.Report(pass, call.Args[knowledge.Arg("(*text/template.Template).Parse.text")], err.Error())
 			}
 		}
