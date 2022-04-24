@@ -1,9 +1,9 @@
 package pkg
 
-import _ "CheckDeprecatedassist"          //@ diag(`Alas, it is deprecated.`)
-import _ "AnotherCheckDeprecatedassist"   //@ diag(`Alas, it is deprecated.`)
-import foo "AnotherCheckDeprecatedassist" //@ diag(`Alas, it is deprecated.`)
-import "AnotherCheckDeprecatedassist"     //@ diag(`Alas, it is deprecated.`)
+import _ "CheckDeprecated.assist"          //@ diag(`Alas, it is deprecated.`)
+import _ "AnotherCheckDeprecated.assist"   //@ diag(`Alas, it is deprecated.`)
+import foo "AnotherCheckDeprecated.assist" //@ diag(`Alas, it is deprecated.`)
+import "AnotherCheckDeprecated.assist"     //@ diag(`Alas, it is deprecated.`)
 
 func init() {
 	foo.Fn()
