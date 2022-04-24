@@ -1,6 +1,6 @@
 package pkg
 
-func fn() {
+func fn2() {
 	var ch chan int
 	<-ch
 	_ = <-ch //@ diag(`unnecessary assignment to the blank identifier`)

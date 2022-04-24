@@ -2,7 +2,7 @@
 
 package pkg
 
-func fn() {
+func fn3() {
 	for true {
 	}
 }
