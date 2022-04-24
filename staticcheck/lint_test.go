@@ -31,6 +31,7 @@ func TestAll(t *testing.T) {
 			{Dir: "CheckDeprecated_go13", Version: "1.3"},
 			{Dir: "CheckDeprecated_go14", Version: "1.4"},
 			{Dir: "CheckDeprecated_go18", Version: "1.8"},
+			{Dir: "CheckDeprecated_go119", Version: "1.19"},
 		},
 		"SA1020": {{Dir: "CheckListenAddress"}},
 		"SA1021": {{Dir: "CheckBytesEqualIP"}},
