@@ -12,6 +12,7 @@ import (
 	"go/format"
 	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -166,6 +167,18 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 }
 
 func Check(t *testing.T, gopath string, files []string, diagnostics []runner.Diagnostic, facts []runner.TestFact) {
+	relativePath := func(path string) string {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return path
+		}
+		rel, err := filepath.Rel(cwd, path)
+		if err != nil {
+			return path
+		}
+		return rel
+	}
+
 	type key struct {
 		file string
 		line int
@@ -195,7 +208,7 @@ func Check(t *testing.T, gopath string, files []string, diagnostics []runner.Dia
 	for _, diag := range diagnostics {
 		file := diag.Position.Filename
 		if _, ok := seen[file]; !ok {
-			t.Errorf("got diagnostic in file %q, but that file isn't part of the checked package", file)
+			t.Errorf("got diagnostic in file %q, but that file isn't part of the checked package", relativePath(file))
 			return
 		}
 	}
@@ -229,8 +242,10 @@ func Check(t *testing.T, gopath string, files []string, diagnostics []runner.Dia
 			}
 		}
 		if unmatched == nil {
+			posn.Filename = relativePath(posn.Filename)
 			t.Errorf("%v: unexpected diag: %v", posn, message)
 		} else {
+			posn.Filename = relativePath(posn.Filename)
 			t.Errorf("%v: diag %q does not match pattern %s",
 				posn, message, strings.Join(unmatched, " or "))
 		}
@@ -273,8 +288,7 @@ func Check(t *testing.T, gopath string, files []string, diagnostics []runner.Dia
 	var surplus []string
 	for key, expects := range want {
 		for _, exp := range expects {
-			err := fmt.Sprintf("%s:%d: no %s was reported matching %q", key.file, key.line, exp.Name, exp.Args)
-			surplus = append(surplus, err)
+			surplus = append(surplus, fmt.Sprintf("%s:%d: no %s was reported matching %q", relativePath(key.file), key.line, exp.Name, exp.Args))
 		}
 	}
 	sort.Strings(surplus)
