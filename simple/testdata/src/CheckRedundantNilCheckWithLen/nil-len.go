@@ -62,3 +62,14 @@ func fn() {
 	if s != nil && len(s) != len(ch) { // nil check is not redundant here
 	}
 }
+
+func fn3() {
+	var x []int
+
+	if x == nil || len(x) == 0 { //@ diag(`should omit nil check`)
+	}
+
+	len := func([]int) int { return 10 }
+	if x == nil || len(x) == 0 {
+	}
+}
