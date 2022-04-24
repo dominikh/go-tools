@@ -511,6 +511,14 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 			name = obj.Name()
 		case *types.TypeName:
 			name = types.TypeString(obj.Type(), nil)
+		case *types.Const, *types.Var:
+			if obj.Pkg() == nil {
+				return nil, false
+			}
+			if obj.Parent() != obj.Pkg().Scope() {
+				return nil, false
+			}
+			name = fmt.Sprintf("%s.%s", obj.Pkg().Path(), obj.Name())
 		default:
 			return nil, false
 		}
@@ -522,6 +530,14 @@ func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
 			name = obj.FullName()
 		case *types.TypeName:
 			name = types.TypeString(obj.Type(), nil)
+		case *types.Const, *types.Var:
+			if obj.Pkg() == nil {
+				return nil, false
+			}
+			if obj.Parent() != obj.Pkg().Scope() {
+				return nil, false
+			}
+			name = fmt.Sprintf("%s.%s", obj.Pkg().Path(), obj.Name())
 		default:
 			return nil, false
 		}
