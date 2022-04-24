@@ -2414,7 +2414,7 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkSeekerQ = pattern.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr (Ident "io") (Ident (Or "SeekStart" "SeekCurrent" "SeekEnd"))) arg2])`)
+	checkSeekerQ = pattern.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr _ (Function (Or "io.SeekStart" "io.SeekCurrent" "io.SeekEnd"))) arg2])`)
 	checkSeekerR = pattern.MustParse(`(CallExpr fun [arg2 arg1])`)
 )
 
