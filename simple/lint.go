@@ -660,8 +660,7 @@ func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		yxFun, ok := yx.Fun.(*ast.Ident)
-		if !ok || yxFun.Name != "len" || len(yx.Args) != 1 {
+		if !code.IsCallTo(pass, yx, "len") {
 			return
 		}
 		yxArg, ok := yx.Args[knowledge.Arg("len.v")].(*ast.Ident)
