@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -247,7 +246,7 @@ func (c *Cache) GetBytes(id ActionID) ([]byte, Entry, error) {
 	if err != nil {
 		return nil, entry, err
 	}
-	data, _ := ioutil.ReadFile(c.OutputFile(entry.OutputID))
+	data, _ := os.ReadFile(c.OutputFile(entry.OutputID))
 	if sha256.Sum256(data) != entry.OutputID {
 		return nil, entry, &entryNotFoundError{Err: errors.New("bad checksum")}
 	}

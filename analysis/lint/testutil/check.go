@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"go/format"
 	"go/token"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -57,7 +57,7 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 					continue
 				}
 				if _, ok := fileContents[edit.Position.Filename]; !ok {
-					contents, err := ioutil.ReadFile(edit.Position.Filename)
+					contents, err := os.ReadFile(edit.Position.Filename)
 					if err != nil {
 						t.Errorf("error reading %s: %v", edit.Position.Filename, err)
 					}
