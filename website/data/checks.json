@@ -1155,7 +1155,7 @@
 			"NonDefault": false,
 			"Options": null,
 			"Severity": 3,
-			"MergeIf": 0
+			"MergeIf": 1
 		},
 		"SA4009": {
 			"Title": "A function argument is overwritten before its first use",
