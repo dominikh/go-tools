@@ -3110,14 +3110,87 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 	// Selectors can appear outside of function literals, e.g. when
 	// declaring package level variables.
 
-	isStdlib := func(obj types.Object) bool {
+	isStdlibPath := func(path string) bool {
 		// Modules with no dot in the first path element are reserved for the standard library and tooling.
 		// This is the best we can currently do.
 		// Nobody tells us which import paths are part of the standard library.
 		//
 		// We check the entire path instead of just the first path element, because the standard library doesn't contain paths with any dots, anyway.
 
-		return !strings.Contains(obj.Pkg().Path(), ".")
+		return !strings.Contains(path, ".")
+	}
+
+	handleDeprecation := func(depr *facts.IsDeprecated, node ast.Node, deprecatedObjName string, pkgPath string, tfn types.Object) {
+		// Note: gopls doesn't correctly run analyzers on
+		// dependencies, so we'll never be able to find deprecated
+		// objects in imported code. We've experimented with
+		// lifting the stdlib handling out of the general check,
+		// to at least work for deprecated objects in the stdlib,
+		// but we gave up on that, because we wouldn't have access
+		// to the deprecation message.
+		std, ok := knowledge.StdlibDeprecations[deprecatedObjName]
+		if !ok && isStdlibPath(pkgPath) {
+			// Deprecated object in the standard library, but we don't know the details of the deprecation.
+			// Don't flag it at all, to avoid flagging an object that was deprecated in 1.N when targeting 1.N-1.
+			// See https://staticcheck.io/issues/1108 for the background on this.
+			return
+		}
+		if ok {
+			switch std.AlternativeAvailableSince {
+			case knowledge.DeprecatedNeverUse:
+				// This should never be used, regardless of the
+				// targeted Go version. Examples include insecure
+				// cryptography or inherently broken APIs.
+				//
+				// We always want to flag these.
+			case knowledge.DeprecatedUseNoLonger:
+				// This should no longer be used. Using it with
+				// older Go versions might still make sense.
+				if !code.IsGoVersion(pass, std.DeprecatedSince) {
+					return
+				}
+			default:
+				if std.AlternativeAvailableSince < 0 {
+					panic(fmt.Sprintf("unhandled case %d", std.AlternativeAvailableSince))
+				}
+				// Look for the first available alternative, not the first
+				// version something was deprecated in. If a function was
+				// deprecated in Go 1.6, an alternative has been available
+				// already in 1.0, and we're targeting 1.2, it still
+				// makes sense to use the alternative from 1.0, to be
+				// future-proof.
+				if !code.IsGoVersion(pass, std.AlternativeAvailableSince) {
+					return
+				}
+			}
+		}
+
+		if tfn != nil {
+			if _, ok := deprs.Objects[tfn]; ok {
+				// functions that are deprecated may use deprecated
+				// symbols
+				return
+			}
+		}
+
+		if ok {
+			switch std.AlternativeAvailableSince {
+			case knowledge.DeprecatedNeverUse:
+				report.Report(pass, node,
+					fmt.Sprintf("%s has been deprecated since Go 1.%d because it shouldn't be used: %s",
+						report.Render(pass, node), std.DeprecatedSince, depr.Msg))
+			case std.DeprecatedSince, knowledge.DeprecatedUseNoLonger:
+				report.Report(pass, node,
+					fmt.Sprintf("%s has been deprecated since Go 1.%d: %s",
+						report.Render(pass, node), std.DeprecatedSince, depr.Msg))
+			default:
+				report.Report(pass, node,
+					fmt.Sprintf("%s has been deprecated since Go 1.%d and an alternative has been available since Go 1.%d: %s",
+						report.Render(pass, node), std.DeprecatedSince, std.AlternativeAvailableSince, depr.Msg))
+			}
+		} else {
+			report.Report(pass, node, fmt.Sprintf("%s is deprecated: %s", report.Render(pass, node), depr.Msg))
+		}
 	}
 
 	var tfn types.Object
@@ -3152,71 +3225,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if depr, ok := deprs.Objects[obj]; ok {
-			// Note: gopls doesn't correctly run analyzers on
-			// dependencies, so we'll never be able to find deprecated
-			// objects in imported code. We've experimented with
-			// lifting the stdlib handling out of the general check,
-			// to at least work for deprecated objects in the stdlib,
-			// but we gave up on that, because we wouldn't have access
-			// to the deprecation message.
-			std, ok := knowledge.StdlibDeprecations[code.SelectorName(pass, sel)]
-			if !ok && isStdlib(obj) {
-				// Deprecated object in the standard library, but we don't know the details of the deprecation.
-				// Don't flag it at all, to avoid flagging an object that was deprecated in 1.N when targeting 1.N-1.
-				// See https://staticcheck.io/issues/1108 for the background on this.
-				return true
-			}
-			if ok {
-				switch std.AlternativeAvailableSince {
-				case knowledge.DeprecatedNeverUse:
-					// This should never be used, regardless of the
-					// targeted Go version. Examples include insecure
-					// cryptography or inherently broken APIs.
-					//
-					// We always want to flag these.
-				case knowledge.DeprecatedUseNoLonger:
-					// This should no longer be used. Using it with
-					// older Go versions might still make sense.
-					if !code.IsGoVersion(pass, std.DeprecatedSince) {
-						return true
-					}
-				default:
-					if std.AlternativeAvailableSince < 0 {
-						panic(fmt.Sprintf("unhandled case %d", std.AlternativeAvailableSince))
-					}
-					// Look for the first available alternative, not the first
-					// version something was deprecated in. If a function was
-					// deprecated in Go 1.6, an alternative has been available
-					// already in 1.0, and we're targeting 1.2, it still
-					// makes sense to use the alternative from 1.0, to be
-					// future-proof.
-					if !code.IsGoVersion(pass, std.AlternativeAvailableSince) {
-						return true
-					}
-				}
-			}
-
-			if tfn != nil {
-				if _, ok := deprs.Objects[tfn]; ok {
-					// functions that are deprecated may use deprecated
-					// symbols
-					return true
-				}
-			}
-
-			if ok {
-				switch std.AlternativeAvailableSince {
-				case knowledge.DeprecatedNeverUse:
-					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d because it shouldn't be used: %s", report.Render(pass, sel), std.DeprecatedSince, depr.Msg))
-				case std.DeprecatedSince, knowledge.DeprecatedUseNoLonger:
-					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d: %s", report.Render(pass, sel), std.DeprecatedSince, depr.Msg))
-				default:
-					report.Report(pass, sel, fmt.Sprintf("%s has been deprecated since Go 1.%d and an alternative has been available since Go 1.%d: %s", report.Render(pass, sel), std.DeprecatedSince, std.AlternativeAvailableSince, depr.Msg))
-				}
-			} else {
-				report.Report(pass, sel, fmt.Sprintf("%s is deprecated: %s", report.Render(pass, sel), depr.Msg))
-			}
-			return true
+			handleDeprecation(depr, sel, code.SelectorName(pass, sel), obj.Pkg().Path(), tfn)
 		}
 		return true
 	}
@@ -3239,7 +3248,8 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 					return
 				}
 			}
-			report.Report(pass, spec, fmt.Sprintf("package %s is deprecated: %s", path, depr.Msg))
+
+			handleDeprecation(depr, spec.Path, path, path, nil)
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes(nil, fn)
