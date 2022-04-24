@@ -188,7 +188,7 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 					relevantFacts = append(relevantFacts, fact)
 				}
 
-				Check(t, testdata, relevantDiags, relevantFacts)
+				Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
 				CheckSuggestedFixes(t, relevantDiags)
 			}
 		}

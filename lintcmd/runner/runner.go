@@ -236,6 +236,8 @@ type TestData struct {
 	// Unlike vetx, this list only contains facts specific to this package,
 	// not all facts for the transitive closure of dependencies.
 	Facts []TestFact
+	// List of files that were part of the package.
+	Files []string
 }
 
 // LoadTest returns data relevant to testing.
@@ -626,6 +628,7 @@ func (r *subrunner) do(act action) error {
 		if r.TestMode {
 			out := TestData{
 				Facts: result.testFacts,
+				Files: result.lpkg.GoFiles,
 			}
 			a.testData, err = r.writeCacheGob(a, "testdata", out)
 			if err != nil {

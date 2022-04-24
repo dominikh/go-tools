@@ -165,32 +165,38 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 	}
 }
 
-func Check(t *testing.T, gopath string, diagnostics []runner.Diagnostic, facts []runner.TestFact) {
+func Check(t *testing.T, gopath string, files []string, diagnostics []runner.Diagnostic, facts []runner.TestFact) {
 	type key struct {
 		file string
 		line int
 	}
 
+	// the 'files' argument contains a list of all files that were part of the tested package
 	want := make(map[key][]*expect.Note)
 
 	fset := token.NewFileSet()
 	seen := map[string]struct{}{}
+	for _, file := range files {
+		seen[file] = struct{}{}
+
+		notes, err := expect.Parse(fset, file, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, note := range notes {
+			k := key{
+				file: file,
+				line: fset.PositionFor(note.Pos, false).Line,
+			}
+			want[k] = append(want[k], note)
+		}
+	}
+
 	for _, diag := range diagnostics {
 		file := diag.Position.Filename
 		if _, ok := seen[file]; !ok {
-			seen[file] = struct{}{}
-
-			notes, err := expect.Parse(fset, file, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, note := range notes {
-				k := key{
-					file: file,
-					line: fset.PositionFor(note.Pos, false).Line,
-				}
-				want[k] = append(want[k], note)
-			}
+			t.Errorf("got diagnostic in file %q, but that file isn't part of the checked package", file)
+			return
 		}
 	}
 
