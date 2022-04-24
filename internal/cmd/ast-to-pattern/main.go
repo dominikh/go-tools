@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"honnef.co/go/tools/pattern"
 )
 
 func main() {
-	src, err := ioutil.ReadAll(os.Stdin)
+	src, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -118,7 +118,6 @@ import (
 	"go/token"
 	"go/types"
 	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"runtime"
@@ -657,7 +656,7 @@ func (r *Runner) writeCacheReader(a *packageAction, kind string, rs io.ReadSeeke
 }
 
 func (r *Runner) writeCacheGob(a *packageAction, kind string, data interface{}) (string, error) {
-	f, err := ioutil.TempFile("", "staticcheck")
+	f, err := os.CreateTemp("", "staticcheck")
 	if err != nil {
 		return "", err
 	}
