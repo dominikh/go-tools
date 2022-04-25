@@ -1045,7 +1045,7 @@ func CheckTemplate(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkTimeSleepConstantPatternQ   = pattern.MustParse(`(CallExpr (Function "time.Sleep") lit@(IntegerLiteral value))`)
+	checkTimeSleepConstantPatternQ   = pattern.MustParse(`(CallExpr (Symbol "time.Sleep") lit@(IntegerLiteral value))`)
 	checkTimeSleepConstantPatternRns = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
 	checkTimeSleepConstantPatternRs  = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
 )
@@ -1082,7 +1082,7 @@ var checkWaitgroupAddQ = pattern.MustParse(`
 		(CallExpr
 			(FuncLit
 				_
-				call@(CallExpr (Function "(*sync.WaitGroup).Add") _):_) _))`)
+				call@(CallExpr (Symbol "(*sync.WaitGroup).Add") _):_) _))`)
 
 func CheckWaitgroupAdd(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
@@ -2373,7 +2373,7 @@ func CheckIneffectiveLoop(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Function _) (Builtin "nil"):_)`)
+var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Symbol _) (Builtin "nil"):_)`)
 
 func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 	todo := &ast.CallExpr{
@@ -2414,7 +2414,7 @@ func CheckNilContext(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkSeekerQ = pattern.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr _ (Function (Or "io.SeekStart" "io.SeekCurrent" "io.SeekEnd"))) arg2])`)
+	checkSeekerQ = pattern.MustParse(`(CallExpr fun@(SelectorExpr _ (Ident "Seek")) [arg1@(SelectorExpr _ (Symbol (Or "io.SeekStart" "io.SeekCurrent" "io.SeekEnd"))) arg2])`)
 	checkSeekerR = pattern.MustParse(`(CallExpr fun [arg2 arg1])`)
 )
 
@@ -3752,7 +3752,7 @@ func CheckTimerResetReturnValue(pass *analysis.Pass) (interface{}, error) {
 var (
 	checkToLowerToUpperComparisonQ = pattern.MustParse(`
 	(BinaryExpr
-		(CallExpr fun@(Function (Or "strings.ToLower" "strings.ToUpper")) [a])
+		(CallExpr fun@(Symbol (Or "strings.ToLower" "strings.ToUpper")) [a])
  		tok@(Or "==" "!=")
  		(CallExpr fun [b]))`)
 	checkToLowerToUpperComparisonR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "strings") (Ident "EqualFold")) [a b])`)
@@ -5029,7 +5029,7 @@ func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var ineffectiveSortQ = pattern.MustParse(`(AssignStmt target@(Ident _) "=" (CallExpr typ@(Function (Or "sort.Float64Slice" "sort.IntSlice" "sort.StringSlice")) [target]))`)
+var ineffectiveSortQ = pattern.MustParse(`(AssignStmt target@(Ident _) "=" (CallExpr typ@(Symbol (Or "sort.Float64Slice" "sort.IntSlice" "sort.StringSlice")) [target]))`)
 
 func CheckIneffectiveSort(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
@@ -5078,7 +5078,7 @@ func CheckIneffectiveSort(pass *analysis.Pass) (interface{}, error) {
 
 var ineffectiveRandIntQ = pattern.MustParse(`
 	(CallExpr
-		(Function
+		(Symbol
 			name@(Or
 				"math/rand.Int31n"
 				"math/rand.Int63n"

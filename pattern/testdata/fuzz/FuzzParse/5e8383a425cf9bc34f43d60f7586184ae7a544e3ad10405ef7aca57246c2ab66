@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"\\n\\t(BinaryExpr\\n\\t\\t(CallExpr fun@(Symbol (Or \\\"strings.ToLower\\\" \\\"strings.ToUpper\\\")) [a])\\n \\t\\ttok@(Or \\\"==\\\" \\\"!=\\\")\\n \\t\\t(CallExpr fun [b]))\")")

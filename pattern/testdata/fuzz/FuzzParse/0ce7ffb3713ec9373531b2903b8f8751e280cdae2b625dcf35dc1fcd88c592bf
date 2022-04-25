@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"\\n\\t(CallExpr\\n\\t\\tfn@(Or\\n\\t\\t\\t(Symbol \\\"fmt.Sprint\\\")\\n\\t\\t\\t(Symbol \\\"fmt.Sprintf\\\"))\\n\\t\\t[lit@(BasicLit \\\"STRING\\\" _)])\")")

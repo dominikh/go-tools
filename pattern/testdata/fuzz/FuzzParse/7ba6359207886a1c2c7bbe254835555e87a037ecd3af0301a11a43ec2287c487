@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"(CallExpr fun@(Symbol _) (Builtin \\\"nil\\\"):_)\")")

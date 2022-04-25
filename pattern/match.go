@@ -474,7 +474,7 @@ func (obj Object) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	return id, ok
 }
 
-func (fn Function) Match(m *Matcher, node interface{}) (interface{}, bool) {
+func (fn Symbol) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	var name string
 	var obj types.Object
 
@@ -628,7 +628,7 @@ var (
 	_ matcher = Nil{}
 	_ matcher = Builtin{}
 	_ matcher = Object{}
-	_ matcher = Function{}
+	_ matcher = Symbol{}
 	_ matcher = Or{}
 	_ matcher = Not{}
 	_ matcher = IntegerLiteral{}
