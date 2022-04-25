@@ -1,4 +1,4 @@
-package facts
+package generated
 
 import (
 	"bufio"
@@ -78,7 +78,7 @@ func isGenerated(path string) (Generator, bool) {
 	return 0, false
 }
 
-var Generated = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name: "isgenerated",
 	Doc:  "annotate file names that have been code generated",
 	Run: func(pass *analysis.Pass) (interface{}, error) {

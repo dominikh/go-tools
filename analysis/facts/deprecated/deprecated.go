@@ -1,4 +1,4 @@
-package facts
+package deprecated
 
 import (
 	"go/ast"
@@ -15,17 +15,17 @@ type IsDeprecated struct{ Msg string }
 func (*IsDeprecated) AFact()           {}
 func (d *IsDeprecated) String() string { return "Deprecated: " + d.Msg }
 
-type DeprecatedResult struct {
+type Result struct {
 	Objects  map[types.Object]*IsDeprecated
 	Packages map[*types.Package]*IsDeprecated
 }
 
-var Deprecated = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name:       "fact_deprecated",
 	Doc:        "Mark deprecated objects",
 	Run:        deprecated,
 	FactTypes:  []analysis.Fact{(*IsDeprecated)(nil)},
-	ResultType: reflect.TypeOf(DeprecatedResult{}),
+	ResultType: reflect.TypeOf(Result{}),
 }
 
 func deprecated(pass *analysis.Pass) (interface{}, error) {
@@ -129,7 +129,7 @@ func deprecated(pass *analysis.Pass) (interface{}, error) {
 		ast.Inspect(f, fn)
 	}
 
-	out := DeprecatedResult{
+	out := Result{
 		Objects:  map[types.Object]*IsDeprecated{},
 		Packages: map[*types.Package]*IsDeprecated{},
 	}
