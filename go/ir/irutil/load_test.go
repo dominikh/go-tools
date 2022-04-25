@@ -54,7 +54,7 @@ func TestBuildPackage(t *testing.T) {
 }
 
 func TestPackages(t *testing.T) {
-	cfg := &packages.Config{Mode: packages.LoadSyntax}
+	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
 	initial, err := packages.Load(cfg, "bytes")
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func TestIssue28106(t *testing.T) {
 	// export data, but does not type check function bodies of
 	// imported packages. This test ensures that we do not attempt
 	// to run the IR builder on functions without type information.
-	cfg := &packages.Config{Mode: packages.LoadSyntax}
+	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
 	pkgs, err := packages.Load(cfg, "runtime")
 	if err != nil {
 		t.Fatal(err)

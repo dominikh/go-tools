@@ -13,6 +13,7 @@ import (
 
 	"honnef.co/go/tools/go/ir"
 
+	//lint:ignore SA1019 go/loader is deprecated, but works fine for our tests
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/packages"
 )

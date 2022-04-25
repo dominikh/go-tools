@@ -330,7 +330,7 @@ func (b *builder) addUnreachables(fn *Function) {
 					var c Call
 					c.Call.Value = &Builtin{
 						name: "ir:noreturnWasPanic",
-						sig: types.NewSignature(nil,
+						sig: types.NewSignatureType(nil, nil, nil,
 							types.NewTuple(),
 							types.NewTuple(anonVar(types.Typ[types.Bool])),
 							false,

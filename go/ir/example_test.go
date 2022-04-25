@@ -138,7 +138,7 @@ func Example_buildPackage() {
 // analysis capable of operating on a single package.
 func Example_loadPackages() {
 	// Load, parse, and type-check the initial packages.
-	cfg := &packages.Config{Mode: packages.LoadSyntax}
+	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
 	initial, err := packages.Load(cfg, "fmt", "net/http")
 	if err != nil {
 		log.Fatal(err)
@@ -168,7 +168,7 @@ func Example_loadPackages() {
 // This is what you'd typically use for a whole-program analysis.
 func Example_loadWholeProgram() {
 	// Load, parse, and type-check the whole program.
-	cfg := packages.Config{Mode: packages.LoadAllSyntax}
+	cfg := packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedDeps}
 	initial, err := packages.Load(&cfg, "fmt", "net/http")
 	if err != nil {
 		log.Fatal(err)
