@@ -503,47 +503,31 @@ func (fn Symbol) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	switch fun := fun.(type) {
 	case *ast.Ident:
 		obj = m.TypesInfo.ObjectOf(fun)
-		switch obj := obj.(type) {
-		case *types.Func:
-			// OPT(dh): optimize this similar to code.FuncName
-			name = obj.FullName()
-		case *types.Builtin:
-			name = obj.Name()
-		case *types.TypeName:
-			name = types.TypeString(obj.Type(), nil)
-		case *types.Const, *types.Var:
-			if obj.Pkg() == nil {
-				return nil, false
-			}
-			if obj.Parent() != obj.Pkg().Scope() {
-				return nil, false
-			}
-			name = fmt.Sprintf("%s.%s", obj.Pkg().Path(), obj.Name())
-		default:
-			return nil, false
-		}
 	case *ast.SelectorExpr:
 		obj = m.TypesInfo.ObjectOf(fun.Sel)
-		switch obj := obj.(type) {
-		case *types.Func:
-			// OPT(dh): optimize this similar to code.FuncName
-			name = obj.FullName()
-		case *types.TypeName:
-			name = types.TypeString(obj.Type(), nil)
-		case *types.Const, *types.Var:
-			if obj.Pkg() == nil {
-				return nil, false
-			}
-			if obj.Parent() != obj.Pkg().Scope() {
-				return nil, false
-			}
-			name = fmt.Sprintf("%s.%s", obj.Pkg().Path(), obj.Name())
-		default:
-			return nil, false
-		}
 	default:
 		panic("unreachable")
 	}
+	switch obj := obj.(type) {
+	case *types.Func:
+		// OPT(dh): optimize this similar to code.FuncName
+		name = obj.FullName()
+	case *types.Builtin:
+		name = obj.Name()
+	case *types.TypeName:
+		name = types.TypeString(obj.Type(), nil)
+	case *types.Const, *types.Var:
+		if obj.Pkg() == nil {
+			return nil, false
+		}
+		if obj.Parent() != obj.Pkg().Scope() {
+			return nil, false
+		}
+		name = fmt.Sprintf("%s.%s", obj.Pkg().Path(), obj.Name())
+	default:
+		return nil, false
+	}
+
 	_, ok = match(m, fn.Name, name)
 	return obj, ok
 }
