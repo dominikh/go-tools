@@ -1,4 +1,4 @@
-package facts
+package directives
 
 import (
 	"reflect"
@@ -11,7 +11,7 @@ func directives(pass *analysis.Pass) (interface{}, error) {
 	return lint.ParseDirectives(pass.Files, pass.Fset), nil
 }
 
-var Directives = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name:             "directives",
 	Doc:              "extracts linter directives",
 	Run:              directives,

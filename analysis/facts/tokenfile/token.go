@@ -1,4 +1,4 @@
-package facts
+package tokenfile
 
 import (
 	"go/ast"
@@ -8,7 +8,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-var TokenFile = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name: "tokenfileanalyzer",
 	Doc:  "creates a mapping of *token.File to *ast.File",
 	Run: func(pass *analysis.Pass) (interface{}, error) {

@@ -1,4 +1,4 @@
-package facts
+package purity
 
 import (
 	"go/types"
@@ -16,15 +16,15 @@ type IsPure struct{}
 func (*IsPure) AFact()           {}
 func (d *IsPure) String() string { return "is pure" }
 
-type PurityResult map[*types.Func]*IsPure
+type Result map[*types.Func]*IsPure
 
-var Purity = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name:       "fact_purity",
 	Doc:        "Mark pure functions",
 	Run:        purity,
 	Requires:   []*analysis.Analyzer{buildir.Analyzer},
 	FactTypes:  []analysis.Fact{(*IsPure)(nil)},
-	ResultType: reflect.TypeOf(PurityResult{}),
+	ResultType: reflect.TypeOf(Result{}),
 }
 
 var pureStdlib = map[string]struct{}{
@@ -170,7 +170,7 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 		check(fn)
 	}
 
-	out := PurityResult{}
+	out := Result{}
 	for _, fact := range pass.AllObjectFacts() {
 		out[fact.Object.(*types.Func)] = fact.Fact.(*IsPure)
 	}
