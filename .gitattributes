@@ -1,2 +1,3 @@
 *.golden -text
 *.svg binary
+**/testdata/** -text
