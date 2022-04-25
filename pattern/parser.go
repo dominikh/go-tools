@@ -103,7 +103,7 @@ var nodeToASTTypes = map[reflect.Type][]reflect.Type{
 	reflect.TypeOf(List{}):                    {reflect.TypeOf((*ast.BlockStmt)(nil)), reflect.TypeOf((*ast.FieldList)(nil))},
 	reflect.TypeOf(Builtin{}):                 {reflect.TypeOf((*ast.Ident)(nil))},
 	reflect.TypeOf(Object{}):                  {reflect.TypeOf((*ast.Ident)(nil))},
-	reflect.TypeOf(Function{}):                {reflect.TypeOf((*ast.Ident)(nil)), reflect.TypeOf((*ast.SelectorExpr)(nil))},
+	reflect.TypeOf(Symbol{}):                  {reflect.TypeOf((*ast.Ident)(nil)), reflect.TypeOf((*ast.SelectorExpr)(nil))},
 	reflect.TypeOf(Any{}):                     allTypes,
 	reflect.TypeOf(RangeStmt{}):               {reflect.TypeOf((*ast.RangeStmt)(nil))},
 	reflect.TypeOf(AssignStmt{}):              {reflect.TypeOf((*ast.AssignStmt)(nil))},
@@ -151,7 +151,7 @@ var nodeToASTTypes = map[reflect.Type][]reflect.Type{
 }
 
 var requiresTypeInfo = map[string]bool{
-	"Function":                true,
+	"Symbol":                  true,
 	"Builtin":                 true,
 	"Object":                  true,
 	"IntegerLiteral":          true,
@@ -410,7 +410,7 @@ var structNodes = map[string]reflect.Type{
 	"IncDecStmt":              reflect.TypeOf(IncDecStmt{}),
 	"BasicLit":                reflect.TypeOf(BasicLit{}),
 	"Object":                  reflect.TypeOf(Object{}),
-	"Function":                reflect.TypeOf(Function{}),
+	"Symbol":                  reflect.TypeOf(Symbol{}),
 	"Or":                      reflect.TypeOf(Or{}),
 	"Not":                     reflect.TypeOf(Not{}),
 	"IntegerLiteral":          reflect.TypeOf(IntegerLiteral{}),

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"(SelectStmt (CommClause (UnaryExpr \\\"<-\\\" (CallExpr (Symbol \\\"time.After\\\") [arg])) body))\")")

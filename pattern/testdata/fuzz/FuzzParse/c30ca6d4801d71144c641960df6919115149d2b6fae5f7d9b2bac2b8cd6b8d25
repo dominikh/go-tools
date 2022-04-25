@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"(AssignStmt target@(Ident _) \\\"=\\\" (CallExpr typ@(Symbol (Or \\\"sort.Float64Slice\\\" \\\"sort.IntSlice\\\" \\\"sort.StringSlice\\\")) [target]))\")")

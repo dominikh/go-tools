@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("(CallExpr (Function \"errors.New\") [(CallExpr (Function \"fmt.Sprintf\") args)])")

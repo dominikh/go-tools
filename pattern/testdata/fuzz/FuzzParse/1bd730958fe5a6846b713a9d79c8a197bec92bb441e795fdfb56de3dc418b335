@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("(CallExpr (SelectorExpr (CallExpr (Function \"time.Now\") []) (Function \"(time.Time).Sub\")) [arg])")

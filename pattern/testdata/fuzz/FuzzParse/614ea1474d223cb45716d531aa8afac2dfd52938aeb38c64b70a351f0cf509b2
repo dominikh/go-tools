@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"(CallExpr (SelectorExpr (CallExpr (Symbol \\\"time.Now\\\") []) (Symbol \\\"(time.Time).Sub\\\")) [arg])\")")

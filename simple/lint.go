@@ -69,7 +69,7 @@ var (
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))])
 			(ForStmt
 				(AssignStmt key@(Ident _) ":=" (IntegerLiteral "0"))
-				(BinaryExpr key "<" (CallExpr (Function "len") [src]))
+				(BinaryExpr key "<" (CallExpr (Symbol "len") [src]))
 				(IncDecStmt key "++")
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))]))`)
 )
@@ -386,7 +386,7 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkBytesCompareQ  = pattern.MustParse(`(BinaryExpr (CallExpr (Function "bytes.Compare") args) op@(Or "==" "!=") (IntegerLiteral "0"))`)
+	checkBytesCompareQ  = pattern.MustParse(`(BinaryExpr (CallExpr (Symbol "bytes.Compare") args) op@(Or "==" "!=") (IntegerLiteral "0"))`)
 	checkBytesCompareRe = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
 	checkBytesCompareRn = pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
 )
@@ -839,7 +839,7 @@ func CheckLoopAppend(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkTimeSinceQ = pattern.MustParse(`(CallExpr (SelectorExpr (CallExpr (Function "time.Now") []) (Function "(time.Time).Sub")) [arg])`)
+	checkTimeSinceQ = pattern.MustParse(`(CallExpr (SelectorExpr (CallExpr (Symbol "time.Now") []) (Symbol "(time.Time).Sub")) [arg])`)
 	checkTimeSinceR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
 )
 
@@ -856,7 +856,7 @@ func CheckTimeSince(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkTimeUntilQ = pattern.MustParse(`(CallExpr (Function "(time.Time).Sub") [(CallExpr (Function "time.Now") [])])`)
+	checkTimeUntilQ = pattern.MustParse(`(CallExpr (Symbol "(time.Time).Sub") [(CallExpr (Symbol "time.Now") [])])`)
 	checkTimeUntilR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
 )
 
@@ -1559,7 +1559,7 @@ func isFormatter(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	return true
 }
 
-var checkRedundantSprintfQ = pattern.MustParse(`(CallExpr (Function "fmt.Sprintf") [format arg])`)
+var checkRedundantSprintfQ = pattern.MustParse(`(CallExpr (Symbol "fmt.Sprintf") [format arg])`)
 
 func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
@@ -1631,7 +1631,7 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkErrorsNewSprintfQ = pattern.MustParse(`(CallExpr (Function "errors.New") [(CallExpr (Function "fmt.Sprintf") args)])`)
+	checkErrorsNewSprintfQ = pattern.MustParse(`(CallExpr (Symbol "errors.New") [(CallExpr (Symbol "fmt.Sprintf") args)])`)
 	checkErrorsNewSprintfR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
 )
 
@@ -1945,7 +1945,7 @@ func CheckUnnecessaryGuard(pass *analysis.Pass) (interface{}, error) {
 }
 
 var (
-	checkElaborateSleepQ = pattern.MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Function "time.After") [arg])) body))`)
+	checkElaborateSleepQ = pattern.MustParse(`(SelectStmt (CommClause (UnaryExpr "<-" (CallExpr (Symbol "time.After") [arg])) body))`)
 	checkElaborateSleepR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Sleep")) [arg])`)
 )
 
@@ -1975,16 +1975,16 @@ var (
 		(Or
 			(CallExpr
 				fn@(Or
-					(Function "fmt.Print")
-					(Function "fmt.Sprint")
-					(Function "fmt.Println")
-					(Function "fmt.Sprintln"))
-				[(CallExpr (Function "fmt.Sprintf") f:_)])
+					(Symbol "fmt.Print")
+					(Symbol "fmt.Sprint")
+					(Symbol "fmt.Println")
+					(Symbol "fmt.Sprintln"))
+				[(CallExpr (Symbol "fmt.Sprintf") f:_)])
 			(CallExpr
 				fn@(Or
-					(Function "fmt.Fprint")
-					(Function "fmt.Fprintln"))
-				[_ (CallExpr (Function "fmt.Sprintf") f:_)]))`)
+					(Symbol "fmt.Fprint")
+					(Symbol "fmt.Fprintln"))
+				[_ (CallExpr (Symbol "fmt.Sprintf") f:_)]))`)
 
 	checkTestingErrorSprintfQ = pattern.MustParse(`
 		(CallExpr
@@ -2001,11 +2001,11 @@ var (
 						"Print"
 						"Println"
 						"Skip")))
-			[(CallExpr (Function "fmt.Sprintf") args)])`)
+			[(CallExpr (Symbol "fmt.Sprintf") args)])`)
 
 	checkLogSprintfQ = pattern.MustParse(`
 		(CallExpr
-			(Function
+			(Symbol
 				(Or
 					"log.Fatal"
 					"log.Fatalln"
@@ -2013,7 +2013,7 @@ var (
 					"log.Panicln"
 					"log.Print"
 					"log.Println"))
-			[(CallExpr (Function "fmt.Sprintf") args)])`)
+			[(CallExpr (Symbol "fmt.Sprintf") args)])`)
 
 	checkSprintfMapping = map[string]struct {
 		recv        string
@@ -2128,8 +2128,8 @@ func CheckPrintSprintf(pass *analysis.Pass) (interface{}, error) {
 var checkSprintLiteralQ = pattern.MustParse(`
 	(CallExpr
 		fn@(Or
-			(Function "fmt.Sprint")
-			(Function "fmt.Sprintf"))
+			(Symbol "fmt.Sprint")
+			(Symbol "fmt.Sprintf"))
 		[lit@(BasicLit "STRING" _)])`)
 
 func CheckSprintLiteral(pass *analysis.Pass) (interface{}, error) {

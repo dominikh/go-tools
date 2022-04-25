@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"(CallExpr (Symbol \\\"math.Pow\\\") [x (IntegerLiteral n)])\")")

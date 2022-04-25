@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"\\n\\t(GoStmt\\n\\t\\t(CallExpr\\n\\t\\t\\t(FuncLit\\n\\t\\t\\t\\t_\\n\\t\\t\\t\\tcall@(CallExpr (Symbol \\\"(*sync.WaitGroup).Add\\\") _):_) _))\")")

@@ -423,12 +423,12 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 }
 
 var stringsReplaceAllQ = pattern.MustParse(`(Or
-	(CallExpr fn@(Function "strings.Replace") [_ _ _ lit@(IntegerLiteral "-1")])
-	(CallExpr fn@(Function "strings.SplitN") [_ _ lit@(IntegerLiteral "-1")])
-	(CallExpr fn@(Function "strings.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")])
-	(CallExpr fn@(Function "bytes.Replace") [_ _ _ lit@(IntegerLiteral "-1")])
-	(CallExpr fn@(Function "bytes.SplitN") [_ _ lit@(IntegerLiteral "-1")])
-	(CallExpr fn@(Function "bytes.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")]))`)
+	(CallExpr fn@(Symbol "strings.Replace") [_ _ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Symbol "strings.SplitN") [_ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Symbol "strings.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Symbol "bytes.Replace") [_ _ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Symbol "bytes.SplitN") [_ _ lit@(IntegerLiteral "-1")])
+	(CallExpr fn@(Symbol "bytes.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")]))`)
 
 func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
 	// XXX respect minimum Go version
@@ -469,7 +469,7 @@ func CheckStringsReplaceAll(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var mathPowQ = pattern.MustParse(`(CallExpr (Function "math.Pow") [x (IntegerLiteral n)])`)
+var mathPowQ = pattern.MustParse(`(CallExpr (Symbol "math.Pow") [x (IntegerLiteral n)])`)
 
 func CheckMathPow(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
@@ -781,7 +781,7 @@ func CheckTimeEquality(pass *analysis.Pass) (interface{}, error) {
 var byteSlicePrintingQ = pattern.MustParse(`
 	(Or
 		(CallExpr
-			(Function (Or
+			(Symbol (Or
 				"fmt.Print"
 				"fmt.Println"
 				"fmt.Sprint"
@@ -799,7 +799,7 @@ var byteSlicePrintingQ = pattern.MustParse(`
 				"(*log.Logger).Print"
 				"(*log.Logger).Println")) args)
 
-		(CallExpr (Function (Or
+		(CallExpr (Symbol (Or
 			"fmt.Fprint"
 			"fmt.Fprintln")) _:args))`)
 
@@ -861,9 +861,9 @@ var (
 		(CallExpr (ArrayType nil (Ident "byte"))
 			(CallExpr
 				fn@(Or
-					(Function "fmt.Sprint")
-					(Function "fmt.Sprintf")
-					(Function "fmt.Sprintln"))
+					(Symbol "fmt.Sprint")
+					(Symbol "fmt.Sprintf")
+					(Symbol "fmt.Sprintln"))
 				args)
 	))`)
 
@@ -872,9 +872,9 @@ var (
 		(SelectorExpr recv (Ident "WriteString"))
 		(CallExpr
 			fn@(Or
-				(Function "fmt.Sprint")
-				(Function "fmt.Sprintf")
-				(Function "fmt.Sprintln"))
+				(Symbol "fmt.Sprint")
+				(Symbol "fmt.Sprintf")
+				(Symbol "fmt.Sprintln"))
 			args))`)
 
 	writerInterface = types.NewInterfaceType([]*types.Func{

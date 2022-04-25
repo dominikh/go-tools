@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"\\n\\t(CallExpr\\n\\t\\t(Symbol\\n\\t\\t\\tname@(Or\\n\\t\\t\\t\\t\\\"math/rand.Int31n\\\"\\n\\t\\t\\t\\t\\\"math/rand.Int63n\\\"\\n\\t\\t\\t\\t\\\"math/rand.Intn\\\"\\n\\t\\t\\t\\t\\\"(*math/rand.Rand).Int31n\\\"\\n\\t\\t\\t\\t\\\"(*math/rand.Rand).Int63n\\\"\\n\\t\\t\\t\\t\\\"(*math/rand.Rand).Intn\\\"))\\n\\t\\t[(IntegerLiteral \\\"1\\\")])\")")
