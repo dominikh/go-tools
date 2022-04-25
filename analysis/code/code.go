@@ -339,3 +339,17 @@ func IsIntegerLiteral(pass *analysis.Pass, node ast.Node, value constant.Value) 
 	}
 	return constant.Compare(tv.Value, token.EQL, value)
 }
+
+// IsMethod reports whether expr is a method call of a named method with signature meth.
+// If name is empty, it is not checked.
+// For now, method expressions (Type.Method(recv, ..)) are not considered method calls.
+func IsMethod(pass *analysis.Pass, expr *ast.SelectorExpr, name string, meth *types.Signature) bool {
+	if name != "" && expr.Sel.Name != name {
+		return false
+	}
+	sel, ok := pass.TypesInfo.Selections[expr]
+	if !ok || sel.Kind() != types.MethodVal {
+		return false
+	}
+	return types.Identical(sel.Type(), meth)
+}

@@ -2420,7 +2420,10 @@ var (
 
 func CheckSeeker(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		if _, edits, ok := code.MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
+		if m, edits, ok := code.MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
+			if !code.IsMethod(pass, m.State["fun"].(*ast.SelectorExpr), "Seek", knowledge.Signatures["(io.Seeker).Seek"]) {
+				return
+			}
 			report.Report(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
 				report.Fixes(edit.Fix("swap arguments", edits...)))
 		}
