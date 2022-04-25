@@ -500,51 +500,6 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 		return ok && basic.Info()&info != 0
 	}
 
-	isStringer := func(T types.Type, ms *types.MethodSet) bool {
-		sel := ms.Lookup(nil, "String")
-		if sel == nil {
-			return false
-		}
-		fn, ok := sel.Obj().(*types.Func)
-		if !ok {
-			// should be unreachable
-			return false
-		}
-		sig := fn.Type().(*types.Signature)
-		if sig.Params().Len() != 0 {
-			return false
-		}
-		if sig.Results().Len() != 1 {
-			return false
-		}
-		if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
-			return false
-		}
-		return true
-	}
-	isError := func(T types.Type, ms *types.MethodSet) bool {
-		sel := ms.Lookup(nil, "Error")
-		if sel == nil {
-			return false
-		}
-		fn, ok := sel.Obj().(*types.Func)
-		if !ok {
-			// should be unreachable
-			return false
-		}
-		sig := fn.Type().(*types.Signature)
-		if sig.Params().Len() != 0 {
-			return false
-		}
-		if sig.Results().Len() != 1 {
-			return false
-		}
-		if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
-			return false
-		}
-		return true
-	}
-
 	isFormatter := func(T types.Type, ms *types.MethodSet) bool {
 		sel := ms.Lookup(nil, "Format")
 		if sel == nil {
@@ -596,7 +551,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 			return true
 		}
 
-		if flags&isString != 0 && (isStringer(T, ms) || isError(T, ms)) {
+		if flags&isString != 0 && (types.Implements(T, knowledge.Interfaces["fmt.Stringer"]) || types.Implements(T, knowledge.Interfaces["error"])) {
 			// Check for stringer early because we're about to dereference
 			return true
 		}
@@ -652,7 +607,7 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 					return true
 				}
 			}
-			if isStringer(T, ms) || isError(T, ms) {
+			if types.Implements(T, knowledge.Interfaces["fmt.Stringer"]) || types.Implements(T, knowledge.Interfaces["error"]) {
 				return true
 			}
 		}
