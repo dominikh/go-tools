@@ -515,6 +515,12 @@ func (fn Symbol) Match(m *Matcher, node interface{}) (interface{}, bool) {
 	case *types.Builtin:
 		name = obj.Name()
 	case *types.TypeName:
+		if obj.Pkg() == nil {
+			return nil, false
+		}
+		if obj.Parent() != obj.Pkg().Scope() {
+			return nil, false
+		}
 		name = types.TypeString(obj.Type(), nil)
 	case *types.Const, *types.Var:
 		if obj.Pkg() == nil {
