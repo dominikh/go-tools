@@ -1510,30 +1510,6 @@ func CheckRedundantBreak(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func isStringer(T types.Type, msCache *typeutil.MethodSetCache) bool {
-	ms := msCache.MethodSet(T)
-	sel := ms.Lookup(nil, "String")
-	if sel == nil {
-		return false
-	}
-	fn, ok := sel.Obj().(*types.Func)
-	if !ok {
-		// should be unreachable
-		return false
-	}
-	sig := fn.Type().(*types.Signature)
-	if sig.Params().Len() != 0 {
-		return false
-	}
-	if sig.Results().Len() != 1 {
-		return false
-	}
-	if !typeutil.IsType(sig.Results().At(0).Type(), "string") {
-		return false
-	}
-	return true
-}
-
 func isFormatter(T types.Type, msCache *typeutil.MethodSetCache) bool {
 	// TODO(dh): this function also exists in staticcheck/lint.go – deduplicate.
 
@@ -1593,7 +1569,7 @@ func CheckRedundantSprintf(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if isStringer(typ, &irpkg.Prog.MethodSets) {
+		if types.Implements(typ, knowledge.Interfaces["fmt.Stringer"]) {
 			replacement := &ast.CallExpr{
 				Fun: &ast.SelectorExpr{
 					X:   arg,

@@ -14,10 +14,10 @@ package fakexml
 
 import (
 	"fmt"
-	"go/token"
 	"go/types"
 
 	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/staticcheck/fakereflect"
 )
 
@@ -101,18 +101,6 @@ func implementsMarshalerAttr(v fakereflect.TypeAndCanAddr) bool {
 	return true
 }
 
-var textMarshalerType = types.NewInterfaceType([]*types.Func{
-	types.NewFunc(token.NoPos, nil, "MarshalText", types.NewSignatureType(nil, nil, nil,
-		types.NewTuple(),
-		types.NewTuple(
-			types.NewVar(token.NoPos, nil, "", types.NewSlice(types.Typ[types.Byte])),
-			types.NewVar(0, nil, "", types.Universe.Lookup("error").Type())),
-		false,
-	)),
-}, nil).Complete()
-
-var N = 0
-
 type CyclicTypeError struct {
 	Type types.Type
 	Path string
@@ -156,12 +144,12 @@ func (e *Encoder) marshalValue(val fakereflect.TypeAndCanAddr, finfo *fieldInfo,
 	}
 
 	// Check for text marshaler.
-	if val.Implements(textMarshalerType) {
+	if val.Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 		return nil
 	}
 	if val.CanAddr() {
 		pv := fakereflect.PtrTo(val)
-		if pv.Implements(textMarshalerType) {
+		if pv.Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 			return nil
 		}
 	}
@@ -260,13 +248,13 @@ func (e *Encoder) marshalAttr(start *StartElement, name Name, val fakereflect.Ty
 		}
 	}
 
-	if val.Implements(textMarshalerType) {
+	if val.Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 		return nil
 	}
 
 	if val.CanAddr() {
 		pv := fakereflect.PtrTo(val)
-		if pv.Implements(textMarshalerType) {
+		if pv.Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 			return nil
 		}
 	}
@@ -335,12 +323,12 @@ func (e *Encoder) marshalStruct(tinfo *typeInfo, val fakereflect.TypeAndCanAddr,
 
 		switch finfo.flags & fMode {
 		case fCDATA, fCharData:
-			if vf.Implements(textMarshalerType) {
+			if vf.Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 				continue
 			}
 			if vf.CanAddr() {
 				pv := fakereflect.PtrTo(vf)
-				if pv.Implements(textMarshalerType) {
+				if pv.Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 					continue
 				}
 			}
