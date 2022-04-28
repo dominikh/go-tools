@@ -5,6 +5,7 @@ import (
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/facts/nilness"
 	"honnef.co/go/tools/analysis/facts/purity"
+	"honnef.co/go/tools/analysis/facts/smt"
 	"honnef.co/go/tools/analysis/facts/tokenfile"
 	"honnef.co/go/tools/analysis/facts/typedness"
 	"honnef.co/go/tools/analysis/lint"
@@ -326,5 +327,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA9008": {
 		Run:      CheckTypeAssertionShadowingElse,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, buildir.Analyzer, tokenfile.Analyzer},
+	},
+
+	"SA9999": {
+		Run:      CheckXXX,
+		Requires: []*analysis.Analyzer{buildir.Analyzer, smt.Analyzer},
 	},
 })

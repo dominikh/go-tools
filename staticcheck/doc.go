@@ -1299,4 +1299,6 @@ value \'0\' and the type \'int\'.
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},
+
+	"SA9999": {},
 })

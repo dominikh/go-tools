@@ -560,9 +560,6 @@ func (f *Function) finishBody() {
 
 	numberNodes(f)
 
-	// xxx(f)
-	smt(f)
-
 	defer f.wr.Close()
 	f.wr.WriteFunc("start", "start", f)
 

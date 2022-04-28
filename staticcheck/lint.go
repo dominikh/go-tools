@@ -24,6 +24,7 @@ import (
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/facts/nilness"
 	"honnef.co/go/tools/analysis/facts/purity"
+	"honnef.co/go/tools/analysis/facts/smt"
 	"honnef.co/go/tools/analysis/facts/typedness"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
@@ -5185,5 +5186,45 @@ func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	code.PreorderStack(pass, fn, (*ast.IfStmt)(nil))
+	return nil, nil
+}
+
+func CheckXXX(pass *analysis.Pass) (interface{}, error) {
+	// XXX ignoring the issue of named consts for a moment, we can run into some seriously confusing diagnostics with
+	// the current implementation of looking at all control instructions. for example, for `if x || runtime.GOOS ==
+	// "windows"`, the SSA will have an if-else-if, where the second if points to the ast.IfStmt. it is impossible on
+	// non-windows systems, so we flag it, and do so at the position of the in-code if. which is confusing and wrong,
+	// because that whole if isn't impossible, only the right side of the || is.
+
+	smtr := pass.ResultOf[smt.Analyzer].(smt.Result)
+	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
+		for _, b := range fn.Blocks {
+			ctrl, ok := b.Control().(*ir.If)
+			if !ok {
+				continue
+			}
+			if _, ok := ctrl.Cond.(*ir.BinOp); !ok {
+				continue
+			}
+			if smtr.Unsatisfiable(ctrl.Cond) {
+				pred := smtr.Predicates[ctrl.Cond]
+				pred = smt.And{smt.SMTValue{ctrl.Cond}, pred}
+				exp := smt.Expand(pred, smtr.Predicates)
+				// fmt.Println(exp)
+				for {
+					new := smt.Simplify(exp, nil)
+					if exp.Equal(new) {
+						break
+					}
+					exp = new
+				}
+				// fmt.Println(exp)
+				if (exp == smt.SMTConstant{constant.MakeBool(false)}) {
+					report.Report(pass, ctrl, "impossible condition")
+				}
+			}
+		}
+	}
+
 	return nil, nil
 }
