@@ -58,7 +58,7 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 				_ = c2
 			} else {
 				// XXX modifying r.predicates is no bueno for concurrency
-				r.Predicates[c.Value] = SMTConstant{constant.MakeBool(true)}
+				r.Predicates[c.Value] = SMTConstant{Value: constant.MakeBool(true)}
 			}
 		case Ref:
 			if _, ok := seen[c.Value]; ok {
@@ -67,7 +67,7 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 			seen[c.Value] = struct{}{}
 			if _, ok := r.Predicates[c.Value]; !ok {
 				// XXX modifying r.predicates is no bueno for concurrency
-				r.Predicates[c.Value] = SMTConstant{constant.MakeBool(true)}
+				r.Predicates[c.Value] = SMTConstant{Value: constant.MakeBool(true)}
 			} else {
 				dfs(r.Predicates[c.Value])
 			}
@@ -206,19 +206,49 @@ type BinaryExpression struct {
 
 func (expr BinaryExpression) String() string {
 	var op string
+
+	// XXX this logic for figuring out the signed/unsignedness of the comparison is subpar
+
+	var signed bool
+	if x, ok := expr.X.(SMTValue); ok {
+		signed = (x.Value.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0
+	} else if y, ok := expr.Y.(SMTValue); ok {
+		signed = (y.Value.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) == 0
+	}
+
+	// XXX all of the comparison functions need to differentiate signed and unsigned
+
+	// XXX we can use a lookup table for this
 	switch expr.Op {
 	case token.EQL:
 		op = "="
-	case token.REM:
-		op = "mod"
-	default:
-		op = expr.Op.String()
-	}
-	if expr.Op == token.NEQ {
+	case token.ADD:
+		op = "bvadd"
+	case token.LSS:
+		if signed {
+			op = "bvslt"
+		} else {
+			op = "bvult"
+		}
+	case token.LEQ:
+		if signed {
+			op = "bvsle"
+		} else {
+			op = "bvule"
+		}
+	case token.GTR:
+		if signed {
+			op = "bvsgt"
+		} else {
+			op = "bvugt"
+		}
+	case token.NEQ:
 		return fmt.Sprintf("(not (= %s %s))", expr.X, expr.Y)
-	} else {
-		return fmt.Sprintf("(%s %s %s)", op, expr.X, expr.Y)
+	default:
+		panic(fmt.Sprintf("unsupported token %s", expr.Op))
 	}
+
+	return fmt.Sprintf("(%s %s %s)", op, expr.X, expr.Y)
 }
 
 func (expr BinaryExpression) Equal(o Component) bool {
@@ -231,10 +261,50 @@ func (expr BinaryExpression) Equal(o Component) bool {
 
 type SMTConstant struct {
 	Value constant.Value
+	Type  types.Type
 }
 
 func (k SMTConstant) String() string {
-	return k.Value.ExactString()
+	switch k.Value.Kind() {
+	case constant.Bool:
+		return k.Value.ExactString()
+	case constant.Int:
+		// XXX use correct bit widths and sign, handle imprecise
+		n, _ := constant.Int64Val(k.Value)
+		if k.Type != nil {
+			switch k.Type.Underlying().(*types.Basic).Kind() {
+			case types.Int:
+				return fmt.Sprintf("(_ bv%d 64)", uint64(n))
+			case types.Int8:
+				return fmt.Sprintf("(_ bv%d 8)", uint64(n))
+			case types.Int16:
+				return fmt.Sprintf("(_ bv%d 16)", uint64(n))
+			case types.Int32:
+				return fmt.Sprintf("(_ bv%d 32)", uint64(n))
+			case types.Int64:
+				return fmt.Sprintf("(_ bv%d 64)", uint64(n))
+			case types.Uint:
+				return fmt.Sprintf("(_ bv%d 64)", uint64(n))
+			case types.Uint8:
+				return fmt.Sprintf("(_ bv%d 8)", uint64(n))
+			case types.Uint16:
+				return fmt.Sprintf("(_ bv%d 16)", uint64(n))
+			case types.Uint32:
+				return fmt.Sprintf("(_ bv%d 32)", uint64(n))
+			case types.Uint64:
+				return fmt.Sprintf("(_ bv%d 64)", uint64(n))
+			case types.Uintptr:
+				return fmt.Sprintf("(_ bv%d 64)", uint64(n))
+			default:
+				panic("XXX")
+			}
+		} else {
+			// XXX this branch existing is probably a mistake
+			return fmt.Sprintf("(_ bv%d 64)", uint64(n))
+		}
+	default:
+		panic(fmt.Sprintf("unsupported kind %s", k.Value.Kind()))
+	}
 }
 
 func (k SMTConstant) Equal(o Component) bool {
@@ -264,31 +334,33 @@ func (v SMTValue) Equal(o Component) bool {
 func constType(v ir.Value) string {
 	var typ string
 	// XXX handle integers correctly, i.e. use bit vectors, and use signed/unsigned shifts.
+
+	// XXX don't assume that int is always 64 bits
 	switch v.Type().Underlying().(*types.Basic).Kind() {
 	case types.Bool:
 		typ = "Bool"
 	case types.Int:
-		typ = "Int"
+		typ = "(_ BitVec 64)"
 	case types.Int8:
-		typ = "Int"
+		typ = "(_ BitVec 8)"
 	case types.Int16:
-		typ = "Int"
+		typ = "(_ BitVec 16)"
 	case types.Int32:
-		typ = "Int"
+		typ = "(_ BitVec 32)"
 	case types.Int64:
-		typ = "Int"
+		typ = "(_ BitVec 64)"
 	case types.Uint:
-		typ = "Int"
+		typ = "(_ BitVec 64)"
 	case types.Uint8:
-		typ = "Int"
+		typ = "(_ BitVec 8)"
 	case types.Uint16:
-		typ = "Int"
+		typ = "(_ BitVec 16)"
 	case types.Uint32:
-		typ = "Int"
+		typ = "(_ BitVec 32)"
 	case types.Uint64:
-		typ = "Int"
+		typ = "(_ BitVec 64)"
 	case types.Uintptr:
-		typ = "Int"
+		typ = "(_ BitVec 64)"
 	case types.Float32:
 		panic("XXX")
 	case types.Float64:
@@ -377,7 +449,7 @@ func smt(pass *analysis.Pass) (interface{}, error) {
 				}
 				switch instr := instr.(type) {
 				case *ir.Const:
-					predicates[instr] = BinaryExpression{SMTValue{instr}, token.EQL, SMTConstant{instr.Value}}
+					predicates[instr] = BinaryExpression{SMTValue{instr}, token.EQL, SMTConstant{instr.Value, instr.Type()}}
 				case *ir.Sigma:
 					ctrl, ok := instr.From.Control().(*ir.If)
 					if ok {
@@ -586,11 +658,11 @@ func Simplify(c Component, rename *renaming) Component {
 		j := 0
 		for _, k := range o {
 			switch k {
-			case SMTConstant{constant.MakeBool(true)}:
+			case SMTConstant{Value: constant.MakeBool(true)}:
 				// Meaningless term
-			case SMTConstant{constant.MakeBool(false)}:
+			case SMTConstant{Value: constant.MakeBool(false)}:
 				// (and ... false ...) == false
-				return SMTConstant{constant.MakeBool(false)}
+				return SMTConstant{Value: constant.MakeBool(false)}
 			default:
 				o[j] = Simplify(k, rename)
 				j++
@@ -609,13 +681,13 @@ func Simplify(c Component, rename *renaming) Component {
 		for i, k := range o {
 			if k == nil {
 				// XXX why does this happen?
-				return SMTConstant{constant.MakeBool(true)}
+				return SMTConstant{Value: constant.MakeBool(true)}
 			}
 			o[i] = substitute(k, rename)
 		}
 
 		if len(o) == 0 {
-			return SMTConstant{constant.MakeBool(true)}
+			return SMTConstant{Value: constant.MakeBool(true)}
 		} else if len(o) == 1 {
 			return o[0]
 		} else if !o.Equal(c) {
@@ -630,10 +702,10 @@ func Simplify(c Component, rename *renaming) Component {
 		j := 0
 		for _, k := range o {
 			switch k {
-			case SMTConstant{constant.MakeBool(true)}:
+			case SMTConstant{Value: constant.MakeBool(true)}:
 				// (or ... true ...) == true
-				return SMTConstant{constant.MakeBool(true)}
-			case SMTConstant{constant.MakeBool(false)}:
+				return SMTConstant{Value: constant.MakeBool(true)}
+			case SMTConstant{Value: constant.MakeBool(false)}:
 				// Meaningless term
 			default:
 				o[j] = Simplify(k, rename)
@@ -643,7 +715,7 @@ func Simplify(c Component, rename *renaming) Component {
 		o = o[:j]
 
 		if len(o) == 0 {
-			return SMTConstant{constant.MakeBool(false)}
+			return SMTConstant{Value: constant.MakeBool(false)}
 		} else if len(o) == 1 {
 			return o[0]
 		} else if !o.Equal(c) {
@@ -660,24 +732,27 @@ func Simplify(c Component, rename *renaming) Component {
 
 		if x, ok := k.X.(SMTConstant); ok {
 			if y, ok := k.Y.(SMTConstant); ok {
+				switch k.Op {
+				case token.EQL, token.ASSIGN, token.LSS, token.GTR, token.LEQ, token.GEQ:
+					if constant.Compare(x.Value, k.Op, y.Value) {
+						return SMTConstant{Value: constant.MakeBool(true)}
+					} else {
+						return SMTConstant{Value: constant.MakeBool(false)}
+					}
+				}
 				// XXX not all binary expressions are comparisons. some are math.
 				// XXX once we do math, guard against division by 0
-				if constant.Compare(x.Value, k.Op, y.Value) {
-					return SMTConstant{constant.MakeBool(true)}
-				} else {
-					return SMTConstant{constant.MakeBool(false)}
-				}
 			}
 		}
 
 		switch k.Op {
 		case token.EQL, token.ASSIGN, token.GEQ, token.LEQ:
 			if k.X.Equal(k.Y) {
-				return SMTConstant{constant.MakeBool(true)}
+				return SMTConstant{Value: constant.MakeBool(true)}
 			}
 		case token.LSS, token.GTR, token.NEQ:
 			if k.X.Equal(k.Y) {
-				return SMTConstant{constant.MakeBool(false)}
+				return SMTConstant{Value: constant.MakeBool(false)}
 			}
 		case token.ADD:
 			if x, ok := c.X.(SMTConstant); ok && constant.Compare(x.Value, token.EQL, constant.MakeInt64(0)) {

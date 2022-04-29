@@ -5207,21 +5207,21 @@ func CheckXXX(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 			if smtr.Unsatisfiable(ctrl.Cond) {
-				pred := smtr.Predicates[ctrl.Cond]
-				pred = smt.And{smt.SMTValue{ctrl.Cond}, pred}
-				exp := smt.Expand(pred, smtr.Predicates)
+				// pred := smtr.Predicates[ctrl.Cond]
+				// pred = smt.And{smt.SMTValue{ctrl.Cond}, pred}
+				// exp := smt.Expand(pred, smtr.Predicates)
+				// // fmt.Println(exp)
+				// for {
+				// 	new := smt.Simplify(exp, nil)
+				// 	if exp.Equal(new) {
+				// 		break
+				// 	}
+				// 	exp = new
+				// }
 				// fmt.Println(exp)
-				for {
-					new := smt.Simplify(exp, nil)
-					if exp.Equal(new) {
-						break
-					}
-					exp = new
-				}
-				// fmt.Println(exp)
-				if (exp == smt.SMTConstant{constant.MakeBool(false)}) {
-					report.Report(pass, ctrl, "impossible condition")
-				}
+				// if (exp == smt.SMTConstant{constant.MakeBool(false)}) {
+				report.Report(pass, ctrl, "impossible condition")
+				// }
 			}
 		}
 	}
