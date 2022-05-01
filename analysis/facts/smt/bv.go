@@ -78,23 +78,18 @@ func (sexp Sexp) String() string {
 type key [2]any
 
 type builder struct {
-	predicates map[Var]Node
+	vars       map[ir.Value]Node
+	predicates map[ir.Value]Node
 }
 
 // TODO number nodes for a canonical ordering
 
-func (b *builder) predicate(v ir.Value, p Node) {
-	log.Println("set predicate for", v.Name())
-	b.predicates[Var{v}] = p
+func (b *builder) value(v ir.Value, n Node) {
+	b.vars[v] = n
 }
 
-func (b *builder) getPredicate(v ir.Value) Node {
-	log.Println("get predicate for", v.Name())
-	if p, ok := b.predicates[Var{v}]; ok {
-		return p
-	} else {
-		return Const{constant.MakeBool(true)}
-	}
+func (b *builder) predicate(v ir.Value, p Node) {
+	b.predicates[v] = p
 }
 
 func And(nodes ...Node) Sexp {
@@ -107,6 +102,10 @@ func Or(nodes ...Node) Sexp {
 
 func Equal(a, b Node) Sexp {
 	return Op("=", a, b)
+}
+
+func Not(a Node) Sexp {
+	return Op("not", a)
 }
 
 func Op(verb string, nodes ...Node) Sexp {
@@ -162,7 +161,7 @@ func tokenToVerb(tok token.Token) string {
 	case token.EQL, token.ASSIGN:
 		return "="
 	default:
-		// XXX return the correct QF_BV predicates
+		// XXX return the correct QF_BV predicates. we also need type information in this function
 		return tok.String()
 	}
 }
@@ -329,7 +328,7 @@ func (b *builder) simplify0(n Node) (Node, bool) {
 
 		case "predicate":
 			// XXX this assumes that there are no loops
-			pred, ok := b.predicates[n.In[0].(Var)]
+			pred, ok := b.predicates[n.In[0].(Var).Value]
 			if ok {
 				return pred, true
 			} else {

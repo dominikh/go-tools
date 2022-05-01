@@ -2,6 +2,7 @@ package smt
 
 import (
 	"fmt"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"log"
@@ -239,11 +240,11 @@ func smt(pass *analysis.Pass) (interface{}, error) {
 
 func smtfn(fn *ir.Function) {
 	bl := builder{
-		predicates: map[Var]Node{},
+		vars:       map[ir.Value]Node{},
+		predicates: map[ir.Value]Node{},
 	}
 
 	for _, b := range fn.DomPreorder() {
-		log.Println("visiting", b.Index)
 	instrLoop:
 		for _, instr := range b.Instrs {
 			v, ok := instr.(ir.Value)
@@ -263,77 +264,41 @@ func smtfn(fn *ir.Function) {
 
 			switch v := v.(type) {
 			case *ir.Const:
-				n := Equal(
-					Var{v},
-					Const{v.Value},
-				)
-				bl.predicate(v, n)
+				bl.value(v, Const{v.Value})
 
 			case *ir.Sigma:
 				// XXX track path predicates
 
-				n := And(
-					Equal(
-						Var{v},
-						Var{v.X},
-					),
-					bl.getPredicate(v.X),
-				)
+				bl.value(v, Var{v.X})
 
 				ctrl, ok := v.From.Control().(*ir.If)
 				if ok {
 					// XXX support other controls
 
-					if cond, ok := ctrl.Cond.(*ir.BinOp); ok {
-						// XXX support other conditions
-
-						if weCanDoThis(cond.X) && weCanDoThis(cond.Y) {
-							// XXX normalize binops
-							if b == v.From.Succs[0] {
-								// true branch
-								// XXX use the proper verbs for bit vectors
-
-								n = And(
-									n,
-									Op(tokenToVerb(cond.Op), Var{cond.X}, Var{cond.Y}),
-									bl.getPredicate(cond.X),
-									bl.getPredicate(cond.Y),
-								)
-							} else {
-								// else branch
-								// XXX use the proper verbs for bit vectors
-								n = And(
-									n,
-									Op(tokenToVerb(negate(cond.Op)), Var{cond.X}, Var{cond.Y}),
-									bl.getPredicate(cond.X),
-									bl.getPredicate(cond.Y),
-								)
-							}
-						}
+					cond := ctrl.Cond
+					if b == v.From.Succs[0] {
+						// true branch
+						bl.predicate(v, Var{cond})
+					} else {
+						// false branch
+						bl.predicate(v, Not(Var{cond}))
 					}
 				}
-				bl.predicate(v, n)
 
 			case *ir.Phi:
 				args := make([]Node, len(v.Edges))
 				for i, e := range v.Edges {
-					args[i] = And(Equal(Var{v}, Var{e}), Op("predicate", Var{e}))
+					args[i] = Var{e}
 				}
-				bl.predicate(v, Or(args...))
+				bl.value(v, Or(args...))
 
 			case *ir.BinOp:
 				var n Node
 				switch v.Op {
 				case token.EQL:
-					n = Equal(
-						Var{v},
-						Equal(Var{v.Y}, Var{v.X}),
-					)
+					n = Equal(Var{v.Y}, Var{v.X})
 				case token.ADD:
-					n = Equal(
-						Var{v},
-						Op("+", Var{v.X}, Var{v.Y}),
-					)
+					n = Op("+", Var{v.X}, Var{v.Y})
 				case token.LSS:
 					var verb string
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -341,10 +306,7 @@ func smtfn(fn *ir.Function) {
 					} else {
 						verb = "bvslt"
 					}
-					n = Equal(
-						Var{v},
-						Op(verb, Var{v.X}, Var{v.Y}),
-					)
+					n = Op(verb, Var{v.X}, Var{v.Y})
 				case token.GTR:
 					var verb string
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -352,25 +314,71 @@ func smtfn(fn *ir.Function) {
 					} else {
 						verb = "bvsle"
 					}
-					n = Equal(
-						Var{v},
-						Op(verb, Var{v.Y}, Var{v.X}),
-					)
+					n = Op(verb, Var{v.Y}, Var{v.X})
 				default:
 					panic("XXX")
 				}
-				n = And(n, bl.getPredicate(v.X), bl.getPredicate(v.Y))
-				bl.predicate(v, n)
+				bl.value(v, n)
 			}
 		}
 	}
-	for v, p := range bl.predicates {
-		if v.Value.Name() == "t50" {
-			fmt.Println(And(v, p))
-			fmt.Println()
-			fmt.Println(bl.simplify(And(v, p)))
+
+	getPredicate := func(v ir.Value) Node {
+		if pred, ok := bl.predicates[v]; ok {
+			return pred
+		} else {
+			return Const{constant.MakeBool(true)}
 		}
 	}
+
+	seen := map[ir.Value]struct{}{}
+	var dfs func(v ir.Value)
+	dfs = func(v ir.Value) {
+		// XXX handle loops
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+
+		def := bl.vars[v]
+		switch def := def.(type) {
+		case Const:
+			bl.predicate(v, Const{constant.MakeBool(true)})
+
+		case Var:
+			dfs(def.Value)
+
+			bl.predicate(v, And(getPredicate(v), getPredicate(def.Value)))
+		case Sexp:
+			preds := make([]Node, len(def.In))
+			for i, in := range def.In {
+				dfs(in.(Var).Value)
+				preds[i] = getPredicate(in.(Var).Value)
+			}
+
+			if _, ok := v.(*ir.Phi); ok {
+				bl.predicate(v, Or(preds...))
+			} else {
+				bl.predicate(v, And(getPredicate(v), And(preds...)))
+			}
+		}
+	}
+
+	for v := range bl.vars {
+		dfs(v)
+	}
+
+	for v, n := range bl.vars {
+		log.Printf("%s <- %s | %s", v.Name(), n, bl.predicates[v])
+	}
+
+	// for v, p := range bl.predicates {
+	// 	if v.Name() == "t50" {
+	// 		fmt.Println(And(v, p))
+	// 		fmt.Println()
+	// 		fmt.Println(bl.simplify(And(v, p)))
+	// 	}
+	// }
 }
 
 // XXX the name, among other things…
