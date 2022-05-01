@@ -18,7 +18,6 @@ package ir
 // to avoid the need for buckets of size > 1.
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"math/big"
@@ -164,7 +163,7 @@ func buildDomTree(fn *Function) {
 	numberDomTree(fn.Blocks[0], 0, 0)
 
 	// printDomTreeDot(os.Stderr, fn) // debugging
-	// printDomTreeText(os.Stderr, root, 0) // debugging
+	// printDomTreeText(os.Stderr, fn.Blocks[0], 0) // debugging
 
 	if fn.Prog.mode&SanityCheckFunctions != 0 {
 		sanityCheckDomTree(fn)
@@ -396,7 +395,7 @@ func sanityCheckDomTree(f *Function) {
 
 // printDomTree prints the dominator tree as text, using indentation.
 //lint:ignore U1000 used during debugging
-func printDomTreeText(buf *bytes.Buffer, v *BasicBlock, indent int) {
+func printDomTreeText(buf io.Writer, v *BasicBlock, indent int) {
 	fmt.Fprintf(buf, "%*s%s\n", 4*indent, "", v)
 	for _, child := range v.dom.children {
 		printDomTreeText(buf, child, indent+1)
