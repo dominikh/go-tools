@@ -1,11 +1,14 @@
 package smt
 
+// XXX canonical ordering of inputs
+// XXX we can solve things like (= (bvadd Var Const) Const) directly, without going through SAT. do we need ITE for this?
+// XXX figure out a better graph representation and on the fly simplifications
+
 import (
 	"fmt"
 	"go/constant"
 	"go/token"
 	"go/types"
-	"log"
 	"reflect"
 
 	"golang.org/x/tools/go/analysis"
@@ -233,19 +236,69 @@ func flattenOr(or Or, into Or) Or {
 
 func smt(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
-		smtfn(fn)
+		smtfn2(fn)
 	}
 	return Result{}, nil
 }
 
-func smtfn(fn *ir.Function) {
-	bl := builder{
-		vars:       map[ir.Value]Node{},
-		predicates: map[ir.Value]Node{},
+func smtfn2(fn *ir.Function) {
+	// XXX handle loops
+
+	// mapping from basic block to list of execution conditions
+	// execConditions := [][]ir.Value
+
+	seen := make([]bool, len(fn.Blocks))
+	var dfs func(b *ir.BasicBlock)
+	top := make([]*ir.BasicBlock, 0, len(fn.Blocks))
+	dfs = func(b *ir.BasicBlock) {
+		if seen[b.Index] {
+			return
+		}
+		seen[b.Index] = true
+		for _, succ := range b.Succs {
+			dfs(succ)
+		}
+		top = append(top, b)
+	}
+	dfs(fn.Blocks[0])
+
+	control := func(from, to *ir.BasicBlock) Node {
+		var cond Node
+		switch ctrl := from.Control().(type) {
+		case *ir.If:
+			if from.Succs[0] == to {
+				cond = Var{ctrl.Cond}
+			} else {
+				cond = Not(Var{ctrl.Cond})
+			}
+		case *ir.Jump:
+			cond = Const{constant.MakeBool(true)}
+		default:
+			panic(fmt.Sprintf("%T", ctrl))
+		}
+		return cond
 	}
 
-	for _, b := range fn.DomPreorder() {
-	instrLoop:
+	definitions := map[ir.Value]Node{}
+	cexecs := map[int]Node{}
+	cexecs[0] = Const{constant.MakeBool(true)}
+
+	var doVar func(ir.Value) Node
+	doVar = func(v ir.Value) Node {
+		if n, ok := definitions[v]; ok {
+			if vv, ok := n.(Var); ok {
+				return doVar(vv.Value)
+			} else {
+				return n
+			}
+		} else {
+			return Var{v}
+		}
+	}
+
+	for i := len(top) - 1; i >= 0; i-- {
+		b := top[i]
+
 		for _, instr := range b.Instrs {
 			v, ok := instr.(ir.Value)
 			if !ok {
@@ -258,47 +311,34 @@ func smtfn(fn *ir.Function) {
 			// OPT reuse slice
 			for _, rand := range v.Operands(nil) {
 				if !weCanDoThis(*rand) {
-					continue instrLoop
+					continue
 				}
 			}
 
 			switch v := v.(type) {
 			case *ir.Const:
-				bl.value(v, Const{v.Value})
+				definitions[v] = Const{v.Value}
 
 			case *ir.Sigma:
-				// XXX track path predicates
-
-				bl.value(v, Var{v.X})
-
-				ctrl, ok := v.From.Control().(*ir.If)
-				if ok {
-					// XXX support other controls
-
-					cond := ctrl.Cond
-					if b == v.From.Succs[0] {
-						// true branch
-						bl.predicate(v, Var{cond})
-					} else {
-						// false branch
-						bl.predicate(v, Not(Var{cond}))
-					}
-				}
+				definitions[v] = doVar(v.X)
 
 			case *ir.Phi:
-				args := make([]Node, len(v.Edges))
-				for i, e := range v.Edges {
-					args[i] = Var{e}
+				var ite Node = doVar(v.Edges[len(v.Edges)-1])
+
+				for i, e := range v.Edges[:len(v.Edges)-1] {
+					ite = ITE(And(Raw(fmt.Sprintf("cexec%d", b.Preds[i].Index)), control(b.Preds[i], b)), doVar(e), ite)
 				}
-				bl.value(v, Or(args...))
+				definitions[v] = ite
 
 			case *ir.BinOp:
 				var n Node
 				switch v.Op {
 				case token.EQL:
-					n = Equal(Var{v.Y}, Var{v.X})
+					n = Equal(doVar(v.X), doVar(v.Y))
+				case token.NEQ:
+					n = Not(Equal(doVar(v.X), doVar(v.Y)))
 				case token.ADD:
-					n = Op("+", Var{v.X}, Var{v.Y})
+					n = Op("bvadd", doVar(v.X), doVar(v.Y))
 				case token.LSS:
 					var verb string
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -306,7 +346,7 @@ func smtfn(fn *ir.Function) {
 					} else {
 						verb = "bvslt"
 					}
-					n = Op(verb, Var{v.X}, Var{v.Y})
+					n = Op(verb, doVar(v.X), doVar(v.Y))
 				case token.GTR:
 					var verb string
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -314,72 +354,189 @@ func smtfn(fn *ir.Function) {
 					} else {
 						verb = "bvsle"
 					}
-					n = Op(verb, Var{v.Y}, Var{v.X})
+					n = Op(verb, doVar(v.Y), doVar(v.X))
 				default:
 					panic("XXX")
 				}
-				bl.value(v, n)
+
+				definitions[v] = n
 			}
 		}
-	}
 
-	getPredicate := func(v ir.Value) Node {
-		if pred, ok := bl.predicates[v]; ok {
-			return pred
-		} else {
-			return Const{constant.MakeBool(true)}
+		if b.Index == 0 {
+			continue
 		}
-	}
 
-	seen := map[ir.Value]struct{}{}
-	var dfs func(v ir.Value)
-	dfs = func(v ir.Value) {
-		// XXX handle loops
-		if _, ok := seen[v]; ok {
-			return
-		}
-		seen[v] = struct{}{}
-
-		def := bl.vars[v]
-		switch def := def.(type) {
-		case Const:
-			bl.predicate(v, Const{constant.MakeBool(true)})
-
-		case Var:
-			dfs(def.Value)
-
-			bl.predicate(v, And(getPredicate(v), getPredicate(def.Value)))
-		case Sexp:
-			preds := make([]Node, len(def.In))
-			for i, in := range def.In {
-				dfs(in.(Var).Value)
-				preds[i] = getPredicate(in.(Var).Value)
+		c := make([]Node, 0, len(b.Preds))
+		for _, pred := range b.Preds {
+			var cond Node
+			switch ctrl := pred.Control().(type) {
+			case *ir.If:
+				if pred.Succs[0] == b {
+					cond = doVar(ctrl.Cond)
+				} else {
+					cond = Not(doVar(ctrl.Cond))
+				}
+			case *ir.Jump:
+				cond = Const{constant.MakeBool(true)}
+			default:
+				panic(fmt.Sprintf("%T", ctrl))
 			}
-
-			if _, ok := v.(*ir.Phi); ok {
-				bl.predicate(v, Or(preds...))
-			} else {
-				bl.predicate(v, And(getPredicate(v), And(preds...)))
-			}
+			c = append(c, And(Raw(fmt.Sprintf("cexec%d", pred.Index)), cond))
 		}
+		cexecs[top[i].Index] = Or(c...)
 	}
 
-	for v := range bl.vars {
-		dfs(v)
+	for v, n := range definitions {
+		fmt.Printf("%s <- %s\n", v.Name(), n)
 	}
-
-	for v, n := range bl.vars {
-		log.Printf("%s <- %s | %s", v.Name(), n, bl.predicates[v])
+	for i, n := range cexecs {
+		fmt.Printf("cexec%d <- %s\n", i, n)
 	}
-
-	// for v, p := range bl.predicates {
-	// 	if v.Name() == "t50" {
-	// 		fmt.Println(And(v, p))
-	// 		fmt.Println()
-	// 		fmt.Println(bl.simplify(And(v, p)))
-	// 	}
-	// }
 }
+
+// func smtfn(fn *ir.Function) {
+// 	bl := builder{
+// 		vars:       map[ir.Value]Node{},
+// 		predicates: map[ir.Value]Node{},
+// 	}
+
+// 	for _, b := range fn.DomPreorder() {
+// 	instrLoop:
+// 		for _, instr := range b.Instrs {
+// 			v, ok := instr.(ir.Value)
+// 			if !ok {
+// 				continue
+// 			}
+
+// 			if !weCanDoThis(v) {
+// 				continue
+// 			}
+// 			// OPT reuse slice
+// 			for _, rand := range v.Operands(nil) {
+// 				if !weCanDoThis(*rand) {
+// 					continue instrLoop
+// 				}
+// 			}
+
+// 			switch v := v.(type) {
+// 			case *ir.Const:
+// 				bl.value(v, Const{v.Value})
+
+// 			case *ir.Sigma:
+// 				// XXX track path predicates
+
+// 				bl.value(v, Var{v.X})
+
+// 				ctrl, ok := v.From.Control().(*ir.If)
+// 				if ok {
+// 					// XXX support other controls
+
+// 					cond := ctrl.Cond
+// 					if b == v.From.Succs[0] {
+// 						// true branch
+// 						bl.predicate(v, Var{cond})
+// 					} else {
+// 						// false branch
+// 						bl.predicate(v, Not(Var{cond}))
+// 					}
+// 				}
+
+// 			case *ir.Phi:
+// 				args := make([]Node, len(v.Edges))
+// 				for i, e := range v.Edges {
+// 					args[i] = Var{e}
+// 				}
+// 				bl.value(v, Or(args...))
+
+// 			case *ir.BinOp:
+// 				var n Node
+// 				switch v.Op {
+// 				case token.EQL:
+// 					n = Equal(Var{v.Y}, Var{v.X})
+// 				case token.ADD:
+// 					n = Op("+", Var{v.X}, Var{v.Y})
+// 				case token.LSS:
+// 					var verb string
+// 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+// 						verb = "bvult"
+// 					} else {
+// 						verb = "bvslt"
+// 					}
+// 					n = Op(verb, Var{v.X}, Var{v.Y})
+// 				case token.GTR:
+// 					var verb string
+// 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+// 						verb = "bvule"
+// 					} else {
+// 						verb = "bvsle"
+// 					}
+// 					n = Op(verb, Var{v.Y}, Var{v.X})
+// 				default:
+// 					panic("XXX")
+// 				}
+// 				bl.value(v, n)
+// 			}
+// 		}
+// 	}
+
+// 	getPredicate := func(v ir.Value) Node {
+// 		if pred, ok := bl.predicates[v]; ok {
+// 			return pred
+// 		} else {
+// 			return Const{constant.MakeBool(true)}
+// 		}
+// 	}
+
+// 	seen := map[ir.Value]struct{}{}
+// 	var dfs func(v ir.Value)
+// 	dfs = func(v ir.Value) {
+// 		// XXX handle loops
+// 		if _, ok := seen[v]; ok {
+// 			return
+// 		}
+// 		seen[v] = struct{}{}
+
+// 		def := bl.vars[v]
+// 		switch def := def.(type) {
+// 		case Const:
+// 			bl.predicate(v, Const{constant.MakeBool(true)})
+
+// 		case Var:
+// 			dfs(def.Value)
+
+// 			bl.predicate(v, And(getPredicate(v), getPredicate(def.Value)))
+// 		case Sexp:
+// 			preds := make([]Node, len(def.In))
+// 			for i, in := range def.In {
+// 				dfs(in.(Var).Value)
+// 				preds[i] = getPredicate(in.(Var).Value)
+// 			}
+
+// 			if _, ok := v.(*ir.Phi); ok {
+// 				bl.predicate(v, Or(preds...))
+// 			} else {
+// 				bl.predicate(v, And(getPredicate(v), And(preds...)))
+// 			}
+// 		}
+// 	}
+
+// 	for v := range bl.vars {
+// 		dfs(v)
+// 	}
+
+// 	for v, n := range bl.vars {
+// 		log.Printf("%s <- %s | %s", v.Name(), n, bl.predicates[v])
+// 	}
+
+// 	// for v, p := range bl.predicates {
+// 	// 	if v.Name() == "t50" {
+// 	// 		fmt.Println(And(v, p))
+// 	// 		fmt.Println()
+// 	// 		fmt.Println(bl.simplify(And(v, p)))
+// 	// 	}
+// 	// }
+// }
 
 // XXX the name, among other things…
 func weCanDoThis(v ir.Value) bool {

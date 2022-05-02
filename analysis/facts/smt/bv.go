@@ -17,6 +17,16 @@ type Node interface {
 	Equal(Node) bool
 }
 
+type Raw string
+
+func (r Raw) String() string {
+	return string(r)
+}
+
+func (r Raw) Equal(o Node) bool {
+	return r == o
+}
+
 type Const struct {
 	Value constant.Value
 }
@@ -48,8 +58,8 @@ type Sexp struct {
 	In   []Node
 }
 
-func (s Sexp) Equal(o Node) bool {
-	so, ok := o.(Sexp)
+func (s *Sexp) Equal(o Node) bool {
+	so, ok := o.(*Sexp)
 	if !ok {
 		return false
 	}
@@ -67,7 +77,7 @@ func (s Sexp) Equal(o Node) bool {
 	return true
 }
 
-func (sexp Sexp) String() string {
+func (sexp *Sexp) String() string {
 	args := make([]string, len(sexp.In))
 	for i, arg := range sexp.In {
 		args[i] = arg.String()
@@ -92,26 +102,50 @@ func (b *builder) predicate(v ir.Value, p Node) {
 	b.predicates[v] = p
 }
 
-func And(nodes ...Node) Sexp {
-	return Op("and", nodes...)
+func And(nodes ...Node) Node {
+	new := make([]Node, 0, len(nodes))
+	for _, n := range nodes {
+		if (n == Const{constant.MakeBool(true)}) {
+			// skip
+		} else if (n == Const{constant.MakeBool(false)}) {
+			return Const{constant.MakeBool(false)}
+		} else {
+			new = append(new, n)
+		}
+	}
+	if len(new) == 0 {
+		return Const{constant.MakeBool(true)}
+	} else if len(new) == 1 {
+		return new[0]
+	} else {
+		return Op("and", new...)
+	}
 }
 
-func Or(nodes ...Node) Sexp {
+func Or(nodes ...Node) *Sexp {
 	return Op("or", nodes...)
 }
 
-func Equal(a, b Node) Sexp {
+func Equal(a, b Node) *Sexp {
 	return Op("=", a, b)
 }
 
-func Not(a Node) Sexp {
+func Not(a Node) *Sexp {
 	return Op("not", a)
 }
 
-func Op(verb string, nodes ...Node) Sexp {
-	return Sexp{
+func Op(verb string, nodes ...Node) *Sexp {
+	return &Sexp{
 		Verb: verb,
 		In:   nodes,
+	}
+}
+
+func ITE(cond Node, t Node, f Node) Node {
+	if t.Equal(f) {
+		return t
+	} else {
+		return Op("ite", cond, t, f)
 	}
 }
 
@@ -136,7 +170,7 @@ func substitute(n Node, subst map[Var]Node, sameLevel bool) (Node, bool) {
 		} else {
 			return n, false
 		}
-	case Sexp:
+	case *Sexp:
 		changed := false
 		new := make([]Node, len(n.In))
 		for i, in := range n.In {
@@ -186,13 +220,13 @@ func verbToToken(verb string) (token.Token, bool) {
 }
 func (b *builder) simplify0(n Node) (Node, bool) {
 	switch n := n.(type) {
-	case Sexp:
+	case *Sexp:
 		changed := false
 
 		if n.Verb == "and" {
 			subst := map[Var]Node{}
 			for _, in := range n.In {
-				if in, ok := in.(Sexp); ok && in.Verb == "=" && len(in.In) == 2 {
+				if in, ok := in.(*Sexp); ok && in.Verb == "=" && len(in.In) == 2 {
 					if v, ok := in.In[0].(Var); ok {
 						if _, ok := subst[v]; !ok {
 							subst[v] = in.In[1]
@@ -273,7 +307,7 @@ func (b *builder) simplify0(n Node) (Node, bool) {
 						} else {
 							new = append(new, in)
 						}
-					case Sexp:
+					case *Sexp:
 						if in.Verb == "and" {
 							// flatten nested and
 							new = append(new, in.In...)
@@ -310,7 +344,7 @@ func (b *builder) simplify0(n Node) (Node, bool) {
 						} else {
 							new = append(new, in)
 						}
-					case Sexp:
+					case *Sexp:
 						if in.Verb == "or" {
 							// flatten nested or
 							new = append(new, in.In...)
