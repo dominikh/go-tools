@@ -13,9 +13,8 @@ import (
 type Sexp struct {
 	// OPT don't use string for Verb
 	Verb     string
-	Value    ir.Value       // when Verb == var
+	Value    string         // when Verb == var
 	Constant constant.Value // when Verb == const
-	Raw      string         // when Verb == raw
 	In       []*Sexp        // for all other verbs
 }
 
@@ -23,7 +22,7 @@ func (s *Sexp) Equal(o *Sexp) bool {
 	if s == o {
 		return true
 	}
-	if s.Verb != o.Verb || s.Value != o.Value || s.Constant != o.Constant || s.Raw != o.Raw || len(s.In) != len(o.In) {
+	if s.Verb != o.Verb || s.Value != o.Value || s.Constant != o.Constant || len(s.In) != len(o.In) {
 		return false
 	}
 	for i := range s.In {
@@ -40,17 +39,12 @@ func (s *Sexp) String() string {
 		if len(s.In) != 0 {
 			panic("XXX")
 		}
-		return fmt.Sprintf("(var %s)", s.Value.Name())
+		return fmt.Sprintf("(var %s)", s.Value)
 	case "const":
 		if len(s.In) != 0 {
 			panic("XXX")
 		}
 		return fmt.Sprintf("(const %s)", s.Constant)
-	case "raw":
-		if len(s.In) != 0 {
-			panic("XXX")
-		}
-		return fmt.Sprintf("(raw %q)", s.Raw)
 	default:
 		args := make([]string, len(s.In))
 		for i, arg := range s.In {
@@ -131,11 +125,7 @@ func Op(verb string, nodes ...*Sexp) *Sexp {
 	}
 }
 
-func Raw(s string) *Sexp {
-	return &Sexp{Verb: "raw", Raw: s}
-}
-
-func Var(v ir.Value) *Sexp {
+func Var(v string) *Sexp {
 	return &Sexp{Verb: "var", Value: v}
 }
 
