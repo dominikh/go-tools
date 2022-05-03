@@ -5,153 +5,152 @@ package smt
 import (
 	"fmt"
 	"go/constant"
-	"go/token"
-	"log"
 	"strings"
 
 	"honnef.co/go/tools/go/ir"
 )
 
-type Node interface {
-	String() string
-	Equal(Node) bool
-}
-
-type Raw string
-
-func (r Raw) String() string {
-	return string(r)
-}
-
-func (r Raw) Equal(o Node) bool {
-	return r == o
-}
-
-type Const struct {
-	Value constant.Value
-}
-
-func (c Const) Equal(o Node) bool {
-	return c == o
-}
-
-func (c Const) String() string {
-	// XXX emit valid sexp
-	return c.Value.ExactString()
-}
-
-type Var struct {
-	Value ir.Value
-}
-
-func (v Var) Equal(o Node) bool {
-	return v == o
-}
-
-func (v Var) String() string {
-	return v.Value.Name()
-}
-
 type Sexp struct {
 	// OPT don't use string for Verb
-	Verb string
-	In   []Node
+	Verb     string
+	Value    ir.Value       // when Verb == var
+	Constant constant.Value // when Verb == const
+	Raw      string         // when Verb == raw
+	In       []*Sexp        // for all other verbs
 }
 
-func (s *Sexp) Equal(o Node) bool {
-	so, ok := o.(*Sexp)
-	if !ok {
-		return false
+func (s *Sexp) Equal(o *Sexp) bool {
+	if s == o {
+		return true
 	}
-	if s.Verb != so.Verb {
-		return false
-	}
-	if len(s.In) != len(so.In) {
+	if s.Verb != o.Verb || s.Value != o.Value || s.Constant != o.Constant || s.Raw != o.Raw || len(s.In) != len(o.In) {
 		return false
 	}
 	for i := range s.In {
-		if !s.In[i].Equal(so.In[i]) {
+		if !s.In[i].Equal(o.In[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func (sexp *Sexp) String() string {
-	args := make([]string, len(sexp.In))
-	for i, arg := range sexp.In {
-		args[i] = arg.String()
+func (s *Sexp) String() string {
+	switch s.Verb {
+	case "var":
+		if len(s.In) != 0 {
+			panic("XXX")
+		}
+		return fmt.Sprintf("(var %s)", s.Value.Name())
+	case "const":
+		if len(s.In) != 0 {
+			panic("XXX")
+		}
+		return fmt.Sprintf("(const %s)", s.Constant)
+	case "raw":
+		if len(s.In) != 0 {
+			panic("XXX")
+		}
+		return fmt.Sprintf("(raw %q)", s.Raw)
+	default:
+		args := make([]string, len(s.In))
+		for i, arg := range s.In {
+			args[i] = fmt.Sprintf("%s", arg)
+		}
+		return fmt.Sprintf("(%s %s)", s.Verb, strings.Join(args, " "))
 	}
-	return fmt.Sprintf("(%s %s)", sexp.Verb, strings.Join(args, " "))
+
 }
 
 type key [2]any
 
 type builder struct {
-	vars       map[ir.Value]Node
-	predicates map[ir.Value]Node
+	vars       map[ir.Value]*Sexp
+	predicates map[ir.Value]*Sexp
+
+	sexps map[sexpKey]*Sexp
+}
+
+type sexpKey struct {
+	verb string
+	args [2]any
+}
+
+func (bl *builder) dedup(n *Sexp) *Sexp {
+	// XXX support sexps with any number of inputs
+	// XXX make sure that every code path that optimizes sexps re-dedups
+
+	if len(n.In) != 2 {
+		return n
+	}
+	key := sexpKey{n.Verb, [2]any{n.In[0], n.In[1]}}
+	if dup, ok := bl.sexps[key]; ok {
+		return dup
+	} else {
+		bl.sexps[key] = n
+		return n
+	}
 }
 
 // TODO number nodes for a canonical ordering
 
-func (b *builder) value(v ir.Value, n Node) {
+func (b *builder) value(v ir.Value, n *Sexp) {
 	b.vars[v] = n
 }
 
-func (b *builder) predicate(v ir.Value, p Node) {
+func (b *builder) predicate(v ir.Value, p *Sexp) {
 	b.predicates[v] = p
 }
 
-func And(nodes ...Node) Node {
-	new := make([]Node, 0, len(nodes))
-	for _, n := range nodes {
-		if (n == Const{constant.MakeBool(true)}) {
-			// skip
-		} else if (n == Const{constant.MakeBool(false)}) {
-			return Const{constant.MakeBool(false)}
-		} else {
-			new = append(new, n)
-		}
-	}
-	if len(new) == 0 {
-		return Const{constant.MakeBool(true)}
-	} else if len(new) == 1 {
-		return new[0]
-	} else {
-		return Op("and", new...)
-	}
+func (bl *builder) And(nodes ...*Sexp) *Sexp {
+	return bl.dedup(Op("and", nodes...))
 }
 
-func Or(nodes ...Node) *Sexp {
-	return Op("or", nodes...)
+func (bl *builder) Or(nodes ...*Sexp) *Sexp {
+	return bl.dedup(Op("or", nodes...))
 }
 
-func Equal(a, b Node) *Sexp {
+func (bl *builder) Xor(nodes ...*Sexp) *Sexp {
+	return bl.dedup(Op("xor", nodes...))
+}
+
+func Equal(a, b *Sexp) *Sexp {
 	return Op("=", a, b)
 }
 
-func Not(a Node) *Sexp {
+func Not(a *Sexp) *Sexp {
 	return Op("not", a)
 }
 
-func Op(verb string, nodes ...Node) *Sexp {
+func Op(verb string, nodes ...*Sexp) *Sexp {
+	if verb == "var" || verb == "const" {
+		panic("XXX")
+	}
 	return &Sexp{
 		Verb: verb,
 		In:   nodes,
 	}
 }
 
-func ITE(cond Node, t Node, f Node) Node {
-	if t.Equal(f) {
-		return t
-	} else {
-		return Op("ite", cond, t, f)
-	}
+func Raw(s string) *Sexp {
+	return &Sexp{Verb: "raw", Raw: s}
+}
+
+func Var(v ir.Value) *Sexp {
+	return &Sexp{Verb: "var", Value: v}
+}
+
+func Const(c constant.Value) *Sexp {
+	return &Sexp{Verb: "const", Constant: c}
+}
+
+func ITE(cond *Sexp, t *Sexp, f *Sexp) *Sexp {
+	return Op("ite", cond, t, f)
 }
 
 // Our formulas are generally small enough that we don't care about on-the-fly simplifications. Instead use a simple
 // fixpoint approach.
 
+/*
 func (b *builder) simplify(n Node) Node {
 	for {
 		new, changed := b.simplify0(n)
@@ -320,7 +319,7 @@ func (b *builder) simplify0(n Node) (Node, bool) {
 					}
 				}
 
-				return And(new...), changed
+				return b.And(new...), changed
 			}
 
 		case "or":
@@ -384,3 +383,35 @@ func (b *builder) simplify0(n Node) (Node, bool) {
 		return n, false
 	}
 }
+
+func Dot(n Node) string {
+	var dfs func(Node) string
+	seen := map[Node]struct{}{}
+	var out string
+	dfs = func(n Node) string {
+		switch n := n.(type) {
+		case Raw:
+			return string(n)
+		case Const:
+			return n.Value.ExactString()
+		case Var:
+			return n.Value.Name()
+		case *Sexp:
+			if _, ok := seen[n]; !ok {
+				seen[n] = struct{}{}
+				out += fmt.Sprintf("sexp%p [label=%q]\n", n, n.Verb)
+				for _, in := range n.In {
+					out += fmt.Sprintf("%s -> sexp%p\n", dfs(in), n)
+				}
+			}
+			return fmt.Sprintf("sexp%p", n)
+		default:
+			panic(fmt.Sprintf("%T", n))
+		}
+	}
+
+	dfs(n)
+
+	return out
+}
+*/
