@@ -5,136 +5,129 @@ package smt
 import (
 	"fmt"
 	"go/constant"
-	"strings"
-
-	"honnef.co/go/tools/go/ir"
 )
+
+type Node interface {
+	String() string
+	Equal(Node) bool
+}
+
+type Var struct {
+	// XXX use integers, not strings
+	Name string
+}
+
+func (v Var) String() string {
+	return v.Name
+}
+
+func (v Var) Equal(o Node) bool {
+	return any(v) == o
+}
+
+type Const struct {
+	Value constant.Value
+}
+
+func (c Const) String() string {
+	return c.Value.ExactString()
+}
+
+func (c Const) Equal(o Node) bool {
+	return any(c) == o
+}
 
 type Sexp struct {
 	// OPT don't use string for Verb
-	Verb     string
-	Value    string         // when Verb == var
-	Constant constant.Value // when Verb == const
-	In       []*Sexp        // for all other verbs
+	Verb string
+	// TODO we need 3 arguments because of ITE. Fix that by translating ITE down to ands/ors
+	In [3]Node
 }
 
-func (s *Sexp) Equal(o *Sexp) bool {
+func (s Sexp) Equal(o Node) bool {
 	if s == o {
 		return true
 	}
-	if s.Verb != o.Verb || s.Value != o.Value || s.Constant != o.Constant || len(s.In) != len(o.In) {
+	so, ok := o.(Sexp)
+	if !ok {
 		return false
 	}
 	for i := range s.In {
-		if !s.In[i].Equal(o.In[i]) {
+		if !s.In[i].Equal(so.In[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func (s *Sexp) String() string {
-	switch s.Verb {
-	case "var":
-		if len(s.In) != 0 {
-			panic("XXX")
+func (s Sexp) String() string {
+	if s.In[2] == nil {
+		if s.In[1] == nil {
+			return fmt.Sprintf("(%s %s)", s.Verb, s.In[0])
+		} else {
+			return fmt.Sprintf("(%s %s %s)", s.Verb, s.In[0], s.In[1])
 		}
-		return fmt.Sprintf("(var %s)", s.Value)
-	case "const":
-		if len(s.In) != 0 {
-			panic("XXX")
-		}
-		return fmt.Sprintf("(const %s)", s.Constant)
-	default:
-		args := make([]string, len(s.In))
-		for i, arg := range s.In {
-			args[i] = fmt.Sprintf("%s", arg)
-		}
-		return fmt.Sprintf("(%s %s)", s.Verb, strings.Join(args, " "))
+	} else {
+		return fmt.Sprintf("(%s %s %s %s)", s.Verb, s.In[0], s.In[1], s.In[2])
 	}
-
 }
 
 type key [2]any
 
-type builder struct {
-	vars       map[ir.Value]*Sexp
-	predicates map[ir.Value]*Sexp
-
-	sexps map[sexpKey]*Sexp
-}
-
-type sexpKey struct {
-	verb string
-	args [2]any
-}
-
-func (bl *builder) dedup(n *Sexp) *Sexp {
-	// XXX support sexps with any number of inputs
-	// XXX make sure that every code path that optimizes sexps re-dedups
-
-	if len(n.In) != 2 {
-		return n
-	}
-	key := sexpKey{n.Verb, [2]any{n.In[0], n.In[1]}}
-	if dup, ok := bl.sexps[key]; ok {
-		return dup
-	} else {
-		bl.sexps[key] = n
-		return n
+func And(nodes ...Node) Node {
+	switch len(nodes) {
+	case 0:
+		return Const{constant.MakeBool(true)}
+	case 1:
+		return nodes[0]
+	default:
+		and := Op("and", nodes[0], nodes[1])
+		for _, n := range nodes[2:] {
+			and = Op("and", n, and)
+		}
+		return and
 	}
 }
 
-// TODO number nodes for a canonical ordering
-
-func (b *builder) value(v ir.Value, n *Sexp) {
-	b.vars[v] = n
+func Or(nodes ...Node) Node {
+	switch len(nodes) {
+	case 0:
+		return Const{constant.MakeBool(false)}
+	case 1:
+		return nodes[0]
+	default:
+		or := Op("or", nodes[0], nodes[1])
+		for _, n := range nodes[2:] {
+			or = Op("or", n, or)
+		}
+		return or
+	}
 }
 
-func (b *builder) predicate(v ir.Value, p *Sexp) {
-	b.predicates[v] = p
+func Xor(a, b Node) Node {
+	return Op("xor", a, b)
 }
 
-func (bl *builder) And(nodes ...*Sexp) *Sexp {
-	return bl.dedup(Op("and", nodes...))
-}
-
-func (bl *builder) Or(nodes ...*Sexp) *Sexp {
-	return bl.dedup(Op("or", nodes...))
-}
-
-func (bl *builder) Xor(nodes ...*Sexp) *Sexp {
-	return bl.dedup(Op("xor", nodes...))
-}
-
-func Equal(a, b *Sexp) *Sexp {
+func Equal(a, b Node) Node {
 	return Op("=", a, b)
 }
 
-func Not(a *Sexp) *Sexp {
-	return Op("not", a)
+func Not(a Node) Node {
+	return Op("not", a, nil)
 }
 
-func Op(verb string, nodes ...*Sexp) *Sexp {
-	if verb == "var" || verb == "const" {
-		panic("XXX")
-	}
-	return &Sexp{
+func Op(verb string, a, b Node) Node {
+	return Sexp{
 		Verb: verb,
-		In:   nodes,
+		In:   [3]Node{a, b, nil},
 	}
 }
 
-func Var(v string) *Sexp {
-	return &Sexp{Verb: "var", Value: v}
-}
-
-func Const(c constant.Value) *Sexp {
-	return &Sexp{Verb: "const", Constant: c}
-}
-
-func ITE(cond *Sexp, t *Sexp, f *Sexp) *Sexp {
-	return Op("ite", cond, t, f)
+func ITE(cond Node, t Node, f Node) Sexp {
+	return Sexp{
+		Verb: "ite",
+		In:   [3]Node{cond, t, f},
+	}
 }
 
 // Our formulas are generally small enough that we don't care about on-the-fly simplifications. Instead use a simple

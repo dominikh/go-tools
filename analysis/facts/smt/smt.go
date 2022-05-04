@@ -21,12 +21,17 @@ package smt
 // (ite false a b) -> b
 // (ite true a b) -> a
 // (not (const k)) -> !k
+// (= x true) -> x
+// (= x false) -> (not x)
+//
+// propagate equalities, both formulas '(= x foo)' and terms 'x'
 
 import (
 	"fmt"
 	"go/constant"
 	"go/token"
 	"go/types"
+	"log"
 	"reflect"
 	"sort"
 
@@ -44,7 +49,7 @@ var Analyzer = &analysis.Analyzer{
 }
 
 type Result struct {
-	Predicates map[ir.Value]*Sexp
+	Predicates map[ir.Value]Node
 }
 
 func (r Result) Unsatisfiable(target ir.Value) bool {
@@ -59,10 +64,6 @@ func smt(pass *analysis.Pass) (interface{}, error) {
 }
 
 func smtfn2(fn *ir.Function) {
-	bl := builder{
-		sexps: map[sexpKey]*Sexp{},
-	}
-
 	// XXX handle loops
 
 	// mapping from basic block to list of execution conditions
@@ -83,29 +84,21 @@ func smtfn2(fn *ir.Function) {
 	}
 	dfs(fn.Blocks[0])
 
-	definitions := map[ir.Value]*Sexp{}
-	cexecs := map[int]*Sexp{}
-	cexecs[0] = Const(constant.MakeBool(true))
+	definitions := map[ir.Value]Node{}
+	cexecs := map[int]Node{}
+	cexecs[0] = Const{constant.MakeBool(true)}
 
-	doVar := func(v ir.Value) *Sexp {
-		if n, ok := definitions[v]; ok {
-			return n
-		} else {
-			return Var(v.Name())
-		}
-	}
-
-	control := func(from, to *ir.BasicBlock) *Sexp {
-		var cond *Sexp
+	control := func(from, to *ir.BasicBlock) Node {
+		var cond Node
 		switch ctrl := from.Control().(type) {
 		case *ir.If:
 			if from.Succs[0] == to {
-				cond = doVar(ctrl.Cond)
+				cond = Var{ctrl.Cond.Name()}
 			} else {
-				cond = Not(doVar(ctrl.Cond))
+				cond = Not(Var{ctrl.Cond.Name()})
 			}
 		case *ir.Jump:
-			cond = Const(constant.MakeBool(true))
+			cond = Const{constant.MakeBool(true)}
 		default:
 			panic(fmt.Sprintf("%T", ctrl))
 		}
@@ -133,28 +126,28 @@ func smtfn2(fn *ir.Function) {
 
 			switch v := v.(type) {
 			case *ir.Const:
-				definitions[v] = Const(v.Value)
+				definitions[v] = Const{v.Value}
 
 			case *ir.Sigma:
-				definitions[v] = doVar(v.X)
+				definitions[v] = Var{v.X.Name()}
 
 			case *ir.Phi:
-				var ite *Sexp = doVar(v.Edges[len(v.Edges)-1])
+				var ite Node = Var{v.Edges[len(v.Edges)-1].Name()}
 
 				for i, e := range v.Edges[:len(v.Edges)-1] {
-					ite = ITE(bl.And(cexecs[b.Preds[i].Index], control(b.Preds[i], b)), doVar(e), ite)
+					ite = ITE(And(Var{fmt.Sprintf("cexec%d", b.Preds[i].Index)}, control(b.Preds[i], b)), Var{e.Name()}, ite)
 				}
 				definitions[v] = ite
 
 			case *ir.BinOp:
-				var n *Sexp
+				var n Node
 				switch v.Op {
 				case token.EQL:
-					n = Equal(doVar(v.X), doVar(v.Y))
+					n = Equal(Var{v.X.Name()}, Var{v.Y.Name()})
 				case token.NEQ:
-					n = Not(Equal(doVar(v.X), doVar(v.Y)))
+					n = Not(Equal(Var{v.X.Name()}, Var{v.Y.Name()}))
 				case token.ADD:
-					n = Op("bvadd", doVar(v.X), doVar(v.Y))
+					n = Op("bvadd", Var{v.X.Name()}, Var{v.Y.Name()})
 				case token.LSS:
 					var verb string
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -162,7 +155,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = "bvslt"
 					}
-					n = Op(verb, doVar(v.X), doVar(v.Y))
+					n = Op(verb, Var{v.X.Name()}, Var{v.Y.Name()})
 				case token.GTR:
 					var verb string
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -170,7 +163,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = "bvslt"
 					}
-					n = Op(verb, doVar(v.Y), doVar(v.X))
+					n = Op(verb, Var{v.Y.Name()}, Var{v.X.Name()})
 				default:
 					panic("XXX")
 				}
@@ -183,320 +176,236 @@ func smtfn2(fn *ir.Function) {
 			continue
 		}
 
-		c := make([]*Sexp, 0, len(b.Preds))
+		c := make([]Node, 0, len(b.Preds))
 		for _, pred := range b.Preds {
-			var cond *Sexp
+			var cond Node
 			switch ctrl := pred.Control().(type) {
 			case *ir.If:
 				if pred.Succs[0] == b {
-					cond = doVar(ctrl.Cond)
+					cond = Var{ctrl.Cond.Name()}
 				} else {
-					cond = Not(doVar(ctrl.Cond))
+					cond = Not(Var{ctrl.Cond.Name()})
 				}
 			case *ir.Jump:
-				cond = Const(constant.MakeBool(true))
+				cond = Const{constant.MakeBool(true)}
 			default:
 				panic(fmt.Sprintf("%T", ctrl))
 			}
-			c = append(c, bl.And(cexecs[pred.Index], cond))
+			c = append(c, And(Var{fmt.Sprintf("cexec%d", pred.Index)}, cond))
 		}
-		cexecs[top[i].Index] = bl.Or(c...)
+		cexecs[top[i].Index] = Or(c...)
 	}
 
 	if fn.Name() == "foo" {
-		and := &Sexp{Verb: "and"}
+		var c []Node
 		for v, n := range definitions {
+			c = append(c, Equal(Var{v.Name()}, n))
 			if v.Name() == "t50" {
-				// and.In = append(and.In, Equal(Var(v.Name()), n))
-				and.In = append(and.In, n)
+				c = append(c, n)
 			}
-			// // XXX proper fixpoint loop
-			// for i := 0; i < 100; i++ {
-			// 	simplify(n)
-			// }
-			// fmt.Printf("%s <- %s\n", v.Name(), n)
 		}
 
-		and.In = append(and.In, cexecs[8])
-		// for v, n := range cexecs {
-		// 	and.In = append(and.In, Equal(Var(fmt.Sprintf("cexec%d", v)), n))
-		// }
-		// for i, n := range cexecs {
-		// 	// XXX proper fixpoint loop
-		// 	for i := 0; i < 100; i++ {
-		// 		simplify(n)
-		// 	}
-		// 	fmt.Printf("cexec%d <- %s\n", i, n)
-		// }
+		for i, n := range cexecs {
+			c = append(c, Equal(Var{fmt.Sprintf("cexec%d", i)}, n))
+		}
+
+		c = append(c, cexecs[8])
+		and := And(c...)
 		for i := 0; i < 100; i++ {
-			simplify(and)
+			and = simplify(and)
 		}
 		fmt.Println(and)
 	}
 }
 
-// XXX better name
-func deepFuckingClone(sexp *Sexp) *Sexp {
-	out := &Sexp{}
-	*out = *sexp
-	out.In = make([]*Sexp, len(sexp.In))
-	for i, in := range sexp.In {
-		out.In[i] = deepFuckingClone(in)
-	}
-	return out
-}
-
-func simplify(sexp *Sexp) {
+func simplify(n Node) Node {
 	// XXX our code is so horribly inefficient
 
-	if sexp.Verb == "and" {
-		// propagate equalities
+	/*
+		if sexp.Verb == "and" {
+			// propagate equalities
 
-		type propagation struct {
-			to   *Sexp
-			skip *Sexp
-		}
+			type propagation struct {
+				to   *Sexp
+				skip *Sexp
+			}
 
-		var propagate func(sexp *Sexp, propagations map[string]propagation)
-		propagate = func(sexp *Sexp, propagations map[string]propagation) {
-			for i, in := range sexp.In {
-				if in.Verb == "var" {
-					if prop, ok := propagations[in.Value]; ok && !prop.skip.Equal(sexp) {
-						sexp.In[i] = prop.to
+			var propagate func(sexp *Sexp, propagations map[string]propagation)
+			propagate = func(sexp *Sexp, propagations map[string]propagation) {
+				for i, in := range sexp.In {
+					if in.Verb == "var" {
+						if prop, ok := propagations[in.Value]; ok && !prop.skip.Equal(sexp) {
+							sexp.In[i] = prop.to
+						}
+					} else {
+						propagate(in, propagations)
 					}
-				} else {
-					propagate(in, propagations)
 				}
+			}
+
+			propagations := map[string]propagation{}
+			for _, in := range sexp.In {
+				if in.Verb == "=" && len(in.In) == 2 && in.In[0].Verb == "var" {
+					if _, ok := propagations[in.In[0].Value]; !ok {
+						propagations[in.In[0].Value] = propagation{in.In[1], in}
+					}
+				}
+			}
+
+			if len(propagations) != 0 {
+				*sexp = *deepFuckingClone(sexp)
+				propagate(sexp, propagations)
 			}
 		}
 
-		propagations := map[string]propagation{}
 		for _, in := range sexp.In {
-			if in.Verb == "=" && len(in.In) == 2 && in.In[0].Verb == "var" {
-				if _, ok := propagations[in.In[0].Value]; !ok {
-					propagations[in.In[0].Value] = propagation{in.In[1], in}
+			simplify(in)
+		}
+	*/
+
+	cTrue := Const{constant.MakeBool(true)}
+	cFalse := Const{constant.MakeBool(false)}
+	cZero := Const{constant.MakeUint64(0)}
+	if sexp, ok := n.(Sexp); ok {
+		for i, in := range sexp.In {
+			sexp.In[i] = simplify(in)
+		}
+
+		switch sexp.Verb {
+		case "and":
+			if sexp.In[0] == cFalse || sexp.In[1] == cFalse {
+				return cFalse
+			} else if sexp.In[0] == cTrue {
+				return sexp.In[1]
+			} else if sexp.In[1] == cTrue {
+				log.Println("replacing", sexp, "with", sexp.In[0])
+				return sexp.In[0]
+			}
+
+			// TODO find conflicting negation, recursively
+
+		case "or":
+			if sexp.In[0] == cTrue || sexp.In[1] == cTrue {
+				return cTrue
+			} else if sexp.In[0] == cFalse {
+				return sexp.In[1]
+			} else if sexp.In[1] == cFalse {
+				return sexp.In[0]
+			}
+
+			// TODO find conflicting negation, recursively
+
+		case "ite":
+			if sexp.In[1].Equal(sexp.In[2]) {
+				return sexp.In[1]
+			} else if c, ok := sexp.In[0].(Const); ok {
+				if constant.BoolVal(c.Value) {
+					return sexp.In[1]
+				} else {
+					return sexp.In[2]
 				}
 			}
-		}
 
-		if len(propagations) != 0 {
-			*sexp = *deepFuckingClone(sexp)
-			propagate(sexp, propagations)
-		}
-	}
-
-	for _, in := range sexp.In {
-		simplify(in)
-	}
-
-	switch sexp.Verb {
-	case "and":
-		switch len(sexp.In) {
-		case 0:
-			*sexp = *Const(constant.MakeBool(true))
-		case 1:
-			*sexp = *sexp.In[0]
-		default:
-			newIn := make([]*Sexp, 0, len(sexp.In))
-		inLoop:
-			for _, in := range sexp.In {
-				switch in.Verb {
-				case "const":
-					switch in.Constant {
-					case constant.MakeBool(true):
-						// skip
-					case constant.MakeBool(false):
-						// the entire (and ...) is false
-						*sexp = *in
-						break inLoop
-					default:
-						newIn = append(newIn, in)
-					}
-
-				case "and":
-					// flatten nested (and ...)
-					newIn = append(newIn, in.In...)
-
-				default:
-					newIn = append(newIn, in)
+		case "bvadd":
+			if x, ok := sexp.In[0].(Const); ok {
+				if y, ok := sexp.In[1].(Const); ok {
+					// XXX bitwidth, signedness
+					xi, _ := constant.Uint64Val(x.Value)
+					yi, _ := constant.Uint64Val(y.Value)
+					return Const{constant.MakeUint64(uint64(uint8(xi) + uint8(yi)))}
 				}
 			}
-			sexp.In = newIn
 
-			// XXX don't use O(n²) algorithm for finding negations
-		inLoop4:
-			for _, in1 := range sexp.In {
-				if in1.Verb == "not" {
-					for _, in2 := range sexp.In {
-						if in1.In[0].Equal(in2) {
-							// (and ...) containing both x and !x is trivially false
-							*sexp = *Const(constant.MakeBool(false))
-							break inLoop4
-						}
-					}
-				}
-			}
-		}
-
-	case "or":
-		switch len(sexp.In) {
-		case 0:
-			*sexp = *Const(constant.MakeBool(false))
-		case 1:
-			*sexp = *sexp.In[0]
-		default:
-			newIn := make([]*Sexp, 0, len(sexp.In))
-		inLoop2:
-			for _, in := range sexp.In {
-				switch in.Verb {
-				case "const":
-					switch in.Constant {
-					case constant.MakeBool(false):
-						// skip
-					case constant.MakeBool(true):
-						// the entire (or ...) is true
-						*sexp = *in
-						break inLoop2
-					default:
-						newIn = append(newIn, in)
-					}
-
-				case "or":
-					// flatten nested (or ...)
-					newIn = append(newIn, in.In...)
-
-				default:
-					newIn = append(newIn, in)
-				}
-			}
-			sexp.In = newIn
-
-			// XXX don't use O(n²) algorithm for finding negations
-		inLoop3:
-			for _, in1 := range sexp.In {
-				if in1.Verb == "not" {
-					for _, in2 := range sexp.In {
-						if in1.In[0].Equal(in2) {
-							// (or ...) containing both x and !x is trivially true
-							*sexp = *Const(constant.MakeBool(true))
-							break inLoop3
-						}
-					}
-				}
-			}
-		}
-
-	case "ite":
-		if sexp.In[1].Equal(sexp.In[2]) {
-			*sexp = *sexp.In[1]
-		} else if sexp.In[0].Verb == "const" {
-			if constant.BoolVal(sexp.In[0].Constant) {
-				*sexp = *sexp.In[1]
-			} else {
-				*sexp = *sexp.In[2]
-			}
-		}
-
-	case "bvadd":
-		if sexp.In[0].Verb == "const" && sexp.In[1].Verb == "const" && len(sexp.In) == 2 {
-			// XXX bitwidth, signedness
-			x, _ := constant.Uint64Val(sexp.In[0].Constant)
-			y, _ := constant.Uint64Val(sexp.In[1].Constant)
-			*sexp = *Const(constant.MakeUint64(uint64(uint8(x) + uint8(y))))
-		}
-
-		if sexp.In[0].Verb == "const" {
-			k, _ := constant.Uint64Val(sexp.In[0].Constant)
-			if k == 0 {
+			if sexp.In[0] == cZero {
 				// (bvadd 0 x) => x
-				*sexp = *sexp.In[1]
-			}
-		} else if sexp.In[1].Verb == "const" {
-			k, _ := constant.Uint64Val(sexp.In[1].Constant)
-			if k == 0 {
+				return sexp.In[1]
+			} else if sexp.In[1] == cZero {
 				// (bvadd x 0) => x
-				*sexp = *sexp.In[0]
+				return sexp.In[0]
 			}
-		}
 
-	case "=":
-		if len(sexp.In) == 2 && sexp.In[0].Equal(sexp.In[1]) {
-			*sexp = *Const(constant.MakeBool(true))
-		}
+		case "=":
+			if sexp.In[0].Equal(sexp.In[1]) {
+				return cTrue
+			}
 
-		if len(sexp.In) == 2 {
-			if bvadd := sexp.In[0]; bvadd.Verb == "bvadd" && len(bvadd.In) == 2 {
-				if out := sexp.In[1]; out.Verb == "const" {
-					if x := bvadd.In[0]; x.Verb != "const" {
-						if k := bvadd.In[1]; k.Verb == "const" {
-							_ = out
-							_ = x
-							_ = k
+			if x, ok := sexp.In[0].(Const); ok {
+				if y, ok := sexp.In[1].(Const); ok {
+					return Const{constant.MakeBool(constant.Compare(x.Value, token.EQL, y.Value))}
+				}
+			}
 
-							outi, _ := constant.Uint64Val(out.Constant)
-							ki, _ := constant.Uint64Val(k.Constant)
+			if bvadd, ok := sexp.In[0].(Sexp); ok && bvadd.Verb == "bvadd" {
+				if out, ok := sexp.In[1].(Const); ok {
+					if x, ok := bvadd.In[0].(Const); ok {
+						if k, ok := bvadd.In[1].(Const); ok {
+							outi, _ := constant.Uint64Val(out.Value)
+							ki, _ := constant.Uint64Val(k.Value)
 
-							sexp.In[0] = x
 							// XXX bitwidth, signedness
-							sexp.In[1] = Const(constant.MakeUint64(uint64(uint8(outi) - uint8(ki))))
+							return Equal(x, Const{constant.MakeUint64(uint64(uint8(outi) - uint8(ki)))})
 						}
 					}
 				}
 			}
-		}
 
-	case "bvult", "bvslt":
-		if sexp.In[0].Equal(sexp.In[1]) {
-			// no value is less than itself
-			*sexp = *Const(constant.MakeBool(false))
-		}
+		case "bvult", "bvslt":
+			if sexp.In[0].Equal(sexp.In[1]) {
+				// no value is less than itself
+				return cFalse
+			}
 
-	case "not":
-		if sexp.In[0].Verb == "const" {
-			if constant.BoolVal(sexp.In[0].Constant) {
-				*sexp = *Const(constant.MakeBool(false))
-			} else {
-				*sexp = *Const(constant.MakeBool(true))
+		case "not":
+			if sexp.In[0] == cTrue {
+				return cFalse
+			} else if sexp.In[0] == cFalse {
+				return cTrue
 			}
 		}
-	}
 
-	switch sexp.Verb {
-	case "bvadd", "and", "or":
-		sort.Slice(sexp.In, func(i, j int) bool {
-			// sexp > var > const
-			a := sexp.In[i]
-			b := sexp.In[j]
+		switch sexp.Verb {
+		case "bvadd", "and", "or":
+			sort.Slice(sexp.In[:], func(i, j int) bool {
+				// sexp > var > const
+				a := sexp.In[i]
+				b := sexp.In[j]
 
-			switch a.Verb {
-			case "const":
-				if b.Verb != "const" {
-					return false
-				}
+				switch a := a.(type) {
+				case Const:
+					b, ok := b.(Const)
+					if !ok {
+						return false
+					}
 
-				switch a.Constant.Kind() {
-				case constant.Bool:
-					ta := constant.BoolVal(a.Constant)
-					tb := constant.BoolVal(b.Constant)
-					return !ta && tb
-				case constant.Int:
-					return constant.Compare(a.Constant, token.LSS, b.Constant)
+					switch a.Value.Kind() {
+					case constant.Bool:
+						ta := constant.BoolVal(a.Value)
+						tb := constant.BoolVal(b.Value)
+						return !ta && tb
+					case constant.Int:
+						return constant.Compare(a.Value, token.LSS, b.Value)
+					default:
+						panic(fmt.Sprintf("unexpected kind %s", a.Value.Kind()))
+					}
+				case Var:
+					switch b := b.(type) {
+					case Const:
+						return true
+					case Var:
+						return a.Name < b.Name
+					default:
+						return false
+					}
 				default:
-					panic(fmt.Sprintf("unexpected kind %s", a.Constant.Kind()))
-				}
-			case "var":
-				if b.Verb == "const" {
-					return true
-				}
-				if b.Verb != "var" {
 					return false
 				}
-				return a.Value < b.Value
-			default:
-				return len(a.In) < len(b.In)
-			}
-		})
+			})
+		}
+
+		return sexp
 	}
+
+	return n
 }
 
 // XXX the name, among other things…
