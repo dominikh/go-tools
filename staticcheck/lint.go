@@ -524,18 +524,16 @@ func checkPrintfCallImpl(carg *Argument, f ir.Value, args []ir.Value) {
 		return true
 	}
 
-	seen := map[types.Type]bool{}
+	var seen typeutil.Map[struct{}]
 	var checkType func(verb rune, T types.Type, top bool) bool
 	checkType = func(verb rune, T types.Type, top bool) bool {
 		if top {
-			for k := range seen {
-				delete(seen, k)
-			}
+			seen = typeutil.Map[struct{}]{}
 		}
-		if seen[T] {
+		if _, ok := seen.At(T); ok {
 			return true
 		}
-		seen[T] = true
+		seen.Set(T, struct{}{})
 		if int(verb) >= len(verbs) {
 			// Unknown verb
 			return true

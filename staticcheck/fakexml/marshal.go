@@ -26,13 +26,14 @@ func Marshal(v types.Type) error {
 }
 
 type Encoder struct {
-	seen map[fakereflect.TypeAndCanAddr]struct{}
+	// TODO we track addressable and non-addressable instances separately out of an abundance of caution. We don't know
+	// if this is actually required for correctness.
+	seenCanAddr  typeutil.Map[struct{}]
+	seenCantAddr typeutil.Map[struct{}]
 }
 
 func NewEncoder() *Encoder {
-	e := &Encoder{
-		seen: map[fakereflect.TypeAndCanAddr]struct{}{},
-	}
+	e := &Encoder{}
 	return e
 }
 
@@ -113,10 +114,16 @@ func (err *CyclicTypeError) Error() string {
 // marshalValue writes one or more XML elements representing val.
 // If val was obtained from a struct field, finfo must have its details.
 func (e *Encoder) marshalValue(val fakereflect.TypeAndCanAddr, finfo *fieldInfo, startTemplate *StartElement, stack string) error {
-	if _, ok := e.seen[val]; ok {
+	var m *typeutil.Map[struct{}]
+	if val.CanAddr() {
+		m = &e.seenCanAddr
+	} else {
+		m = &e.seenCantAddr
+	}
+	if _, ok := m.At(val.Type); ok {
 		return nil
 	}
-	e.seen[val] = struct{}{}
+	m.Set(val.Type, struct{}{})
 
 	// Drill into interfaces and pointers.
 	seen := map[fakereflect.TypeAndCanAddr]struct{}{}
