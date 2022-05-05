@@ -17,6 +17,7 @@ import (
 	"unicode"
 
 	"golang.org/x/exp/typeparams"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/staticcheck/fakereflect"
 )
@@ -31,9 +32,7 @@ func parseTag(tag string) string {
 }
 
 func Marshal(v types.Type) *UnsupportedTypeError {
-	enc := encoder{
-		seen: map[fakereflect.TypeAndCanAddr]struct{}{},
-	}
+	enc := encoder{}
 	return enc.newTypeEncoder(fakereflect.TypeAndCanAddr{Type: v}, "x")
 }
 
@@ -45,14 +44,23 @@ type UnsupportedTypeError struct {
 }
 
 type encoder struct {
-	seen map[fakereflect.TypeAndCanAddr]struct{}
+	// TODO we track addressable and non-addressable instances separately out of an abundance of caution. We don't know
+	// if this is actually required for correctness.
+	seenCanAddr  typeutil.Map
+	seenCantAddr typeutil.Map
 }
 
 func (enc *encoder) newTypeEncoder(t fakereflect.TypeAndCanAddr, stack string) *UnsupportedTypeError {
-	if _, ok := enc.seen[t]; ok {
+	var m *typeutil.Map
+	if t.CanAddr() {
+		m = &enc.seenCanAddr
+	} else {
+		m = &enc.seenCantAddr
+	}
+	if ok := m.At(t.Type); ok != nil {
 		return nil
 	}
-	enc.seen[t] = struct{}{}
+	m.Set(t.Type, struct{}{})
 
 	if t.Implements(knowledge.Interfaces["encoding/json.Marshaler"]) {
 		return nil
