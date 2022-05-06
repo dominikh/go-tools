@@ -5066,7 +5066,9 @@ var allocationNilCheckQ = pattern.MustParse(`(IfStmt _ cond@(BinaryExpr lhs op@(
 
 func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
-	fn := func(node ast.Node) {
+
+	var path []ast.Node
+	fn := func(node ast.Node, stack []ast.Node) {
 		m, ok := code.Match(pass, allocationNilCheckQ, node)
 		if !ok {
 			return
@@ -5077,10 +5079,9 @@ func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		lhs := m.State["lhs"].(ast.Expr)
-		path, exact := astutil.PathEnclosingInterval(code.File(pass, lhs), lhs.Pos(), lhs.Pos())
-		if !exact {
-			// TODO(dh): when can this happen?
-			return
+		path = path[:0]
+		for i := len(stack) - 1; i >= 0; i-- {
+			path = append(path, stack[i])
 		}
 		irfn := ir.EnclosingFunction(irpkg, path)
 		v, isAddr := irfn.ValueForExpr(lhs)
@@ -5178,8 +5179,7 @@ func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 				report.Report(pass, cond, fallback)
 			}
 		}
-
 	}
-	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
+	code.PreorderStack(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
