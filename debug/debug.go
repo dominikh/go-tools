@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"go/ast"
 	"go/format"
+	"go/importer"
 	"go/parser"
 	"go/token"
 	"go/types"
@@ -29,7 +30,10 @@ func TypeCheck(src string) (*ast.File, *types.Package, *types.Info, error) {
 		InitOrder:  []*types.Initializer{},
 		Instances:  map[*ast.Ident]types.Instance{},
 	}
-	if err := types.NewChecker(nil, fset, pkg, info).Files([]*ast.File{f}); err != nil {
+	tcfg := &types.Config{
+		Importer: importer.Default(),
+	}
+	if err := types.NewChecker(tcfg, fset, pkg, info).Files([]*ast.File{f}); err != nil {
 		return nil, nil, nil, err
 	}
 	return f, pkg, info, nil
