@@ -3892,22 +3892,23 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 	//lint:ignore SA9003 TODO(dh): should we flag empty tags?
 	if len(tag) == 0 {
 	}
+	if i := strings.Index(tag, ",format:"); i >= 0 {
+		tag = tag[:i]
+	}
 	fields := strings.Split(tag, ",")
 	for _, r := range fields[0] {
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("!#$%&()*+-./:<=>?@[]^_{|}~ ", r) {
 			report.Report(pass, field.Tag, fmt.Sprintf("invalid JSON field name %q", fields[0]))
 		}
 	}
-	var co, cs, ci int
+	options := make(map[string]int)
 	for _, s := range fields[1:] {
 		switch s {
-		case "omitempty":
-			co++
 		case "":
 			// allow stuff like "-,"
 		case "string":
-			cs++
 			// only for string, floating point, integer and bool
+			options[s]++
 			tset := typeutil.NewTypeSet(pass.TypesInfo.TypeOf(field.Type))
 			if len(tset.Terms) == 0 {
 				// TODO(dh): improve message, call out the use of type parameters
@@ -3924,20 +3925,23 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 					}
 				}
 			}
-		case "inline":
-			ci++
+		case "omitzero", "omitempty", "nocase", "inline", "unknown":
+			options[s]++
 		default:
 			report.Report(pass, field.Tag, fmt.Sprintf("unknown JSON option %q", s))
 		}
 	}
-	if co > 1 {
-		report.Report(pass, field.Tag, `duplicate JSON option "omitempty"`)
+	var duplicates []string
+	for option, n := range options {
+		if n > 1 {
+			duplicates = append(duplicates, option)
+		}
 	}
-	if cs > 1 {
-		report.Report(pass, field.Tag, `duplicate JSON option "string"`)
-	}
-	if ci > 1 {
-		report.Report(pass, field.Tag, `duplicate JSON option "inline"`)
+	if len(duplicates) > 0 {
+		sort.Strings(duplicates)
+		for _, option := range duplicates {
+			report.Report(pass, field.Tag, fmt.Sprintf("duplicate JSON option %q", option))
+		}
 	}
 }
 
