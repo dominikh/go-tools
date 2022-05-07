@@ -73,7 +73,7 @@ func Graph(c *cache.Cache, cfg *packages.Config, patterns ...string) ([]*Package
 	dcfg.Mode = packages.NeedName |
 		packages.NeedImports |
 		packages.NeedDeps |
-		packages.NeedExportsFile |
+		packages.NeedExportFile |
 		packages.NeedFiles |
 		packages.NeedCompiledGoFiles |
 		packages.NeedTypesSizes |

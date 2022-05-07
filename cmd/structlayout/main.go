@@ -42,7 +42,7 @@ func main() {
 	}
 
 	cfg := &packages.Config{
-		Mode:  packages.NeedImports | packages.NeedExportsFile | packages.NeedTypes | packages.NeedSyntax,
+		Mode:  packages.NeedImports | packages.NeedExportFile | packages.NeedTypes | packages.NeedSyntax,
 		Tests: true,
 	}
 	pkgs, err := packages.Load(cfg, flag.Args()[0])
