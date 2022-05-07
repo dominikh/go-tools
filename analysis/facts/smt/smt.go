@@ -1,7 +1,6 @@
 // Package smt implements a fairly naive SMT solver for the QF_BV logic.
 package smt
 
-// XXX canonical ordering of inputs
 // XXX we can solve things like (= (bvadd Var Const) Const) directly, without going through SAT. do we need ITE for this?
 // XXX figure out a better graph representation and on the fly simplifications
 
@@ -15,17 +14,12 @@ package smt
 // (bvule <max value> x) -> (= x <max value>)
 // (bvule 0 x) -> true
 //
-// !(b < a) -> b >= a
-// !(b <= a) -> b > a
-//
 // (and (bvslt a b) (bvslt b a)) -> false
 // a < b ∧ b < c implies a < c, which helps with (and (bvslt a b) (bvslt b c) (bvslt c a)), as we can expand it to (and (bvslt a b) (bvslt b c) (bvslt a c) (bvslt c a)) and find the contradiction
 // do the same for <=, not just <, and also for the unsigned versions
 // do the same for 'or', resulting in true
 //
 // propagate equalities, both formulas '(= x foo)' and terms 'x'
-//
-// how can we propagate inequalities? if we have (bvslt 1 t2), and no other restrictions on t2 or uses of t2, then the inequality is trivially satisfiable.
 
 /*
 dee: BV-Constraint f  ̈ur “teure” Operationen wird nur hinzugef  ̈ugt
@@ -241,7 +235,7 @@ func smtfn2(fn *ir.Function) {
 			c = append(c, n)
 		}
 
-		c = append(c, Var{"t4"})
+		c = append(c, Var{"t8"})
 		c = append(c, Var{"cexec0"})
 
 		and := And(c...)
@@ -251,6 +245,22 @@ func smtfn2(fn *ir.Function) {
 		}
 
 		fmt.Println(and)
+	}
+}
+
+func verbToOp(verb string) token.Token {
+	switch verb {
+	case "bvult":
+		return token.LSS
+	case "bvslt":
+		return token.LSS
+	case "bvule":
+		return token.LEQ
+	case "bvsle":
+		return token.LEQ
+	default:
+		// XXX
+		panic(verb)
 	}
 }
 
@@ -368,6 +378,22 @@ func simplify(n Node) Node {
 			sexp.In[i] = simplify(in)
 		}
 
+		// Constant propagation
+		if x, ok := sexp.In[0].(Const); ok {
+			if y, ok := sexp.In[1].(Const); ok {
+				switch sexp.Verb {
+				case "bvadd":
+					// XXX bitwidth, signedness
+					xi, _ := constant.Uint64Val(x.Value)
+					yi, _ := constant.Uint64Val(y.Value)
+					return Const{constant.MakeUint64(uint64(uint8(xi) + uint8(yi)))}
+				case "bvult", "bvslt", "bvule", "bvsle":
+					op := verbToOp(sexp.Verb)
+					return Const{constant.MakeBool(constant.Compare(x.Value, op, y.Value))}
+				}
+			}
+		}
+
 		switch sexp.Verb {
 		case "and":
 			if sexp.In[0] == cFalse || sexp.In[1] == cFalse {
@@ -400,15 +426,6 @@ func simplify(n Node) Node {
 			}
 
 		case "bvadd":
-			if x, ok := sexp.In[0].(Const); ok {
-				if y, ok := sexp.In[1].(Const); ok {
-					// XXX bitwidth, signedness
-					xi, _ := constant.Uint64Val(x.Value)
-					yi, _ := constant.Uint64Val(y.Value)
-					return Const{constant.MakeUint64(uint64(uint8(xi) + uint8(yi)))}
-				}
-			}
-
 			if sexp.In[1] == cZero {
 				// (bvadd x 0) => x
 				return sexp.In[0]
@@ -445,13 +462,30 @@ func simplify(n Node) Node {
 				return cFalse
 			}
 
+		case "bvule", "bvsle":
+			if sexp.In[0].Equal(sexp.In[1]) {
+				// every value is equal to itself
+				return cTrue
+			}
+
 		case "not":
 			if sexp.In[0] == cTrue {
 				return cFalse
 			} else if sexp.In[0] == cFalse {
 				return cTrue
-			} else if in, ok := sexp.In[0].(Sexp); ok && in.Verb == "not" {
-				return in
+			} else if in, ok := sexp.In[0].(Sexp); ok {
+				switch in.Verb {
+				case "not":
+					return in
+				case "bvult":
+					return Op("bvule", in.In[1], in.In[0])
+				case "bvule":
+					return Op("bvult", in.In[1], in.In[0])
+				case "bvslt":
+					return Op("bvsle", in.In[1], in.In[0])
+				case "bvsle":
+					return Op("bvslt", in.In[1], in.In[0])
+				}
 			}
 		}
 
