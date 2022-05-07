@@ -1,3 +1,4 @@
+// Package smt implements a fairly naive SMT solver for the QF_BV logic.
 package smt
 
 // XXX canonical ordering of inputs
@@ -14,7 +15,26 @@ package smt
 // (bvule <max value> x) -> (= x <max value>)
 // (bvule 0 x) -> true
 //
+// !(b < a) -> b >= a
+// !(b <= a) -> b > a
+//
+// (and (bvslt a b) (bvslt b a)) -> false
+// a < b ∧ b < c implies a < c, which helps with (and (bvslt a b) (bvslt b c) (bvslt c a)), as we can expand it to (and (bvslt a b) (bvslt b c) (bvslt a c) (bvslt c a)) and find the contradiction
+// do the same for <=, not just <, and also for the unsigned versions
+// do the same for 'or', resulting in true
+//
 // propagate equalities, both formulas '(= x foo)' and terms 'x'
+//
+// how can we propagate inequalities? if we have (bvslt 1 t2), and no other restrictions on t2 or uses of t2, then the inequality is trivially satisfiable.
+
+/*
+dee: BV-Constraint f  ̈ur “teure” Operationen wird nur hinzugef  ̈ugt
+falls die Formel ohne diese Operationen erf  ̈ullbar ist
+Alternative: Approximiere die “teuren” Operationen im ersten Schritt
+durch uninterpretierte Funktionen
+Benutze Ackermanns Reduktion um die uninterpretierten Funktionen
+durch Variablen zu ersetzen
+*/
 
 import (
 	"fmt"
@@ -45,6 +65,10 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 	return false
 }
 
+var cTrue = Const{constant.MakeBool(true)}
+var cFalse = Const{constant.MakeBool(false)}
+var cZero = Const{constant.MakeUint64(0)}
+
 func smt(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		smtfn2(fn)
@@ -71,7 +95,7 @@ func smtfn2(fn *ir.Function) {
 	dfs(fn.Blocks[0])
 
 	var assertions []Node
-	assertions = append(assertions, Equal(Var{"cexec0"}, Const{constant.MakeBool(true)}))
+	assertions = append(assertions, Equal(Var{"cexec0"}, cTrue))
 
 	control := func(from, to *ir.BasicBlock) Node {
 		var cond Node
@@ -83,7 +107,7 @@ func smtfn2(fn *ir.Function) {
 				cond = Not(Var{ctrl.Cond.Name()})
 			}
 		case *ir.Jump:
-			cond = Const{constant.MakeBool(true)}
+			cond = cTrue
 		default:
 			panic(fmt.Sprintf("%T", ctrl))
 		}
@@ -142,6 +166,16 @@ func smtfn2(fn *ir.Function) {
 				}
 				doDef(v, ite)
 
+			case *ir.UnOp:
+				var n Node
+				switch v.Op {
+				case token.NOT:
+					n = Not(Var{v.X.Name()})
+				default:
+					panic("XXX")
+				}
+				doDef(v, n)
+
 			case *ir.BinOp:
 				var n Node
 				switch v.Op {
@@ -190,7 +224,7 @@ func smtfn2(fn *ir.Function) {
 					cond = Not(Var{ctrl.Cond.Name()})
 				}
 			case *ir.Jump:
-				cond = Const{constant.MakeBool(true)}
+				cond = cTrue
 			default:
 				panic(fmt.Sprintf("%T", ctrl))
 			}
@@ -200,15 +234,15 @@ func smtfn2(fn *ir.Function) {
 		assertions = append(assertions, Equal(Var{fmt.Sprintf("cexec%d", top[i].Index)}, Or(c...)))
 	}
 
-	if fn.Name() == "foo" {
+	if fn.Name() == "bar" {
 		var c []Node
 
 		for _, n := range assertions {
 			c = append(c, n)
 		}
 
-		c = append(c, Var{"t50"})
-		c = append(c, Var{"cexec8"})
+		c = append(c, Var{"t4"})
+		c = append(c, Var{"cexec0"})
 
 		and := And(c...)
 
@@ -329,9 +363,6 @@ func simplify(n Node) Node {
 		return found
 	}
 
-	cTrue := Const{constant.MakeBool(true)}
-	cFalse := Const{constant.MakeBool(false)}
-	cZero := Const{constant.MakeUint64(0)}
 	if sexp, ok := n.(Sexp); ok {
 		for i, in := range sexp.In {
 			sexp.In[i] = simplify(in)
@@ -367,16 +398,6 @@ func simplify(n Node) Node {
 					return cTrue
 				}
 			}
-		case "ite":
-			if sexp.In[1].Equal(sexp.In[2]) {
-				return sexp.In[1]
-			} else if c, ok := sexp.In[0].(Const); ok {
-				if constant.BoolVal(c.Value) {
-					return sexp.In[1]
-				} else {
-					return sexp.In[2]
-				}
-			}
 
 		case "bvadd":
 			if x, ok := sexp.In[0].(Const); ok {
@@ -388,10 +409,7 @@ func simplify(n Node) Node {
 				}
 			}
 
-			if sexp.In[0] == cZero {
-				// (bvadd 0 x) => x
-				return sexp.In[1]
-			} else if sexp.In[1] == cZero {
+			if sexp.In[1] == cZero {
 				// (bvadd x 0) => x
 				return sexp.In[0]
 			}
@@ -432,6 +450,8 @@ func simplify(n Node) Node {
 				return cFalse
 			} else if sexp.In[0] == cFalse {
 				return cTrue
+			} else if in, ok := sexp.In[0].(Sexp); ok && in.Verb == "not" {
+				return in
 			}
 		}
 
