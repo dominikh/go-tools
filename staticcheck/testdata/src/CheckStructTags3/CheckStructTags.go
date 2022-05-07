@@ -10,7 +10,7 @@ type T1 struct {
 	F int        `json:",omitempty,omitempty"` //@ diag(`duplicate JSON option "omitempty"`)
 	G int        `json:",omitempty,string"`
 	H int        `json:",string,omitempty,string"` //@ diag(`duplicate JSON option "string"`)
-	I int        `json:",unknown"`                 //@ diag(`unknown JSON option "unknown"`)
+	I int        `json:",foreign"`                 //@ diag(`unknown JSON option "foreign"`)
 	J int        `json:",string"`
 	K *int       `json:",string"`
 	L **int      `json:",string"` //@ diag(`the JSON string option`)
@@ -34,7 +34,7 @@ type T2 struct {
 
 type T3 struct {
 	A int `json:",omitempty" xml:",attr"`
-	B int `json:",unknown" xml:",attr"` //@ diag(`unknown JSON option`)
+	B int `json:",foreign" xml:",attr"` //@ diag(`unknown JSON option "foreign"`)
 }
 
 type T4 struct {
