@@ -195,6 +195,14 @@ func smtfn2(fn *ir.Function) {
 						verb = "bvslt"
 					}
 					n = Op(verb, Var{v.Y.Name()}, Var{v.X.Name()})
+				case token.GEQ:
+					var verb string
+					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+						verb = "bvule"
+					} else {
+						verb = "bvsle"
+					}
+					n = Op(verb, Var{v.Y.Name()}, Var{v.X.Name()})
 				default:
 					panic("XXX")
 				}
@@ -228,24 +236,24 @@ func smtfn2(fn *ir.Function) {
 		assertions = append(assertions, Equal(Var{fmt.Sprintf("cexec%d", top[i].Index)}, Or(c...)))
 	}
 
-	if fn.Name() == "bar" {
-		var c []Node
+	// if fn.Name() == "foo" {
+	var c []Node
 
-		for _, n := range assertions {
-			c = append(c, n)
-		}
-
-		c = append(c, Var{"t8"})
-		c = append(c, Var{"cexec0"})
-
-		and := And(c...)
-
-		for i := 0; i < 5; i++ {
-			and = simplify(and)
-		}
-
-		fmt.Println(and)
+	for _, n := range assertions {
+		c = append(c, n)
 	}
+
+	// c = append(c, Var{"t50"})
+	// c = append(c, Var{"cexec8"})
+
+	and := And(c...)
+
+	for i := 0; i < 5; i++ {
+		and = simplify(and)
+	}
+
+	fmt.Println(and)
+	// }
 }
 
 func verbToOp(verb string) token.Token {
@@ -468,6 +476,14 @@ func simplify(n Node) Node {
 				return cTrue
 			}
 
+			var neg string
+			if sexp.Verb == "bvule" {
+				neg = "bvult"
+			} else {
+				neg = "bvslt"
+			}
+			return Not(Op(neg, sexp.In[1], sexp.In[0]))
+
 		case "not":
 			if sexp.In[0] == cTrue {
 				return cFalse
@@ -477,14 +493,6 @@ func simplify(n Node) Node {
 				switch in.Verb {
 				case "not":
 					return in
-				case "bvult":
-					return Op("bvule", in.In[1], in.In[0])
-				case "bvule":
-					return Op("bvult", in.In[1], in.In[0])
-				case "bvslt":
-					return Op("bvsle", in.In[1], in.In[0])
-				case "bvsle":
-					return Op("bvslt", in.In[1], in.In[0])
 				}
 			}
 		}
