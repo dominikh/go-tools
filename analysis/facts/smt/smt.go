@@ -11,18 +11,8 @@ package smt
 // (bvadd x x) => (bvshl x 1)
 // (bvadd x 0) => x
 // (<op> c1 c2) -> <computed>
-// canonical ordering; values before consts
 // (bvule <max value> x) -> (= x <max value>)
 // (bvule 0 x) -> true
-// (or ... x ... !x ...) -> true
-// (and ... x ... !x ...) -> false
-// (and (and ...)) -> flatten
-// (or (or ...)) -> flatten
-// (ite false a b) -> b
-// (ite true a b) -> a
-// (not (const k)) -> !k
-// (= x true) -> x
-// (= x false) -> (not x)
 //
 // propagate equalities, both formulas '(= x foo)' and terms 'x'
 
@@ -31,7 +21,6 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
-	"log"
 	"reflect"
 	"sort"
 
@@ -66,9 +55,6 @@ func smt(pass *analysis.Pass) (interface{}, error) {
 func smtfn2(fn *ir.Function) {
 	// XXX handle loops
 
-	// mapping from basic block to list of execution conditions
-	// execConditions := [][]ir.Value
-
 	seen := make([]bool, len(fn.Blocks))
 	var dfs func(b *ir.BasicBlock)
 	top := make([]*ir.BasicBlock, 0, len(fn.Blocks))
@@ -84,9 +70,8 @@ func smtfn2(fn *ir.Function) {
 	}
 	dfs(fn.Blocks[0])
 
-	definitions := map[ir.Value]Node{}
-	cexecs := map[int]Node{}
-	cexecs[0] = Const{constant.MakeBool(true)}
+	var assertions []Node
+	assertions = append(assertions, Equal(Var{"cexec0"}, Const{constant.MakeBool(true)}))
 
 	control := func(from, to *ir.BasicBlock) Node {
 		var cond Node
@@ -103,6 +88,24 @@ func smtfn2(fn *ir.Function) {
 			panic(fmt.Sprintf("%T", ctrl))
 		}
 		return cond
+	}
+
+	iteCnt := 0
+
+	doITE := func(cond, t, f Node) Var {
+		v := Var{fmt.Sprintf("ite%d", iteCnt)}
+		iteCnt++
+
+		n := And(
+			Or(Not(cond), Equal(v, t)),
+			Or(cond, Equal(v, f)))
+		assertions = append(assertions, n)
+
+		return v
+	}
+
+	doDef := func(v ir.Value, n Node) {
+		assertions = append(assertions, Equal(Var{v.Name()}, n))
 	}
 
 	for i := len(top) - 1; i >= 0; i-- {
@@ -126,18 +129,18 @@ func smtfn2(fn *ir.Function) {
 
 			switch v := v.(type) {
 			case *ir.Const:
-				definitions[v] = Const{v.Value}
+				doDef(v, Const{v.Value})
 
 			case *ir.Sigma:
-				definitions[v] = Var{v.X.Name()}
+				doDef(v, Var{v.X.Name()})
 
 			case *ir.Phi:
 				var ite Node = Var{v.Edges[len(v.Edges)-1].Name()}
 
 				for i, e := range v.Edges[:len(v.Edges)-1] {
-					ite = ITE(And(Var{fmt.Sprintf("cexec%d", b.Preds[i].Index)}, control(b.Preds[i], b)), Var{e.Name()}, ite)
+					ite = doITE(And(Var{fmt.Sprintf("cexec%d", b.Preds[i].Index)}, control(b.Preds[i], b)), Var{e.Name()}, ite)
 				}
-				definitions[v] = ite
+				doDef(v, ite)
 
 			case *ir.BinOp:
 				var n Node
@@ -168,7 +171,7 @@ func smtfn2(fn *ir.Function) {
 					panic("XXX")
 				}
 
-				definitions[v] = n
+				doDef(v, n)
 			}
 		}
 
@@ -193,75 +196,138 @@ func smtfn2(fn *ir.Function) {
 			}
 			c = append(c, And(Var{fmt.Sprintf("cexec%d", pred.Index)}, cond))
 		}
-		cexecs[top[i].Index] = Or(c...)
+
+		assertions = append(assertions, Equal(Var{fmt.Sprintf("cexec%d", top[i].Index)}, Or(c...)))
 	}
 
 	if fn.Name() == "foo" {
 		var c []Node
-		for v, n := range definitions {
-			c = append(c, Equal(Var{v.Name()}, n))
-			if v.Name() == "t50" {
-				c = append(c, n)
-			}
+
+		for _, n := range assertions {
+			c = append(c, n)
 		}
 
-		for i, n := range cexecs {
-			c = append(c, Equal(Var{fmt.Sprintf("cexec%d", i)}, n))
-		}
+		c = append(c, Var{"t50"})
+		c = append(c, Var{"cexec8"})
 
-		c = append(c, cexecs[8])
 		and := And(c...)
-		for i := 0; i < 100; i++ {
+
+		for i := 0; i < 5; i++ {
 			and = simplify(and)
 		}
+
 		fmt.Println(and)
 	}
 }
 
 func simplify(n Node) Node {
+	for {
+		if sexp, ok := n.(Sexp); ok && sexp.Verb == "and" {
+			equalities := map[Var]Node{}
+			addEquality := func(node Node) {
+				sexp, ok := node.(Sexp)
+				if !ok || sexp.Verb != "=" {
+					return
+				}
+				lhs, ok := sexp.In[0].(Var)
+				if !ok {
+					return
+				}
+				if _, ok := equalities[lhs]; ok {
+					return
+				}
+				equalities[lhs] = sexp.In[1]
+			}
+			// Propagate equalities
+			var dfs func(node Node)
+			dfs = func(node Node) {
+				sexp, ok := node.(Sexp)
+				if !ok || sexp.Verb != "and" {
+					return
+				}
+
+				addEquality(sexp.In[0])
+				addEquality(sexp.In[1])
+
+				dfs(sexp.In[0])
+				dfs(sexp.In[1])
+			}
+			dfs(sexp)
+
+			var rename func(n Node) Node
+			rename = func(n Node) Node {
+				switch n := n.(type) {
+				case Sexp:
+					for i, in := range n.In {
+						n.In[i] = rename(in)
+					}
+					return n
+				case Var:
+					if r, ok := equalities[n]; ok && r != n {
+						return rename(r)
+					} else {
+						return n
+					}
+				case Const:
+					return n
+				case nil:
+					return nil
+				default:
+					panic(fmt.Sprintf("%T", n))
+				}
+			}
+			new := rename(n)
+			if n.Equal(new) {
+				break
+			}
+			n = new
+		} else {
+			break
+		}
+
+		// XXX avoid O(n²). we see an And, we run this code. we later simplify the children of And, which might also be
+		// And, but don't deserve to have this applied again.
+	}
+
 	// XXX our code is so horribly inefficient
 
-	/*
-		if sexp.Verb == "and" {
-			// propagate equalities
+	hasBoth := func(root Sexp) bool {
+		seen := map[Node]struct{}{}
+		var dfs func(n Node)
+		found := false
+		dfs = func(n Node) {
+			// XXX clean up this code
 
-			type propagation struct {
-				to   *Sexp
-				skip *Sexp
-			}
-
-			var propagate func(sexp *Sexp, propagations map[string]propagation)
-			propagate = func(sexp *Sexp, propagations map[string]propagation) {
-				for i, in := range sexp.In {
-					if in.Verb == "var" {
-						if prop, ok := propagations[in.Value]; ok && !prop.skip.Equal(sexp) {
-							sexp.In[i] = prop.to
-						}
-					} else {
-						propagate(in, propagations)
+			seen[n] = struct{}{}
+			if sexp, ok := n.(Sexp); ok {
+				if sexp.Verb == "not" {
+					if _, ok := seen[sexp.In[0]]; ok {
+						found = true
+						return
+					}
+				} else {
+					if _, ok := seen[Not(sexp)]; ok {
+						found = true
+						return
 					}
 				}
-			}
 
-			propagations := map[string]propagation{}
-			for _, in := range sexp.In {
-				if in.Verb == "=" && len(in.In) == 2 && in.In[0].Verb == "var" {
-					if _, ok := propagations[in.In[0].Value]; !ok {
-						propagations[in.In[0].Value] = propagation{in.In[1], in}
-					}
+				if sexp.Verb == root.Verb {
+					dfs(sexp.In[0])
+					dfs(sexp.In[1])
 				}
-			}
-
-			if len(propagations) != 0 {
-				*sexp = *deepFuckingClone(sexp)
-				propagate(sexp, propagations)
+			} else {
+				if _, ok := seen[Not(sexp)]; ok {
+					found = true
+					return
+				}
 			}
 		}
 
-		for _, in := range sexp.In {
-			simplify(in)
-		}
-	*/
+		dfs(root.In[0])
+		dfs(root.In[1])
+		return found
+	}
 
 	cTrue := Const{constant.MakeBool(true)}
 	cFalse := Const{constant.MakeBool(false)}
@@ -278,11 +344,15 @@ func simplify(n Node) Node {
 			} else if sexp.In[0] == cTrue {
 				return sexp.In[1]
 			} else if sexp.In[1] == cTrue {
-				log.Println("replacing", sexp, "with", sexp.In[0])
 				return sexp.In[0]
-			}
+			} else {
+				// TODO find conflicting negation, recursively
+				// Find a pair of 'x' and '(not x)'
 
-			// TODO find conflicting negation, recursively
+				if hasBoth(sexp) {
+					return cFalse
+				}
+			}
 
 		case "or":
 			if sexp.In[0] == cTrue || sexp.In[1] == cTrue {
@@ -291,10 +361,12 @@ func simplify(n Node) Node {
 				return sexp.In[1]
 			} else if sexp.In[1] == cFalse {
 				return sexp.In[0]
+			} else {
+				// Find a pair of 'x' and '(not x)'
+				if hasBoth(sexp) {
+					return cTrue
+				}
 			}
-
-			// TODO find conflicting negation, recursively
-
 		case "ite":
 			if sexp.In[1].Equal(sexp.In[2]) {
 				return sexp.In[1]
