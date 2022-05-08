@@ -443,7 +443,24 @@ falsify results.`,
 	},
 
 	"SA4008": {
-		Title:    `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
+		Title: `The variable in the loop condition never changes, are you incrementing the wrong variable?`,
+		Text: `For example:
+
+	for i := 0; i < 10; j++ { ... }
+
+This may also occur when a loop condition does not have a chance to increment. 
+For example, when a loop body contains an unconditional panic:
+
+	func f() {
+		panic("oops")
+	}
+	func g() {
+		for i := 0; i < 10; i++ {
+			// f unconditionally calls panic, which means "i" is
+			// never incremented.
+			f()
+		}
+	}`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

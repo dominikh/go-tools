@@ -1146,9 +1146,9 @@
 		},
 		"SA4008": {
 			"Title": "The variable in the loop condition never changes, are you incrementing the wrong variable?",
-			"Text": "",
+			"Text": "For example:\n\n\tfor i := 0; i \u003c 10; j++ { ... }\n\nThis may also occur when a loop condition does not have a chance to increment. \nFor example, when a loop body contains an unconditional panic:\n\n\tfunc f() {\n\t\tpanic(\"oops\")\n\t}\n\tfunc g() {\n\t\tfor i := 0; i \u003c 10; i++ {\n\t\t\t// f unconditionally calls panic, which means \"i\" is\n\t\t\t// never incremented.\n\t\t\tf()\n\t\t}\n\t}",
 			"TitleMarkdown": "The variable in the loop condition never changes, are you incrementing the wrong variable?",
-			"TextMarkdown": "",
+			"TextMarkdown": "For example:\n\n\tfor i := 0; i \u003c 10; j++ { ... }\n\nThis may also occur when a loop condition does not have a chance to increment. \nFor example, when a loop body contains an unconditional panic:\n\n\tfunc f() {\n\t\tpanic(\"oops\")\n\t}\n\tfunc g() {\n\t\tfor i := 0; i \u003c 10; i++ {\n\t\t\t// f unconditionally calls panic, which means \"i\" is\n\t\t\t// never incremented.\n\t\t\tf()\n\t\t}\n\t}",
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
