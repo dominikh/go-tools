@@ -4939,6 +4939,10 @@ func CheckTypeAssertionShadowingElse(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		irfn := ir.EnclosingFunction(irpkg, path)
+		if irfn == nil {
+			// For example for functions named "_", because we don't generate IR for them.
+			return
+		}
 
 		shadoweeIR, isAddr := irfn.ValueForExpr(m.State["obj"].(*ast.Ident))
 		if shadoweeIR == nil || isAddr {
@@ -5088,6 +5092,10 @@ func CheckAllocationNilCheck(pass *analysis.Pass) (interface{}, error) {
 			path = append(path, stack[i])
 		}
 		irfn := ir.EnclosingFunction(irpkg, path)
+		if irfn == nil {
+			// For example for functions named "_", because we don't generate IR for them.
+			return
+		}
 		v, isAddr := irfn.ValueForExpr(lhs)
 		if isAddr {
 			return
