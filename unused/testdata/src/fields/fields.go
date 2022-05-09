@@ -2,6 +2,8 @@
 
 package pkg
 
+import "unsafe"
+
 type t1 struct { //@ used(true)
 	f11 int //@ used(true)
 	f12 int //@ used(true)
@@ -86,6 +88,15 @@ type t22 struct { //@ used(false)
 	f222 int
 }
 
+type t23 struct { //@ used(true)
+	f231 int //@ used(true)
+	f232 t24 //@ used(true)
+}
+
+type t24 struct { //@ used(true)
+	f241 int //@ used(true)
+}
+
 func foo() { //@ used(true)
 	_ = t10{1}
 	_ = t21{f212: 1}
@@ -118,6 +129,9 @@ func foo() { //@ used(true)
 	_ = t18{f181: 1}
 	_ = []m2{{"a": {1}}}
 	_ = [][]m3{{{"a": {1}}}}
+
+	var x23 t23
+	_ = unsafe.Pointer(&x23)
 }
 
 func init() { foo() } //@ used(true)
