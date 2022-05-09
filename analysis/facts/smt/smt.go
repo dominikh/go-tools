@@ -43,6 +43,14 @@ import (
 	"honnef.co/go/tools/internal/passes/buildir"
 )
 
+// XXX we're using ir.Value's IDs; make sure we don't break on globals
+
+const (
+	offsetVar   = 0
+	offsetCexec = 1e9
+	offsetIte   = 2e9
+)
+
 var Analyzer = &analysis.Analyzer{
 	Name:       "smt",
 	Doc:        "SMT",
@@ -62,6 +70,7 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 var cTrue = Const{constant.MakeBool(true)}
 var cFalse = Const{constant.MakeBool(false)}
 var cZero = Const{constant.MakeUint64(0)}
+var cOne = Const{constant.MakeUint64(1)}
 
 func smt(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
@@ -71,6 +80,10 @@ func smt(pass *analysis.Pass) (interface{}, error) {
 }
 
 func smtfn2(fn *ir.Function) {
+	if fn.Name() == "init" {
+		// Don't waste our time analysing init functions, which may initialize huge data structures
+		return
+	}
 	// XXX handle loops
 
 	seen := make([]bool, len(fn.Blocks))
@@ -89,18 +102,20 @@ func smtfn2(fn *ir.Function) {
 	dfs(fn.Blocks[0])
 
 	var assertions []Node
-	assertions = append(assertions, Equal(Var{"cexec0"}, cTrue))
+	assertions = append(assertions, Equal(Var{offsetCexec + 0}, cTrue))
 
 	control := func(from, to *ir.BasicBlock) Node {
 		var cond Node
 		switch ctrl := from.Control().(type) {
 		case *ir.If:
 			if from.Succs[0] == to {
-				cond = Var{ctrl.Cond.Name()}
+				cond = Var{offsetVar + uint64(ctrl.Cond.ID())}
 			} else {
-				cond = Not(Var{ctrl.Cond.Name()})
+				cond = Not(Var{offsetVar + uint64(ctrl.Cond.ID())})
 			}
 		case *ir.Jump:
+			cond = cTrue
+		case *ir.Panic:
 			cond = cTrue
 		default:
 			panic(fmt.Sprintf("%T", ctrl))
@@ -108,10 +123,10 @@ func smtfn2(fn *ir.Function) {
 		return cond
 	}
 
-	iteCnt := 0
+	iteCnt := uint64(0)
 
 	doITE := func(cond, t, f Node) Var {
-		v := Var{fmt.Sprintf("ite%d", iteCnt)}
+		v := Var{offsetIte + iteCnt}
 		iteCnt++
 
 		n := And(
@@ -123,7 +138,7 @@ func smtfn2(fn *ir.Function) {
 	}
 
 	doDef := func(v ir.Value, n Node) {
-		assertions = append(assertions, Equal(Var{v.Name()}, n))
+		assertions = append(assertions, Equal(Var{offsetVar + uint64(v.ID())}, n))
 	}
 
 	for i := len(top) - 1; i >= 0; i-- {
@@ -150,13 +165,13 @@ func smtfn2(fn *ir.Function) {
 				doDef(v, Const{v.Value})
 
 			case *ir.Sigma:
-				doDef(v, Var{v.X.Name()})
+				doDef(v, Var{offsetVar + uint64(v.X.ID())})
 
 			case *ir.Phi:
-				var ite Node = Var{v.Edges[len(v.Edges)-1].Name()}
+				var ite Node = Var{offsetVar + uint64(v.Edges[len(v.Edges)-1].ID())}
 
 				for i, e := range v.Edges[:len(v.Edges)-1] {
-					ite = doITE(And(Var{fmt.Sprintf("cexec%d", b.Preds[i].Index)}, control(b.Preds[i], b)), Var{e.Name()}, ite)
+					ite = doITE(And(Var{offsetCexec + uint64(b.Preds[i].Index)}, control(b.Preds[i], b)), Var{offsetVar + uint64(e.ID())}, ite)
 				}
 				doDef(v, ite)
 
@@ -164,9 +179,11 @@ func smtfn2(fn *ir.Function) {
 				var n Node
 				switch v.Op {
 				case token.NOT:
-					n = Not(Var{v.X.Name()})
+					n = Not(Var{offsetVar + uint64(v.X.ID())})
+				case token.SUB:
+					n = Op(verbBvneg, Var{offsetVar + uint64(v.X.ID())}, nil)
 				default:
-					panic("XXX")
+					panic(v.Op.String())
 				}
 				doDef(v, n)
 
@@ -174,37 +191,84 @@ func smtfn2(fn *ir.Function) {
 				var n Node
 				switch v.Op {
 				case token.EQL:
-					n = Equal(Var{v.X.Name()}, Var{v.Y.Name()})
+					n = Equal(Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
 				case token.NEQ:
-					n = Not(Equal(Var{v.X.Name()}, Var{v.Y.Name()}))
+					n = Not(Equal(Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())}))
 				case token.ADD:
-					n = Op("bvadd", Var{v.X.Name()}, Var{v.Y.Name()})
+					n = Op(verbBvadd, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.SUB:
+					n = Op(verbBvsub, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
 				case token.LSS:
-					var verb string
+					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
-						verb = "bvult"
+						verb = verbBvult
 					} else {
-						verb = "bvslt"
+						verb = verbBvslt
 					}
-					n = Op(verb, Var{v.X.Name()}, Var{v.Y.Name()})
+					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
 				case token.GTR:
-					var verb string
+					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
-						verb = "bvult"
+						verb = verbBvult
 					} else {
-						verb = "bvslt"
+						verb = verbBvslt
 					}
-					n = Op(verb, Var{v.Y.Name()}, Var{v.X.Name()})
+					n = Op(verb, Var{offsetVar + uint64(v.Y.ID())}, Var{offsetVar + uint64(v.X.ID())})
 				case token.GEQ:
-					var verb string
+					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
-						verb = "bvule"
+						verb = verbBvule
 					} else {
-						verb = "bvsle"
+						verb = verbBvsle
 					}
-					n = Op(verb, Var{v.Y.Name()}, Var{v.X.Name()})
+					n = Op(verb, Var{offsetVar + uint64(v.Y.ID())}, Var{offsetVar + uint64(v.X.ID())})
+				case token.LEQ:
+					var verb Verb
+					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+						verb = verbBvule
+					} else {
+						verb = verbBvsle
+					}
+					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.MUL:
+					n = Op(verbBvmul, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.SHL:
+					n = Op(verbBvshl, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.SHR:
+					var verb Verb
+					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+						verb = verbBvlshr
+					} else {
+						verb = verbBvashr
+					}
+					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.AND:
+					n = Op(verbBvand, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.OR:
+					n = Op(verbBvor, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.XOR:
+					n = Op(verbBvxor, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.QUO:
+					var verb Verb
+					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+						verb = verbBvudiv
+					} else {
+						verb = verbBvsdiv
+					}
+					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.REM:
+					// XXX make sure Go's % has the same semantics as bvsrem
+					var verb Verb
+					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
+						verb = verbBvurem
+					} else {
+						verb = verbBvsrem
+					}
+					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+				case token.AND_NOT:
+					n = Op(verbBvand, Var{offsetVar + uint64(v.X.ID())}, Op(verbBvnot, Var{offsetVar + uint64(v.Y.ID())}, nil))
 				default:
-					panic("XXX")
+					panic(v.Op.String())
 				}
 
 				doDef(v, n)
@@ -216,55 +280,70 @@ func smtfn2(fn *ir.Function) {
 		}
 
 		c := make([]Node, 0, len(b.Preds))
+		// XXX is this code duplicated with func control?
 		for _, pred := range b.Preds {
 			var cond Node
 			switch ctrl := pred.Control().(type) {
 			case *ir.If:
 				if pred.Succs[0] == b {
-					cond = Var{ctrl.Cond.Name()}
+					cond = Var{offsetVar + uint64(ctrl.Cond.ID())}
 				} else {
-					cond = Not(Var{ctrl.Cond.Name()})
+					cond = Not(Var{offsetVar + uint64(ctrl.Cond.ID())})
 				}
 			case *ir.Jump:
 				cond = cTrue
+			case *ir.ConstantSwitch:
+				// XXX implement this
+				cond = cTrue
+			case *ir.Panic:
+				cond = cTrue
+			case *ir.Unreachable:
+				cond = cFalse
 			default:
 				panic(fmt.Sprintf("%T", ctrl))
 			}
-			c = append(c, And(Var{fmt.Sprintf("cexec%d", pred.Index)}, cond))
+			c = append(c, And(Var{offsetCexec + uint64(pred.Index)}, cond))
 		}
 
-		assertions = append(assertions, Equal(Var{fmt.Sprintf("cexec%d", top[i].Index)}, Or(c...)))
+		assertions = append(assertions, Equal(Var{offsetCexec + uint64(top[i].Index)}, Or(c...)))
 	}
 
-	// if fn.Name() == "foo" {
-	var c []Node
+	if fn.Name() == "commonPrefixLenIgnoreCase" {
+		f := And(Equal(Var{1}, Not(Var{1})), nil)
 
-	for _, n := range assertions {
-		c = append(c, n)
+		// f := And(Equal(Var{999}, And(Var{999}, cTrue)), cTrue)
+		fmt.Println(f)
+		fmt.Println(simplify(f, nil, fn))
+
+		// var c []Node
+
+		// for _, n := range assertions {
+		// 	fmt.Println(n)
+		// 	c = append(c, n)
+		// }
+
+		// // c = append(c, Var{offsetVar + 50})
+		// // c = append(c, Var{offsetCexec + 8})
+
+		// and := And(c...)
+
+		// for i := 0; i < 5; i++ {
+		// 	and = simplify(and, nil, fn)
+		// }
+
+		// // fmt.Println(and)
 	}
-
-	// c = append(c, Var{"t50"})
-	// c = append(c, Var{"cexec8"})
-
-	and := And(c...)
-
-	for i := 0; i < 5; i++ {
-		and = simplify(and)
-	}
-
-	fmt.Println(and)
-	// }
 }
 
-func verbToOp(verb string) token.Token {
+func verbToOp(verb Verb) token.Token {
 	switch verb {
-	case "bvult":
+	case verbBvult:
 		return token.LSS
-	case "bvslt":
+	case verbBvslt:
 		return token.LSS
-	case "bvule":
+	case verbBvule:
 		return token.LEQ
-	case "bvsle":
+	case verbBvsle:
 		return token.LEQ
 	default:
 		// XXX
@@ -272,73 +351,92 @@ func verbToOp(verb string) token.Token {
 	}
 }
 
-func simplify(n Node) Node {
-	for {
-		if sexp, ok := n.(Sexp); ok && sexp.Verb == "and" {
-			equalities := map[Var]Node{}
-			addEquality := func(node Node) {
-				sexp, ok := node.(Sexp)
-				if !ok || sexp.Verb != "=" {
-					return
-				}
-				lhs, ok := sexp.In[0].(Var)
-				if !ok {
-					return
-				}
-				if _, ok := equalities[lhs]; ok {
-					return
-				}
-				equalities[lhs] = sexp.In[1]
-			}
-			// Propagate equalities
-			var dfs func(node Node)
-			dfs = func(node Node) {
-				sexp, ok := node.(Sexp)
-				if !ok || sexp.Verb != "and" {
-					return
-				}
-
-				addEquality(sexp.In[0])
-				addEquality(sexp.In[1])
-
-				dfs(sexp.In[0])
-				dfs(sexp.In[1])
-			}
-			dfs(sexp)
-
-			var rename func(n Node) Node
-			rename = func(n Node) Node {
-				switch n := n.(type) {
-				case Sexp:
-					for i, in := range n.In {
-						n.In[i] = rename(in)
+func simplify(n Node, parent Node, fn *ir.Function) Node {
+	// callers := make([]uintptr, 5000)
+	// XXX := runtime.Callers(0, callers)
+	// fmt.Println(strings.Repeat(" ", XXX), n)
+	round := 0
+	if p, ok := parent.(Sexp); !ok || p.Verb != verbAnd {
+		// XXX this code is fucking broken for self-referential nodes like (= x (and x ... )) - it will blow up to gigabytes of formulae
+		// XXX it is also wrong for (= x (not x))
+		for {
+			round++
+			fmt.Println(round)
+			if sexp, ok := n.(Sexp); ok && sexp.Verb == verbAnd {
+				fmt.Println(n)
+				equalities := map[Var]Node{}
+				addEquality := func(node Node) {
+					sexp, ok := node.(Sexp)
+					if !ok || sexp.Verb != verbEqual {
+						return
 					}
-					return n
-				case Var:
-					if r, ok := equalities[n]; ok && r != n {
-						return rename(r)
-					} else {
+					lhs, ok := sexp.In[0].(Var)
+					if !ok {
+						return
+					}
+					if _, ok := equalities[lhs]; ok {
+						return
+					}
+					equalities[lhs] = sexp.In[1]
+				}
+				// Propagate equalities
+				var dfs func(node Node, depth int)
+				dfs = func(node Node, depth int) {
+					sexp, ok := node.(Sexp)
+					if !ok || sexp.Verb != verbAnd {
+						return
+					}
+
+					addEquality(sexp.In[0])
+					addEquality(sexp.In[1])
+
+					dfs(sexp.In[0], depth+1)
+					dfs(sexp.In[1], depth+1)
+				}
+				dfs(sexp, 0)
+
+				var rename func(n Node) Node
+				rename = func(n Node) Node {
+					switch n := n.(type) {
+					case Sexp:
+						if n.Verb == verbEqual {
+							if r := rename(n.In[0]); r != n.In[1] {
+								n.In[0] = r
+							}
+							n.In[1] = rename(n.In[1])
+							return n
+						} else {
+							for i, in := range n.In {
+								n.In[i] = rename(in)
+							}
+							return n
+						}
+					case Var:
+						if r, ok := equalities[n]; ok && r != n {
+							return r
+						} else {
+							return n
+						}
+					case Const:
 						return n
+					case nil:
+						return nil
+					default:
+						panic(fmt.Sprintf("%T", n))
 					}
-				case Const:
-					return n
-				case nil:
-					return nil
-				default:
-					panic(fmt.Sprintf("%T", n))
 				}
-			}
-			new := rename(n)
-			if n.Equal(new) {
+				new := rename(n)
+				if n == new {
+					break
+				}
+				n = new
+			} else {
 				break
 			}
-			n = new
-		} else {
-			break
-		}
 
-		// XXX avoid O(n²). we see an And, we run this code. we later simplify the children of And, which might also be
-		// And, but don't deserve to have this applied again.
+			// XXX avoid O(n²). we see an And, we run this code. we later simplify the children of And, which might also be
+			// And, but don't deserve to have this applied again.
+		}
 	}
 
 	// XXX our code is so horribly inefficient
@@ -352,7 +450,7 @@ func simplify(n Node) Node {
 
 			seen[n] = struct{}{}
 			if sexp, ok := n.(Sexp); ok {
-				if sexp.Verb == "not" {
+				if sexp.Verb == verbNot {
 					if _, ok := seen[sexp.In[0]]; ok {
 						found = true
 						return
@@ -383,19 +481,19 @@ func simplify(n Node) Node {
 
 	if sexp, ok := n.(Sexp); ok {
 		for i, in := range sexp.In {
-			sexp.In[i] = simplify(in)
+			sexp.In[i] = simplify(in, n, fn)
 		}
 
 		// Constant propagation
 		if x, ok := sexp.In[0].(Const); ok {
 			if y, ok := sexp.In[1].(Const); ok {
 				switch sexp.Verb {
-				case "bvadd":
+				case verbBvadd:
 					// XXX bitwidth, signedness
 					xi, _ := constant.Uint64Val(x.Value)
 					yi, _ := constant.Uint64Val(y.Value)
 					return Const{constant.MakeUint64(uint64(uint8(xi) + uint8(yi)))}
-				case "bvult", "bvslt", "bvule", "bvsle":
+				case verbBvult, verbBvslt, verbBvule, verbBvsle:
 					op := verbToOp(sexp.Verb)
 					return Const{constant.MakeBool(constant.Compare(x.Value, op, y.Value))}
 				}
@@ -403,7 +501,7 @@ func simplify(n Node) Node {
 		}
 
 		switch sexp.Verb {
-		case "and":
+		case verbAnd:
 			if sexp.In[0] == cFalse || sexp.In[1] == cFalse {
 				return cFalse
 			} else if sexp.In[0] == cTrue {
@@ -414,12 +512,14 @@ func simplify(n Node) Node {
 				// TODO find conflicting negation, recursively
 				// Find a pair of 'x' and '(not x)'
 
-				if hasBoth(sexp) {
-					return cFalse
+				if parent, ok := parent.(Sexp); !ok || parent.Verb != verbAnd {
+					if hasBoth(sexp) {
+						return cFalse
+					}
 				}
 			}
 
-		case "or":
+		case verbOr:
 			if sexp.In[0] == cTrue || sexp.In[1] == cTrue {
 				return cTrue
 			} else if sexp.In[0] == cFalse {
@@ -433,14 +533,21 @@ func simplify(n Node) Node {
 				}
 			}
 
-		case "bvadd":
+		case verbBvadd:
 			if sexp.In[1] == cZero {
 				// (bvadd x 0) => x
 				return sexp.In[0]
 			}
 
-		case "=":
-			if sexp.In[0].Equal(sexp.In[1]) {
+		case verbBvsub:
+			return Op(verbBvadd, sexp.In[0], Op(verbBvneg, sexp.In[1], nil))
+
+		// case "bvneg":
+		// 	// XXX is this worth doing?
+		// 	return Op(verbBvadd, Op("bvnot", sexp.In[0], nil), cOne)
+
+		case verbEqual:
+			if sexp.In[0] == sexp.In[1] {
 				return cTrue
 			}
 
@@ -450,7 +557,7 @@ func simplify(n Node) Node {
 				}
 			}
 
-			if bvadd, ok := sexp.In[0].(Sexp); ok && bvadd.Verb == "bvadd" {
+			if bvadd, ok := sexp.In[0].(Sexp); ok && bvadd.Verb == verbBvadd {
 				if out, ok := sexp.In[1].(Const); ok {
 					if x, ok := bvadd.In[0].(Const); ok {
 						if k, ok := bvadd.In[1].(Const); ok {
@@ -464,41 +571,45 @@ func simplify(n Node) Node {
 				}
 			}
 
-		case "bvult", "bvslt":
-			if sexp.In[0].Equal(sexp.In[1]) {
+		case verbBvult, verbBvslt:
+			if sexp.In[0] == sexp.In[1] {
 				// no value is less than itself
 				return cFalse
 			}
 
-		case "bvule", "bvsle":
-			if sexp.In[0].Equal(sexp.In[1]) {
+		case verbBvule, verbBvsle:
+			// TODO bvule and bvsle can be expressed in terms of bvult/bvslt and equality
+
+			if sexp.In[0] == sexp.In[1] {
 				// every value is equal to itself
 				return cTrue
 			}
 
-			var neg string
-			if sexp.Verb == "bvule" {
-				neg = "bvult"
+			var neg Verb
+			if sexp.Verb == verbBvule {
+				neg = verbBvult
 			} else {
-				neg = "bvslt"
+				neg = verbBvslt
 			}
 			return Not(Op(neg, sexp.In[1], sexp.In[0]))
 
-		case "not":
+		case verbNot:
 			if sexp.In[0] == cTrue {
 				return cFalse
 			} else if sexp.In[0] == cFalse {
 				return cTrue
 			} else if in, ok := sexp.In[0].(Sexp); ok {
 				switch in.Verb {
-				case "not":
+				case verbNot:
 					return in
 				}
 			}
 		}
 
 		switch sexp.Verb {
-		case "bvadd", "and", "or":
+		case verbBvadd, verbAnd, verbOr:
+			// XXX there are only two arguments, we don't need sort.Slice for that
+
 			sort.Slice(sexp.In[:], func(i, j int) bool {
 				// sexp > var > const
 				a := sexp.In[i]

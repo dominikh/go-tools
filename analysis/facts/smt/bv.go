@@ -9,20 +9,14 @@ import (
 
 type Node interface {
 	String() string
-	Equal(Node) bool
 }
 
 type Var struct {
-	// XXX use integers, not strings
-	Name string
+	Name uint64
 }
 
 func (v Var) String() string {
-	return v.Name
-}
-
-func (v Var) Equal(o Node) bool {
-	return any(v) == o
+	return fmt.Sprintf("$%d", v.Name)
 }
 
 type Const struct {
@@ -33,42 +27,76 @@ func (c Const) String() string {
 	return c.Value.ExactString()
 }
 
-func (c Const) Equal(o Node) bool {
-	return any(c) == o
+type Verb int
+
+var verbs = map[Verb]string{
+	verbAnd:    "and",
+	verbOr:     "or",
+	verbXor:    "xor",
+	verbEqual:  "=",
+	verbNot:    "not",
+	verbBvneg:  "bvneg",
+	verbBvadd:  "bvadd",
+	verbBvsub:  "bvsub",
+	verbBvmul:  "bvmul",
+	verbBvshl:  "bvshl",
+	verbBvult:  "bvult",
+	verbBvslt:  "bvslt",
+	verbBvule:  "bvule",
+	verbBvsle:  "bvsle",
+	verbBvlshr: "bvlshr",
+	verbBvashr: "bvashr",
+	verbBvand:  "bvand",
+	verbBvor:   "bvor",
+	verbBvxor:  "bvxor",
+	verbBvudiv: "bvudiv",
+	verbBvsdiv: "bvsdiv",
+	verbBvurem: "bvurem",
+	verbBvsrem: "bvsrem",
+	verbBvnot:  "bvnot",
 }
+
+func (v Verb) String() string {
+	return verbs[v]
+}
+
+const (
+	verbAnd = iota
+	verbOr
+	verbXor
+	verbEqual
+	verbNot
+	verbBvneg
+	verbBvadd
+	verbBvsub
+	verbBvmul
+	verbBvshl
+	verbBvult
+	verbBvslt
+	verbBvule
+	verbBvsle
+	verbBvlshr
+	verbBvashr
+	verbBvand
+	verbBvor
+	verbBvxor
+	verbBvudiv
+	verbBvsdiv
+	verbBvurem
+	verbBvsrem
+	verbBvnot
+)
 
 type Sexp struct {
-	// OPT don't use string for Verb
-	Verb string
-	// TODO we need 3 arguments because of ITE. Fix that by translating ITE down to ands/ors
-	In [3]Node
-}
-
-func (s Sexp) Equal(o Node) bool {
-	if s == o {
-		return true
-	}
-	so, ok := o.(Sexp)
-	if !ok {
-		return false
-	}
-	for i := range s.In {
-		if !s.In[i].Equal(so.In[i]) {
-			return false
-		}
-	}
-	return true
+	Verb Verb
+	In   [2]Node
 }
 
 func (s Sexp) String() string {
-	if s.In[2] == nil {
-		if s.In[1] == nil {
-			return fmt.Sprintf("(%s %s)", s.Verb, s.In[0])
-		} else {
-			return fmt.Sprintf("(%s %s %s)", s.Verb, s.In[0], s.In[1])
-		}
+	if s.In[1] == nil {
+		return fmt.Sprintf("(%s %s)", s.Verb, s.In[0])
 	} else {
-		return fmt.Sprintf("(%s %s %s %s)", s.Verb, s.In[0], s.In[1], s.In[2])
+		return fmt.Sprintf("(%s %s %s)", s.Verb, s.In[0], s.In[1])
 	}
 }
 
@@ -81,9 +109,9 @@ func And(nodes ...Node) Node {
 	case 1:
 		return nodes[0]
 	default:
-		and := Op("and", nodes[0], nodes[1])
+		and := Op(verbAnd, nodes[0], nodes[1])
 		for _, n := range nodes[2:] {
-			and = Op("and", n, and)
+			and = Op(verbAnd, n, and)
 		}
 		return and
 	}
@@ -96,37 +124,30 @@ func Or(nodes ...Node) Node {
 	case 1:
 		return nodes[0]
 	default:
-		or := Op("or", nodes[0], nodes[1])
+		or := Op(verbOr, nodes[0], nodes[1])
 		for _, n := range nodes[2:] {
-			or = Op("or", n, or)
+			or = Op(verbOr, n, or)
 		}
 		return or
 	}
 }
 
 func Xor(a, b Node) Node {
-	return Op("xor", a, b)
+	return Op(verbXor, a, b)
 }
 
 func Equal(a, b Node) Node {
-	return Op("=", a, b)
+	return Op(verbEqual, a, b)
 }
 
 func Not(a Node) Node {
-	return Op("not", a, nil)
+	return Op(verbNot, a, nil)
 }
 
-func Op(verb string, a, b Node) Node {
+func Op(verb Verb, a, b Node) Node {
 	return Sexp{
 		Verb: verb,
-		In:   [3]Node{a, b, nil},
-	}
-}
-
-func ITE(cond Node, t Node, f Node) Sexp {
-	return Sexp{
-		Verb: "ite",
-		In:   [3]Node{cond, t, f},
+		In:   [2]Node{a, b},
 	}
 }
 
