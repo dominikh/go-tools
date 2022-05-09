@@ -44,7 +44,12 @@ don't have time.
 
 
 {{% blocks/feature title="Exhaustiveness" icon="fas fa-tasks" url="/docs/checks" %}}
-More than 100 checks ensure that your code is in tip-top shape.
+More than
+{{< numchecks.inline >}}
+{{- $c := len $.Site.Data.checks.Checks -}}
+{{- sub $c (mod $c 25) -}}
+{{< /numchecks.inline >}}
+checks ensure that your code is in tip-top shape.
 {{% /blocks/feature %}}
 
 
