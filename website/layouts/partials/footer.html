@@ -48,7 +48,9 @@
   <div class="row section" style="margin-left: auto; margin-right: auto;">
 	<div class="row align-items-center justify-content-center h-100">
 	  {{ range $sponsor := sort $sponsors "name" "asc" }}
+	  {{ if $sponsor.enabled }}
 	  {{ partial "sponsor-logo" (dict "name" $sponsor.name "url" $sponsor.url "logo" $sponsor.logo) }}
+	  {{ end }}
 	  {{ end }}
 	</div>
   </div>

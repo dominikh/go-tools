@@ -28,7 +28,9 @@ The companies supporting Staticcheck are, in alphabetical order:
 
 <ul>
   {{ range $sponsor := sort $sponsors "name" "asc" }}
+  {{ if $sponsor.enabled }}
   <li><a href="{{ $sponsor.url }}">{{ $sponsor.name }}</a></li>
+  {{ end }}
   {{ end }}
 </ul>
 {{ end }}
