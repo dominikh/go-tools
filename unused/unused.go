@@ -1031,6 +1031,12 @@ func (g *graph) entry(pkg *pkg) {
 	var fns []*types.Func
 	var fn *types.Func
 	var stack []ast.Node
+	/*
+		Walk the ast to find declarations of functions, import, constants, variables and types
+		We want to ensure that all declared types, and their underlying types are seen
+		The Golang type system doesn't give us the type something is based on,
+		so we walk the ast to determine this
+	*/
 	for _, f := range pkg.Files {
 		ast.Inspect(f, func(n ast.Node) bool {
 			if n == nil {
@@ -1127,6 +1133,9 @@ func (g *graph) entry(pkg *pkg) {
 		})
 	}
 
+	/*
+		Iterate over all the package members. Use functions, types and global variables if applicable
+	*/
 	for _, m := range pkg.IR.Members {
 		switch m := m.(type) {
 		case *ir.NamedConst:
@@ -1319,6 +1328,11 @@ func (g *graph) useMethod(t types.Type, sel *types.Selection, by interface{}, ki
 	g.seeAndUse(obj, by, kind)
 }
 
+/*
+	1. If a function has a parent object, return the parent object. Like x.method(), x will be returned.
+	2. If the function is inside another function, recurse to the top till you find the object.
+	3. If the function is a top-level function i.e. directly in the package, the result will be nil
+*/
 func owningObject(fn *ir.Function) types.Object {
 	if fn.Object() != nil {
 		return fn.Object()
@@ -1329,6 +1343,9 @@ func owningObject(fn *ir.Function) types.Object {
 	return nil
 }
 
+/*
+Use a functions arguments, anonymous functions inside it, and each instruction
+*/
 func (g *graph) function(fn *ir.Function) {
 	assert(fn != nil)
 	if fn.Package() != nil && fn.Package() != g.pkg.IR {
@@ -1353,6 +1370,12 @@ func (g *graph) function(fn *ir.Function) {
 	}
 }
 
+/*
+Responsible for adding those edges to the graph that are purely type-based.
+This allows to add things like:
+	1. "a named type uses its underlying type"
+	2. "a slice type uses its element type".
+*/
 func (g *graph) typ(t types.Type, parent types.Type) {
 	if _, ok := g.seenTypes[t]; ok {
 		return
@@ -1583,6 +1606,9 @@ func (g *graph) signature(sig *types.Signature, fn types.Object) {
 	}
 }
 
+/*
+Use everything inside a function line by line
+*/
 func (g *graph) instructions(fn *ir.Function) {
 	fnObj := owningObject(fn)
 	for _, b := range fn.Blocks {
