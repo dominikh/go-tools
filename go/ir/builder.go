@@ -669,17 +669,23 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		}
 
 	case *ast.SliceExpr:
-		var low, high, max Value
 		var x Value
-		switch typeutil.CoreType(fn.Pkg.typeOf(e.X)).Underlying().(type) {
-		case *types.Array:
-			// Potentially escaping.
-			x = b.addr(fn, e.X, true).address(fn)
-		case *types.Basic, *types.Slice, *types.Pointer: // *array
+
+		if core := typeutil.CoreType(fn.Pkg.typeOf(e.X)); core != nil {
+			switch core.Underlying().(type) {
+			case *types.Array:
+				// Potentially escaping.
+				x = b.addr(fn, e.X, true).address(fn)
+			case *types.Basic, *types.Slice, *types.Pointer: // *array
+				x = b.expr(fn, e.X)
+			default:
+				panic("unreachable")
+			}
+		} else { // interface { string | []byte }
 			x = b.expr(fn, e.X)
-		default:
-			panic("unreachable")
 		}
+
+		var low, high, max Value
 		if e.High != nil {
 			high = b.expr(fn, e.High)
 		}
