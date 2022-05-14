@@ -24,9 +24,9 @@ jobs:
 	- uses: actions/checkout@v1
 	  with:
 		fetch-depth: 1
-	- uses: dominikh/staticcheck-action@v1.1.0
+	- uses: dominikh/staticcheck-action@v1.2.0
 	  with:
-		version: "2021.1.1"
+		version: "2022.1.1"
 ```
 
 A more advanced example that runs tests, go vet and Staticcheck on multiple OSs and Go versions looks like this:
@@ -53,9 +53,9 @@ jobs:
 		go-version: ${{ matrix.go }}
 	- run: "go test ./..."
 	- run: "go vet ./..."
-	- uses: dominikh/staticcheck-action@v1.1.0
+	- uses: dominikh/staticcheck-action@v1.2.0
 	  with:
-		version: "2021.1.1"
+		version: "2022.1.1"
 		install-go: false
 		cache-key: ${{ matrix.go }}
 ```
