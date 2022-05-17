@@ -1,4 +1,5 @@
-// Package smt implements a fairly naive SMT solver for the QF_BV logic.
+// Package smt implements a fairly naive SMT solver for the QF_BV logic. Its capabilities are limited to what is
+// required for Staticcheck, it is not a general solver.
 package smt
 
 // XXX we can solve things like (= (bvadd Var Const) Const) directly, without going through SAT. do we need ITE for this?
@@ -70,7 +71,6 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 var cTrue = Const{constant.MakeBool(true)}
 var cFalse = Const{constant.MakeBool(false)}
 var cZero = Const{constant.MakeUint64(0)}
-var cOne = Const{constant.MakeUint64(1)}
 
 func smt(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
@@ -86,6 +86,8 @@ func smtfn2(fn *ir.Function) {
 	}
 	// XXX handle loops
 
+	// In the absence of back edges, our CFG has a topological ordering, and definitions always precede uses, even for
+	// phi nodes.
 	seen := make([]bool, len(fn.Blocks))
 	var dfs func(b *ir.BasicBlock)
 	top := make([]*ir.BasicBlock, 0, len(fn.Blocks))
@@ -137,8 +139,10 @@ func smtfn2(fn *ir.Function) {
 		return v
 	}
 
+	definitions := map[ir.Value]Node{}
 	doDef := func(v ir.Value, n Node) {
-		assertions = append(assertions, Equal(Var{offsetVar + uint64(v.ID())}, n))
+		definitions[v] = n
+		// assertions = append(assertions, Equal(Var{offsetVar + uint64(v.ID())}, n))
 	}
 
 	for i := len(top) - 1; i >= 0; i-- {
@@ -171,6 +175,8 @@ func smtfn2(fn *ir.Function) {
 				var ite Node = Var{offsetVar + uint64(v.Edges[len(v.Edges)-1].ID())}
 
 				for i, e := range v.Edges[:len(v.Edges)-1] {
+					// Note that using ITE like this is only correct if the same block cannot be visited twice. That is,
+					// the CFG must not have any back edges.
 					ite = doITE(And(Var{offsetCexec + uint64(b.Preds[i].Index)}, control(b.Preds[i], b)), Var{offsetVar + uint64(e.ID())}, ite)
 				}
 				doDef(v, ite)
@@ -308,30 +314,25 @@ func smtfn2(fn *ir.Function) {
 		assertions = append(assertions, Equal(Var{offsetCexec + uint64(top[i].Index)}, Or(c...)))
 	}
 
-	if fn.Name() == "commonPrefixLenIgnoreCase" {
-		f := And(Equal(Var{1}, Not(Var{1})), nil)
+	if fn.Name() == "foo" {
+		var c []Node
 
-		// f := And(Equal(Var{999}, And(Var{999}, cTrue)), cTrue)
-		fmt.Println(f)
-		fmt.Println(simplify(f, nil, fn))
+		for _, n := range assertions {
+			c = append(c, n)
+		}
 
-		// var c []Node
+		// c = append(c, Var{offsetVar + 50})
+		// c = append(c, Var{offsetCexec + 0})
+		// c = append(c, Var{offsetCexec + 2})
+		// c = append(c, Var{offsetCexec + 3})
 
-		// for _, n := range assertions {
-		// 	fmt.Println(n)
-		// 	c = append(c, n)
-		// }
-
-		// // c = append(c, Var{offsetVar + 50})
-		// // c = append(c, Var{offsetCexec + 8})
-
-		// and := And(c...)
+		and := And(c...)
 
 		// for i := 0; i < 5; i++ {
 		// 	and = simplify(and, nil, fn)
 		// }
 
-		// // fmt.Println(and)
+		fmt.Println(and)
 	}
 }
 
@@ -352,93 +353,6 @@ func verbToOp(verb Verb) token.Token {
 }
 
 func simplify(n Node, parent Node, fn *ir.Function) Node {
-	// callers := make([]uintptr, 5000)
-	// XXX := runtime.Callers(0, callers)
-	// fmt.Println(strings.Repeat(" ", XXX), n)
-	round := 0
-	if p, ok := parent.(Sexp); !ok || p.Verb != verbAnd {
-		// XXX this code is fucking broken for self-referential nodes like (= x (and x ... )) - it will blow up to gigabytes of formulae
-		// XXX it is also wrong for (= x (not x))
-		for {
-			round++
-			fmt.Println(round)
-			if sexp, ok := n.(Sexp); ok && sexp.Verb == verbAnd {
-				fmt.Println(n)
-				equalities := map[Var]Node{}
-				addEquality := func(node Node) {
-					sexp, ok := node.(Sexp)
-					if !ok || sexp.Verb != verbEqual {
-						return
-					}
-					lhs, ok := sexp.In[0].(Var)
-					if !ok {
-						return
-					}
-					if _, ok := equalities[lhs]; ok {
-						return
-					}
-					equalities[lhs] = sexp.In[1]
-				}
-				// Propagate equalities
-				var dfs func(node Node, depth int)
-				dfs = func(node Node, depth int) {
-					sexp, ok := node.(Sexp)
-					if !ok || sexp.Verb != verbAnd {
-						return
-					}
-
-					addEquality(sexp.In[0])
-					addEquality(sexp.In[1])
-
-					dfs(sexp.In[0], depth+1)
-					dfs(sexp.In[1], depth+1)
-				}
-				dfs(sexp, 0)
-
-				var rename func(n Node) Node
-				rename = func(n Node) Node {
-					switch n := n.(type) {
-					case Sexp:
-						if n.Verb == verbEqual {
-							if r := rename(n.In[0]); r != n.In[1] {
-								n.In[0] = r
-							}
-							n.In[1] = rename(n.In[1])
-							return n
-						} else {
-							for i, in := range n.In {
-								n.In[i] = rename(in)
-							}
-							return n
-						}
-					case Var:
-						if r, ok := equalities[n]; ok && r != n {
-							return r
-						} else {
-							return n
-						}
-					case Const:
-						return n
-					case nil:
-						return nil
-					default:
-						panic(fmt.Sprintf("%T", n))
-					}
-				}
-				new := rename(n)
-				if n == new {
-					break
-				}
-				n = new
-			} else {
-				break
-			}
-
-			// XXX avoid O(n²). we see an And, we run this code. we later simplify the children of And, which might also be
-			// And, but don't deserve to have this applied again.
-		}
-	}
-
 	// XXX our code is so horribly inefficient
 
 	hasBoth := func(root Sexp) bool {
@@ -541,10 +455,6 @@ func simplify(n Node, parent Node, fn *ir.Function) Node {
 
 		case verbBvsub:
 			return Op(verbBvadd, sexp.In[0], Op(verbBvneg, sexp.In[1], nil))
-
-		// case "bvneg":
-		// 	// XXX is this worth doing?
-		// 	return Op(verbBvadd, Op("bvnot", sexp.In[0], nil), cOne)
 
 		case verbEqual:
 			if sexp.In[0] == sexp.In[1] {
