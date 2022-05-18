@@ -46,12 +46,6 @@ import (
 
 // XXX we're using ir.Value's IDs; make sure we don't break on globals
 
-const (
-	offsetVar   = 0
-	offsetCexec = 1e9
-	offsetIte   = 2e9
-)
-
 var Analyzer = &analysis.Analyzer{
 	Name:       "smt",
 	Doc:        "SMT",
@@ -61,15 +55,15 @@ var Analyzer = &analysis.Analyzer{
 }
 
 type Result struct {
-	Predicates map[ir.Value]Node
+	Predicates map[ir.Value]*Sexp
 }
 
 func (r Result) Unsatisfiable(target ir.Value) bool {
 	return false
 }
 
-var cTrue = Const{constant.MakeBool(true)}
-var cFalse = Const{constant.MakeBool(false)}
+var cTrue = Const(Bool(true))
+var cFalse = Const(Bool(false))
 var cZero = Const{constant.MakeUint64(0)}
 
 func smt(pass *analysis.Pass) (interface{}, error) {
@@ -103,17 +97,32 @@ func smtfn2(fn *ir.Function) {
 	}
 	dfs(fn.Blocks[0])
 
-	var assertions []Node
-	assertions = append(assertions, Equal(Var{offsetCexec + 0}, cTrue))
+	predicates := map[*ir.BasicBlock]*Sexp{}
+	doPred := func(b *ir.BasicBlock, n *Sexp) {
+		predicates[b] = n
+	}
+	pred := func(b *ir.BasicBlock) *Sexp {
+		return predicates[b]
+	}
 
-	control := func(from, to *ir.BasicBlock) Node {
-		var cond Node
+	doPred(fn.Blocks[0], cTrue)
+
+	definitions := map[ir.Value]*Sexp{}
+	doDef := func(v ir.Value, n *Sexp) {
+		definitions[v] = n
+	}
+	def := func(v ir.Value) *Sexp {
+		return definitions[v]
+	}
+
+	control := func(from, to *ir.BasicBlock) *Sexp {
+		var cond *Sexp
 		switch ctrl := from.Control().(type) {
 		case *ir.If:
 			if from.Succs[0] == to {
-				cond = Var{offsetVar + uint64(ctrl.Cond.ID())}
+				cond = def(ctrl.Cond)
 			} else {
-				cond = Not(Var{offsetVar + uint64(ctrl.Cond.ID())})
+				cond = Not(def(ctrl.Cond))
 			}
 		case *ir.Jump:
 			cond = cTrue
@@ -127,7 +136,7 @@ func smtfn2(fn *ir.Function) {
 
 	iteCnt := uint64(0)
 
-	doITE := func(cond, t, f Node) Var {
+	doITE := func(cond, t, f *Sexp) *Sexp {
 		v := Var{offsetIte + iteCnt}
 		iteCnt++
 
@@ -137,12 +146,6 @@ func smtfn2(fn *ir.Function) {
 		assertions = append(assertions, n)
 
 		return v
-	}
-
-	definitions := map[ir.Value]Node{}
-	doDef := func(v ir.Value, n Node) {
-		definitions[v] = n
-		// assertions = append(assertions, Equal(Var{offsetVar + uint64(v.ID())}, n))
 	}
 
 	for i := len(top) - 1; i >= 0; i-- {
@@ -169,41 +172,41 @@ func smtfn2(fn *ir.Function) {
 				doDef(v, Const{v.Value})
 
 			case *ir.Sigma:
-				doDef(v, Var{offsetVar + uint64(v.X.ID())})
+				doDef(v, def(v.X))
 
 			case *ir.Phi:
-				var ite Node = Var{offsetVar + uint64(v.Edges[len(v.Edges)-1].ID())}
+				var ite *Sexp = def(v.Edges[len(v.Edges)-1])
 
 				for i, e := range v.Edges[:len(v.Edges)-1] {
 					// Note that using ITE like this is only correct if the same block cannot be visited twice. That is,
 					// the CFG must not have any back edges.
-					ite = doITE(And(Var{offsetCexec + uint64(b.Preds[i].Index)}, control(b.Preds[i], b)), Var{offsetVar + uint64(e.ID())}, ite)
+					ite = doITE(And(pred(b.Preds[i]), control(b.Preds[i], b)), def(e), ite)
 				}
 				doDef(v, ite)
 
 			case *ir.UnOp:
-				var n Node
+				var n *Sexp
 				switch v.Op {
 				case token.NOT:
-					n = Not(Var{offsetVar + uint64(v.X.ID())})
+					n = Not(def(v.X))
 				case token.SUB:
-					n = Op(verbBvneg, Var{offsetVar + uint64(v.X.ID())}, nil)
+					n = Op(verbBvneg, def(v.X), nil)
 				default:
 					panic(v.Op.String())
 				}
 				doDef(v, n)
 
 			case *ir.BinOp:
-				var n Node
+				var n *Sexp
 				switch v.Op {
 				case token.EQL:
-					n = Equal(Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Equal(def(v.X), def(v.Y))
 				case token.NEQ:
-					n = Not(Equal(Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())}))
+					n = Not(Equal(def(v.X), def(v.Y)))
 				case token.ADD:
-					n = Op(verbBvadd, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvadd, def(v.X), def(v.Y))
 				case token.SUB:
-					n = Op(verbBvsub, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvsub, def(v.X), def(v.Y))
 				case token.LSS:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -211,7 +214,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvslt
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verb, def(v.X), def(v.Y))
 				case token.GTR:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -219,7 +222,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvslt
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.Y.ID())}, Var{offsetVar + uint64(v.X.ID())})
+					n = Op(verb, def(v.Y), def(v.X))
 				case token.GEQ:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -227,7 +230,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsle
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.Y.ID())}, Var{offsetVar + uint64(v.X.ID())})
+					n = Op(verb, def(v.Y), def(v.X))
 				case token.LEQ:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -235,11 +238,11 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsle
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verb, def(v.X), def(v.Y))
 				case token.MUL:
-					n = Op(verbBvmul, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvmul, def(v.X), def(v.Y))
 				case token.SHL:
-					n = Op(verbBvshl, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvshl, def(v.X), def(v.Y))
 				case token.SHR:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -247,13 +250,13 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvashr
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verb, def(v.X), def(v.Y))
 				case token.AND:
-					n = Op(verbBvand, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvand, def(v.X), def(v.Y))
 				case token.OR:
-					n = Op(verbBvor, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvor, def(v.X), def(v.Y))
 				case token.XOR:
-					n = Op(verbBvxor, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verbBvxor, def(v.X), def(v.Y))
 				case token.QUO:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -261,7 +264,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsdiv
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verb, def(v.X), def(v.Y))
 				case token.REM:
 					// XXX make sure Go's % has the same semantics as bvsrem
 					var verb Verb
@@ -270,9 +273,9 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsrem
 					}
-					n = Op(verb, Var{offsetVar + uint64(v.X.ID())}, Var{offsetVar + uint64(v.Y.ID())})
+					n = Op(verb, def(v.X), def(v.Y))
 				case token.AND_NOT:
-					n = Op(verbBvand, Var{offsetVar + uint64(v.X.ID())}, Op(verbBvnot, Var{offsetVar + uint64(v.Y.ID())}, nil))
+					n = Op(verbBvand, def(v.X), Op(verbBvnot, def(v.Y), nil))
 				default:
 					panic(v.Op.String())
 				}
@@ -285,16 +288,16 @@ func smtfn2(fn *ir.Function) {
 			continue
 		}
 
-		c := make([]Node, 0, len(b.Preds))
+		c := make([]*Sexp, 0, len(b.Preds))
 		// XXX is this code duplicated with func control?
-		for _, pred := range b.Preds {
-			var cond Node
-			switch ctrl := pred.Control().(type) {
+		for _, prev := range b.Preds {
+			var cond *Sexp
+			switch ctrl := prev.Control().(type) {
 			case *ir.If:
-				if pred.Succs[0] == b {
-					cond = Var{offsetVar + uint64(ctrl.Cond.ID())}
+				if prev.Succs[0] == b {
+					cond = def(ctrl.Cond)
 				} else {
-					cond = Not(Var{offsetVar + uint64(ctrl.Cond.ID())})
+					cond = Not(def(ctrl.Cond))
 				}
 			case *ir.Jump:
 				cond = cTrue
@@ -308,18 +311,18 @@ func smtfn2(fn *ir.Function) {
 			default:
 				panic(fmt.Sprintf("%T", ctrl))
 			}
-			c = append(c, And(Var{offsetCexec + uint64(pred.Index)}, cond))
+			c = append(c, And(pred(prev), cond))
 		}
 
-		assertions = append(assertions, Equal(Var{offsetCexec + uint64(top[i].Index)}, Or(c...)))
+		doPred(top[i], Or(c...))
 	}
 
 	if fn.Name() == "foo" {
-		var c []Node
+		var c []*Sexp
 
-		for _, n := range assertions {
-			c = append(c, n)
-		}
+		// for _, n := range assertions {
+		// 	c = append(c, n)
+		// }
 
 		// c = append(c, Var{offsetVar + 50})
 		// c = append(c, Var{offsetCexec + 0})
@@ -352,18 +355,18 @@ func verbToOp(verb Verb) token.Token {
 	}
 }
 
-func simplify(n Node, parent Node, fn *ir.Function) Node {
+func simplify(n Value, parent Value, fn *ir.Function) *Sexp {
 	// XXX our code is so horribly inefficient
 
 	hasBoth := func(root Sexp) bool {
-		seen := map[Node]struct{}{}
-		var dfs func(n Node)
+		seen := map[Value]struct{}{}
+		var dfs func(n Value)
 		found := false
-		dfs = func(n Node) {
+		dfs = func(n Value) {
 			// XXX clean up this code
 
 			seen[n] = struct{}{}
-			if sexp, ok := n.(Sexp); ok {
+			if sexp, ok := n.(*Sexp); ok {
 				if sexp.Verb == verbNot {
 					if _, ok := seen[sexp.In[0]]; ok {
 						found = true
@@ -393,7 +396,7 @@ func simplify(n Node, parent Node, fn *ir.Function) Node {
 		return found
 	}
 
-	if sexp, ok := n.(Sexp); ok {
+	if sexp, ok := n.(*Sexp); ok {
 		for i, in := range sexp.In {
 			sexp.In[i] = simplify(in, n, fn)
 		}
@@ -426,7 +429,7 @@ func simplify(n Node, parent Node, fn *ir.Function) Node {
 				// TODO find conflicting negation, recursively
 				// Find a pair of 'x' and '(not x)'
 
-				if parent, ok := parent.(Sexp); !ok || parent.Verb != verbAnd {
+				if parent.Verb != verbAnd {
 					if hasBoth(sexp) {
 						return cFalse
 					}

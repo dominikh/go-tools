@@ -4,56 +4,47 @@ package smt
 
 import (
 	"fmt"
-	"go/constant"
+	"strings"
 )
 
-type Node interface {
+type Value interface {
 	String() string
 }
 
-type Var struct {
-	Name uint64
-}
+type Bool bool
 
-func (v Var) String() string {
-	return fmt.Sprintf("$%d", v.Name)
-}
-
-type Const struct {
-	Value constant.Value
-}
-
-func (c Const) String() string {
-	return c.Value.ExactString()
+func (b Bool) String() string {
+	return fmt.Sprintf("%t", b)
 }
 
 type Verb int
 
 var verbs = map[Verb]string{
-	verbAnd:    "and",
-	verbOr:     "or",
-	verbXor:    "xor",
-	verbEqual:  "=",
-	verbNot:    "not",
-	verbBvneg:  "bvneg",
-	verbBvadd:  "bvadd",
-	verbBvsub:  "bvsub",
-	verbBvmul:  "bvmul",
-	verbBvshl:  "bvshl",
-	verbBvult:  "bvult",
-	verbBvslt:  "bvslt",
-	verbBvule:  "bvule",
-	verbBvsle:  "bvsle",
-	verbBvlshr: "bvlshr",
-	verbBvashr: "bvashr",
-	verbBvand:  "bvand",
-	verbBvor:   "bvor",
-	verbBvxor:  "bvxor",
-	verbBvudiv: "bvudiv",
-	verbBvsdiv: "bvsdiv",
-	verbBvurem: "bvurem",
-	verbBvsrem: "bvsrem",
-	verbBvnot:  "bvnot",
+	verbAnd:      "and",
+	verbOr:       "or",
+	verbXor:      "xor",
+	verbEqual:    "=",
+	verbNot:      "not",
+	verbIdentity: "identity",
+	verbBvneg:    "bvneg",
+	verbBvadd:    "bvadd",
+	verbBvsub:    "bvsub",
+	verbBvmul:    "bvmul",
+	verbBvshl:    "bvshl",
+	verbBvult:    "bvult",
+	verbBvslt:    "bvslt",
+	verbBvule:    "bvule",
+	verbBvsle:    "bvsle",
+	verbBvlshr:   "bvlshr",
+	verbBvashr:   "bvashr",
+	verbBvand:    "bvand",
+	verbBvor:     "bvor",
+	verbBvxor:    "bvxor",
+	verbBvudiv:   "bvudiv",
+	verbBvsdiv:   "bvsdiv",
+	verbBvurem:   "bvurem",
+	verbBvsrem:   "bvsrem",
+	verbBvnot:    "bvnot",
 }
 
 func (v Verb) String() string {
@@ -66,6 +57,7 @@ const (
 	verbXor
 	verbEqual
 	verbNot
+	verbIdentity
 	verbBvneg
 	verbBvadd
 	verbBvsub
@@ -89,64 +81,40 @@ const (
 
 type Sexp struct {
 	Verb Verb
-	In   [2]Node
+	In   []Value
 }
 
-func (s Sexp) String() string {
-	if s.In[1] == nil {
-		return fmt.Sprintf("(%s %s)", s.Verb, s.In[0])
-	} else {
-		return fmt.Sprintf("(%s %s %s)", s.Verb, s.In[0], s.In[1])
+func (s *Sexp) String() string {
+	args := make([]string, len(s.In))
+	for i, in := range s.In {
+		args[i] = in.String()
 	}
+	return fmt.Sprintf("(%s %s)", s.Verb, strings.Join(args, " "))
 }
 
-type key [2]any
-
-func And(nodes ...Node) Node {
-	switch len(nodes) {
-	case 0:
-		return Const{constant.MakeBool(true)}
-	case 1:
-		return nodes[0]
-	default:
-		and := Op(verbAnd, nodes[0], nodes[1])
-		for _, n := range nodes[2:] {
-			and = Op(verbAnd, n, and)
-		}
-		return and
-	}
+func And(nodes ...Value) *Sexp {
+	return Op(verbAnd, nodes...)
 }
 
-func Or(nodes ...Node) Node {
-	switch len(nodes) {
-	case 0:
-		return Const{constant.MakeBool(false)}
-	case 1:
-		return nodes[0]
-	default:
-		or := Op(verbOr, nodes[0], nodes[1])
-		for _, n := range nodes[2:] {
-			or = Op(verbOr, n, or)
-		}
-		return or
-	}
+func Or(nodes ...Value) *Sexp {
+	return Op(verbOr, nodes...)
 }
 
-func Xor(a, b Node) Node {
+func Xor(a, b Value) *Sexp {
 	return Op(verbXor, a, b)
 }
 
-func Equal(a, b Node) Node {
+func Equal(a, b Value) *Sexp {
 	return Op(verbEqual, a, b)
 }
 
-func Not(a Node) Node {
+func Not(a Value) *Sexp {
 	return Op(verbNot, a, nil)
 }
 
-func Op(verb Verb, a, b Node) Node {
-	return Sexp{
+func Op(verb Verb, in ...Value) *Sexp {
+	return &Sexp{
 		Verb: verb,
-		In:   [2]Node{a, b},
+		In:   in,
 	}
 }
