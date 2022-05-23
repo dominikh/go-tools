@@ -62,9 +62,8 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 	return false
 }
 
-var cTrue = Const(Bool(true))
-var cFalse = Const(Bool(false))
-var cZero = Const{constant.MakeUint64(0)}
+var cTrue = Bool(true)
+var cFalse = Bool(false)
 
 func smt(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
@@ -97,26 +96,26 @@ func smtfn2(fn *ir.Function) {
 	}
 	dfs(fn.Blocks[0])
 
-	predicates := map[*ir.BasicBlock]*Sexp{}
-	doPred := func(b *ir.BasicBlock, n *Sexp) {
+	predicates := map[*ir.BasicBlock]Value{}
+	doPred := func(b *ir.BasicBlock, n Value) {
 		predicates[b] = n
 	}
-	pred := func(b *ir.BasicBlock) *Sexp {
+	pred := func(b *ir.BasicBlock) Value {
 		return predicates[b]
 	}
 
 	doPred(fn.Blocks[0], cTrue)
 
-	definitions := map[ir.Value]*Sexp{}
-	doDef := func(v ir.Value, n *Sexp) {
+	definitions := map[ir.Value]Value{}
+	doDef := func(v ir.Value, n Value) {
 		definitions[v] = n
 	}
-	def := func(v ir.Value) *Sexp {
+	def := func(v ir.Value) Value {
 		return definitions[v]
 	}
 
-	control := func(from, to *ir.BasicBlock) *Sexp {
-		var cond *Sexp
+	control := func(from, to *ir.BasicBlock) Value {
+		var cond Value
 		switch ctrl := from.Control().(type) {
 		case *ir.If:
 			if from.Succs[0] == to {
@@ -134,16 +133,15 @@ func smtfn2(fn *ir.Function) {
 		return cond
 	}
 
-	iteCnt := uint64(0)
+	ites := map[Var]*Sexp{}
 
-	doITE := func(cond, t, f *Sexp) *Sexp {
-		v := Var{offsetIte + iteCnt}
-		iteCnt++
+	doITE := func(cond, t, f Value) Var {
+		v := Var(len(ites))
 
 		n := And(
 			Or(Not(cond), Equal(v, t)),
 			Or(cond, Equal(v, f)))
-		assertions = append(assertions, n)
+		ites[v] = n
 
 		return v
 	}
@@ -169,13 +167,14 @@ func smtfn2(fn *ir.Function) {
 
 			switch v := v.(type) {
 			case *ir.Const:
+				// XXX convert ir.Const to either a Bool or the appropriate bitvector
 				doDef(v, Const{v.Value})
 
 			case *ir.Sigma:
 				doDef(v, def(v.X))
 
 			case *ir.Phi:
-				var ite *Sexp = def(v.Edges[len(v.Edges)-1])
+				var ite Value = def(v.Edges[len(v.Edges)-1])
 
 				for i, e := range v.Edges[:len(v.Edges)-1] {
 					// Note that using ITE like this is only correct if the same block cannot be visited twice. That is,
@@ -288,10 +287,10 @@ func smtfn2(fn *ir.Function) {
 			continue
 		}
 
-		c := make([]*Sexp, 0, len(b.Preds))
+		c := make([]Value, 0, len(b.Preds))
 		// XXX is this code duplicated with func control?
 		for _, prev := range b.Preds {
-			var cond *Sexp
+			var cond Value
 			switch ctrl := prev.Control().(type) {
 			case *ir.If:
 				if prev.Succs[0] == b {
@@ -318,7 +317,7 @@ func smtfn2(fn *ir.Function) {
 	}
 
 	if fn.Name() == "foo" {
-		var c []*Sexp
+		var c []Value
 
 		// for _, n := range assertions {
 		// 	c = append(c, n)
@@ -355,215 +354,184 @@ func verbToOp(verb Verb) token.Token {
 	}
 }
 
-func simplify(n Value, parent Value, fn *ir.Function) *Sexp {
+func simplify(sexp *Sexp, fn *ir.Function) {
 	// XXX our code is so horribly inefficient
 
-	hasBoth := func(root Sexp) bool {
-		seen := map[Value]struct{}{}
-		var dfs func(n Value)
-		found := false
-		dfs = func(n Value) {
-			// XXX clean up this code
-
-			seen[n] = struct{}{}
-			if sexp, ok := n.(*Sexp); ok {
-				if sexp.Verb == verbNot {
-					if _, ok := seen[sexp.In[0]]; ok {
-						found = true
-						return
-					}
-				} else {
-					if _, ok := seen[Not(sexp)]; ok {
-						found = true
-						return
-					}
-				}
-
-				if sexp.Verb == root.Verb {
-					dfs(sexp.In[0])
-					dfs(sexp.In[1])
-				}
-			} else {
-				if _, ok := seen[Not(sexp)]; ok {
-					found = true
-					return
-				}
+	for i, in := range sexp.In {
+		if in, ok := in.(*Sexp); ok {
+			simplify(in, fn)
+			if in.Verb == verbIdentity {
+				sexp.In[i] = in.In[0]
 			}
 		}
-
-		dfs(root.In[0])
-		dfs(root.In[1])
-		return found
 	}
 
-	if sexp, ok := n.(*Sexp); ok {
-		for i, in := range sexp.In {
-			sexp.In[i] = simplify(in, n, fn)
+	// Constant propagation
+	if x, ok := sexp.In[0].(*BitVector); ok {
+		if y, ok := sexp.In[1].(*BitVector); ok {
+			_ = x // XXX
+			_ = y // XXX
+			switch sexp.Verb {
+			case verbBvadd:
+				// XXX bitwidth, signedness, actually do the math
+			case verbBvult, verbBvslt, verbBvule, verbBvsle:
+				// XXX do the comparison
+			}
+		}
+	}
+
+	switch sexp.Verb {
+	case verbAnd:
+		for _, in := range sexp.In {
+			if in == cFalse {
+				*sexp = Identity(cFalse)
+			}
 		}
 
-		// Constant propagation
+		// TODO remove cTrue inputs
+		// TODO find conflicting negation
+		// TODO Find a pair of 'x' and '(not x)'
+
+	case verbOr:
+		for _, in := range sexp.In {
+			if in == cTrue {
+				*sexp = Identity(cTrue)
+			}
+		}
+		// TODO remove cFalse inputs
+		// TODO Find a pair of 'x' and '(not x)'
+
+	case verbBvadd:
+		newIn := make([]Value, 0, len(sexp.In))
+		for _, in := range sexp.In {
+			if isZero(in) {
+				// a + 0 == 0, skip this input
+			} else if inSexp, ok := in.(*Sexp); ok && inSexp.Verb == verbBvadd {
+				// flatten nested bvadd
+				newIn = append(newIn, inSexp.In...)
+			} else {
+				newIn = append(newIn, in)
+			}
+		}
+		sexp.In = newIn
+
+		switch len(sexp.In) {
+		case 0:
+			// XXX we need to use a zero bitvector of the right size
+			*sexp = Identity(cZero)
+		case 1:
+			*sexp = Identity(sexp.In[0])
+		}
+
+	case verbBvsub:
+		// TODO remove '0'
+		*sexp = Identity(Op(verbBvadd, sexp.In[0], Op(verbBvneg, sexp.In[1], nil)))
+
+	case verbEqual:
+		if sexp.In[0] == sexp.In[1] {
+			*sexp = Identity(cTrue)
+		}
+
 		if x, ok := sexp.In[0].(Const); ok {
 			if y, ok := sexp.In[1].(Const); ok {
-				switch sexp.Verb {
-				case verbBvadd:
-					// XXX bitwidth, signedness
-					xi, _ := constant.Uint64Val(x.Value)
-					yi, _ := constant.Uint64Val(y.Value)
-					return Const{constant.MakeUint64(uint64(uint8(xi) + uint8(yi)))}
-				case verbBvult, verbBvslt, verbBvule, verbBvsle:
-					op := verbToOp(sexp.Verb)
-					return Const{constant.MakeBool(constant.Compare(x.Value, op, y.Value))}
+				return Const{constant.MakeBool(constant.Compare(x.Value, token.EQL, y.Value))}
+			}
+		}
+
+		// XXX check len(sexp.In)
+		if bvadd, ok := sexp.In[0].(Sexp); ok && bvadd.Verb == verbBvadd {
+			if out, ok := sexp.In[1].(Const); ok {
+				if x, ok := bvadd.In[0].(Const); ok {
+					if k, ok := bvadd.In[1].(Const); ok {
+						outi, _ := constant.Uint64Val(out.Value)
+						ki, _ := constant.Uint64Val(k.Value)
+
+						// XXX bitwidth, signedness
+						return Equal(x, Const{constant.MakeUint64(uint64(uint8(outi) - uint8(ki)))})
+					}
 				}
 			}
 		}
 
-		switch sexp.Verb {
-		case verbAnd:
-			if sexp.In[0] == cFalse || sexp.In[1] == cFalse {
-				return cFalse
-			} else if sexp.In[0] == cTrue {
-				return sexp.In[1]
-			} else if sexp.In[1] == cTrue {
-				return sexp.In[0]
-			} else {
-				// TODO find conflicting negation, recursively
-				// Find a pair of 'x' and '(not x)'
+	case verbBvult, verbBvslt:
+		// TODO no value is bvult 0
 
-				if parent.Verb != verbAnd {
-					if hasBoth(sexp) {
-						return cFalse
-					}
-				}
-			}
-
-		case verbOr:
-			if sexp.In[0] == cTrue || sexp.In[1] == cTrue {
-				return cTrue
-			} else if sexp.In[0] == cFalse {
-				return sexp.In[1]
-			} else if sexp.In[1] == cFalse {
-				return sexp.In[0]
-			} else {
-				// Find a pair of 'x' and '(not x)'
-				if hasBoth(sexp) {
-					return cTrue
-				}
-			}
-
-		case verbBvadd:
-			if sexp.In[1] == cZero {
-				// (bvadd x 0) => x
-				return sexp.In[0]
-			}
-
-		case verbBvsub:
-			return Op(verbBvadd, sexp.In[0], Op(verbBvneg, sexp.In[1], nil))
-
-		case verbEqual:
-			if sexp.In[0] == sexp.In[1] {
-				return cTrue
-			}
-
-			if x, ok := sexp.In[0].(Const); ok {
-				if y, ok := sexp.In[1].(Const); ok {
-					return Const{constant.MakeBool(constant.Compare(x.Value, token.EQL, y.Value))}
-				}
-			}
-
-			if bvadd, ok := sexp.In[0].(Sexp); ok && bvadd.Verb == verbBvadd {
-				if out, ok := sexp.In[1].(Const); ok {
-					if x, ok := bvadd.In[0].(Const); ok {
-						if k, ok := bvadd.In[1].(Const); ok {
-							outi, _ := constant.Uint64Val(out.Value)
-							ki, _ := constant.Uint64Val(k.Value)
-
-							// XXX bitwidth, signedness
-							return Equal(x, Const{constant.MakeUint64(uint64(uint8(outi) - uint8(ki)))})
-						}
-					}
-				}
-			}
-
-		case verbBvult, verbBvslt:
-			if sexp.In[0] == sexp.In[1] {
-				// no value is less than itself
-				return cFalse
-			}
-
-		case verbBvule, verbBvsle:
-			// TODO bvule and bvsle can be expressed in terms of bvult/bvslt and equality
-
-			if sexp.In[0] == sexp.In[1] {
-				// every value is equal to itself
-				return cTrue
-			}
-
-			var neg Verb
-			if sexp.Verb == verbBvule {
-				neg = verbBvult
-			} else {
-				neg = verbBvslt
-			}
-			return Not(Op(neg, sexp.In[1], sexp.In[0]))
-
-		case verbNot:
-			if sexp.In[0] == cTrue {
-				return cFalse
-			} else if sexp.In[0] == cFalse {
-				return cTrue
-			} else if in, ok := sexp.In[0].(Sexp); ok {
-				switch in.Verb {
-				case verbNot:
-					return in
-				}
-			}
+		if sexp.In[0] == sexp.In[1] {
+			// no value is less than itself
+			*sexp = Identity(cFalse)
 		}
 
-		switch sexp.Verb {
-		case verbBvadd, verbAnd, verbOr:
-			// XXX there are only two arguments, we don't need sort.Slice for that
+	case verbBvule, verbBvsle:
+		// TODO bvule and bvsle can be expressed in terms of bvult/bvslt and equality
 
-			sort.Slice(sexp.In[:], func(i, j int) bool {
-				// sexp > var > const
-				a := sexp.In[i]
-				b := sexp.In[j]
+		if sexp.In[0] == sexp.In[1] {
+			// every value is equal to itself
+			*sexp = Identity(cTrue)
+		}
 
-				switch a := a.(type) {
+		var neg Verb
+		if sexp.Verb == verbBvule {
+			neg = verbBvult
+		} else {
+			neg = verbBvslt
+		}
+		*sexp = Identity(Not(Op(neg, sexp.In[1], sexp.In[0])))
+
+	case verbNot:
+		if sexp.In[0] == cTrue {
+			*sexp = Identity(cFalse)
+		} else if sexp.In[0] == cFalse {
+			*sexp = Identity(cTrue)
+		} else if in, ok := sexp.In[0].(*Sexp); ok {
+			switch in.Verb {
+			case verbNot:
+				*sexp = Identity(in)
+			}
+		}
+	}
+
+	switch sexp.Verb {
+	case verbBvadd, verbAnd, verbOr:
+		// XXX there are only two arguments, we don't need sort.Slice for that
+
+		sort.Slice(sexp.In[:], func(i, j int) bool {
+			// sexp > var > const
+			a := sexp.In[i]
+			b := sexp.In[j]
+
+			switch a := a.(type) {
+			case Const:
+				b, ok := b.(Const)
+				if !ok {
+					return false
+				}
+
+				switch a.Value.Kind() {
+				case constant.Bool:
+					ta := constant.BoolVal(a.Value)
+					tb := constant.BoolVal(b.Value)
+					return !ta && tb
+				case constant.Int:
+					return constant.Compare(a.Value, token.LSS, b.Value)
+				default:
+					panic(fmt.Sprintf("unexpected kind %s", a.Value.Kind()))
+				}
+			case Var:
+				switch b := b.(type) {
 				case Const:
-					b, ok := b.(Const)
-					if !ok {
-						return false
-					}
-
-					switch a.Value.Kind() {
-					case constant.Bool:
-						ta := constant.BoolVal(a.Value)
-						tb := constant.BoolVal(b.Value)
-						return !ta && tb
-					case constant.Int:
-						return constant.Compare(a.Value, token.LSS, b.Value)
-					default:
-						panic(fmt.Sprintf("unexpected kind %s", a.Value.Kind()))
-					}
+					return true
 				case Var:
-					switch b := b.(type) {
-					case Const:
-						return true
-					case Var:
-						return a.Name < b.Name
-					default:
-						return false
-					}
+					return a < b
 				default:
 					return false
 				}
-			})
-		}
-
-		return sexp
+			default:
+				return false
+			}
+		})
 	}
 
-	return n
+	return sexp
 }
 
 // XXX the name, among other things…

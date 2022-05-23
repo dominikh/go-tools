@@ -4,17 +4,56 @@ package smt
 
 import (
 	"fmt"
+	"go/constant"
 	"strings"
 )
 
+type Type interface{}
+
+type Bool struct{}
+type BitVector struct {
+	Size int
+}
+
 type Value interface {
+	Type() Type
 	String() string
 }
 
-type Bool bool
+type value struct {
+	typ Type
+}
 
-func (b Bool) String() string {
-	return fmt.Sprintf("%t", b)
+func (v value) Type() Type {
+	return v.typ
+}
+
+type Var struct {
+	value
+	Name uint64
+}
+
+func (v Var) String() string {
+	return fmt.Sprintf("v%d", v)
+}
+
+type Sexp struct {
+	value
+	Verb Verb
+	In   []Value
+}
+
+func (s *Sexp) String() string {
+	args := make([]string, len(s.In))
+	for i, in := range s.In {
+		args[i] = in.String()
+	}
+	return fmt.Sprintf("(%s %s)", s.Verb, strings.Join(args, " "))
+}
+
+type Const struct {
+	value
+	Const constant.Value
 }
 
 type Verb int
@@ -79,19 +118,6 @@ const (
 	verbBvnot
 )
 
-type Sexp struct {
-	Verb Verb
-	In   []Value
-}
-
-func (s *Sexp) String() string {
-	args := make([]string, len(s.In))
-	for i, in := range s.In {
-		args[i] = in.String()
-	}
-	return fmt.Sprintf("(%s %s)", s.Verb, strings.Join(args, " "))
-}
-
 func And(nodes ...Value) *Sexp {
 	return Op(verbAnd, nodes...)
 }
@@ -117,4 +143,8 @@ func Op(verb Verb, in ...Value) *Sexp {
 		Verb: verb,
 		In:   in,
 	}
+}
+
+func Identity(v Value) Sexp {
+	return Sexp{Verb: verbIdentity, v}
 }
