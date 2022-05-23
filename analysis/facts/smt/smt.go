@@ -206,7 +206,7 @@ func smtfn2(fn *ir.Function) {
 				case token.NOT:
 					n = Not(def(v.X))
 				case token.SUB:
-					n = Op(v.X.Type(), verbBvneg, def(v.X), nil)
+					n = Op(fromGoType(v.Type()), verbBvneg, def(v.X), nil)
 				default:
 					panic(v.Op.String())
 				}
@@ -220,9 +220,9 @@ func smtfn2(fn *ir.Function) {
 				case token.NEQ:
 					n = Not(Equal(def(v.X), def(v.Y)))
 				case token.ADD:
-					n = Op(verbBvadd, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvadd, def(v.X), def(v.Y))
 				case token.SUB:
-					n = Op(verbBvsub, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvsub, def(v.X), def(v.Y))
 				case token.LSS:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -230,7 +230,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvslt
 					}
-					n = Op(verb, def(v.X), def(v.Y))
+					n = Op(Bool{}, verb, def(v.X), def(v.Y))
 				case token.GTR:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -238,7 +238,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvslt
 					}
-					n = Op(verb, def(v.Y), def(v.X))
+					n = Op(Bool{}, verb, def(v.Y), def(v.X))
 				case token.GEQ:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -246,7 +246,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsle
 					}
-					n = Op(verb, def(v.Y), def(v.X))
+					n = Op(Bool{}, verb, def(v.Y), def(v.X))
 				case token.LEQ:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -254,11 +254,11 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsle
 					}
-					n = Op(verb, def(v.X), def(v.Y))
+					n = Op(Bool{}, verb, def(v.X), def(v.Y))
 				case token.MUL:
-					n = Op(verbBvmul, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvmul, def(v.X), def(v.Y))
 				case token.SHL:
-					n = Op(verbBvshl, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvshl, def(v.X), def(v.Y))
 				case token.SHR:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -266,13 +266,13 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvashr
 					}
-					n = Op(verb, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verb, def(v.X), def(v.Y))
 				case token.AND:
-					n = Op(verbBvand, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvand, def(v.X), def(v.Y))
 				case token.OR:
-					n = Op(verbBvor, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvor, def(v.X), def(v.Y))
 				case token.XOR:
-					n = Op(verbBvxor, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verbBvxor, def(v.X), def(v.Y))
 				case token.QUO:
 					var verb Verb
 					if (v.X.Type().Underlying().(*types.Basic).Info() & types.IsUnsigned) != 0 {
@@ -280,7 +280,7 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsdiv
 					}
-					n = Op(verb, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verb, def(v.X), def(v.Y))
 				case token.REM:
 					// XXX make sure Go's % has the same semantics as bvsrem
 					var verb Verb
@@ -289,9 +289,9 @@ func smtfn2(fn *ir.Function) {
 					} else {
 						verb = verbBvsrem
 					}
-					n = Op(verb, def(v.X), def(v.Y))
+					n = Op(fromGoType(v.Type()), verb, def(v.X), def(v.Y))
 				case token.AND_NOT:
-					n = Op(verbBvand, def(v.X), Op(verbBvnot, def(v.Y), nil))
+					n = Op(fromGoType(v.Type()), verbBvand, def(v.X), Op(fromGoType(v.Y.Type()), verbBvnot, def(v.Y), nil))
 				default:
 					panic(v.Op.String())
 				}
