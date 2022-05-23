@@ -5,14 +5,61 @@ package smt
 import (
 	"fmt"
 	"go/constant"
+	"go/types"
 	"strings"
 )
 
-type Type interface{}
+func makeValue(typ Type) value                   { return value{typ} }
+func MakeVar(typ Type, name uint64) Var          { return Var{makeValue(typ), name} }
+func MakeConst(typ Type, v constant.Value) Const { return Const{makeValue(typ), v} }
+
+func fromGoType(typ types.Type) Type {
+	basic, ok := typ.Underlying().(*types.Basic)
+	if !ok {
+		// XXX
+		panic(fmt.Sprintf("unsupported type %T", typ))
+	}
+
+	switch basic.Kind() {
+	// predeclared types
+	case types.Bool:
+		return Bool{}
+	case types.Int, types.Uint, types.Uintptr:
+		// XXX don't assume 64 bits
+		return BitVector{64}
+	case types.Int8, types.Uint8:
+		return BitVector{8}
+	case types.Int16, types.Uint16:
+		return BitVector{16}
+	case types.Int32, types.Uint32:
+		return BitVector{32}
+	case types.Int64, types.Uint64:
+		return BitVector{64}
+	default:
+		// XXX
+		panic(fmt.Sprintf("unsupported type %T", typ))
+	}
+}
+
+type Type interface {
+	Equal(o Type) bool
+}
 
 type Bool struct{}
+
+func (b Bool) Equal(o Type) bool {
+	_, ok := o.(Bool)
+	return ok
+}
+
 type BitVector struct {
+	// Size in bits
 	Size int
+}
+
+func (bv BitVector) Equal(o Type) bool {
+	obv, ok := o.(BitVector)
+	return ok && obv.Size == bv.Size
 }
 
 type Value interface {
@@ -53,7 +100,11 @@ func (s *Sexp) String() string {
 
 type Const struct {
 	value
-	Const constant.Value
+	Value constant.Value
+}
+
+func (c Const) String() string {
+	return c.Value.String()
 }
 
 type Verb int
@@ -119,32 +170,37 @@ const (
 )
 
 func And(nodes ...Value) *Sexp {
-	return Op(verbAnd, nodes...)
+	return Op(Bool{}, verbAnd, nodes...)
 }
 
 func Or(nodes ...Value) *Sexp {
-	return Op(verbOr, nodes...)
+	return Op(Bool{}, verbOr, nodes...)
 }
 
 func Xor(a, b Value) *Sexp {
-	return Op(verbXor, a, b)
+	return Op(Bool{}, verbXor, a, b)
 }
 
 func Equal(a, b Value) *Sexp {
-	return Op(verbEqual, a, b)
+	return Op(Bool{}, verbEqual, a, b)
 }
 
 func Not(a Value) *Sexp {
-	return Op(verbNot, a, nil)
+	return Op(Bool{}, verbNot, a, nil)
 }
 
-func Op(verb Verb, in ...Value) *Sexp {
+func Op(typ Type, verb Verb, in ...Value) *Sexp {
 	return &Sexp{
-		Verb: verb,
-		In:   in,
+		value: makeValue(typ),
+		Verb:  verb,
+		In:    in,
 	}
 }
 
 func Identity(v Value) Sexp {
-	return Sexp{Verb: verbIdentity, v}
+	return Sexp{
+		value: makeValue(v.Type()),
+		Verb:  verbIdentity,
+		In:    []Value{v},
+	}
 }

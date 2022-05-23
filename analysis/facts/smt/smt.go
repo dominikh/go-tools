@@ -31,6 +31,8 @@ Benutze Ackermanns Reduktion um die uninterpretierten Funktionen
 durch Variablen zu ersetzen
 */
 
+// OPT use pointers for types, to avoid some interface allocations; reuse instances of types
+
 import (
 	"fmt"
 	"go/constant"
@@ -62,14 +64,28 @@ func (r Result) Unsatisfiable(target ir.Value) bool {
 	return false
 }
 
-var cTrue = Bool(true)
-var cFalse = Bool(false)
+var (
+	cTrue = Const{
+		value: makeValue(Bool{}),
+		Value: constant.MakeBool(true),
+	}
+	cFalse = Const{
+		value: makeValue(Bool{}),
+		Value: constant.MakeBool(false),
+	}
+)
 
 func smt(pass *analysis.Pass) (interface{}, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		smtfn2(fn)
 	}
 	return Result{}, nil
+}
+
+func assert(b bool) {
+	if !b {
+		panic("failed assertion")
+	}
 }
 
 func smtfn2(fn *ir.Function) {
@@ -136,7 +152,8 @@ func smtfn2(fn *ir.Function) {
 	ites := map[Var]*Sexp{}
 
 	doITE := func(cond, t, f Value) Var {
-		v := Var(len(ites))
+		assert(t.Type().Equal(f.Type()))
+		v := MakeVar(t.Type(), uint64(len(ites)))
 
 		n := And(
 			Or(Not(cond), Equal(v, t)),
@@ -168,7 +185,7 @@ func smtfn2(fn *ir.Function) {
 			switch v := v.(type) {
 			case *ir.Const:
 				// XXX convert ir.Const to either a Bool or the appropriate bitvector
-				doDef(v, Const{v.Value})
+				doDef(v, MakeConst(fromGoType(v.Type()), v.Value))
 
 			case *ir.Sigma:
 				doDef(v, def(v.X))
@@ -189,7 +206,7 @@ func smtfn2(fn *ir.Function) {
 				case token.NOT:
 					n = Not(def(v.X))
 				case token.SUB:
-					n = Op(verbBvneg, def(v.X), nil)
+					n = Op(v.X.Type(), verbBvneg, def(v.X), nil)
 				default:
 					panic(v.Op.String())
 				}
@@ -354,6 +371,18 @@ func verbToOp(verb Verb) token.Token {
 	}
 }
 
+func isZero(v Value) bool {
+	k, ok := v.(Const)
+	if !ok {
+		return false
+	}
+	if _, ok = k.Type().(BitVector); !ok {
+		return false
+	}
+	n, exact := constant.Uint64Val(k.Value)
+	return n == 0 && exact
+}
+
 func simplify(sexp *Sexp, fn *ir.Function) {
 	// XXX our code is so horribly inefficient
 
@@ -367,8 +396,8 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 	}
 
 	// Constant propagation
-	if x, ok := sexp.In[0].(*BitVector); ok {
-		if y, ok := sexp.In[1].(*BitVector); ok {
+	if x, ok := sexp.In[0].(Const); ok {
+		if y, ok := sexp.In[1].(Const); ok {
 			_ = x // XXX
 			_ = y // XXX
 			switch sexp.Verb {
@@ -418,7 +447,7 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 		switch len(sexp.In) {
 		case 0:
 			// XXX we need to use a zero bitvector of the right size
-			*sexp = Identity(cZero)
+			*sexp = Identity(MakeConst(sexp.typ, constant.MakeUint64(0)))
 		case 1:
 			*sexp = Identity(sexp.In[0])
 		}
@@ -434,20 +463,20 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 
 		if x, ok := sexp.In[0].(Const); ok {
 			if y, ok := sexp.In[1].(Const); ok {
-				return Const{constant.MakeBool(constant.Compare(x.Value, token.EQL, y.Value))}
+				*sexp = Identity(MakeConst(Bool{}, constant.MakeBool(constant.Compare(x.Value, token.EQL, y.Value))))
 			}
 		}
 
 		// XXX check len(sexp.In)
-		if bvadd, ok := sexp.In[0].(Sexp); ok && bvadd.Verb == verbBvadd {
+		if bvadd, ok := sexp.In[0].(*Sexp); ok && bvadd.Verb == verbBvadd {
 			if out, ok := sexp.In[1].(Const); ok {
 				if x, ok := bvadd.In[0].(Const); ok {
 					if k, ok := bvadd.In[1].(Const); ok {
 						outi, _ := constant.Uint64Val(out.Value)
 						ki, _ := constant.Uint64Val(k.Value)
 
-						// XXX bitwidth, signedness
-						return Equal(x, Const{constant.MakeUint64(uint64(uint8(outi) - uint8(ki)))})
+						// XXX bitwidth, signedness; right now we assume 8 bit
+						*sexp = Identity(Equal(x, MakeConst(x.Type(), constant.MakeUint64(uint64(uint8(outi)-uint8(ki))))))
 					}
 				}
 			}
@@ -521,7 +550,7 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 				case Const:
 					return true
 				case Var:
-					return a < b
+					return a.Name < b.Name
 				default:
 					return false
 				}
@@ -530,8 +559,6 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 			}
 		})
 	}
-
-	return sexp
 }
 
 // XXX the name, among other things…
