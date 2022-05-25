@@ -112,22 +112,31 @@ func smtfn2(fn *ir.Function) {
 	}
 	dfs(fn.Blocks[0])
 
-	predicates := map[*ir.BasicBlock]Value{}
+	predicates := make([]Value, len(fn.Blocks))
 	doPred := func(b *ir.BasicBlock, n Value) {
-		predicates[b] = n
+		predicates[b.Index] = n
 	}
 	pred := func(b *ir.BasicBlock) Value {
-		return predicates[b]
+		return predicates[b.Index]
 	}
 
 	doPred(fn.Blocks[0], cTrue)
 
-	definitions := map[ir.Value]Value{}
+	definitions := map[ir.ID]Value{}
 	doDef := func(v ir.Value, n Value) {
-		definitions[v] = n
+		definitions[v.ID()] = n
 	}
+
+	for _, p := range fn.Params {
+		doDef(p, MakeVar(fromGoType(p.Type()), uint64(p.ID())))
+	}
+
 	def := func(v ir.Value) Value {
-		return definitions[v]
+		d := definitions[v.ID()]
+		if d == nil {
+			panic(fmt.Sprintf("no definition for %s", v))
+		}
+		return d
 	}
 
 	control := func(from, to *ir.BasicBlock) Value {
@@ -151,9 +160,10 @@ func smtfn2(fn *ir.Function) {
 
 	ites := map[Var]*Sexp{}
 
+	const offsetIte = 1e9
 	doITE := func(cond, t, f Value) Var {
 		assert(t.Type().Equal(f.Type()))
-		v := MakeVar(t.Type(), uint64(len(ites)))
+		v := MakeVar(t.Type(), uint64(offsetIte+len(ites)))
 
 		n := And(
 			Or(Not(cond), Equal(v, t)),
@@ -184,7 +194,6 @@ func smtfn2(fn *ir.Function) {
 
 			switch v := v.(type) {
 			case *ir.Const:
-				// XXX convert ir.Const to either a Bool or the appropriate bitvector
 				doDef(v, MakeConst(fromGoType(v.Type()), v.Value))
 
 			case *ir.Sigma:
@@ -336,6 +345,15 @@ func smtfn2(fn *ir.Function) {
 	if fn.Name() == "foo" {
 		var c []Value
 
+		c8 := predicates[8]
+		t50 := definitions[50]
+		c = append(c, c8, t50)
+
+		for _, ite := range ites {
+			// OPT only include the ITEs we need
+			c = append(c, ite)
+		}
+
 		// for _, n := range assertions {
 		// 	c = append(c, n)
 		// }
@@ -347,27 +365,12 @@ func smtfn2(fn *ir.Function) {
 
 		and := And(c...)
 
-		// for i := 0; i < 5; i++ {
-		// 	and = simplify(and, nil, fn)
-		// }
+		for i := 0; i < 10; i++ {
+			propagateEqualities(and)
+			simplify(and, fn)
+		}
 
 		fmt.Println(and)
-	}
-}
-
-func verbToOp(verb Verb) token.Token {
-	switch verb {
-	case verbBvult:
-		return token.LSS
-	case verbBvslt:
-		return token.LSS
-	case verbBvule:
-		return token.LEQ
-	case verbBvsle:
-		return token.LEQ
-	default:
-		// XXX
-		panic(verb)
 	}
 }
 
@@ -383,6 +386,55 @@ func isZero(v Value) bool {
 	return n == 0 && exact
 }
 
+func substitute(n Value, equalities map[Var]Value) Value {
+	if n, ok := n.(Var); ok {
+		s, ok := equalities[n]
+		if ok {
+			return s
+		} else {
+			return n
+		}
+	}
+	if n, ok := n.(*Sexp); ok {
+		// OPT ideally we won't copy the sexp if it doesn't reference any variables in equalities
+		cp := &Sexp{
+			value: n.value,
+			Verb:  n.Verb,
+			In:    make([]Value, len(n.In)),
+		}
+		for i, in := range n.In {
+			cp.In[i] = substitute(in, equalities)
+		}
+		return cp
+	}
+	return n
+}
+
+func propagateEqualities(sexp *Sexp) {
+	equalities := map[Var]Value{}
+	if sexp.Verb == verbAnd {
+		for _, in := range sexp.In {
+			if in, ok := in.(*Sexp); ok && in.Verb == verbEqual && len(in.In) == 2 {
+				if lhs, ok := in.In[0].(Var); ok {
+					if _, ok := equalities[lhs]; !ok {
+						equalities[lhs] = in.In[1]
+					}
+				}
+			}
+		}
+	}
+
+	if len(equalities) == 0 {
+		return
+	}
+
+	for i, in := range sexp.In {
+		sexp.In[i] = substitute(in, equalities)
+	}
+
+	// XXX propagate in nested ands
+}
+
 func simplify(sexp *Sexp, fn *ir.Function) {
 	// XXX our code is so horribly inefficient
 
@@ -396,39 +448,93 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 	}
 
 	// Constant propagation
-	if x, ok := sexp.In[0].(Const); ok {
-		if y, ok := sexp.In[1].(Const); ok {
-			_ = x // XXX
-			_ = y // XXX
-			switch sexp.Verb {
-			case verbBvadd:
-				// XXX bitwidth, signedness, actually do the math
-			case verbBvult, verbBvslt, verbBvule, verbBvsle:
-				// XXX do the comparison
+	if len(sexp.In) == 2 {
+		if x, ok := sexp.In[0].(Const); ok {
+			if y, ok := sexp.In[1].(Const); ok {
+				_ = x // XXX
+				_ = y // XXX
+				switch sexp.Verb {
+				case verbBvadd:
+					// XXX bitwidth, signedness, actually do the math
+				case verbBvult, verbBvslt, verbBvule, verbBvsle:
+					// XXX do the comparison
+				}
 			}
 		}
 	}
 
 	switch sexp.Verb {
 	case verbAnd:
+		newIn := make([]Value, 0, len(sexp.In))
 		for _, in := range sexp.In {
 			if in == cFalse {
 				*sexp = Identity(cFalse)
+				return
+			} else if in == cTrue {
+				// skip
+			} else if nested, ok := in.(*Sexp); ok && nested.Verb == verbAnd {
+				newIn = append(newIn, nested.In...)
+			} else {
+				newIn = append(newIn, in)
+			}
+		}
+		sexp.In = newIn
+
+		if len(sexp.In) == 0 {
+			*sexp = Identity(cTrue)
+		} else if len(sexp.In) == 1 {
+			*sexp = Identity(sexp.In[0])
+		} else {
+			nodes := map[Value]struct{}{}
+			for _, in := range sexp.In {
+				nodes[in] = struct{}{}
+			}
+			for _, in := range sexp.In {
+				if in, ok := in.(*Sexp); ok && in.Verb == verbNot {
+					if _, ok := nodes[in.In[0]]; ok {
+						// (and ...) contains both x and (not x), which is a tautology
+						*sexp = Identity(cFalse)
+						return
+					}
+				}
 			}
 		}
 
-		// TODO remove cTrue inputs
-		// TODO find conflicting negation
-		// TODO Find a pair of 'x' and '(not x)'
-
 	case verbOr:
+		newIn := make([]Value, 0, len(sexp.In))
 		for _, in := range sexp.In {
 			if in == cTrue {
 				*sexp = Identity(cTrue)
+				return
+			} else if in == cFalse {
+				// skip
+			} else if nested, ok := in.(*Sexp); ok && nested.Verb == verbOr {
+				newIn = append(newIn, nested.In...)
+			} else {
+				newIn = append(newIn, in)
 			}
 		}
-		// TODO remove cFalse inputs
-		// TODO Find a pair of 'x' and '(not x)'
+		sexp.In = newIn
+
+		if len(sexp.In) == 0 {
+			*sexp = Identity(cFalse)
+		} else if len(sexp.In) == 1 {
+			*sexp = Identity(sexp.In[0])
+		} else {
+			nodes := map[Value]struct{}{}
+			for _, in := range sexp.In {
+				nodes[in] = struct{}{}
+			}
+			for _, in := range sexp.In {
+				if in, ok := in.(*Sexp); ok && in.Verb == verbNot {
+					if _, ok := nodes[in.In[0]]; ok {
+						// (or ...) contains both x and (not x), which is a tautology
+						*sexp = Identity(cTrue)
+						return
+					}
+				}
+			}
+		}
 
 	case verbBvadd:
 		newIn := make([]Value, 0, len(sexp.In))
@@ -454,21 +560,17 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 
 	case verbBvsub:
 		// TODO remove '0'
-		*sexp = Identity(Op(verbBvadd, sexp.In[0], Op(verbBvneg, sexp.In[1], nil)))
+		*sexp = Identity(Op(sexp.Type(), verbBvadd, sexp.In[0], Op(sexp.In[1].Type(), verbBvneg, sexp.In[1], nil)))
 
 	case verbEqual:
 		if sexp.In[0] == sexp.In[1] {
 			*sexp = Identity(cTrue)
-		}
-
-		if x, ok := sexp.In[0].(Const); ok {
+		} else if x, ok := sexp.In[0].(Const); ok {
 			if y, ok := sexp.In[1].(Const); ok {
 				*sexp = Identity(MakeConst(Bool{}, constant.MakeBool(constant.Compare(x.Value, token.EQL, y.Value))))
 			}
-		}
-
-		// XXX check len(sexp.In)
-		if bvadd, ok := sexp.In[0].(*Sexp); ok && bvadd.Verb == verbBvadd {
+		} else if bvadd, ok := sexp.In[0].(*Sexp); ok && bvadd.Verb == verbBvadd {
+			// XXX check len(sexp.In)
 			if out, ok := sexp.In[1].(Const); ok {
 				if x, ok := bvadd.In[0].(Const); ok {
 					if k, ok := bvadd.In[1].(Const); ok {
@@ -476,7 +578,7 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 						ki, _ := constant.Uint64Val(k.Value)
 
 						// XXX bitwidth, signedness; right now we assume 8 bit
-						*sexp = Identity(Equal(x, MakeConst(x.Type(), constant.MakeUint64(uint64(uint8(outi)-uint8(ki))))))
+						*sexp = Identity(Equal(x, MakeConst(x.typ, constant.MakeUint64(uint64(uint8(outi)-uint8(ki))))))
 					}
 				}
 			}
@@ -504,7 +606,7 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 		} else {
 			neg = verbBvslt
 		}
-		*sexp = Identity(Not(Op(neg, sexp.In[1], sexp.In[0])))
+		*sexp = Identity(Not(Op(sexp.typ, neg, sexp.In[1], sexp.In[0])))
 
 	case verbNot:
 		if sexp.In[0] == cTrue {
@@ -521,8 +623,6 @@ func simplify(sexp *Sexp, fn *ir.Function) {
 
 	switch sexp.Verb {
 	case verbBvadd, verbAnd, verbOr:
-		// XXX there are only two arguments, we don't need sort.Slice for that
-
 		sort.Slice(sexp.In[:], func(i, j int) bool {
 			// sexp > var > const
 			a := sexp.In[i]

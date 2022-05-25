@@ -81,7 +81,7 @@ type Var struct {
 }
 
 func (v Var) String() string {
-	return fmt.Sprintf("v%d", v)
+	return fmt.Sprintf("v%d", v.Name)
 }
 
 type Sexp struct {
@@ -93,6 +93,9 @@ type Sexp struct {
 func (s *Sexp) String() string {
 	args := make([]string, len(s.In))
 	for i, in := range s.In {
+		if in == nil {
+			panic(fmt.Sprintf("nil input to sexp %#v", s))
+		}
 		args[i] = in.String()
 	}
 	return fmt.Sprintf("(%s %s)", s.Verb, strings.Join(args, " "))
@@ -142,7 +145,8 @@ func (v Verb) String() string {
 }
 
 const (
-	verbAnd = iota
+	verbNone Verb = iota
+	verbAnd
 	verbOr
 	verbXor
 	verbEqual
@@ -186,7 +190,7 @@ func Equal(a, b Value) *Sexp {
 }
 
 func Not(a Value) *Sexp {
-	return Op(Bool{}, verbNot, a, nil)
+	return Op(Bool{}, verbNot, a)
 }
 
 func Op(typ Type, verb Verb, in ...Value) *Sexp {
