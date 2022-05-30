@@ -209,7 +209,7 @@ func serializeDirective(dir lint.Directive, fset *token.FileSet) SerializedDirec
 type ResultData struct {
 	Directives  []SerializedDirective
 	Diagnostics []Diagnostic
-	Unused      unused.SerializedResult
+	Unused      unused.Result
 }
 
 func (r Result) Load() (ResultData, error) {
@@ -677,7 +677,7 @@ func (r *Runner) writeCacheGob(a *packageAction, kind string, data interface{}) 
 type packageActionResult struct {
 	facts   []gobFact
 	diags   []Diagnostic
-	unused  unused.SerializedResult
+	unused  unused.Result
 	dirs    []lint.Directive
 	lpkg    *loader.Package
 	skipped bool
@@ -1001,7 +1001,7 @@ func (ar *analyzerRunner) do(act action) error {
 type analysisResult struct {
 	facts       []gobFact
 	diagnostics []Diagnostic
-	unused      unused.SerializedResult
+	unused      unused.Result
 
 	// Only set when using test mode
 	testFacts []TestFact
@@ -1066,12 +1066,23 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 		}
 	}
 
-	var unusedResult unused.SerializedResult
+	var unusedResult unused.Result
 	for _, a := range all {
 		if a != root && a.Analyzer.Name == "U1000" && !a.failed {
 			// TODO(dh): figure out a clean abstraction, instead of
 			// special-casing U1000.
-			unusedResult = unused.Serialize(a.Pass, a.Result.(unused.Result), pkg.Fset)
+			unusedResult = a.Result.(unused.Result)
+
+			// Unset unused.Object.Obj, which is a types.Object, so that we can encode the rest with gob.
+			for i := range unusedResult.Used {
+				unusedResult.Used[i].Obj = nil
+			}
+			for i := range unusedResult.Unused {
+				unusedResult.Unused[i].Obj = nil
+			}
+			for i := range unusedResult.Quiet {
+				unusedResult.Quiet[i].Obj = nil
+			}
 		}
 
 		for key, fact := range a.ObjectFacts {

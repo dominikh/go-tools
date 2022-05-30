@@ -1,27 +1,27 @@
 package bar
 
-type myNoCopy1 struct{}    //@ used(true)
-type myNoCopy2 struct{}    //@ used(true)
-type stdlibNoCopy struct{} //@ used(true)
-type locker struct{}       //@ used(false)
-type someStruct struct {   //@ used(false)
-	x int
+type myNoCopy1 struct{}    //@ used("myNoCopy1", true)
+type myNoCopy2 struct{}    //@ used("myNoCopy2", true)
+type stdlibNoCopy struct{} //@ used("stdlibNoCopy", true)
+type locker struct{}       //@ used("locker", false)
+type someStruct struct {   //@ used("someStruct", false)
+	x int //@ quiet("x")
 }
 
-func (myNoCopy1) Lock()      {} //@ used(true)
-func (recv myNoCopy2) Lock() {} //@ used(true)
-func (locker) Lock()         {} //@ used(false)
-func (locker) Foobar()       {} //@ used(false)
-func (someStruct) Lock()     {} //@ used(false)
+func (myNoCopy1) Lock()      {} //@ used("Lock", true)
+func (recv myNoCopy2) Lock() {} //@ used("Lock", true), used("recv", true)
+func (locker) Lock()         {} //@ used("Lock", false)
+func (locker) Foobar()       {} //@ used("Foobar", false)
+func (someStruct) Lock()     {} //@ used("Lock", false)
 
-func (stdlibNoCopy) Lock()   {} //@ used(true)
-func (stdlibNoCopy) Unlock() {} //@ used(true)
+func (stdlibNoCopy) Lock()   {} //@ used("Lock", true)
+func (stdlibNoCopy) Unlock() {} //@ used("Unlock", true)
 
-type T struct { //@ used(true)
-	noCopy1 myNoCopy1    //@ used(true)
-	noCopy2 myNoCopy2    //@ used(true)
-	noCopy3 stdlibNoCopy //@ used(true)
-	field1  someStruct   //@ used(false)
-	field2  locker       //@ used(false)
-	field3  int          //@ used(false)
+type T struct { //@ used("T", true)
+	noCopy1 myNoCopy1    //@ used("noCopy1", true)
+	noCopy2 myNoCopy2    //@ used("noCopy2", true)
+	noCopy3 stdlibNoCopy //@ used("noCopy3", true)
+	field1  someStruct   //@ used("field1", false)
+	field2  locker       //@ used("field2", false)
+	field3  int          //@ used("field3", false)
 }

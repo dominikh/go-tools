@@ -1,31 +1,42 @@
 package pkg
 
-type t1 struct{} //@ used(false)
+type t1 struct{} //@ used("t1", false)
 
-func (t1) fragment() {} //@ used(false)
+func (t1) fragment() {} //@ used("fragment", false)
 
-func fn1() bool { //@ used(false)
-	var v interface{} = t1{}
-	switch obj := v.(type) {
+func fn1() bool { //@ used("fn1", false)
+	var v interface{} = t1{} //@ quiet("v")
+	switch obj := v.(type) { //@ quiet("obj")
 	case interface {
-		fragment()
+		fragment() //@ quiet("fragment")
 	}:
 		obj.fragment()
 	}
 	return false
 }
 
-type t2 struct{} //@ used(true)
+type t2 struct{} //@ used("t2", true)
 
-func (t2) fragment() {} //@ used(true)
+func (t2) fragment() {} //@ used("fragment", true)
 
-func Fn() bool { //@ used(true)
-	var v interface{} = t2{}
-	switch obj := v.(type) {
+func Fn() bool { //@ used("Fn", true)
+	var v interface{} = t2{} //@ used("v", true)
+	switch obj := v.(type) { //@ used("obj", true)
 	case interface {
-		fragment() //@ used(true)
+		fragment() //@ used("fragment", true)
 	}:
 		obj.fragment()
+	}
+	return false
+}
+
+func Fn2() bool { //@ used("Fn2", true)
+	var v interface{} = t2{} //@ used("v", true)
+	switch obj := v.(type) { //@ used("obj", true)
+	case interface {
+		fragment() //@ used("fragment", true)
+	}:
+		_ = obj
 	}
 	return false
 }

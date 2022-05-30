@@ -1,28 +1,28 @@
 package main
 
-type AA interface { //@ used(true)
-	A() //@ used(true)
+type AA interface { //@ used("AA", true)
+	A() //@ used("A", true)
 }
 
-type BB interface { //@ used(true)
+type BB interface { //@ used("BB", true)
 	AA
 }
 
-type CC interface { //@ used(true)
+type CC interface { //@ used("CC", true)
 	BB
-	C() //@ used(true)
+	C() //@ used("C", true)
 }
 
-func c(cc CC) { //@ used(true)
+func c(cc CC) { //@ used("c", true), used("cc", true)
 	cc.A()
 }
 
-type z struct{} //@ used(true)
+type z struct{} //@ used("z", true)
 
-func (z) A() {} //@ used(true)
-func (z) B() {} //@ used(true)
-func (z) C() {} //@ used(true)
+func (z) A() {} //@ used("A", true)
+func (z) B() {} //@ used("B", true)
+func (z) C() {} //@ used("C", true)
 
-func main() { //@ used(true)
+func main() { //@ used("main", true)
 	c(z{})
 }

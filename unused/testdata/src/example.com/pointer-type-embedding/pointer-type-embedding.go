@@ -1,17 +1,17 @@
 package pkg
 
-func init() { //@ used(true)
-	var p P
+func init() { //@ used("init", true)
+	var p P //@ used("p", true)
 	_ = p.n
 }
 
-type T0 struct { //@ used(true)
-	m int //@ used(false)
-	n int //@ used(true)
+type T0 struct { //@ used("T0", true)
+	m int //@ used("m", false)
+	n int //@ used("n", true)
 }
 
-type T1 struct { //@ used(true)
-	T0 //@ used(true)
+type T1 struct { //@ used("T1", true)
+	T0 //@ used("T0", true)
 }
 
-type P *T1 //@ used(true)
+type P *T1 //@ used("P", true)

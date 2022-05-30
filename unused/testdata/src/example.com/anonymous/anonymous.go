@@ -2,17 +2,17 @@ package pkg
 
 import "fmt"
 
-type Node interface { //@ used(true)
-	position() int //@ used(true)
+type Node interface { //@ used("Node", true)
+	position() int //@ used("position", true)
 }
 
-type noder struct{} //@ used(true)
+type noder struct{} //@ used("noder", true)
 
-func (noder) position() int { panic("unreachable") } //@ used(true)
+func (noder) position() int { panic("unreachable") } //@ used("position", true)
 
-func Fn() { //@ used(true)
-	nodes := []Node{struct {
-		noder //@ used(true)
+func Fn() { //@ used("Fn", true)
+	nodes := []Node{struct { //@ used("nodes", true)
+		noder //@ used("noder", true)
 	}{}}
 	fmt.Println(nodes)
 }

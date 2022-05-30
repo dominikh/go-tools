@@ -218,6 +218,11 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 			out.diagnostics = append(out.diagnostics, filtered...)
 
 			for _, obj := range resd.Unused.Used {
+				// Note: a side-effect of this code is that fields in instantiated structs are handled correctly. Even
+				// if only an instantiated field is marked as used, we will not flag the generic field, because it has
+				// the same position as the instance. At some point this won't be necessary anymore because we'll be
+				// able to make use of the Go 1.19+ Origin methods.
+
 				// FIXME(dh): pick the object whose filename does not include $GOROOT
 				key := unusedKey{
 					pkgPath: res.Package.PkgPath,
@@ -246,15 +251,7 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 	}
 
 	for _, uo := range unuseds {
-		if uo.obj.Kind == "type param" {
-			// We don't currently flag unused type parameters on used objects, and flagging them on unused objects isn't
-			// useful.
-			continue
-		}
 		if used[uo.key] {
-			continue
-		}
-		if uo.obj.InGenerated {
 			continue
 		}
 		out.diagnostics = append(out.diagnostics, diagnostic{
@@ -489,7 +486,7 @@ type unusedKey struct {
 
 type unusedPair struct {
 	key unusedKey
-	obj unused.SerializedObject
+	obj unused.Object
 }
 
 func success(allowedAnalyzers map[string]bool, res runner.ResultData) []diagnostic {

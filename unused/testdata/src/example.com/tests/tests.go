@@ -1,3 +1,3 @@
 package pkg
 
-func fn() {} //@ used(false), used_test(true)
+func fn() {} //@ used("fn", false), used_test("fn", true)
