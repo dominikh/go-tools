@@ -54,9 +54,8 @@ In addition to the aforementioned tools, this repository contains the
 libraries necessary to implement these tools.
 
 Unless otherwise noted, none of these libraries have stable APIs.
-Their main purpose is to aid the implementation of the tools. If you
-decide to use these libraries, please vendor them and expect regular
-backwards-incompatible changes.
+Their main purpose is to aid the implementation of the tools.
+You'll have to expect semiregular backwards-incompatible changes if you decide to use these libraries.
 
 ## System requirements
 
