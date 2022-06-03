@@ -31,6 +31,7 @@ import (
 type linter struct {
 	analyzers map[string]*lint.Analyzer
 	runner    *runner.Runner
+	cache     *cache.Cache
 }
 
 func computeSalt() ([]byte, error) {
@@ -74,6 +75,7 @@ func newLinter(cfg config.Config) (*linter, error) {
 	r.FallbackGoVersion = defaultGoVersion()
 	return &linter{
 		runner: r,
+		cache:  c,
 	}, nil
 }
 
@@ -519,6 +521,7 @@ func doLint(as []*lint.Analyzer, paths []string, opt *options) (lintResult, erro
 	if err != nil {
 		return lintResult{}, err
 	}
+	defer l.cache.Trim()
 	analyzers := make(map[string]*lint.Analyzer, len(as))
 	for _, a := range as {
 		analyzers[a.Analyzer.Name] = a
