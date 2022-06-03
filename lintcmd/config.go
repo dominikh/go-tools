@@ -16,8 +16,8 @@ type parseBuildConfigError struct {
 
 func (err parseBuildConfigError) Error() string { return err.err.Error() }
 
-func parseBuildConfigs(r io.Reader) ([]BuildConfig, error) {
-	var builds []BuildConfig
+func parseBuildConfigs(r io.Reader) ([]buildConfig, error) {
+	var builds []buildConfig
 	br := bufio.NewReader(r)
 	i := 0
 	for {
@@ -38,7 +38,7 @@ func parseBuildConfigs(r io.Reader) ([]BuildConfig, error) {
 			return nil, parseBuildConfigError{line: i + 1, err: err}
 		}
 
-		bc := BuildConfig{
+		bc := buildConfig{
 			Name:  name,
 			Envs:  envs,
 			Flags: flags,

@@ -89,7 +89,7 @@ func (o jsonFormatter) Format(_ []*lint.Analyzer, ps []diagnostic) {
 			Related  []related `json:"related,omitempty"`
 		}{
 			Code:     p.Category,
-			Severity: p.Severity.String(),
+			Severity: p.severity.String(),
 			Location: location{
 				File:   p.Position.Filename,
 				Line:   p.Position.Line,

@@ -345,7 +345,7 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 				})
 		}
 
-		if p.Severity == severityIgnored {
+		if p.severity == severityIgnored {
 			// Note that GitHub does not support suppressions, which is why Staticcheck still requires the -show-ignored flag to be set for us to emit ignored diagnostics.
 
 			r.Suppressions = []sarif.Suppression{{

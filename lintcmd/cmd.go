@@ -30,7 +30,7 @@ import (
 	"golang.org/x/tools/go/buildutil"
 )
 
-type BuildConfig struct {
+type buildConfig struct {
 	Name  string
 	Envs  []string
 	Flags []string
@@ -235,16 +235,16 @@ type run struct {
 	diagnostics  map[diagnosticDescriptor]diagnostic
 }
 
-func runFromLintResult(res LintResult) run {
+func runFromLintResult(res lintResult) run {
 	out := run{
 		checkedFiles: map[string]struct{}{},
 		diagnostics:  map[diagnosticDescriptor]diagnostic{},
 	}
 
-	for _, cf := range res.CheckedFiles {
+	for _, cf := range res.checkedFiles {
 		out.checkedFiles[cf] = struct{}{}
 	}
-	for _, diag := range res.Diagnostics {
+	for _, diag := range res.diagnostics {
 		out.diagnostics[diag.descriptor()] = diag
 	}
 	return out
@@ -253,7 +253,7 @@ func runFromLintResult(res LintResult) run {
 func decodeGob(br io.ByteReader) ([]run, error) {
 	var runs []run
 	for {
-		var res LintResult
+		var res lintResult
 		if err := gob.NewDecoder(br.(io.Reader)).Decode(&res); err != nil {
 			if err == io.EOF {
 				break
@@ -383,7 +383,7 @@ func (cmd *Command) Run() {
 			cmd.exit(2)
 		}
 
-		var bconfs []BuildConfig
+		var bconfs []buildConfig
 		if cmd.flags.matrix {
 			if cmd.flags.tags != "" {
 				fmt.Fprintln(os.Stderr, "cannot use -matrix and -tags together")
@@ -401,7 +401,7 @@ func (cmd *Command) Run() {
 				os.Exit(2)
 			}
 		} else {
-			bc := BuildConfig{}
+			bc := buildConfig{}
 			if cmd.flags.tags != "" {
 				// Validate that the tags argument is well-formed. go/packages
 				// doesn't detect malformed build flags and returns unhelpful
@@ -420,20 +420,20 @@ func (cmd *Command) Run() {
 		var runs []run
 		for _, bconf := range bconfs {
 			res, err := doLint(cs, cmd.flags.fs.Args(), &options{
-				BuildConfig: bconf,
-				LintTests:   cmd.flags.tests,
-				GoVersion:   string(cmd.flags.goVersion),
-				Config: config.Config{
+				buildConfig: bconf,
+				lintTests:   cmd.flags.tests,
+				goVersion:   string(cmd.flags.goVersion),
+				config: config.Config{
 					Checks: cmd.flags.checks,
 				},
-				PrintAnalyzerMeasurement: measureAnalyzers,
+				printAnalyzerMeasurement: measureAnalyzers,
 			})
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				cmd.exit(1)
 			}
 
-			for _, w := range res.Warnings {
+			for _, w := range res.warnings {
 				fmt.Fprintln(os.Stderr, "warning:", w)
 			}
 
@@ -453,10 +453,10 @@ func (cmd *Command) Run() {
 			}
 
 			if cmd.flags.formatter == "binary" {
-				for i, s := range res.CheckedFiles {
-					res.CheckedFiles[i] = relPath(s)
+				for i, s := range res.checkedFiles {
+					res.checkedFiles[i] = relPath(s)
 				}
-				for i := range res.Diagnostics {
+				for i := range res.diagnostics {
 					// We turn all paths into relative, /-separated paths. This is to make -merge work correctly when
 					// merging runs from different OSs, with different absolute paths.
 					//
@@ -464,7 +464,7 @@ func (cmd *Command) Run() {
 					// newlines and thus different offsets. We don't ever make use of the Offset, anyway. Line and
 					// column numbers are precomputed.
 
-					d := &res.Diagnostics[i]
+					d := &res.diagnostics[i]
 					d.Position.Filename = relPath(d.Position.Filename)
 					d.Position.Offset = 0
 					d.End.Filename = relPath(d.End.Filename)
@@ -498,7 +498,7 @@ func mergeRuns(runs []run) []diagnostic {
 	var relevantDiagnostics []diagnostic
 	for _, r := range runs {
 		for _, diag := range r.diagnostics {
-			switch diag.MergeIf {
+			switch diag.mergeIf {
 			case lint.MergeIfAny:
 				relevantDiagnostics = append(relevantDiagnostics, diag)
 			case lint.MergeIfAll:
@@ -557,8 +557,8 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			if di.Message != dj.Message {
 				return di.Message < dj.Message
 			}
-			if di.BuildName != dj.BuildName {
-				return di.BuildName < dj.BuildName
+			if di.buildName != dj.buildName {
+				return di.buildName < dj.buildName
 			}
 			return di.Category < dj.Category
 		})
@@ -567,7 +567,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			diagnostics[0],
 		}
 		builds := []map[string]struct{}{
-			{diagnostics[0].BuildName: {}},
+			{diagnostics[0].buildName: {}},
 		}
 		for _, diag := range diagnostics[1:] {
 			// We may encounter duplicate diagnostics because one file
@@ -576,11 +576,11 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			if !filtered[len(filtered)-1].equal(diag) {
 				if filtered[len(filtered)-1].descriptor() == diag.descriptor() {
 					// Diagnostics only differ in build name, track new name
-					builds[len(filtered)-1][diag.BuildName] = struct{}{}
+					builds[len(filtered)-1][diag.buildName] = struct{}{}
 				} else {
 					filtered = append(filtered, diag)
 					builds = append(builds, map[string]struct{}{})
-					builds[len(filtered)-1][diag.BuildName] = struct{}{}
+					builds[len(filtered)-1][diag.buildName] = struct{}{}
 				}
 			}
 		}
@@ -592,7 +592,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 				names = append(names, k)
 			}
 			sort.Strings(names)
-			filtered[i].BuildName = strings.Join(names, ",")
+			filtered[i].buildName = strings.Join(names, ",")
 		}
 		diagnostics = filtered
 	}
@@ -643,14 +643,14 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 		if diag.Category == "compile" && cmd.flags.debugNoCompileErrors {
 			continue
 		}
-		if diag.Severity == severityIgnored && !cmd.flags.showIgnored {
+		if diag.severity == severityIgnored && !cmd.flags.showIgnored {
 			numIgnored++
 			continue
 		}
 		if shouldExit[diag.Category] {
 			numErrors++
 		} else {
-			diag.Severity = severityWarning
+			diag.severity = severityWarning
 			numWarnings++
 		}
 		notIgnored = append(notIgnored, diag)
