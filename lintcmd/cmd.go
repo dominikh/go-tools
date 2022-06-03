@@ -418,12 +418,8 @@ func (cmd *Command) Run() {
 		}
 
 		var runs []run
-		l, err := newLinter(cs)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			cmd.exit(1)
-		}
 		opts := options{
+			analyzers: cs,
 			patterns:  cmd.flags.fs.Args(),
 			lintTests: cmd.flags.tests,
 			goVersion: string(cmd.flags.goVersion),
@@ -432,8 +428,13 @@ func (cmd *Command) Run() {
 			},
 			printAnalyzerMeasurement: measureAnalyzers,
 		}
+		l, err := newLinter(opts)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			cmd.exit(1)
+		}
 		for _, bconf := range bconfs {
-			res, err := l.run(bconf, opts)
+			res, err := l.run(bconf)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				cmd.exit(1)

@@ -31,6 +31,7 @@ import (
 type linter struct {
 	analyzers map[string]*lint.Analyzer
 	cache     *cache.Cache
+	opts      options
 }
 
 func computeSalt() ([]byte, error) {
@@ -57,7 +58,7 @@ func computeSalt() ([]byte, error) {
 	}
 }
 
-func newLinter(cs []*lint.Analyzer) (*linter, error) {
+func newLinter(opts options) (*linter, error) {
 	c, err := cache.Default()
 	if err != nil {
 		return nil, err
@@ -68,14 +69,15 @@ func newLinter(cs []*lint.Analyzer) (*linter, error) {
 	}
 	c.SetSalt(salt)
 
-	analyzers := make(map[string]*lint.Analyzer, len(cs))
-	for _, a := range cs {
+	analyzers := make(map[string]*lint.Analyzer, len(opts.analyzers))
+	for _, a := range opts.analyzers {
 		analyzers[a.Analyzer.Name] = a
 	}
 
 	return &linter{
 		cache:     c,
 		analyzers: analyzers,
+		opts:      opts,
 	}, nil
 }
 
@@ -505,28 +507,29 @@ func parsePos(pos string) (token.Position, int, error) {
 
 type options struct {
 	config                   config.Config
+	analyzers                []*lint.Analyzer
 	patterns                 []string
 	lintTests                bool
 	goVersion                string
 	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
-func (l *linter) run(bconf buildConfig, opt options) (lintResult, error) {
+func (l *linter) run(bconf buildConfig) (lintResult, error) {
 	cfg := &packages.Config{}
-	if opt.lintTests {
+	if l.opts.lintTests {
 		cfg.Tests = true
 	}
 
 	cfg.BuildFlags = bconf.Flags
 	cfg.Env = append(os.Environ(), bconf.Envs...)
 
-	r, err := runner.New(opt.config, l.cache)
+	r, err := runner.New(l.opts.config, l.cache)
 	if err != nil {
 		return lintResult{}, err
 	}
 	r.FallbackGoVersion = defaultGoVersion()
-	r.GoVersion = opt.goVersion
-	r.Stats.PrintAnalyzerMeasurement = opt.printAnalyzerMeasurement
+	r.GoVersion = l.opts.goVersion
+	r.Stats.PrintAnalyzerMeasurement = l.opts.printAnalyzerMeasurement
 
 	printStats := func() {
 		// Individual stats are read atomically, but overall there
@@ -562,7 +565,7 @@ func (l *linter) run(bconf buildConfig, opt options) (lintResult, error) {
 			}
 		}()
 	}
-	res, err := l.lint(r, cfg, opt.patterns)
+	res, err := l.lint(r, cfg, l.opts.patterns)
 	for i := range res.diagnostics {
 		res.diagnostics[i].buildName = bconf.Name
 	}
