@@ -30,7 +30,6 @@ import (
 // A linter lints Go source code.
 type linter struct {
 	analyzers map[string]*lint.Analyzer
-	runner    *runner.Runner
 	cache     *cache.Cache
 }
 
@@ -58,7 +57,7 @@ func computeSalt() ([]byte, error) {
 	}
 }
 
-func newLinter(cfg config.Config) (*linter, error) {
+func newLinter(cs []*lint.Analyzer) (*linter, error) {
 	c, err := cache.Default()
 	if err != nil {
 		return nil, err
@@ -68,14 +67,15 @@ func newLinter(cfg config.Config) (*linter, error) {
 		return nil, fmt.Errorf("could not compute salt for cache: %s", err)
 	}
 	c.SetSalt(salt)
-	r, err := runner.New(cfg, c)
-	if err != nil {
-		return nil, err
+
+	analyzers := make(map[string]*lint.Analyzer, len(cs))
+	for _, a := range cs {
+		analyzers[a.Analyzer.Name] = a
 	}
-	r.FallbackGoVersion = defaultGoVersion()
+
 	return &linter{
-		runner: r,
-		cache:  c,
+		cache:     c,
+		analyzers: analyzers,
 	}, nil
 }
 
@@ -85,14 +85,14 @@ type lintResult struct {
 	warnings     []string
 }
 
-func (l *linter) lint(cfg *packages.Config, patterns []string) (lintResult, error) {
+func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string) (lintResult, error) {
 	var out lintResult
 
 	as := make([]*analysis.Analyzer, 0, len(l.analyzers))
 	for _, a := range l.analyzers {
 		as = append(as, a.Analyzer)
 	}
-	results, err := l.runner.Run(cfg, as, patterns)
+	results, err := r.Run(cfg, as, patterns)
 	if err != nil {
 		return out, err
 	}
@@ -512,24 +512,7 @@ type options struct {
 	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
-func doLint(as []*lint.Analyzer, paths []string, opt *options) (lintResult, error) {
-	if opt == nil {
-		opt = &options{}
-	}
-
-	l, err := newLinter(opt.config)
-	if err != nil {
-		return lintResult{}, err
-	}
-	defer l.cache.Trim()
-	analyzers := make(map[string]*lint.Analyzer, len(as))
-	for _, a := range as {
-		analyzers[a.Analyzer.Name] = a
-	}
-	l.analyzers = analyzers
-	l.runner.GoVersion = opt.goVersion
-	l.runner.Stats.PrintAnalyzerMeasurement = opt.printAnalyzerMeasurement
-
+func (l *linter) run(paths []string, opt options) (lintResult, error) {
 	cfg := &packages.Config{}
 	if opt.lintTests {
 		cfg.Tests = true
@@ -538,11 +521,19 @@ func doLint(as []*lint.Analyzer, paths []string, opt *options) (lintResult, erro
 	cfg.BuildFlags = opt.buildConfig.Flags
 	cfg.Env = append(os.Environ(), opt.buildConfig.Envs...)
 
+	r, err := runner.New(opt.config, l.cache)
+	if err != nil {
+		return lintResult{}, err
+	}
+	r.FallbackGoVersion = defaultGoVersion()
+	r.GoVersion = opt.goVersion
+	r.Stats.PrintAnalyzerMeasurement = opt.printAnalyzerMeasurement
+
 	printStats := func() {
 		// Individual stats are read atomically, but overall there
 		// is no synchronisation. For printing rough progress
 		// information, this doesn't matter.
-		switch l.runner.Stats.State() {
+		switch r.Stats.State() {
 		case runner.StateInitializing:
 			fmt.Fprintln(os.Stderr, "Status: initializing")
 		case runner.StateLoadPackageGraph:
@@ -551,12 +542,12 @@ func doLint(as []*lint.Analyzer, paths []string, opt *options) (lintResult, erro
 			fmt.Fprintln(os.Stderr, "Status: building action graph")
 		case runner.StateProcessing:
 			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d\n",
-				l.runner.Stats.ProcessedInitialPackages(),
-				l.runner.Stats.InitialPackages(),
-				l.runner.Stats.ProcessedPackages(),
-				l.runner.Stats.TotalPackages(),
-				l.runner.ActiveWorkers(),
-				l.runner.TotalWorkers(),
+				r.Stats.ProcessedInitialPackages(),
+				r.Stats.InitialPackages(),
+				r.Stats.ProcessedPackages(),
+				r.Stats.TotalPackages(),
+				r.ActiveWorkers(),
+				r.TotalWorkers(),
 			)
 		case runner.StateFinalizing:
 			fmt.Fprintln(os.Stderr, "Status: finalizing")
@@ -572,7 +563,7 @@ func doLint(as []*lint.Analyzer, paths []string, opt *options) (lintResult, erro
 			}
 		}()
 	}
-	res, err := l.lint(cfg, paths)
+	res, err := l.lint(r, cfg, paths)
 	for i := range res.diagnostics {
 		res.diagnostics[i].buildName = opt.buildConfig.Name
 	}
