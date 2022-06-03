@@ -424,6 +424,7 @@ func (cmd *Command) Run() {
 			cmd.exit(1)
 		}
 		opts := options{
+			patterns:  cmd.flags.fs.Args(),
 			lintTests: cmd.flags.tests,
 			goVersion: string(cmd.flags.goVersion),
 			config: config.Config{
@@ -432,9 +433,7 @@ func (cmd *Command) Run() {
 			printAnalyzerMeasurement: measureAnalyzers,
 		}
 		for _, bconf := range bconfs {
-			opts_ := opts
-			opts_.buildConfig = bconf
-			res, err := l.run(cmd.flags.fs.Args(), opts_)
+			res, err := l.run(bconf, opts)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				cmd.exit(1)

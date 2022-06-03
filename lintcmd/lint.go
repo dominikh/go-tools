@@ -504,22 +504,21 @@ func parsePos(pos string) (token.Position, int, error) {
 }
 
 type options struct {
-	config      config.Config
-	buildConfig buildConfig
-
+	config                   config.Config
+	patterns                 []string
 	lintTests                bool
 	goVersion                string
 	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
-func (l *linter) run(paths []string, opt options) (lintResult, error) {
+func (l *linter) run(bconf buildConfig, opt options) (lintResult, error) {
 	cfg := &packages.Config{}
 	if opt.lintTests {
 		cfg.Tests = true
 	}
 
-	cfg.BuildFlags = opt.buildConfig.Flags
-	cfg.Env = append(os.Environ(), opt.buildConfig.Envs...)
+	cfg.BuildFlags = bconf.Flags
+	cfg.Env = append(os.Environ(), bconf.Envs...)
 
 	r, err := runner.New(opt.config, l.cache)
 	if err != nil {
@@ -563,9 +562,9 @@ func (l *linter) run(paths []string, opt options) (lintResult, error) {
 			}
 		}()
 	}
-	res, err := l.lint(r, cfg, paths)
+	res, err := l.lint(r, cfg, opt.patterns)
 	for i := range res.diagnostics {
-		res.diagnostics[i].buildName = opt.buildConfig.Name
+		res.diagnostics[i].buildName = bconf.Name
 	}
 	return res, err
 }
