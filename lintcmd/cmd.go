@@ -537,6 +537,7 @@ func (cmd *Command) exit(code int) {
 	os.Exit(code)
 }
 
+// printDiagnostics prints the diagnostics and exits the process.
 func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnostic) {
 	if len(diagnostics) > 1 {
 		sort.Slice(diagnostics, func(i, j int) bool {
