@@ -87,6 +87,73 @@ type lintResult struct {
 	warnings     []string
 }
 
+type options struct {
+	config                   config.Config
+	analyzers                []*lint.Analyzer
+	patterns                 []string
+	lintTests                bool
+	goVersion                string
+	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
+}
+
+func (l *linter) run(bconf buildConfig) (lintResult, error) {
+	cfg := &packages.Config{}
+	if l.opts.lintTests {
+		cfg.Tests = true
+	}
+
+	cfg.BuildFlags = bconf.Flags
+	cfg.Env = append(os.Environ(), bconf.Envs...)
+
+	r, err := runner.New(l.opts.config, l.cache)
+	if err != nil {
+		return lintResult{}, err
+	}
+	r.FallbackGoVersion = defaultGoVersion()
+	r.GoVersion = l.opts.goVersion
+	r.Stats.PrintAnalyzerMeasurement = l.opts.printAnalyzerMeasurement
+
+	printStats := func() {
+		// Individual stats are read atomically, but overall there
+		// is no synchronisation. For printing rough progress
+		// information, this doesn't matter.
+		switch r.Stats.State() {
+		case runner.StateInitializing:
+			fmt.Fprintln(os.Stderr, "Status: initializing")
+		case runner.StateLoadPackageGraph:
+			fmt.Fprintln(os.Stderr, "Status: loading package graph")
+		case runner.StateBuildActionGraph:
+			fmt.Fprintln(os.Stderr, "Status: building action graph")
+		case runner.StateProcessing:
+			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d\n",
+				r.Stats.ProcessedInitialPackages(),
+				r.Stats.InitialPackages(),
+				r.Stats.ProcessedPackages(),
+				r.Stats.TotalPackages(),
+				r.ActiveWorkers(),
+				r.TotalWorkers(),
+			)
+		case runner.StateFinalizing:
+			fmt.Fprintln(os.Stderr, "Status: finalizing")
+		}
+	}
+	if len(infoSignals) > 0 {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, infoSignals...)
+		defer signal.Stop(ch)
+		go func() {
+			for range ch {
+				printStats()
+			}
+		}()
+	}
+	res, err := l.lint(r, cfg, l.opts.patterns)
+	for i := range res.diagnostics {
+		res.diagnostics[i].buildName = bconf.Name
+	}
+	return res, err
+}
+
 func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string) (lintResult, error) {
 	var out lintResult
 
@@ -503,71 +570,4 @@ func parsePos(pos string) (token.Position, int, error) {
 		Line:     line,
 		Column:   col,
 	}, len(parts[0]), nil
-}
-
-type options struct {
-	config                   config.Config
-	analyzers                []*lint.Analyzer
-	patterns                 []string
-	lintTests                bool
-	goVersion                string
-	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
-}
-
-func (l *linter) run(bconf buildConfig) (lintResult, error) {
-	cfg := &packages.Config{}
-	if l.opts.lintTests {
-		cfg.Tests = true
-	}
-
-	cfg.BuildFlags = bconf.Flags
-	cfg.Env = append(os.Environ(), bconf.Envs...)
-
-	r, err := runner.New(l.opts.config, l.cache)
-	if err != nil {
-		return lintResult{}, err
-	}
-	r.FallbackGoVersion = defaultGoVersion()
-	r.GoVersion = l.opts.goVersion
-	r.Stats.PrintAnalyzerMeasurement = l.opts.printAnalyzerMeasurement
-
-	printStats := func() {
-		// Individual stats are read atomically, but overall there
-		// is no synchronisation. For printing rough progress
-		// information, this doesn't matter.
-		switch r.Stats.State() {
-		case runner.StateInitializing:
-			fmt.Fprintln(os.Stderr, "Status: initializing")
-		case runner.StateLoadPackageGraph:
-			fmt.Fprintln(os.Stderr, "Status: loading package graph")
-		case runner.StateBuildActionGraph:
-			fmt.Fprintln(os.Stderr, "Status: building action graph")
-		case runner.StateProcessing:
-			fmt.Fprintf(os.Stderr, "Packages: %d/%d initial, %d/%d total; Workers: %d/%d\n",
-				r.Stats.ProcessedInitialPackages(),
-				r.Stats.InitialPackages(),
-				r.Stats.ProcessedPackages(),
-				r.Stats.TotalPackages(),
-				r.ActiveWorkers(),
-				r.TotalWorkers(),
-			)
-		case runner.StateFinalizing:
-			fmt.Fprintln(os.Stderr, "Status: finalizing")
-		}
-	}
-	if len(infoSignals) > 0 {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, infoSignals...)
-		defer signal.Stop(ch)
-		go func() {
-			for range ch {
-				printStats()
-			}
-		}()
-	}
-	res, err := l.lint(r, cfg, l.opts.patterns)
-	for i := range res.diagnostics {
-		res.diagnostics[i].buildName = bconf.Name
-	}
-	return res, err
 }
