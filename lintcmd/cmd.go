@@ -494,6 +494,8 @@ func (cmd *Command) Run() {
 			}
 		}
 
+		l.cache.Trim()
+
 		if cmd.flags.formatter != "binary" {
 			diags := mergeRuns(runs)
 			cmd.printDiagnostics(cs, diags)
