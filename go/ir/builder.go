@@ -520,7 +520,7 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 				switch typeutil.CoreType(loc.typ()).Underlying().(type) {
 				case *types.Struct, *types.Array:
 					if sb != nil {
-						// Make sure we don't emit DebugRefs before the store has actually occured
+						// Make sure we don't emit DebugRefs before the store has actually occurred
 						if ref := makeDebugRef(fn, e, addr, true); ref != nil {
 							sb.storeDebugRef(ref)
 						}
