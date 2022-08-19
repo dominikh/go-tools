@@ -17,6 +17,8 @@ func fn1(err error) {
 	_ = rp.Cancel                       //@ diag(re`deprecated since Go 1\.7:.+If a Request's Cancel field and context are both`)
 	_ = syscall.StringByteSlice("")     //@ diag(`Use ByteSliceFromString instead`)
 	_ = os.SEEK_SET                     //@ diag(`Use io.SeekStart, io.SeekCurrent, and io.SeekEnd`)
+	_ = os.SEEK_CUR                     //@ diag(`Use io.SeekStart, io.SeekCurrent, and io.SeekEnd`)
+	_ = os.SEEK_END                     //@ diag(`Use io.SeekStart, io.SeekCurrent, and io.SeekEnd`)
 	if err == http.ErrWriteAfterFlush { //@ diag(`ErrWriteAfterFlush is no longer`)
 		println()
 	}
