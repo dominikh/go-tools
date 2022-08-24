@@ -193,7 +193,13 @@ type lblock struct {
 // specified label, creating it if needed.
 //
 func (f *Function) labelledBlock(label *ast.Ident) *lblock {
-	obj := f.Pkg.objectOf(label)
+	obj := f.Pkg.info.ObjectOf(label)
+	if obj == nil {
+		// Blank label, as in '_:' - don't store to f.lblocks, this label can never be referred to; just return a fresh
+		// lbock.
+		return &lblock{_goto: f.newBasicBlock(label.Name)}
+	}
+
 	lb := f.lblocks[obj]
 	if lb == nil {
 		lb = &lblock{_goto: f.newBasicBlock(label.Name)}
