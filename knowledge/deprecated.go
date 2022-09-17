@@ -150,8 +150,7 @@ var StdlibDeprecations = map[string]Deprecation{
 	"syscall.GetQueuedCompletionStatus":     {17, 0},
 	"syscall.CreateIoCompletionPort":        {17, 0},
 
-	// Not marked as deprecated with a recognizable header, but deprecated nonetheless.
-	"io/ioutil": {16, 16},
+	"io/ioutil": {19, 19},
 
 	"bytes.Title":   {18, 0},
 	"strings.Title": {18, 0},
