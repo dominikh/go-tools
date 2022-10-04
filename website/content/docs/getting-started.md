@@ -32,7 +32,7 @@ Arch Linux
 : [staticcheck](https://archlinux.org/packages/community/x86_64/staticcheck/)
 
 Debian
-: [golang-honnef-go-tools-dev](https://packages.debian.org/sid/golang-honnef-go-tools-dev)
+: [go-staticcheck](https://packages.debian.org/go-staticcheck)
 
 Fedora
 : [golang-honnef-tools](https://fedora.pkgs.org/33/fedora-x86_64/golang-honnef-tools-2020.1.5-2.fc33.x86_64.rpm.html)
