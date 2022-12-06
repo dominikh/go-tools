@@ -42,7 +42,7 @@ func deprecated(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				alt := part[len("Deprecated: "):]
-				alt = strings.Replace(alt, "\n", " ", -1)
+				alt = strings.ReplaceAll(alt, "\n", " ")
 				return alt
 			}
 		}
@@ -90,8 +90,10 @@ func deprecated(pass *analysis.Pass) (interface{}, error) {
 					for i := range node.Specs {
 						switch n := node.Specs[i].(type) {
 						case *ast.ValueSpec:
+							doDocs(n.Names, []*ast.CommentGroup{nodeLineComment(pass, f, n)})
 							names = append(names, n.Names...)
 						case *ast.TypeSpec:
+							doDocs([]*ast.Ident{n.Name}, []*ast.CommentGroup{nodeLineComment(pass, f, n)})
 							names = append(names, n.Name)
 						}
 					}
@@ -151,4 +153,16 @@ func deprecated(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return out, nil
+}
+
+func nodeLineComment(pass *analysis.Pass, f *ast.File, node ast.Node) *ast.CommentGroup {
+	nodeEndL := pass.Fset.Position(node.End()).Line
+	for i := range f.Comments {
+		posL := pass.Fset.Position(f.Comments[i].Pos()).Line
+		endL := pass.Fset.Position(f.Comments[i].End()).Line
+		if nodeEndL == posL && nodeEndL == endL {
+			return f.Comments[i]
+		}
+	}
+	return nil
 }

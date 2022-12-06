@@ -41,6 +41,12 @@ type (
 	cube struct{ x, y, z int } // want cube:`Deprecated: Don't use this\.`
 )
 
+const (
+	SE_1 rune = iota
+	SE_2      // Deprecated: Don't use this. // want SE_2:`Deprecated: Don't use this\.`
+	SE_3
+)
+
 // Deprecated: Don't use this.
 var SEEK_D = 3 // want SEEK_D:`Deprecated: Don't use this\.`
 var SEEK_E = 4
