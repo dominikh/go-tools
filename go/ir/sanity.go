@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 type sanity struct {
@@ -144,10 +146,12 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *SliceToArrayPointer:
 	case *SliceToArray:
 	case *Convert:
-		if _, ok := instr.X.Type().Underlying().(*types.Basic); !ok {
-			if _, ok := instr.Type().Underlying().(*types.Basic); !ok {
-				s.errorf("convert %s -> %s: at least one type must be basic", instr.X.Type(), instr.Type())
-			}
+		tsetInstrX := typeutil.NewTypeSet(instr.X.Type().Underlying())
+		tsetInstr := typeutil.NewTypeSet(instr.Type().Underlying())
+		ok1 := tsetInstr.Any(func(term *types.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+		ok2 := tsetInstrX.Any(func(term *types.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
+		if !ok1 && !ok2 {
+			s.errorf("convert %s -> %s: at least one type set must contain basic type", instr.X.Type(), instr.Type())
 		}
 
 	case *Defer:
