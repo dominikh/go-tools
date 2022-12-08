@@ -1,6 +1,8 @@
 // Package pkg_foo ...
 package pkg_foo //@ diag(`should not use underscores in package names`)
 
+import _ "unsafe"
+
 var range_ int
 var _abcdef int
 var abcdef_ int
