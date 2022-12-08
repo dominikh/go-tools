@@ -142,6 +142,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *ChangeInterface:
 	case *ChangeType:
 	case *SliceToArrayPointer:
+	case *SliceToArray:
 	case *Convert:
 		if _, ok := instr.X.Type().Underlying().(*types.Basic); !ok {
 			if _, ok := instr.Type().Underlying().(*types.Basic); !ok {

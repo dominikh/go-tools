@@ -1488,6 +1488,10 @@ func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 			// A slice to array pointer conversion tells us the minimum length of the slice
 			rename(instr.X, instr, CopyInfoUnspecified, i)
 			i++
+		case *SliceToArray:
+			// A slice to array conversion tells us the minimum length of the slice
+			rename(instr.X, instr, CopyInfoUnspecified, i)
+			i++
 		case *Slice:
 			// Slicing tells us about some of the bounds
 			off := 0

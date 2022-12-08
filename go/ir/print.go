@@ -174,6 +174,7 @@ func (v *ChangeType) String() string          { return printConv("ChangeType", v
 func (v *Convert) String() string             { return printConv("Convert", v, v.X) }
 func (v *ChangeInterface) String() string     { return printConv("ChangeInterface", v, v.X) }
 func (v *SliceToArrayPointer) String() string { return printConv("SliceToArrayPointer", v, v.X) }
+func (v *SliceToArray) String() string        { return printConv("SliceToArray", v, v.X) }
 func (v *MakeInterface) String() string       { return printConv("MakeInterface", v, v.X) }
 
 func (v *MakeClosure) String() string {

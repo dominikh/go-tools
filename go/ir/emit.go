@@ -279,6 +279,25 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 		return f.emit(c, source)
 	}
 
+	// Conversion from slice to array. This is almost the same as converting from slice to array pointer, then
+	// dereferencing the pointer. Except that a nil slice can be converted to [0]T, whereas converting a nil slice to
+	// (*[0]T) results in a nil pointer, dereferencing which would panic. To hide the extra branching we use a dedicated
+	// instruction, SliceToArray.
+	if tset_src.All(func(termSrc *types.Term) bool {
+		return tset_dst.All(func(termDst *types.Term) bool {
+			if slice, ok := termSrc.Type().Underlying().(*types.Slice); ok {
+				if arr, ok := termDst.Type().Underlying().(*types.Array); ok && types.Identical(slice.Elem(), arr.Elem()) {
+					return true
+				}
+			}
+			return false
+		})
+	}) {
+		c := &SliceToArray{X: val}
+		c.setType(t_dst)
+		return f.emit(c, source)
+	}
+
 	// A representation-changing conversion?
 	// At least one of {ut_src,ut_dst} must be *Basic.
 	// (The other may be []byte or []rune.)

@@ -93,6 +93,7 @@
 //   *Sigma                ✔               ✔
 //   *Slice                ✔               ✔
 //   *SliceToArrayPointer  ✔               ✔
+//   *SliceToArray         ✔               ✔
 //   *Store                ✔               ✔
 //   *StringLookup         ✔               ✔
 //   *Type                                                 ✔ (type)

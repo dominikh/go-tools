@@ -927,9 +927,23 @@ type ChangeInterface struct {
 // from an explicit conversion in the source.
 //
 // Example printed form:
-// 	t1 = SliceToArrayPointer <*[4]byte> t1
 //
+//	t2 = SliceToArrayPointer <*[4]byte> t1
 type SliceToArrayPointer struct {
+	register
+	X Value
+}
+
+// The SliceToArray instruction yields the conversion of slice X to
+// array.
+//
+// Pos() returns the ast.CallExpr.Lparen, if the instruction arose
+// from an explicit conversion in the source.
+//
+// Example printed form:
+//
+//	t2 = SliceToArray <[4]byte> t1
+type SliceToArray struct {
 	register
 	X Value
 }
@@ -1908,6 +1922,10 @@ func (v *Convert) Operands(rands []*Value) []*Value {
 }
 
 func (v *SliceToArrayPointer) Operands(rands []*Value) []*Value {
+	return append(rands, &v.X)
+}
+
+func (v *SliceToArray) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
 }
 

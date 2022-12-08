@@ -1789,6 +1789,8 @@ func (g *graph) instructions(fn *ir.Function) {
 				// nothing to do
 			case *ir.SliceToArrayPointer:
 				// nothing to do
+			case *ir.SliceToArray:
+				// nothing to do
 			case *ir.CompositeValue:
 				if t, ok := typeutil.CoreType(instr.Type()).(*types.Struct); ok {
 					for i := 0; i < len(instr.Values); i++ {
