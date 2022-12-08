@@ -26,6 +26,7 @@ func TestAll(t *testing.T) {
 		"ST1021": {{Dir: "CheckExportedTypeDocs"}},
 		"ST1022": {{Dir: "CheckExportedVarDocs"}},
 		"ST1023": {{Dir: "CheckRedundantTypeInDeclaration"}, {Dir: "CheckRedundantTypeInDeclaration_syscall"}},
+		"ST1024": {{Dir: "CheckEarlyLoopReturns"}},
 	}
 
 	testutil.Run(t, Analyzers, checks)
