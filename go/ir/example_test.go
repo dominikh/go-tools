@@ -51,7 +51,6 @@ func main() {
 // Build and run the irdump.go program if you want a standalone tool
 // with similar functionality. It is located at
 // honnef.co/go/tools/internal/cmd/irdump.
-//
 func Example_buildPackage() {
 	// Parse the source files.
 	fset := token.NewFileSet()

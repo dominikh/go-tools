@@ -208,7 +208,7 @@ func (v *versionFlag) Set(s string) error {
 //
 // Example:
 //
-// 	cmd.ParseFlags(os.Args[1:])
+//	cmd.ParseFlags(os.Args[1:])
 func (cmd *Command) ParseFlags(args []string) {
 	cmd.flags.fs.Parse(args)
 }

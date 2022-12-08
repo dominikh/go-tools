@@ -61,10 +61,10 @@ const (
 	NTotalExprCount = 50
 
 /*
-	NStatements     = 30
-	NExprDepth      = 6
-	NExprCount      = 20
-	NTotalExprCount = 1000
+NStatements     = 30
+NExprDepth      = 6
+NExprCount      = 20
+NTotalExprCount = 1000
 */
 )
 

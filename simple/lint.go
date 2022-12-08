@@ -598,12 +598,11 @@ func negate(expr ast.Expr) ast.Expr {
 
 // CheckRedundantNilCheckWithLen checks for the following redundant nil-checks:
 //
-//   if x == nil || len(x) == 0 {}
-//   if x != nil && len(x) != 0 {}
-//   if x != nil && len(x) == N {} (where N != 0)
-//   if x != nil && len(x) > N {}
-//   if x != nil && len(x) >= N {} (where N != 0)
-//
+//	if x == nil || len(x) == 0 {}
+//	if x != nil && len(x) != 0 {}
+//	if x != nil && len(x) == N {} (where N != 0)
+//	if x != nil && len(x) > N {}
+//	if x != nil && len(x) >= N {} (where N != 0)
 func CheckRedundantNilCheckWithLen(pass *analysis.Pass) (interface{}, error) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
 		_, ok := expr.(*ast.BasicLit)

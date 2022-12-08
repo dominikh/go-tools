@@ -2,7 +2,7 @@
 // of on-disk caching to reduce overall memory usage and to speed up
 // repeat runs.
 //
-// Public API
+// # Public API
 //
 // A Runner maps a list of analyzers and package patterns to a list of
 // results. Results provide access to diagnostics, directives, errors
@@ -12,7 +12,7 @@
 // that requires access to the loaded representation of a package has
 // to occur inside analyzers.
 //
-// Planning and execution
+// # Planning and execution
 //
 // Analyzing packages is split into two phases: planning and
 // execution.
@@ -38,7 +38,7 @@
 // execution of individual analyzers is bounded by the same semaphore
 // as executing packages.
 //
-// Parallelism
+// # Parallelism
 //
 // Actions are executed in parallel where the dependency graph allows.
 // Overall parallelism is bounded by a semaphore, sized according to
@@ -56,7 +56,7 @@
 // the dependency graph. A lot of inter-connected packages will see
 // less parallelism than a lot of independent packages.
 //
-// Caching
+// # Caching
 //
 // The runner caches facts, directives and diagnostics in a
 // content-addressable cache that is designed after Go's own cache.
