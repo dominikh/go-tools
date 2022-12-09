@@ -101,7 +101,7 @@ func TestStdlib(t *testing.T) {
 		// except for unexported ones (explained at (*Function).RelString).
 		byName := make(map[string]*ir.Function)
 		for fn := range allFuncs {
-			if fn.Synthetic == 0 || ast.IsExported(fn.Name()) {
+			if fn.Synthetic == 0 || (ast.IsExported(fn.Name()) && fn.Synthetic != ir.SyntheticGeneric) {
 				str := fn.String()
 				prev := byName[str]
 				byName[str] = fn
