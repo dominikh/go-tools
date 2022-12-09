@@ -1825,15 +1825,19 @@ func isNoCopyType(typ types.Type) bool {
 	if !ok {
 		return false
 	}
-	if named.NumMethods() != 1 {
-		return false
-	}
-	meth := named.Method(0)
-	if meth.Name() != "Lock" {
-		return false
-	}
-	sig := meth.Type().(*types.Signature)
-	if sig.Params().Len() != 0 || sig.Results().Len() != 0 {
+	switch num := named.NumMethods(); num {
+	case 1, 2:
+		for i := 0; i < num; i++ {
+			meth := named.Method(i)
+			if meth.Name() != "Lock" && meth.Name() != "Unlock" {
+				return false
+			}
+			sig := meth.Type().(*types.Signature)
+			if sig.Params().Len() != 0 || sig.Results().Len() != 0 {
+				return false
+			}
+		}
+	default:
 		return false
 	}
 	return true
