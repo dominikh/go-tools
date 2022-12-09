@@ -416,9 +416,9 @@ func CheckErrorStrings(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				for _, c := range word[n:] {
-					if unicode.IsUpper(c) {
-						// Word is probably an initialism or
-						// multi-word function name
+					if unicode.IsUpper(c) || unicode.IsDigit(c) {
+						// Word is probably an initialism or multi-word function name. Digits cover elliptic curves like
+						// P384.
 						continue instrLoop
 					}
 				}

@@ -14,6 +14,7 @@ func fn() {
 	errors.New("Foo() failed")
 	errors.New("Foo(bar) failed")
 	errors.New("Foo(bar, baz) failed")
+	errors.New("P384 is a nice curve")
 }
 
 func Write() {
