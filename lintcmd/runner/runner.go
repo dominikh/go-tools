@@ -1072,17 +1072,6 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 			// TODO(dh): figure out a clean abstraction, instead of
 			// special-casing U1000.
 			unusedResult = a.Result.(unused.Result)
-
-			// Unset unused.Object.Obj, which is a types.Object, so that we can encode the rest with gob.
-			for i := range unusedResult.Used {
-				unusedResult.Used[i].Obj = nil
-			}
-			for i := range unusedResult.Unused {
-				unusedResult.Unused[i].Obj = nil
-			}
-			for i := range unusedResult.Quiet {
-				unusedResult.Quiet[i].Obj = nil
-			}
 		}
 
 		for key, fact := range a.ObjectFacts {

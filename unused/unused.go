@@ -356,7 +356,6 @@ func (g *graph) objectToObject(obj types.Object) Object {
 		}
 	}
 	return Object{
-		Obj:             obj,
 		Name:            name,
 		ShortName:       obj.Name(),
 		Kind:            typString(obj),
@@ -1542,9 +1541,6 @@ func (g *SerializedGraph) color(rootID NodeID, states []nodeState) {
 }
 
 type Object struct {
-	// Obj is only populated for nodes that haven't been deserialized.
-	Obj types.Object
-
 	Name      string
 	ShortName string
 	// OPT(dh): use an enum for the kind
