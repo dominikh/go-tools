@@ -15,18 +15,14 @@ import (
 )
 
 func TestWriteFileModeAppliesUmask(t *testing.T) {
-	dir, err := os.MkdirTemp("", "renameio")
-	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	const mode = 0644
 	const umask = 0007
 	defer syscall.Umask(syscall.Umask(umask))
 
 	file := filepath.Join(dir, "testWrite")
-	err = WriteFile(file, []byte("go-build"), mode)
+	err := WriteFile(file, []byte("go-build"), mode)
 	if err != nil {
 		t.Fatalf("Failed to write file: %v", err)
 	}
