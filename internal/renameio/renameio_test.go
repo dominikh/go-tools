@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -24,11 +23,7 @@ import (
 )
 
 func TestConcurrentReadsAndWrites(t *testing.T) {
-	dir, err := os.MkdirTemp("", "renameio")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	path := filepath.Join(dir, "blob.bin")
 
 	const chunkWords = 8 << 10
