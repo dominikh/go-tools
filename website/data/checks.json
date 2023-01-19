@@ -1262,9 +1262,9 @@
 			"MergeIf": 0
 		},
 		"SA4017": {
-			"Title": "A pure function's return value is discarded, making the call pointless",
+			"Title": "Discarding the return values of a function without side effects, making the call pointless",
 			"Text": "",
-			"TitleMarkdown": "A pure function's return value is discarded, making the call pointless",
+			"TitleMarkdown": "Discarding the return values of a function without side effects, making the call pointless",
 			"TextMarkdown": "",
 			"Before": "",
 			"After": "",
