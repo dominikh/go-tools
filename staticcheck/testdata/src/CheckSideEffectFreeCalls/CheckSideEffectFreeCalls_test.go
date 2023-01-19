@@ -6,7 +6,7 @@ import (
 )
 
 func TestFoo(t *testing.T) {
-	strings.Replace("", "", "", 1) //@ diag(`is a pure function but its return value is ignored`)
+	strings.Replace("", "", "", 1) //@ diag(`doesn't have side effects`)
 }
 
 func BenchmarkFoo(b *testing.B) {

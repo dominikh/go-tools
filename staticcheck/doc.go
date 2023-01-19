@@ -506,7 +506,7 @@ falsify results.`,
 	},
 
 	"SA4017": {
-		Title:    `A pure function's return value is discarded, making the call pointless`,
+		Title:    `Discarding the return values of a function without side effects, making the call pointless`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

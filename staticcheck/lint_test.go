@@ -74,7 +74,7 @@ func TestAll(t *testing.T) {
 		"SA4014": {{Dir: "CheckRepeatedIfElse"}},
 		"SA4015": {{Dir: "CheckMathInt"}},
 		"SA4016": {{Dir: "CheckSillyBitwiseOps"}, {Dir: "CheckSillyBitwiseOps_shadowedIota"}, {Dir: "CheckSillyBitwiseOps_dotImport"}},
-		"SA4017": {{Dir: "CheckPureFunctions"}},
+		"SA4017": {{Dir: "CheckSideEffectFreeCalls"}},
 		"SA4018": {{Dir: "CheckSelfAssignment"}},
 		"SA4019": {{Dir: "CheckDuplicateBuildConstraints"}},
 		"SA4020": {{Dir: "CheckUnreachableTypeCases"}},

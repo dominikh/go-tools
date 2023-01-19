@@ -3009,7 +3009,7 @@ func CheckNonOctalFileMode(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func CheckPureFunctions(pass *analysis.Pass) (interface{}, error) {
+func CheckSideEffectFreeCalls(pass *analysis.Pass) (interface{}, error) {
 	pure := pass.ResultOf[purity.Analyzer].(purity.Result)
 
 fnLoop:
@@ -3055,7 +3055,7 @@ fnLoop:
 						// special case for benchmarks in the fmt package
 						continue
 					}
-					report.Report(pass, ins, fmt.Sprintf("%s is a pure function but its return value is ignored", callee.Object().Name()))
+					report.Report(pass, ins, fmt.Sprintf("%s doesn't have side effects and its return value is ignored", callee.Object().Name()))
 				}
 			}
 		}
