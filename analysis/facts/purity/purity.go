@@ -99,10 +99,26 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 			return false
 		}
 
+		var isBasic func(typ types.Type) bool
+		isBasic = func(typ types.Type) bool {
+			switch u := typ.Underlying().(type) {
+			case *types.Basic:
+				return true
+			case *types.Struct:
+				for i := 0; i < u.NumFields(); i++ {
+					if !isBasic(u.Field(i).Type()) {
+						return false
+					}
+				}
+				return true
+			default:
+				return false
+			}
+		}
+
 		for _, param := range fn.Params {
-			// TODO(dh): this may not be strictly correct. pure code
-			// can, to an extent, operate on non-basic types.
-			if _, ok := param.Type().Underlying().(*types.Basic); !ok {
+			// TODO(dh): this may not be strictly correct. pure code can, to an extent, operate on non-basic types.
+			if !isBasic(param.Type()) {
 				return false
 			}
 		}
@@ -134,6 +150,18 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 			}
 			return true
 		}
+
+		var isStackAddr func(ir.Value) bool
+		isStackAddr = func(v ir.Value) bool {
+			switch v := v.(type) {
+			case *ir.Alloc:
+				return !v.Heap
+			case *ir.FieldAddr:
+				return isStackAddr(v.X)
+			default:
+				return false
+			}
+		}
 		for _, b := range fn.Blocks {
 			for _, ins := range b.Instrs {
 				switch ins := ins.(type) {
@@ -154,13 +182,22 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 				case *ir.Panic:
 					return false
 				case *ir.Store:
-					return false
+					if !isStackAddr(ins.Addr) {
+						return false
+					}
 				case *ir.FieldAddr:
-					return false
+					if !isStackAddr(ins.X) {
+						return false
+					}
 				case *ir.Alloc:
-					return false
+					// TODO(dh): make use of proper escape analysis
+					if ins.Heap {
+						return false
+					}
 				case *ir.Load:
-					return false
+					if !isStackAddr(ins.X) {
+						return false
+					}
 				}
 			}
 		}

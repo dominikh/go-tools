@@ -24,3 +24,17 @@ var X int
 
 func load() int        { _ = X; return 0 }
 func assign(x int) int { _ = x; return 0 } // want assign:"is pure"
+
+type pureStruct1 struct {
+	a int
+	b string
+	pureStruct2
+}
+
+type pureStruct2 struct {
+	c float64
+}
+
+func (arg pureStruct1) get() int { // want get:"is pure"
+	return arg.a
+}
