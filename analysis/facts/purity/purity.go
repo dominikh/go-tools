@@ -1,5 +1,8 @@
 package purity
 
+// TODO(dh): we should split this into two facts, one tracking actual purity, and one tracking side-effects. A function
+// that returns a heap allocation isn't pure, but it may be free of side effects.
+
 import (
 	"go/types"
 	"reflect"
@@ -53,6 +56,52 @@ var pureStdlib = map[string]struct{}{
 	"strings.TrimSpace":               {},
 	"strings.TrimSuffix":              {},
 	"(*net/http.Request).WithContext": {},
+	"time.Now":                        {},
+	"time.Parse":                      {},
+	"time.ParseInLocation":            {},
+	"time.Unix":                       {},
+	"time.UnixMicro":                  {},
+	"time.UnixMilli":                  {},
+	"(time.Time).Add":                 {},
+	"(time.Time).AddDate":             {},
+	"(time.Time).After":               {},
+	"(time.Time).Before":              {},
+	"(time.Time).Clock":               {},
+	"(time.Time).Compare":             {},
+	"(time.Time).Date":                {},
+	"(time.Time).Day":                 {},
+	"(time.Time).Equal":               {},
+	"(time.Time).Format":              {},
+	"(time.Time).GoString":            {},
+	"(time.Time).GobEncode":           {},
+	"(time.Time).Hour":                {},
+	"(time.Time).ISOWeek":             {},
+	"(time.Time).In":                  {},
+	"(time.Time).IsDST":               {},
+	"(time.Time).IsZero":              {},
+	"(time.Time).Local":               {},
+	"(time.Time).Location":            {},
+	"(time.Time).MarshalBinary":       {},
+	"(time.Time).MarshalJSON":         {},
+	"(time.Time).MarshalText":         {},
+	"(time.Time).Minute":              {},
+	"(time.Time).Month":               {},
+	"(time.Time).Nanosecond":          {},
+	"(time.Time).Round":               {},
+	"(time.Time).Second":              {},
+	"(time.Time).String":              {},
+	"(time.Time).Sub":                 {},
+	"(time.Time).Truncate":            {},
+	"(time.Time).UTC":                 {},
+	"(time.Time).Unix":                {},
+	"(time.Time).UnixMicro":           {},
+	"(time.Time).UnixMilli":           {},
+	"(time.Time).UnixNano":            {},
+	"(time.Time).Weekday":             {},
+	"(time.Time).Year":                {},
+	"(time.Time).YearDay":             {},
+	"(time.Time).Zone":                {},
+	"(time.Time).ZoneBounds":          {},
 }
 
 func purity(pass *analysis.Pass) (interface{}, error) {
