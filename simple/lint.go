@@ -176,14 +176,10 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 				report.ShortRange(),
 				report.Fixes(edit.Fix("replace loop with assignment", edit.ReplaceWithNode(pass.Fset, node, r))))
 		} else {
-			opts := []report.Option{
-				report.ShortRange(),
-				report.FilterGenerated(),
-			}
 			tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
-			to := "to"
-			from := "from"
 			if err == nil && tv.IsBuiltin() {
+				to := "to"
+				from := "from"
 				src := m.State["src"].(ast.Expr)
 				if TsrcArray {
 					from = "from[:]"
@@ -203,9 +199,13 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 					Fun:  &ast.Ident{Name: "copy"},
 					Args: []ast.Expr{dst, src},
 				}
-				opts = append(opts, report.Fixes(edit.Fix("replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))))
+				opts := []report.Option{
+					report.ShortRange(),
+					report.FilterGenerated(),
+					report.Fixes(edit.Fix("replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))),
+				}
+				report.Report(pass, node, fmt.Sprintf("should use copy(%s, %s) instead of a loop", to, from), opts...)
 			}
-			report.Report(pass, node, fmt.Sprintf("should use copy(%s, %s) instead of a loop", to, from), opts...)
 		}
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.RangeStmt)(nil))

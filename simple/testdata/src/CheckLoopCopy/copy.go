@@ -127,3 +127,12 @@ func fn5() {
 		dst[i] = src[i]
 	}
 }
+
+func fn6() {
+	var src, dst []byte
+	copy := func() {}
+	_ = copy
+	for i, v := range src {
+		dst[i] = v
+	}
+}
