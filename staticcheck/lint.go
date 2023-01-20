@@ -3996,12 +3996,12 @@ func CheckImpossibleTypeAssertion(pass *analysis.Pass) (interface{}, error) {
 
 				ms := msc.MethodSet(left)
 				for i := 0; i < righti.NumMethods(); i++ {
-					mr := righti.Method(i)
+					mr := righti.Method(i).Origin()
 					sel := ms.Lookup(mr.Pkg(), mr.Name())
 					if sel == nil {
 						continue
 					}
-					ml := sel.Obj().(*types.Func)
+					ml := sel.Obj().(*types.Func).Origin()
 					if types.AssignableTo(ml.Type(), mr.Type()) {
 						continue
 					}
