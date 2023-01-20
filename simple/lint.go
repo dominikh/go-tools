@@ -181,15 +181,19 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 				report.FilterGenerated(),
 			}
 			tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
+			to := "to"
+			from := "from"
 			if err == nil && tv.IsBuiltin() {
 				src := m.State["src"].(ast.Expr)
 				if TsrcArray {
+					from = "from[:]"
 					src = &ast.SliceExpr{
 						X: src,
 					}
 				}
 				dst := m.State["dst"].(ast.Expr)
 				if TdstArray {
+					to = "to[:]"
 					dst = &ast.SliceExpr{
 						X: dst,
 					}
@@ -201,7 +205,7 @@ func CheckLoopCopy(pass *analysis.Pass) (interface{}, error) {
 				}
 				opts = append(opts, report.Fixes(edit.Fix("replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))))
 			}
-			report.Report(pass, node, "should use copy() instead of a loop", opts...)
+			report.Report(pass, node, fmt.Sprintf("should use copy(%s, %s) instead of a loop", to, from), opts...)
 		}
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.RangeStmt)(nil))

@@ -2,7 +2,7 @@ package pkg
 
 func fn() {
 	var b1, b2 []byte
-	for i, v := range b1 { //@ diag(`should use copy`)
+	for i, v := range b1 { //@ diag(`should use copy(to, from)`)
 		b2[i] = v
 	}
 
@@ -73,13 +73,13 @@ func fn4() {
 	var a2 [10]byte
 	var a3 [5]byte
 
-	for i := range b { //@ diag(`should use copy`)
+	for i := range b { //@ diag(`should use copy(to[:], from)`)
 		a1[i] = b[i]
 	}
-	for i := range a1 { //@ diag(`should use copy`)
+	for i := range a1 { //@ diag(`should use copy(to, from[:])`)
 		b[i] = a1[i]
 	}
-	for i := range a1 { //@ diag(`should use copy`)
+	for i := range a1 { //@ diag(`should use copy(to[:], from[:])`)
 		a2[i] = a1[i]
 	}
 	for i := range a1 { //@ diag(`should copy arrays using assignment`)
