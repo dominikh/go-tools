@@ -988,3 +988,30 @@ func CheckExportedVarDocs(pass *analysis.Pass) (interface{}, error) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.GenDecl)(nil), (*ast.ValueSpec)(nil), (*ast.FuncLit)(nil), (*ast.FuncDecl)(nil)}, fn)
 	return nil, nil
 }
+
+func CheckEarlyLoopReturns(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node, push bool) bool {
+		switch node := node.(type) {
+		case *ast.ForStmt:
+			if push {
+				// If a for statement has only one statement in its body
+				// and it is an if statement
+				// and there are more than 10 statements inside the if stmt
+				// then we could return earlier by reversing the if condition
+				if len(node.Body.List) == 1 {
+					switch ifstmt := node.Body.List[0].(type) {
+					case *ast.IfStmt:
+						if len(ifstmt.Body.List) > 10 {
+							report.Report(pass, node, fmt.Sprintf(`for loop with a single if statement in the body is a candidate for early return`), report.FilterGenerated())
+							return true
+						}
+					}
+				}
+			}
+		}
+		return true
+	}
+	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.ForStmt)(nil)}, fn)
+
+	return nil, nil
+}

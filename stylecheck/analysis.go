@@ -81,4 +81,9 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Requires: []*analysis.Analyzer{generated.Analyzer, inspect.Analyzer},
 	},
 	"ST1023": sharedcheck.RedundantTypeInDeclarationChecker("should", false),
+	"ST1024": {
+		Run:      CheckEarlyLoopReturns,
+		Requires: []*analysis.Analyzer{generated.Analyzer, inspect.Analyzer},
+	},
+
 })

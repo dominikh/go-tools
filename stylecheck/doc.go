@@ -259,4 +259,38 @@ information on how to write good documentation.`,
 		NonDefault: true,
 		MergeIf:    lint.MergeIfAll,
 	},
+
+	"ST1024": {
+		Title: 		"Prefer Early loop returns",
+		Since:		"2022.12",
+		Text:  `if a for loop has only one if condition in it and
+it is longer than 10 statements then its better to have a simple
+if with a break early on instead.
+
+Instead of 
+    for {
+	if n > 5 {
+	    ...
+	    ...
+	    ...
+	    (more than 10 lines)
+	}
+    }
+use
+    for {
+	if n <= 5 {
+	    break
+	}
+	...
+	...
+	...
+	(more than 10 lines)
+	}
+    }
+
+This reduces the indent which makes it more readable.`,
+		NonDefault:	true,
+		MergeIf: lint.MergeIfAll,
+	},
+
 })
