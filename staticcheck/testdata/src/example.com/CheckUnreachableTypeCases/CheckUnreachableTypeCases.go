@@ -26,7 +26,7 @@ func fn1() {
 	switch v.(type) {
 	case io.Reader:
 		println("io.Reader")
-	case T: //@ diag(`unreachable case clause: io.Reader will always match before CheckUnreachableTypeCases.T`)
+	case T: //@ diag(`unreachable case clause: io.Reader will always match before example.com/CheckUnreachableTypeCases.T`)
 		println("T")
 	}
 
@@ -35,7 +35,7 @@ func fn1() {
 		println("io.Reader")
 	case io.ReadCloser: //@ diag(`unreachable case clause: io.Reader will always match before io.ReadCloser`)
 		println("io.ReadCloser")
-	case T: //@ diag(`unreachable case clause: io.Reader will always match before CheckUnreachableTypeCases.T`)
+	case T: //@ diag(`unreachable case clause: io.Reader will always match before example.com/CheckUnreachableTypeCases.T`)
 		println("T")
 	}
 
@@ -49,7 +49,7 @@ func fn1() {
 	switch v.(type) {
 	case io.ReadCloser, io.Reader:
 		println("io.ReadCloser or io.Reader")
-	case T: //@ diag(`unreachable case clause: io.Reader will always match before CheckUnreachableTypeCases.T`)
+	case T: //@ diag(`unreachable case clause: io.Reader will always match before example.com/CheckUnreachableTypeCases.T`)
 		println("T")
 	}
 
@@ -58,28 +58,28 @@ func fn1() {
 		println("something else")
 	case io.Reader:
 		println("io.Reader")
-	case T: //@ diag(`unreachable case clause: io.Reader will always match before CheckUnreachableTypeCases.T`)
+	case T: //@ diag(`unreachable case clause: io.Reader will always match before example.com/CheckUnreachableTypeCases.T`)
 		println("T")
 	}
 
 	switch v.(type) {
 	case interface{}:
 		println("interface{}")
-	case nil, T: //@ diag(`unreachable case clause: interface{} will always match before CheckUnreachableTypeCases.T`)
+	case nil, T: //@ diag(`unreachable case clause: interface{} will always match before example.com/CheckUnreachableTypeCases.T`)
 		println("nil or T")
 	}
 
 	switch err.(type) {
 	case V:
 		println("V")
-	case U: //@ diag(`unreachable case clause: CheckUnreachableTypeCases.V will always match before CheckUnreachableTypeCases.U`)
+	case U: //@ diag(`unreachable case clause: example.com/CheckUnreachableTypeCases.V will always match before example.com/CheckUnreachableTypeCases.U`)
 		println("U")
 	}
 
 	switch err.(type) {
 	case U:
 		println("U")
-	case V: //@ diag(`unreachable case clause: CheckUnreachableTypeCases.U will always match before CheckUnreachableTypeCases.V`)
+	case V: //@ diag(`unreachable case clause: example.com/CheckUnreachableTypeCases.U will always match before example.com/CheckUnreachableTypeCases.V`)
 		println("V")
 	}
 }

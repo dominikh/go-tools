@@ -125,12 +125,12 @@ func check(t *testing.T, res *analysistest.Result) {
 }
 
 func TestAll(t *testing.T) {
-	dirs, err := filepath.Glob(filepath.Join(analysistest.TestData(), "src", "*"))
+	dirs, err := filepath.Glob(filepath.Join(analysistest.TestData(), "src", "example.com", "*"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i, dir := range dirs {
-		dirs[i] = filepath.Base(dir)
+		dirs[i] = filepath.Join("example.com", filepath.Base(dir))
 	}
 
 	results := analysistest.Run(t, analysistest.TestData(), Analyzer.Analyzer, dirs...)

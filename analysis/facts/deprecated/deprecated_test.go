@@ -7,5 +7,5 @@ import (
 )
 
 func TestDeprecated(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Analyzer, "Deprecated")
+	analysistest.Run(t, analysistest.TestData(), Analyzer, "example.com/Deprecated")
 }

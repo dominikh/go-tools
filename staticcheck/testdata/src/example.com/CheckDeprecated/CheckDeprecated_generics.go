@@ -2,7 +2,7 @@
 
 package pkg
 
-import pkg "CheckDeprecatedassist.notstdlib_generics"
+import pkg "example.com/CheckDeprecatedassist.notstdlib_generics"
 
 func tpFn() {
 	var x pkg.S[int]

@@ -59,6 +59,6 @@ func xmlTags() {
 		XMLName xml.Name `xml:"foo"`
 	}
 	type T5 struct {
-		F T6 `xml:"f"` //@ diag(`name "f" conflicts with name "foo" in CheckStructTags.T6.XMLName`)
+		F T6 `xml:"f"` //@ diag(`name "f" conflicts with name "foo" in example.com/CheckStructTags.T6.XMLName`)
 	}
 }

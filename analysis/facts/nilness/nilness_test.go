@@ -7,5 +7,5 @@ import (
 )
 
 func TestNilness(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Analysis, "Nilness")
+	analysistest.Run(t, analysistest.TestData(), Analysis, "example.com/Nilness")
 }

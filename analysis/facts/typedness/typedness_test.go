@@ -7,5 +7,5 @@ import (
 )
 
 func TestTypedness(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Analysis, "Typedness")
+	analysistest.Run(t, analysistest.TestData(), Analysis, "example.com/Typedness")
 }

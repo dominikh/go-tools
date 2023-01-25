@@ -1,8 +1,9 @@
 package pkg
 
 import (
-	assist "CheckExplicitEmbeddedSelectorassist"
 	"io"
+
+	assist "example.com/CheckExplicitEmbeddedSelectorassist"
 )
 
 func fnQualified() {

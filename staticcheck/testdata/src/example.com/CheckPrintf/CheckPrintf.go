@@ -89,16 +89,16 @@ func fn() {
 	fmt.Printf("%U", x)                //@ diag(`Printf format %U has arg #1 of wrong type float64`)
 	fmt.Printf("%X", 2.3)
 	fmt.Printf("%X", 2+3i)
-	fmt.Printf("%s", stringerv)                 //@ diag(`Printf format %s has arg #1 of wrong type CheckPrintf.ptrStringer`)
-	fmt.Printf("%t", stringerv)                 //@ diag(`Printf format %t has arg #1 of wrong type CheckPrintf.ptrStringer`)
-	fmt.Printf("%s", embeddedStringerv)         //@ diag(`Printf format %s has arg #1 of wrong type CheckPrintf.embeddedStringer`)
-	fmt.Printf("%t", embeddedStringerv)         //@ diag(`Printf format %t has arg #1 of wrong type CheckPrintf.embeddedStringer`)
-	fmt.Printf("%q", notstringerv)              //@ diag(`Printf format %q has arg #1 of wrong type CheckPrintf.notstringer`)
-	fmt.Printf("%t", notstringerv)              //@ diag(`Printf format %t has arg #1 of wrong type CheckPrintf.notstringer`)
-	fmt.Printf("%t", stringerarrayv)            //@ diag(`Printf format %t has arg #1 of wrong type CheckPrintf.stringerarray`)
-	fmt.Printf("%t", notstringerarrayv)         //@ diag(`Printf format %t has arg #1 of wrong type CheckPrintf.notstringerarray`)
-	fmt.Printf("%q", notstringerarrayv)         //@ diag(`Printf format %q has arg #1 of wrong type CheckPrintf.notstringerarray`)
-	fmt.Printf("%d", BoolFormatter(true))       //@ diag(`Printf format %d has arg #1 of wrong type CheckPrintf.BoolFormatter`)
+	fmt.Printf("%s", stringerv)                 //@ diag(`Printf format %s has arg #1 of wrong type example.com/CheckPrintf.ptrStringer`)
+	fmt.Printf("%t", stringerv)                 //@ diag(`Printf format %t has arg #1 of wrong type example.com/CheckPrintf.ptrStringer`)
+	fmt.Printf("%s", embeddedStringerv)         //@ diag(`Printf format %s has arg #1 of wrong type example.com/CheckPrintf.embeddedStringer`)
+	fmt.Printf("%t", embeddedStringerv)         //@ diag(`Printf format %t has arg #1 of wrong type example.com/CheckPrintf.embeddedStringer`)
+	fmt.Printf("%q", notstringerv)              //@ diag(`Printf format %q has arg #1 of wrong type example.com/CheckPrintf.notstringer`)
+	fmt.Printf("%t", notstringerv)              //@ diag(`Printf format %t has arg #1 of wrong type example.com/CheckPrintf.notstringer`)
+	fmt.Printf("%t", stringerarrayv)            //@ diag(`Printf format %t has arg #1 of wrong type example.com/CheckPrintf.stringerarray`)
+	fmt.Printf("%t", notstringerarrayv)         //@ diag(`Printf format %t has arg #1 of wrong type example.com/CheckPrintf.notstringerarray`)
+	fmt.Printf("%q", notstringerarrayv)         //@ diag(`Printf format %q has arg #1 of wrong type example.com/CheckPrintf.notstringerarray`)
+	fmt.Printf("%d", BoolFormatter(true))       //@ diag(`Printf format %d has arg #1 of wrong type example.com/CheckPrintf.BoolFormatter`)
 	fmt.Printf("%z", FormatterVal(true))        // correct (the type is responsible for formatting)
 	fmt.Printf("%d", FormatterVal(true))        // correct (the type is responsible for formatting)
 	fmt.Printf("%s", nonemptyinterface)         // correct (the type is responsible for formatting)
@@ -125,10 +125,10 @@ func fn() {
 	fmt.Printf("d%", 2)                   //@ diag(`couldn't parse format string`)
 	fmt.Printf("%d", percentDV)
 	fmt.Printf("%d", &percentDV)
-	fmt.Printf("%d", notPercentDV)  //@ diag(`Printf format %d has arg #1 of wrong type CheckPrintf.notPercentDStruct`)
-	fmt.Printf("%d", &notPercentDV) //@ diag(`Printf format %d has arg #1 of wrong type *CheckPrintf.notPercentDStruct`)
+	fmt.Printf("%d", notPercentDV)  //@ diag(`Printf format %d has arg #1 of wrong type example.com/CheckPrintf.notPercentDStruct`)
+	fmt.Printf("%d", &notPercentDV) //@ diag(`Printf format %d has arg #1 of wrong type *example.com/CheckPrintf.notPercentDStruct`)
 	fmt.Printf("%p", &notPercentDV) // Works regardless: we print it as a pointer.
-	fmt.Printf("%q", &percentDV)    //@ diag(`Printf format %q has arg #1 of wrong type *CheckPrintf.percentDStruct`)
+	fmt.Printf("%q", &percentDV)    //@ diag(`Printf format %q has arg #1 of wrong type *example.com/CheckPrintf.percentDStruct`)
 	fmt.Printf("%s", percentSV)
 	fmt.Printf("%s", &percentSV)
 	// Good argument reorderings.
@@ -193,7 +193,7 @@ func fn() {
 		t1 := T1{&T2{"hi"}}
 
 		fmt.Printf("%s\n", &x1)
-		fmt.Printf("%s\n", t1) //@ diag(`Printf format %s has arg #1 of wrong type CheckPrintf.T1`)
+		fmt.Printf("%s\n", t1) //@ diag(`Printf format %s has arg #1 of wrong type example.com/CheckPrintf.T1`)
 		var x2 struct{ A *int }
 		fmt.Printf("%p\n", x2) //@ diag(`Printf format %p has arg #1 of wrong type struct{A *int}`)
 		var x3 [2]int
@@ -368,20 +368,20 @@ func UnexportedStringerOrError() {
 	fmt.Printf("%s", unexportedInterface{3})     // ok; we can't see the problem
 
 	us := unexportedStringer{}
-	fmt.Printf("%s", us)  //@ diag(`Printf format %s has arg #1 of wrong type CheckPrintf.unexportedStringer`)
-	fmt.Printf("%s", &us) //@ diag(`Printf format %s has arg #1 of wrong type *CheckPrintf.unexportedStringer`)
+	fmt.Printf("%s", us)  //@ diag(`Printf format %s has arg #1 of wrong type example.com/CheckPrintf.unexportedStringer`)
+	fmt.Printf("%s", &us) //@ diag(`Printf format %s has arg #1 of wrong type *example.com/CheckPrintf.unexportedStringer`)
 
 	usf := unexportedStringerOtherFields{
 		s: "foo",
 		S: "bar",
 	}
-	fmt.Printf("%s", usf)  //@ diag(`Printf format %s has arg #1 of wrong type CheckPrintf.unexportedStringerOtherFields`)
-	fmt.Printf("%s", &usf) //@ diag(`Printf format %s has arg #1 of wrong type *CheckPrintf.unexportedStringerOtherFields`)
+	fmt.Printf("%s", usf)  //@ diag(`Printf format %s has arg #1 of wrong type example.com/CheckPrintf.unexportedStringerOtherFields`)
+	fmt.Printf("%s", &usf) //@ diag(`Printf format %s has arg #1 of wrong type *example.com/CheckPrintf.unexportedStringerOtherFields`)
 
 	intSlice := []int{3, 4}
 	fmt.Printf("%s", intSlice) //@ diag(`Printf format %s has arg #1 of wrong type []int`)
 	nonStringerArray := [1]unexportedStringer{{}}
-	fmt.Printf("%s", nonStringerArray)  //@ diag(`Printf format %s has arg #1 of wrong type [1]CheckPrintf.unexportedStringer`)
+	fmt.Printf("%s", nonStringerArray)  //@ diag(`Printf format %s has arg #1 of wrong type [1]example.com/CheckPrintf.unexportedStringer`)
 	fmt.Printf("%s", []stringer{3, 4})  // not an error
 	fmt.Printf("%s", [2]stringer{3, 4}) // not an error
 }

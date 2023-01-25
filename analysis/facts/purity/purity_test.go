@@ -7,5 +7,5 @@ import (
 )
 
 func TestPurity(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Analyzer, "Purity")
+	analysistest.Run(t, analysistest.TestData(), Analyzer, "example.com/Purity")
 }

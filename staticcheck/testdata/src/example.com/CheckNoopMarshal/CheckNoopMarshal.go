@@ -46,9 +46,9 @@ func fn() {
 	// don't flag structs with no fields
 	json.Marshal(T1{})
 	// no exported fields
-	json.Marshal(T2{}) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	json.Marshal(T2{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	// pointer vs non-pointer makes no difference
-	json.Marshal(&T2{}) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	json.Marshal(&T2{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	// exported field
 	json.Marshal(T3{})
 	// exported field, pointer makes no difference
@@ -62,11 +62,11 @@ func fn() {
 	// MarshalJSON
 	json.Marshal(T7{})
 	// MarshalXML does not apply to JSON
-	json.Marshal(T8{}) //@ diag(`struct type 'CheckNoopMarshal.T8' doesn't have any exported fields, nor custom marshaling`)
+	json.Marshal(T8{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T8' doesn't have any exported fields, nor custom marshaling`)
 	// MarshalText
 	json.Marshal(T9{})
 	// embeds exported struct, but it has no fields
-	json.Marshal(T11{}) //@ diag(`struct type 'CheckNoopMarshal.T11' doesn't have any exported fields, nor custom marshaling`)
+	json.Marshal(T11{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T11' doesn't have any exported fields, nor custom marshaling`)
 	// embeds type with MarshalJSON
 	json.Marshal(T12{})
 	// embeds type with MarshalJSON and type isn't exported
@@ -76,11 +76,11 @@ func fn() {
 	// embedded pointer to struct with exported fields
 	json.Marshal(T16{})
 	// don't recurse forever on recursive data structure
-	json.Marshal(T17{}) //@ diag(`struct type 'CheckNoopMarshal.T17' doesn't have any exported fields, nor custom marshaling`)
+	json.Marshal(T17{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T17' doesn't have any exported fields, nor custom marshaling`)
 	json.Marshal(T18{})
 
 	// MarshalJSON does not apply to JSON
-	xml.Marshal(T7{}) //@ diag(`struct type 'CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
+	xml.Marshal(T7{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
 	// MarshalXML
 	xml.Marshal(T8{})
 
@@ -90,32 +90,32 @@ func fn() {
 	var t8 T8
 	var t9 T9
 	// check that all other variations of methods also work
-	json.Unmarshal(nil, &t2) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	json.Unmarshal(nil, &t2) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	json.Unmarshal(nil, &t3)
 	json.Unmarshal(nil, &t9)
-	xml.Unmarshal(nil, &t2) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	xml.Unmarshal(nil, &t2) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	xml.Unmarshal(nil, &t3)
 	xml.Unmarshal(nil, &t9)
-	(*json.Decoder)(nil).Decode(&t2) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	(*json.Decoder)(nil).Decode(&t2) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	(*json.Decoder)(nil).Decode(&t3)
 	(*json.Decoder)(nil).Decode(&t9)
-	(*json.Encoder)(nil).Encode(t2) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	(*json.Encoder)(nil).Encode(t2) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	(*json.Encoder)(nil).Encode(t3)
 	(*json.Encoder)(nil).Encode(t9)
-	(*xml.Decoder)(nil).Decode(&t2) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	(*xml.Decoder)(nil).Decode(&t2) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	(*xml.Decoder)(nil).Decode(&t3)
 	(*xml.Decoder)(nil).Decode(&t9)
-	(*xml.Encoder)(nil).Encode(t2) //@ diag(`struct type 'CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	(*xml.Encoder)(nil).Encode(t2) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	(*xml.Encoder)(nil).Encode(t3)
 	(*xml.Encoder)(nil).Encode(t9)
 
 	(*json.Decoder)(nil).Decode(&t7)
-	(*json.Decoder)(nil).Decode(&t8) //@ diag(`struct type 'CheckNoopMarshal.T8' doesn't have any exported fields, nor custom marshaling`)
+	(*json.Decoder)(nil).Decode(&t8) //@ diag(`struct type 'example.com/CheckNoopMarshal.T8' doesn't have any exported fields, nor custom marshaling`)
 	(*json.Encoder)(nil).Encode(t7)
-	(*json.Encoder)(nil).Encode(t8) //@ diag(`struct type 'CheckNoopMarshal.T8' doesn't have any exported fields, nor custom marshaling`)
-	(*xml.Decoder)(nil).Decode(&t7) //@ diag(`struct type 'CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
+	(*json.Encoder)(nil).Encode(t8) //@ diag(`struct type 'example.com/CheckNoopMarshal.T8' doesn't have any exported fields, nor custom marshaling`)
+	(*xml.Decoder)(nil).Decode(&t7) //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
 	(*xml.Decoder)(nil).Decode(&t8)
-	(*xml.Encoder)(nil).Encode(t7) //@ diag(`struct type 'CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
+	(*xml.Encoder)(nil).Encode(t7) //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
 	(*xml.Encoder)(nil).Encode(t8)
 
 }
