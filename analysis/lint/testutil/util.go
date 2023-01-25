@@ -131,8 +131,8 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 		// Each result in res contains all diagnostics and facts for all checked packages for all checked analyzers.
 		// For each package, we only care about the diagnostics and facts reported by a single analyzer.
 
-		// resultByPath maps from import path to result
-		resultByPath := map[string]runner.Result{}
+		// resultByPath maps from import path to results
+		resultByPath := map[string][]runner.Result{}
 		failed := false
 		for _, r := range res {
 			if r.Failed {
@@ -141,7 +141,9 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 					t.Fatalf("failed checking %s: %v", r.Package.PkgPath, r.Errors)
 				}
 			}
-			resultByPath[r.Package.PkgPath] = r
+			// r.Package.PkgPath is not unique. The same path can refer to a package and a package plus its
+			// (non-external) tests.
+			resultByPath[r.Package.PkgPath] = append(resultByPath[r.Package.PkgPath], r)
 		}
 
 		if failed {
@@ -153,43 +155,63 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 				if tt.Version != v {
 					continue
 				}
+				any := false
+				for _, suffix := range []string{"", ".test", "_test"} {
+					dir := tt.Dir + suffix
+					rr, ok := resultByPath[dir]
+					if !ok {
+						continue
+					}
+					any = true
+					// Remove this result. We later check that there remain no tests we haven't checked.
+					delete(resultByPath, dir)
 
-				r, ok := resultByPath[tt.Dir]
-				if !ok {
-					t.Errorf("no result for directory %s", tt.Dir)
-					continue
+					for _, r := range rr {
+						data, err := r.Load()
+						if err != nil {
+							t.Fatal(err)
+						}
+						tdata, err := r.LoadTest()
+						if err != nil {
+							t.Fatal(err)
+						}
+
+						// Select those diagnostics made by the analyzer we're currently checking
+						var relevantDiags []runner.Diagnostic
+						for _, diag := range data.Diagnostics {
+							// FIXME(dh): Category might not match analyzer names. it does for Staticcheck, for now
+							if diag.Category != a {
+								continue
+							}
+							relevantDiags = append(relevantDiags, diag)
+						}
+
+						var relevantFacts []runner.TestFact
+						for _, fact := range tdata.Facts {
+							if fact.Analyzer != a {
+								continue
+							}
+							relevantFacts = append(relevantFacts, fact)
+						}
+
+						Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
+						CheckSuggestedFixes(t, relevantDiags)
+					}
 				}
-
+				if !any {
+					t.Errorf("no result for directory %s", tt.Dir)
+				}
+			}
+		}
+		for key, rr := range resultByPath {
+			for _, r := range rr {
 				data, err := r.Load()
 				if err != nil {
 					t.Fatal(err)
 				}
-				tdata, err := r.LoadTest()
-				if err != nil {
-					t.Fatal(err)
+				if len(data.Diagnostics) != 0 {
+					t.Errorf("unexpected diagnostics in package %s", key)
 				}
-
-				// Select those diagnostics made by the analyzer we're currently checking
-				var relevantDiags []runner.Diagnostic
-				for _, diag := range data.Diagnostics {
-					// FIXME(dh): Category might not match analyzer names. it does for Staticcheck, for now
-
-					if diag.Category != a {
-						continue
-					}
-					relevantDiags = append(relevantDiags, diag)
-				}
-
-				var relevantFacts []runner.TestFact
-				for _, fact := range tdata.Facts {
-					if fact.Analyzer != a {
-						continue
-					}
-					relevantFacts = append(relevantFacts, fact)
-				}
-
-				Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
-				CheckSuggestedFixes(t, relevantDiags)
 			}
 		}
 	}
