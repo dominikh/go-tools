@@ -3,4 +3,4 @@ It is mostly in sync with upstream according to the last commit we've looked at,
 with the exception of still using I/O functions that work with older Go versions.
 
 The last upstream commit we've looked at was:
-06ac303f6a14b133254f757e54599c48e3c2a4ad
+dc04f3ba1f25313bc9c97e728620206c235db9ee
