@@ -8,7 +8,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-        go: ["1.18.x"]
+        go: ["1.19.x"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v1
@@ -40,7 +40,7 @@ jobs:
     steps:
     - uses: WillAbides/setup-go-faster@v1.7.0
       with:
-        go-version: "1.18.x"
+        go-version: "1.19.x"
     # this downloads all artifacts of the current workflow into the current working directory, creating one directory per artifact
     - uses: actions/download-artifact@v3
     - id: glob
@@ -51,6 +51,6 @@ jobs:
     - uses: dominikh/staticcheck-action@9f77055cca7bfaafb836cbd6720865187f5fbf51
       with:
         version: "3d6c86f0908ab82d6ff280219e2968ee65f83b2e"
-        min-go-version: "1.17"
+        min-go-version: "1.19"
         install-go: false
         merge-files: ${{ steps.glob.outputs.files }}
