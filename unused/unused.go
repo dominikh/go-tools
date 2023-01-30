@@ -757,6 +757,9 @@ func (g *graph) read(node ast.Node, by types.Object) {
 		fn := g.info.TypeOf(node).(*types.Signature)
 		for params, i := fn.Params(), 0; i < params.Len(); i++ {
 			g.see(params.At(i), by)
+			if params.At(i).Name() == "" {
+				g.use(params.At(i), by)
+			}
 		}
 
 		g.block(node.Body, by)
@@ -1183,6 +1186,9 @@ func (g *graph) decl(decl ast.Decl, by types.Object) {
 		fn := g.info.TypeOf(decl.Name).(*types.Signature)
 		for params, i := fn.Params(), 0; i < params.Len(); i++ {
 			g.see(params.At(i), obj)
+			if params.At(i).Name() == "" {
+				g.use(params.At(i), obj)
+			}
 		}
 
 		if decl.Name.Name == "_" {
