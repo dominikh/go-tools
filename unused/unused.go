@@ -476,8 +476,13 @@ func isIrrelevant(obj types.Object) bool {
 }
 
 func (g *graph) use(used, by types.Object) {
-	if g.opts.ExportedIsUsed && used.Pkg() != g.pkg || used.Pkg() == nil {
-		return
+	if g.opts.ExportedIsUsed {
+		if used.Pkg() != g.pkg || used.Pkg() == nil {
+			return
+		}
+		if by != nil && by.Pkg() != g.pkg {
+			return
+		}
 	}
 
 	if isIrrelevant(used) {
