@@ -3095,32 +3095,25 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		if ok {
-			switch std.AlternativeAvailableSince {
-			case knowledge.DeprecatedNeverUse:
-				// This should never be used, regardless of the
-				// targeted Go version. Examples include insecure
-				// cryptography or inherently broken APIs.
-				//
-				// We always want to flag these.
-			case knowledge.DeprecatedUseNoLonger:
-				// This should no longer be used. Using it with
-				// older Go versions might still make sense.
-				if !code.IsGoVersion(pass, std.DeprecatedSince) {
-					return
-				}
-			default:
-				if std.AlternativeAvailableSince < 0 {
-					panic(fmt.Sprintf("unhandled case %d", std.AlternativeAvailableSince))
-				}
-				// Look for the first available alternative, not the first
-				// version something was deprecated in. If a function was
-				// deprecated in Go 1.6, an alternative has been available
-				// already in 1.0, and we're targeting 1.2, it still
-				// makes sense to use the alternative from 1.0, to be
-				// future-proof.
-				if !code.IsGoVersion(pass, std.AlternativeAvailableSince) {
-					return
-				}
+			// In the past, we made use of the AlternativeAvailableSince field. If a function was deprecated in Go
+			// 1.6 and an alternative had been available in Go 1.0, then we'd recommend using the alternative even
+			// if targeting Go 1.2. The idea was to suggest writing future-proof code by using already-existing
+			// alternatives. This had a major flaw, however: the user would need to use at least Go 1.6 for
+			// Staticcheck to know that the function had been deprecated. Thus, targeting Go 1.2 and using Go 1.2
+			// would behave differently from targeting Go 1.2 and using Go 1.6. This is especially a problem if the
+			// user tries to ignore the warning. Depending on the Go version in use, the ignore directive may or may
+			// not match, causing a warning of its own.
+			//
+			// To avoid this issue, we no longer try to be smart. We now only compare the targeted version against
+			// the version that deprecated an object.
+			//
+			// Unfortunately, this issue also applies to AlternativeAvailableSince == DeprecatedNeverUse. Even though it
+			// is only applied to seriously flawed API, such as broken cryptography, users may wish to ignore those
+			// warnings.
+			//
+			// See also https://staticcheck.io/issues/1318.
+			if !code.IsGoVersion(pass, std.DeprecatedSince) {
+				return
 			}
 		}
 
