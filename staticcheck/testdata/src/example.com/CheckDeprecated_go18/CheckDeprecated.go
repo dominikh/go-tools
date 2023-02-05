@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"compress/flate"
+	"crypto/x509"
 	"database/sql/driver"
 	"net/http"
 	"os"
@@ -29,6 +30,8 @@ func fn1(err error) {
 
 	var conn driver.Conn
 	conn.Begin() //@ diag(`Begin has been deprecated`)
+
+	_ = x509.CertificateRequest{}.Attributes //@ diag(`x509.CertificateRequest{}.Attributes has been deprecated since Go 1.5 and an alternative has been available since Go 1.3:`)
 }
 
 // Deprecated: Don't use this.
