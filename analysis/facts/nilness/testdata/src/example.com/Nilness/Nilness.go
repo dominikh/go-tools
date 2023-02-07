@@ -101,3 +101,7 @@ func fn20() *int {
 	}
 	return nil
 }
+
+func fn27[T ~struct{ F int }]() T { // want fn27:`never returns nil: \[never\]`
+	return T{0}
+}
