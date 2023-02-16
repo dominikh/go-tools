@@ -241,10 +241,10 @@ func runFromLintResult(res lintResult) run {
 		diagnostics:  map[diagnosticDescriptor]diagnostic{},
 	}
 
-	for _, cf := range res.checkedFiles {
+	for _, cf := range res.CheckedFiles {
 		out.checkedFiles[cf] = struct{}{}
 	}
-	for _, diag := range res.diagnostics {
+	for _, diag := range res.Diagnostics {
 		out.diagnostics[diag.descriptor()] = diag
 	}
 	return out
@@ -498,7 +498,7 @@ func (cmd *Command) lint() int {
 			return 1
 		}
 
-		for _, w := range res.warnings {
+		for _, w := range res.Warnings {
 			fmt.Fprintln(os.Stderr, "warning:", w)
 		}
 
@@ -518,10 +518,10 @@ func (cmd *Command) lint() int {
 		}
 
 		if cmd.flags.formatter == "binary" {
-			for i, s := range res.checkedFiles {
-				res.checkedFiles[i] = relPath(s)
+			for i, s := range res.CheckedFiles {
+				res.CheckedFiles[i] = relPath(s)
 			}
-			for i := range res.diagnostics {
+			for i := range res.Diagnostics {
 				// We turn all paths into relative, /-separated paths. This is to make -merge work correctly when
 				// merging runs from different OSs, with different absolute paths.
 				//
@@ -529,7 +529,7 @@ func (cmd *Command) lint() int {
 				// newlines and thus different offsets. We don't ever make use of the Offset, anyway. Line and
 				// column numbers are precomputed.
 
-				d := &res.diagnostics[i]
+				d := &res.Diagnostics[i]
 				d.Position.Filename = relPath(d.Position.Filename)
 				d.Position.Offset = 0
 				d.End.Filename = relPath(d.End.Filename)
