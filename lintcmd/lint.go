@@ -82,9 +82,11 @@ func newLinter(opts options) (*linter, error) {
 }
 
 type lintResult struct {
-	checkedFiles []string
-	diagnostics  []diagnostic
-	warnings     []string
+	// These fields are exported so that we can gob encode them.
+
+	CheckedFiles []string
+	Diagnostics  []diagnostic
+	Warnings     []string
 }
 
 type options struct {
@@ -148,8 +150,8 @@ func (l *linter) run(bconf buildConfig) (lintResult, error) {
 		}()
 	}
 	res, err := l.lint(r, cfg, l.opts.patterns)
-	for i := range res.diagnostics {
-		res.diagnostics[i].buildName = bconf.Name
+	for i := range res.Diagnostics {
+		res.Diagnostics[i].buildName = bconf.Name
 	}
 	return res, err
 }
@@ -185,10 +187,10 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 			panic("package has errors but isn't marked as failed")
 		}
 		if res.Failed {
-			out.diagnostics = append(out.diagnostics, failed(res)...)
+			out.Diagnostics = append(out.Diagnostics, failed(res)...)
 		} else {
 			if res.Skipped {
-				out.warnings = append(out.warnings, fmt.Sprintf("skipped package %s because it is too large", res.Package))
+				out.Warnings = append(out.Warnings, fmt.Sprintf("skipped package %s because it is too large", res.Package))
 				continue
 			}
 
@@ -196,7 +198,7 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 				continue
 			}
 
-			out.checkedFiles = append(out.checkedFiles, res.Package.GoFiles...)
+			out.CheckedFiles = append(out.CheckedFiles, res.Package.GoFiles...)
 			allowedAnalyzers := filterAnalyzerNames(analyzerNames, res.Config.Checks)
 			resd, err := res.Load()
 			if err != nil {
@@ -215,7 +217,7 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 					filtered[i].mergeIf = a.Doc.MergeIf
 				}
 			}
-			out.diagnostics = append(out.diagnostics, filtered...)
+			out.Diagnostics = append(out.Diagnostics, filtered...)
 
 			for _, obj := range resd.Unused.Used {
 				// Note: a side-effect of this code is that fields in instantiated structs are handled correctly. Even
@@ -254,7 +256,7 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 		if used[uo.key] {
 			continue
 		}
-		out.diagnostics = append(out.diagnostics, diagnostic{
+		out.Diagnostics = append(out.Diagnostics, diagnostic{
 			Diagnostic: runner.Diagnostic{
 				Position: uo.obj.DisplayPosition,
 				Message:  fmt.Sprintf("%s %s is unused", uo.obj.Kind, uo.obj.Name),
