@@ -54,7 +54,7 @@ This overview is true when using the default options. Different options may chan
   - (1.4) exported constants
   - (1.5) init functions
   - (1.6) functions exported to cgo
-  - (1.7) the main function iff in the main package
+  - (1.7) the main function if in the main package
   - (1.8) symbols linked via go:linkname
   - (1.9) objects in generated files
 
@@ -1164,7 +1164,7 @@ func (g *graph) decl(decl ast.Decl, by types.Object) {
 			// (1.5) packages use init functions
 			g.use(obj, nil)
 		} else if decl.Name.Name == "main" && g.pkg.Name() == "main" {
-			// (1.7) packages use the main function iff in the main package
+			// (1.7) packages use the main function if in the main package
 			g.use(obj, nil)
 		} else if g.pkg.Path() == "runtime" && runtimeFuncs[decl.Name.Name] {
 			// (9.8) runtime functions that may be called from user code via the compiler

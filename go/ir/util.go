@@ -22,7 +22,7 @@ import (
 
 func unparen(e ast.Expr) ast.Expr { return astutil.Unparen(e) }
 
-// isBlankIdent returns true iff e is an Ident with name "_".
+// isBlankIdent returns true if e is an Ident with name "_".
 // They have no associated types.Object, and thus no type.
 func isBlankIdent(e ast.Expr) bool {
 	id, ok := e.(*ast.Ident)

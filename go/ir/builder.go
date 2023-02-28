@@ -311,7 +311,7 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 //
 // Operations forming potentially escaping pointers include:
 // - &x, including when implicit in method call or composite literals.
-// - a[:] iff a is an array (not *array)
+// - a[:] if a is an array (not *array)
 // - references to variables in lexically enclosing functions.
 func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) (RET lvalue) {
 	switch e := e.(type) {
@@ -853,7 +853,7 @@ func (b *builder) stmtList(fn *Function, list []ast.Stmt) {
 // returns the effective receiver after applying the implicit field
 // selections of sel.
 //
-// wantAddr requests that the result is an an address.  If
+// wantAddr requests that the result is an address. If
 // !sel.Indirect(), this may require that e be built in addr() mode; it
 // must thus be addressable.
 //

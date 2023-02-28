@@ -156,7 +156,7 @@ type Value interface {
 	//
 	// Referrers is currently only defined if Parent()!=nil,
 	// i.e. for the function-local values FreeVar, Parameter,
-	// Functions (iff anonymous) and all value-defining instructions.
+	// Functions (if anonymous) and all value-defining instructions.
 	// It returns nil for named Functions, Builtin and Global.
 	//
 	// Instruction.Operands contains the inverse of this relation.
@@ -366,7 +366,7 @@ type Function struct {
 	Blocks    []*BasicBlock // basic blocks of the function; nil => external
 	Exit      *BasicBlock   // The function's exit block
 	AnonFuncs []*Function   // anonymous functions directly beneath this one
-	referrers []Instruction // referring instructions (iff Parent() != nil)
+	referrers []Instruction // referring instructions (if Parent() != nil)
 	NoReturn  NoReturn      // Calling this function will always terminate control flow.
 
 	*functionBody
@@ -1203,7 +1203,7 @@ type SelectState struct {
 // index index.
 //
 // The second component of the triple, recvOk, is a boolean whose value
-// is true iff the selected operation was a receive and the receive
+// is true if the selected operation was a receive and the receive
 // successfully yielded a value.
 //
 // Pos() returns the ast.SelectStmt.Select.
@@ -1279,7 +1279,7 @@ type Next struct {
 // dynamic type of the interface is assignable to it, and if so, the
 // result of the conversion is a copy of the interface value X.
 // If AssertedType is a superinterface of X.Type(), the operation will
-// fail iff the operand is nil.  (Contrast with ChangeInterface, which
+// fail if the operand is nil.  (Contrast with ChangeInterface, which
 // performs no nil-check.)
 //
 // Type() reflects the actual type of the result, possibly a

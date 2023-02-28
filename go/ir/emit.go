@@ -119,7 +119,7 @@ func emitArith(f *Function, op token.Token, x, y Value, t types.Type, source ast
 }
 
 // emitCompare emits to f code compute the boolean result of
-// comparison comparison 'x op y'.
+// comparison 'x op y'.
 func emitCompare(f *Function, op token.Token, x, y Value, source ast.Node) Value {
 	xt := x.Type().Underlying()
 	yt := y.Type().Underlying()
@@ -430,7 +430,7 @@ func emitImplicitSelections(f *Function, v Value, indices []int, source ast.Node
 			}
 			instr.setType(types.NewPointer(fld.Type()))
 			v = f.emit(instr, source)
-			// Load the field's value iff indirectly embedded.
+			// Load the field's value if indirectly embedded.
 			if isPointer(fld.Type()) {
 				v = emitLoad(f, v, source)
 			}
@@ -466,7 +466,7 @@ func emitFieldSelection(f *Function, v Value, index int, wantAddr bool, id *ast.
 		instr.setSource(id)
 		instr.setType(types.NewPointer(fld.Type()))
 		v = f.emit(instr, id)
-		// Load the field's value iff we don't want its address.
+		// Load the field's value if we don't want its address.
 		if !wantAddr {
 			v = emitLoad(f, v, id)
 		}
