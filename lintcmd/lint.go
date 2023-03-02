@@ -151,7 +151,7 @@ func (l *linter) run(bconf buildConfig) (lintResult, error) {
 	}
 	res, err := l.lint(r, cfg, l.opts.patterns)
 	for i := range res.Diagnostics {
-		res.Diagnostics[i].buildName = bconf.Name
+		res.Diagnostics[i].BuildName = bconf.Name
 	}
 	return res, err
 }
@@ -214,7 +214,7 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 				a := l.analyzers[diag.Category]
 				// Some diag.Category don't map to analyzers, such as "staticcheck"
 				if a != nil {
-					filtered[i].mergeIf = a.Doc.MergeIf
+					filtered[i].MergeIf = a.Doc.MergeIf
 				}
 			}
 			out.Diagnostics = append(out.Diagnostics, filtered...)
@@ -262,7 +262,7 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 				Message:  fmt.Sprintf("%s %s is unused", uo.obj.Kind, uo.obj.Name),
 				Category: "U1000",
 			},
-			mergeIf: lint.MergeIfAll,
+			MergeIf: lint.MergeIfAll,
 		})
 	}
 
@@ -302,7 +302,7 @@ func filterIgnored(diagnostics []diagnostic, res runner.ResultData, allowedAnaly
 		for i := range diagnostics {
 			diag := &diagnostics[i]
 			if ig.match(*diag) {
-				diag.severity = severityIgnored
+				diag.Severity = severityIgnored
 			}
 		}
 
@@ -396,9 +396,11 @@ func (s severity) String() string {
 // diagnostic represents a diagnostic in some source code.
 type diagnostic struct {
 	runner.Diagnostic
-	severity  severity
-	mergeIf   lint.MergeStrategy
-	buildName string
+
+	// These fields are exported so that we can gob encode them.
+	Severity  severity
+	MergeIf   lint.MergeStrategy
+	BuildName string
 }
 
 func (p diagnostic) equal(o diagnostic) bool {
@@ -406,14 +408,14 @@ func (p diagnostic) equal(o diagnostic) bool {
 		p.End == o.End &&
 		p.Message == o.Message &&
 		p.Category == o.Category &&
-		p.severity == o.severity &&
-		p.mergeIf == o.mergeIf &&
-		p.buildName == o.buildName
+		p.Severity == o.Severity &&
+		p.MergeIf == o.MergeIf &&
+		p.BuildName == o.BuildName
 }
 
 func (p *diagnostic) String() string {
-	if p.buildName != "" {
-		return fmt.Sprintf("%s [%s] (%s)", p.Message, p.buildName, p.Category)
+	if p.BuildName != "" {
+		return fmt.Sprintf("%s [%s] (%s)", p.Message, p.BuildName, p.Category)
 	} else {
 		return fmt.Sprintf("%s (%s)", p.Message, p.Category)
 	}
@@ -460,7 +462,7 @@ func failed(res runner.Result) []diagnostic {
 					Message:  msg,
 					Category: "compile",
 				},
-				severity: severityError,
+				Severity: severityError,
 			}
 			diagnostics = append(diagnostics, diag)
 		case error:
@@ -470,7 +472,7 @@ func failed(res runner.Result) []diagnostic {
 					Message:  e.Error(),
 					Category: "compile",
 				},
-				severity: severityError,
+				Severity: severityError,
 			}
 			diagnostics = append(diagnostics, diag)
 		}
