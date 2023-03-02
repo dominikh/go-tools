@@ -565,7 +565,7 @@ func mergeRuns(runs []run) []diagnostic {
 	var relevantDiagnostics []diagnostic
 	for _, r := range runs {
 		for _, diag := range r.diagnostics {
-			switch diag.mergeIf {
+			switch diag.MergeIf {
 			case lint.MergeIfAny:
 				relevantDiagnostics = append(relevantDiagnostics, diag)
 			case lint.MergeIfAll:
@@ -607,8 +607,8 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			if di.Message != dj.Message {
 				return di.Message < dj.Message
 			}
-			if di.buildName != dj.buildName {
-				return di.buildName < dj.buildName
+			if di.BuildName != dj.BuildName {
+				return di.BuildName < dj.BuildName
 			}
 			return di.Category < dj.Category
 		})
@@ -617,7 +617,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			diagnostics[0],
 		}
 		builds := []map[string]struct{}{
-			{diagnostics[0].buildName: {}},
+			{diagnostics[0].BuildName: {}},
 		}
 		for _, diag := range diagnostics[1:] {
 			// We may encounter duplicate diagnostics because one file
@@ -626,11 +626,11 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			if !filtered[len(filtered)-1].equal(diag) {
 				if filtered[len(filtered)-1].descriptor() == diag.descriptor() {
 					// Diagnostics only differ in build name, track new name
-					builds[len(filtered)-1][diag.buildName] = struct{}{}
+					builds[len(filtered)-1][diag.BuildName] = struct{}{}
 				} else {
 					filtered = append(filtered, diag)
 					builds = append(builds, map[string]struct{}{})
-					builds[len(filtered)-1][diag.buildName] = struct{}{}
+					builds[len(filtered)-1][diag.BuildName] = struct{}{}
 				}
 			}
 		}
@@ -642,7 +642,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 				names = append(names, k)
 			}
 			sort.Strings(names)
-			filtered[i].buildName = strings.Join(names, ",")
+			filtered[i].BuildName = strings.Join(names, ",")
 		}
 		diagnostics = filtered
 	}
@@ -693,14 +693,14 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 		if diag.Category == "compile" && cmd.flags.debugNoCompileErrors {
 			continue
 		}
-		if diag.severity == severityIgnored && !cmd.flags.showIgnored {
+		if diag.Severity == severityIgnored && !cmd.flags.showIgnored {
 			numIgnored++
 			continue
 		}
 		if shouldExit[diag.Category] {
 			numErrors++
 		} else {
-			diag.severity = severityWarning
+			diag.Severity = severityWarning
 			numWarnings++
 		}
 		notIgnored = append(notIgnored, diag)

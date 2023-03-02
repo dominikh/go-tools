@@ -22,7 +22,7 @@ func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []diagnostic)
 						Message:  "malformed linter directive; missing the required reason field?",
 						Category: "compile",
 					},
-					severity: severityError,
+					Severity: severityError,
 				}
 				diagnostics = append(diagnostics, p)
 				continue
