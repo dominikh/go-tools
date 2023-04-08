@@ -1598,7 +1598,7 @@ func CheckEmptyCriticalSection(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return nil, "", false
 		}
-		call, ok := expr.X.(*ast.CallExpr)
+		call, ok := astutil.Unparen(expr.X).(*ast.CallExpr)
 		if !ok {
 			return nil, "", false
 		}
