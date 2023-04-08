@@ -1332,7 +1332,7 @@ func (g *graph) stmt(stmt ast.Stmt, by types.Object) {
 				g.read(comm.Chan, by)
 				g.read(comm.Value, by)
 			case *ast.ExprStmt:
-				g.read(comm.X.(*ast.UnaryExpr).X, by)
+				g.read(astutil.Unparen(comm.X).(*ast.UnaryExpr).X, by)
 			case *ast.AssignStmt:
 				for _, lhs := range comm.Lhs {
 					g.write(lhs, by)
