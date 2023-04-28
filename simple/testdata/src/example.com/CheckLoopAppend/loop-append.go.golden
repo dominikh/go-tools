@@ -99,3 +99,25 @@ func fn7() {
 		x = append(x, fn6()[i])
 	}
 }
+
+func fn8() {
+	// The lhs isn't allowed to refer to i
+	var i int
+	var x []int
+	var y [][]int
+	for i = range x {
+		y[i] = append(y[i], x[i])
+	}
+	for i := range x {
+		y[i] = append(y[i], x[i])
+	}
+}
+
+func fn9() {
+	// The lhs isn't allowed to have side effects
+	bar := func() map[int][]int { return nil }
+	var x []int
+	for i := range x {
+		bar()[0] = append(bar()[0], x[i])
+	}
+}
