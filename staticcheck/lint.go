@@ -4880,23 +4880,18 @@ func CheckIneffectiveURLQueryModification(pass *analysis.Pass) (interface{}, err
 	return nil, nil
 }
 
+var ioWriteStringConversion = pattern.MustParse(`(CallExpr (Symbol "io.WriteString") [_ (CallExpr (Builtin "string") [arg])])`)
+
 func CheckByteSliceInIOWriteString(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		if !code.IsCallTo(pass, call, "io.WriteString") {
+		m, ok := code.Match(pass, ioWriteStringConversion, node)
+		if !ok {
 			return
 		}
-		arg := call.Args[1]
-		if conv, ok := arg.(*ast.CallExpr); ok && typeutil.IsType(pass.TypesInfo.TypeOf(conv.Fun), "string") {
-			bt, ok := pass.TypesInfo.TypeOf(conv.Args[0]).Underlying().(*types.Slice)
-			if !ok {
-				return
-			}
-
-			if typeutil.IsType(bt.Elem().Underlying(), "byte") {
-				report.Report(pass, call, "use io.Writer.Write instead of converting from []byte to string to use io.WriteString")
-			}
+		if !typeutil.IsType(pass.TypesInfo.TypeOf(m.State["arg"].(ast.Expr)).Underlying(), "[]byte") {
+			return
 		}
+		report.Report(pass, node, "use io.Writer.Write instead of converting from []byte to string to use io.WriteString")
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 
