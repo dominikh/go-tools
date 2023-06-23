@@ -448,8 +448,9 @@ falsify results.`,
 
 	for i := 0; i < 10; j++ { ... }
 
-This may also occur when a loop condition does not have a chance to increment.
-For example, when a loop body contains an unconditional panic:
+This may also occur when a loop can only execute once because of unconditional
+control flow that terminates the loop. For example, when a loop body contains an
+unconditional break, return, or panic:
 
 	func f() {
 		panic("oops")
