@@ -2,57 +2,24 @@ package pkg
 
 import (
 	"io"
-	"os"
 )
 
 func f() {
-	var w = os.Stdout
-
-	b := []byte("abc")
-	_, err := io.WriteString(w, string(b)) //@ diag(`use io.Writer.Write`)
-	if err != nil {
-		panic(err)
-	}
+	var b []byte
+	io.WriteString(nil, string(b)) //@ diag(`use io.Writer.Write`)
 
 	type custom []byte
-	c := custom("abc")
-	_, err = io.WriteString(w, string(c)) //@ diag(`use io.Writer.Write`)
-	if err != nil {
-		panic(err)
-	}
+	var c custom
+	io.WriteString(nil, string(c)) //@ diag(`use io.Writer.Write`)
 
-	g := func() []byte {
-		return []byte("abc")
-	}
-	_, err = io.WriteString(w, string(g())) //@ diag(`use io.Writer.Write`)
-	if err != nil {
-		panic(err)
-	}
+	g := func() []byte { return nil }
+	io.WriteString(nil, string(g())) //@ diag(`use io.Writer.Write`)
 
 	var d string
-	_, err = io.WriteString(w, d)
-	if err != nil {
-		panic(err)
-	}
+	io.WriteString(nil, d)
 
-	_, err = io.WriteString(w, string(123))
-	if err != nil {
-		panic(err)
-	}
+	io.WriteString(nil, string(123))
 
-	h := func() string {
-		return "abc"
-	}
-	_, err = io.WriteString(w, h())
-	if err != nil {
-		panic(err)
-	}
-
-	string := func(x []byte) string {
-		return string(x)
-	}
-	_, err = io.WriteString(w, string(b))
-	if err != nil {
-		panic(err)
-	}
+	string := func(x []byte) string { return "" }
+	io.WriteString(nil, string(b))
 }
