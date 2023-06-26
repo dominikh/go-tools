@@ -7,3 +7,7 @@
 /docs/staticcheck -> /docs/checks 301
 /docs/gosimple /docs/checks 301
 /issues/* https://github.com/dominikh/go-tools/issues/:splat 301
+http://staticcheck.io/* https://staticcheck.dev/:splat 301!
+https://staticcheck.io/* https://staticcheck.dev/:splat 301!
+http://www.staticcheck.io/* https://staticcheck.dev/:splat 301!
+https://www.staticcheck.io/* https://staticcheck.dev/:splat 301!
