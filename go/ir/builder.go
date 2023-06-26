@@ -622,7 +622,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		case token.AND: // &X --- potentially escaping.
 			addr := b.addr(fn, e.X, true)
 			if _, ok := unparen(e.X).(*ast.StarExpr); ok {
-				// &*p must panic if p is nil (http://golang.org/s/go12nil).
+				// &*p must panic if p is nil (https://golang.org/s/go12nil).
 				// For simplicity, we'll just (suboptimally) rely
 				// on the side effects of a load.
 				// TODO(adonovan): emit dedicated nilcheck.

@@ -12,14 +12,14 @@ package ir
 // Cited papers and resources:
 //
 // Ron Cytron et al. 1991. Efficiently computing SSA form...
-// http://doi.acm.org/10.1145/115372.115320
+// https://doi.acm.org/10.1145/115372.115320
 //
 // Cooper, Harvey, Kennedy.  2001.  A Simple, Fast Dominance Algorithm.
 // Software Practice and Experience 2001, 4:1-10.
-// http://www.hipersoft.rice.edu/grads/publications/dom14.pdf
+// https://www.hipersoft.rice.edu/grads/publications/dom14.pdf
 //
 // Daniel Berlin, llvmdev mailing list, 2012.
-// http://lists.cs.uiuc.edu/pipermail/llvmdev/2012-January/046638.html
+// https://lists.cs.uiuc.edu/pipermail/llvmdev/2012-January/046638.html
 // (Be sure to expand the whole thread.)
 //
 // C. Scott Ananian. 1997. The static single information form.

@@ -8,7 +8,7 @@ Staticcheck is a state of the art linter for the [Go programming
 language](https://go.dev/). Using static analysis, it finds bugs and performance issues,
 offers simplifications, and enforces style rules.
 
-**Financial support by [private and corporate sponsors](http://staticcheck.dev/sponsors) guarantees the tool's continued development.
+**Financial support by [private and corporate sponsors](https://staticcheck.dev/sponsors) guarantees the tool's continued development.
 Please [become a sponsor](https://github.com/users/dominikh/sponsorship) if you or your company rely on Staticcheck.**
 
 

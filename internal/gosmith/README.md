@@ -1,4 +1,4 @@
-```GoSmith``` generates random, but legal, [Go programs](http://golang.org) to test Go compilers.
+```GoSmith``` generates random, but legal, [Go programs](https://golang.org) to test Go compilers.
 
 Bugs found to date:
   * [31 bugs](https://code.google.com/p/go/issues/list?can=1&q=label%3AGoSmith+-label%3ADocumentation+-status%3AInvalid&sort=-id&colspec=ID+Status+Stars+Release+Owner+Repo+Summary&cells=tiles) in gc compiler
