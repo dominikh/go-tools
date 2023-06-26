@@ -1,6 +1,6 @@
 package tparamsource
 
-// https://staticcheck.io/issues/1282
+// https://staticcheck.dev/issues/1282
 
 import (
 	"testing"

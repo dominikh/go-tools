@@ -5,7 +5,7 @@ import (
 	"unsafe"
 )
 
-// https://staticcheck.io/issues/812
+// https://staticcheck.dev/issues/812
 
 var (
 	w  io.Writer          //@ used("w", true)

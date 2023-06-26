@@ -376,7 +376,7 @@ func (cmd *Command) explain() int {
 		return 1
 	}
 	fmt.Println(check.Doc)
-	fmt.Println("Online documentation\n    https://staticcheck.io/docs/checks#" + check.Analyzer.Name)
+	fmt.Println("Online documentation\n    https://staticcheck.dev/docs/checks#" + check.Analyzer.Name)
 	return 0
 }
 
@@ -662,7 +662,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 		}
 		if cmd.name == "staticcheck" {
 			f.(*sarifFormatter).driverName = "Staticcheck"
-			f.(*sarifFormatter).driverWebsite = "https://staticcheck.io"
+			f.(*sarifFormatter).driverWebsite = "https://staticcheck.dev"
 		}
 	case "binary":
 		fmt.Fprintln(os.Stderr, "'-f binary' not supported in this context")

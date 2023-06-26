@@ -1,6 +1,6 @@
 package pkg
 
-// https://staticcheck.io/issues/810
+// https://staticcheck.dev/issues/810
 
 type Thing struct { //@ used("Thing", true)
 	has struct { //@ used("has", true)

@@ -259,7 +259,7 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 					Text:     c.Doc.Title,
 					Markdown: c.Doc.TitleMarkdown,
 				},
-				HelpURI: "https://staticcheck.io/docs/checks#" + c.Analyzer.Name,
+				HelpURI: "https://staticcheck.dev/docs/checks#" + c.Analyzer.Name,
 				// We use our markdown as the plain text version, too. We
 				// use very little markdown, primarily quotations,
 				// indented code blocks and backticks. All of these are

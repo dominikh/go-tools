@@ -1,6 +1,6 @@
 package pkg
 
-// https://staticcheck.io/issues/1199
+// https://staticcheck.dev/issues/1199
 
 type c1 struct{} //@ used("c1", false)
 

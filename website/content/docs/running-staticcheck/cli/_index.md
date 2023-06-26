@@ -37,7 +37,7 @@ Available since
 	2020.1
 
 Online documentation
-	https://staticcheck.io/docs/checks#S1039
+	https://staticcheck.dev/docs/checks#S1039
 ```
 
 The output includes a one-line summary, one or more paragraphs of helpful text, the first version of Staticcheck that the check appeared in, and a link to online documentation, which contains the same information as the output of `staticcheck -explain`.

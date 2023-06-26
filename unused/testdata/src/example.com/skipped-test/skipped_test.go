@@ -1,6 +1,6 @@
 package pkg
 
-// https://staticcheck.io/issues/633
+// https://staticcheck.dev/issues/633
 
 import "testing"
 

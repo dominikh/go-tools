@@ -93,7 +93,7 @@ avoiding suggestions that are not applicable to older versions of Go.
 
 If unset, this will default to the Go version specified in your go.mod.
 
-See https://staticcheck.io/docs/running-staticcheck/cli/#go for more information.
+See https://staticcheck.dev/docs/running-staticcheck/cli/#go for more information.
 
 ### `build-tags`
 

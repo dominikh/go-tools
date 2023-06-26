@@ -1,6 +1,6 @@
 package pkg
 
-// https://staticcheck.io/issues/1249
+// https://staticcheck.dev/issues/1249
 
 import "unsafe"
 

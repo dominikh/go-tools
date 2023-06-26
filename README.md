@@ -8,13 +8,13 @@ Staticcheck is a state of the art linter for the [Go programming
 language](https://go.dev/). Using static analysis, it finds bugs and performance issues,
 offers simplifications, and enforces style rules.
 
-**Financial support by [private and corporate sponsors](http://staticcheck.io/sponsors) guarantees the tool's continued development.
+**Financial support by [private and corporate sponsors](http://staticcheck.dev/sponsors) guarantees the tool's continued development.
 Please [become a sponsor](https://github.com/users/dominikh/sponsorship) if you or your company rely on Staticcheck.**
 
 
 ## Documentation
 
-You can find extensive documentation on Staticcheck on [its website](https://staticcheck.io/docs/).
+You can find extensive documentation on Staticcheck on [its website](https://staticcheck.dev/docs/).
 
 ## Installation
 
@@ -26,7 +26,7 @@ These releases can be found as git tags (e.g. `2022.1`).
 The easiest way of installing a release is by using `go install`, for example `go install honnef.co/go/tools/cmd/staticcheck@2022.1`.
 Alternatively, we also offer [prebuilt binaries](https://github.com/dominikh/go-tools/releases).
 
-You can find more information about installation and releases in the [documentation](https://staticcheck.io/docs/getting-started/).
+You can find more information about installation and releases in the [documentation](https://staticcheck.dev/docs/getting-started/).
 
 ### Master
 

@@ -1,6 +1,6 @@
 package pkg
 
-// https://staticcheck.io/issues/1333
+// https://staticcheck.dev/issues/1333
 
 func normal1()     {}           //@ used("normal1", false)
 func normal2()     {}           //@ used("normal2", true)

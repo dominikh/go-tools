@@ -961,7 +961,7 @@ func (g *graph) write(node ast.Node, by types.Object) {
 
 	case *ast.SelectorExpr:
 		if g.opts.FieldWritesAreUses {
-			// Writing to a field constitutes a use. See https://staticcheck.io/issues/288 for some discussion on that.
+			// Writing to a field constitutes a use. See https://staticcheck.dev/issues/288 for some discussion on that.
 			//
 			// This code can also get triggered by qualified package variables, in which case it doesn't matter what we do,
 			// because the object is in another package.

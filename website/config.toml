@@ -1,4 +1,4 @@
-baseURL = "https://staticcheck.io"
+baseURL = "https://staticcheck.dev"
 languageCode = 'en-us'
 title = 'Staticcheck'
 theme = 'docsy'

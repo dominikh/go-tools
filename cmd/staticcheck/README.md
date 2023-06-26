@@ -11,5 +11,5 @@ See [the main README](https://github.com/dominikh/go-tools#installation) for ins
 ## Documentation
 
 Detailed documentation can be found on
-[staticcheck.io](https://staticcheck.io/docs/).
+[staticcheck.dev](https://staticcheck.dev/docs/).
 

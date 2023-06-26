@@ -3105,7 +3105,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 		if !ok && isStdlibPath(pkgPath) {
 			// Deprecated object in the standard library, but we don't know the details of the deprecation.
 			// Don't flag it at all, to avoid flagging an object that was deprecated in 1.N when targeting 1.N-1.
-			// See https://staticcheck.io/issues/1108 for the background on this.
+			// See https://staticcheck.dev/issues/1108 for the background on this.
 			return
 		}
 		if ok {
@@ -3125,7 +3125,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			// is only applied to seriously flawed API, such as broken cryptography, users may wish to ignore those
 			// warnings.
 			//
-			// See also https://staticcheck.io/issues/1318.
+			// See also https://staticcheck.dev/issues/1318.
 			if !code.IsGoVersion(pass, std.DeprecatedSince) {
 				return
 			}
