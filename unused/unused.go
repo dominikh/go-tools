@@ -17,7 +17,6 @@ import (
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
 
-	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/objectpath"
 )
@@ -1151,8 +1150,7 @@ func (g *graph) decl(decl ast.Decl, by types.Object) {
 		}
 
 	case *ast.FuncDecl:
-		// XXX calling OriginMethod is unnecessary if we use types.Func.Origin
-		obj := typeparams.OriginMethod(g.info.ObjectOf(decl.Name).(*types.Func))
+		obj := g.info.ObjectOf(decl.Name).(*types.Func).Origin()
 		g.see(obj, nil)
 
 		if token.IsExported(decl.Name.Name) && g.opts.ExportedIsUsed {
