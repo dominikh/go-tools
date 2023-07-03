@@ -3182,7 +3182,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 
 		obj := pass.TypesInfo.ObjectOf(sel.Sel)
 		if obj_, ok := obj.(*types.Func); ok {
-			obj = typeparams.OriginMethod(obj_)
+			obj = obj_.Origin()
 		}
 		if obj.Pkg() == nil {
 			return true
