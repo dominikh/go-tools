@@ -288,6 +288,9 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 			pkg.Errors = append(pkg.Errors, convertError(err)...)
 		},
 	}
+	if spec.Module != nil && spec.Module.GoVersion != "" {
+		tc.GoVersion = "go" + spec.Module.GoVersion
+	}
 	types.NewChecker(tc, pkg.Fset, pkg.Types, pkg.TypesInfo).Files(pkg.Syntax)
 	return pkg, nil
 }
