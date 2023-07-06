@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/go/ast/astutil"
 
@@ -17,10 +18,14 @@ import (
 )
 
 type Options struct {
-	ShortRange      bool
-	FilterGenerated bool
-	Fixes           []analysis.SuggestedFix
-	Related         []analysis.RelatedInformation
+	ShortRange             bool
+	FilterGenerated        bool
+	Fixes                  []analysis.SuggestedFix
+	Related                []analysis.RelatedInformation
+	MinimumLanguageVersion int
+	MaximumLanguageVersion int
+	MinimumStdlibVersion   int
+	MaximumStdlibVersion   int
 }
 
 type Option func(*Options)
@@ -56,6 +61,19 @@ func Related(node Positioner, message string) Option {
 		}
 		opts.Related = append(opts.Related, r)
 	}
+}
+
+func MinimumLanguageVersion(vers int) Option {
+	return func(opts *Options) { opts.MinimumLanguageVersion = vers }
+}
+func MaximumLanguageVersion(vers int) Option {
+	return func(opts *Options) { opts.MinimumLanguageVersion = vers }
+}
+func MinimumStdlibVersion(vers int) Option {
+	return func(opts *Options) { opts.MinimumStdlibVersion = vers }
+}
+func MaximumStdlibVersion(vers int) Option {
+	return func(opts *Options) { opts.MaximumStdlibVersion = vers }
 }
 
 type Positioner interface {
@@ -168,6 +186,21 @@ func Report(pass *analysis.Pass, node Positioner, message string, opts ...Option
 	cfg := &Options{}
 	for _, opt := range opts {
 		opt(cfg)
+	}
+
+	langVersion := code.LanguageVersion(pass, node)
+	stdlibVersion := code.StdlibVersion(pass, node)
+	if n := cfg.MaximumLanguageVersion; n != 0 && n < langVersion {
+		return
+	}
+	if n := cfg.MaximumStdlibVersion; n != 0 && n < stdlibVersion {
+		return
+	}
+	if n := cfg.MinimumLanguageVersion; n != 0 && n > langVersion {
+		return
+	}
+	if n := cfg.MinimumStdlibVersion; n != 0 && n > stdlibVersion {
+		return
 	}
 
 	file := DisplayPosition(pass.Fset, node.Pos()).Filename

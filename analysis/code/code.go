@@ -8,11 +8,13 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"strconv"
 	"strings"
 
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/facts/purity"
 	"honnef.co/go/tools/analysis/facts/tokenfile"
+	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/pattern"
@@ -315,13 +317,136 @@ func MayHaveSideEffects(pass *analysis.Pass, expr ast.Expr, purity purity.Result
 	}
 }
 
-func IsGoVersion(pass *analysis.Pass, minor int) bool {
-	f, ok := pass.Analyzer.Flags.Lookup("go").Value.(flag.Getter)
-	if !ok {
-		panic("requested Go version, but analyzer has no version flag")
+func LanguageVersion(pass *analysis.Pass, node Positioner) int {
+	// As of Go 1.21, two places can specify the minimum Go version:
+	// - 'go' directives in go.mod and go.work files
+	// - individual files by using '//go:build'
+	//
+	// Individual files can upgrade to a higher version than the module version. Individual files
+	// can also downgrade to a lower version, but only if the module version is at least Go 1.21.
+	//
+	// The restriction on downgrading doesn't matter to us. All language changes before Go 1.22 will
+	// not type-check on versions that are too old, and thus never reach our analyzes. In practice,
+	// such ineffective downgrading will always be useless, as the compiler will not restrict the
+	// language features used, and doesn't ever rely on minimum versions to restrict the use of the
+	// standard library. However, for us, both choices (respecting or ignoring ineffective
+	// downgrading) have equal complexity, but only respecting it has a non-zero chance of reducing
+	// noisy positives.
+	//
+	// The minimum Go versions are exposed via go/ast.File.GoVersion and go/types.Package.GoVersion.
+	// ast.File's version is populated by the parser, whereas types.Package's version is populated
+	// from the Go version specified in the types.Config, which is set by our package loader, based
+	// on the module information provided by go/packages, via 'go list -json'.
+	//
+	// As of Go 1.21, standard library packages do not present themselves as modules, and thus do
+	// not have a version set on their types.Package. In this case, we fall back to the version
+	// provided by our '-go' flag. In most cases, '-go' defaults to 'module', which falls back to
+	// the Go version that Staticcheck was built with when no module information exists. In the
+	// future, the standard library will hopefully be a proper module (see
+	// https://github.com/golang/go/issues/61174#issuecomment-1622471317). In that case, the version
+	// of standard library packages will match that of the used Go version. At that point,
+	// Staticcheck will refuse to work with Go versions that are too new, to avoid misinterpreting
+	// code due to language changes.
+	//
+	// We also lack module information when building in GOPATH mode. In this case, the implied
+	// language version is at most Go 1.21, as per https://github.com/golang/go/issues/60915. We
+	// don't handle this yet, and it will not matter until Go 1.22.
+	//
+	// It is not clear how per-file downgrading behaves in GOPATH mode. On the one hand, no module
+	// version at all is provided, which should preclude per-file downgrading. On the other hand,
+	// https://github.com/golang/go/issues/60915 suggests that the language version is at most 1.21
+	// in GOPATH mode, which would allow per-file downgrading. Again it doesn't affect us, as all
+	// relevant language changes before Go 1.22 will lead to type-checking failures and never reach
+	// us.
+	//
+	// It is not clear if per-file upgrading is possible in GOPATH mode. This needs clarification.
+
+	f := File(pass, node)
+	var n int
+	if v := fileGoVersion(f); v != "" {
+		var ok bool
+		n, ok = lint.ParseGoVersion(v)
+		if !ok {
+			panic(fmt.Sprintf("unexpected failure parsing version %q", v))
+		}
+	} else if v := packageGoVersion(pass.Pkg); v != "" {
+		var ok bool
+		n, ok = lint.ParseGoVersion(v)
+		if !ok {
+			panic(fmt.Sprintf("unexpected failure parsing version %q", v))
+		}
+	} else {
+		v, ok := pass.Analyzer.Flags.Lookup("go").Value.(flag.Getter)
+		if !ok {
+			panic("requested Go version, but analyzer has no version flag")
+		}
+		n = v.Get().(int)
 	}
-	version := f.Get().(int)
-	return version >= minor
+
+	return n
+}
+
+func StdlibVersion(pass *analysis.Pass, node Positioner) int {
+	var n int
+	if v := packageGoVersion(pass.Pkg); v != "" {
+		var ok bool
+		n, ok = lint.ParseGoVersion(v)
+		if !ok {
+			panic(fmt.Sprintf("unexpected failure parsing version %q", v))
+		}
+	} else {
+		v, ok := pass.Analyzer.Flags.Lookup("go").Value.(flag.Getter)
+		if !ok {
+			panic("requested Go version, but analyzer has no version flag")
+		}
+		n = v.Get().(int)
+	}
+
+	f := File(pass, node)
+	if f == nil {
+		panic(fmt.Sprintf("no file found for node with position %s", pass.Fset.PositionFor(node.Pos(), false)))
+	}
+
+	if v := fileGoVersion(f); v != "" {
+		nf, err := strconv.Atoi(strings.TrimPrefix(v, "go1."))
+		if err != nil {
+			panic(fmt.Sprintf("unexpected error: %s", err))
+		}
+
+		if n < 21 {
+			// Before Go 1.21, the Go version set in go.mod specified the maximum language version
+			// available to the module. It wasn't uncommon to set the version to Go 1.20 but only
+			// use 1.20 functionality (both language and stdlib) in files tagged for 1.20, and
+			// supporting a lower version overall. As such, a file tagged lower than the module
+			// version couldn't expect to have access to the standard library of the version set in
+			// go.mod.
+			//
+			// While Go 1.21's behavior has been backported to 1.19.11 and 1.20.6, users'
+			// expectations have not.
+			n = nf
+		} else {
+			// Go 1.21 and newer refuse to build modules that depend on versions newer than the Go
+			// version. This means that in a 1.22 module with a file tagged as 1.17, the file can
+			// expect to have access to 1.22's standard library.
+			//
+			// Do note that strictly speaking we're conflating the Go version and the module version in
+			// our check. Nothing is stopping a user from using Go 1.17 to build a Go 1.22 module, in
+			// which case the 1.17 file will not have acces to the 1.22 standard library. However, we
+			// believe that if a module requires 1.21 or newer, then the author clearly expects the new
+			// behavior, and doesn't care for the old one. Otherwise they would've specified an older
+			// version.
+			//
+			// In other words, the module version also specifies what it itself actually means, with
+			// >=1.21 being a minimum version for the toolchain, and <1.21 being a maximum version for
+			// the language.
+
+			if nf > n {
+				n = nf
+			}
+		}
+	}
+
+	return n
 }
 
 var integerLiteralQ = pattern.MustParse(`(IntegerLiteral tv)`)

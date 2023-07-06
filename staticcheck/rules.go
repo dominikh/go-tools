@@ -163,7 +163,7 @@ func ConvertedFromInt(v Value) bool {
 	return true
 }
 
-func validEncodingBinaryType(pass *analysis.Pass, typ types.Type) bool {
+func validEncodingBinaryType(pass *analysis.Pass, node code.Positioner, typ types.Type) bool {
 	typ = typ.Underlying()
 	switch typ := typ.(type) {
 	case *types.Basic:
@@ -173,19 +173,19 @@ func validEncodingBinaryType(pass *analysis.Pass, typ types.Type) bool {
 			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
 			return true
 		case types.Bool:
-			return code.IsGoVersion(pass, 8)
+			return code.StdlibVersion(pass, node) >= 8
 		}
 		return false
 	case *types.Struct:
 		n := typ.NumFields()
 		for i := 0; i < n; i++ {
-			if !validEncodingBinaryType(pass, typ.Field(i).Type()) {
+			if !validEncodingBinaryType(pass, node, typ.Field(i).Type()) {
 				return false
 			}
 		}
 		return true
 	case *types.Array:
-		return validEncodingBinaryType(pass, typ.Elem())
+		return validEncodingBinaryType(pass, node, typ.Elem())
 	case *types.Interface:
 		// we can't determine if it's a valid type or not
 		return true
@@ -193,7 +193,7 @@ func validEncodingBinaryType(pass *analysis.Pass, typ types.Type) bool {
 	return false
 }
 
-func CanBinaryMarshal(pass *analysis.Pass, v Value) bool {
+func CanBinaryMarshal(pass *analysis.Pass, node code.Positioner, v Value) bool {
 	typ := v.Value.Type().Underlying()
 	if ttyp, ok := typ.(*types.Pointer); ok {
 		typ = ttyp.Elem().Underlying()
@@ -206,7 +206,7 @@ func CanBinaryMarshal(pass *analysis.Pass, v Value) bool {
 		}
 	}
 
-	return validEncodingBinaryType(pass, typ)
+	return validEncodingBinaryType(pass, node, typ)
 }
 
 func RepeatZeroTimes(name string, arg int) CallCheck {

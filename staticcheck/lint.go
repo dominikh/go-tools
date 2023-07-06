@@ -139,7 +139,7 @@ var (
 	checkEncodingBinaryRules = map[string]CallCheck{
 		"encoding/binary.Write": func(call *Call) {
 			arg := call.Args[knowledge.Arg("encoding/binary.Write.data")]
-			if !CanBinaryMarshal(call.Pass, arg.Value) {
+			if !CanBinaryMarshal(call.Pass, call.Parent, arg.Value) {
 				arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 			}
 		},
@@ -1175,12 +1175,6 @@ func CheckDubiousDeferInChannelRangeLoop(pass *analysis.Pass) (interface{}, erro
 }
 
 func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
-	if code.IsGoVersion(pass, 15) {
-		// Beginning with Go 1.15, the test framework will call
-		// os.Exit for us.
-		return nil, nil
-	}
-
 	var (
 		fnmain    ast.Node
 		callsExit bool
@@ -1207,6 +1201,11 @@ func CheckTestMainExit(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 			if !isTestMain(pass, node) {
+				return false
+			}
+			if code.StdlibVersion(pass, node) >= 15 {
+				// Beginning with Go 1.15, the test framework will call
+				// os.Exit for us.
 				return false
 			}
 			fnmain = node
@@ -3126,7 +3125,7 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 			// warnings.
 			//
 			// See also https://staticcheck.dev/issues/1318.
-			if !code.IsGoVersion(pass, std.DeprecatedSince) {
+			if code.StdlibVersion(pass, node) < std.DeprecatedSince {
 				return
 			}
 		}

@@ -890,18 +890,18 @@ var (
 )
 
 func CheckTimeUntil(pass *analysis.Pass) (interface{}, error) {
-	if !code.IsGoVersion(pass, 8) {
-		return nil, nil
-	}
 	fn := func(node ast.Node) {
 		if _, ok := code.Match(pass, checkTimeUntilQ, node); ok {
 			if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
 				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]interface{}{"arg": sel.X}).(ast.Node)
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 					report.FilterGenerated(),
+					report.MinimumStdlibVersion(8),
 					report.Fixes(edit.Fix("replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
 			} else {
-				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())", report.FilterGenerated())
+				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
+					report.MinimumStdlibVersion(8),
+					report.FilterGenerated())
 			}
 		}
 	}
@@ -944,6 +944,7 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		if rs.Value == nil && astutil.IsBlank(rs.Key) {
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
+				report.MinimumLanguageVersion(4),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
@@ -952,6 +953,7 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 			// FIXME we should mark both key and value
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
+				report.MinimumLanguageVersion(4),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
@@ -959,14 +961,13 @@ func CheckUnnecessaryBlank(pass *analysis.Pass) (interface{}, error) {
 		if !astutil.IsBlank(rs.Key) && astutil.IsBlank(rs.Value) {
 			report.Report(pass, rs.Value, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
+				report.MinimumLanguageVersion(4),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()}))))
 		}
 	}
 
 	code.Preorder(pass, fn1, (*ast.AssignStmt)(nil))
-	if code.IsGoVersion(pass, 4) {
-		code.Preorder(pass, fn3, (*ast.RangeStmt)(nil))
-	}
+	code.Preorder(pass, fn3, (*ast.RangeStmt)(nil))
 	return nil, nil
 }
 
@@ -1067,7 +1068,7 @@ func CheckSimplerStructConversion(pass *analysis.Pass) (interface{}, error) {
 		if typ1 == typ2 {
 			return
 		}
-		if code.IsGoVersion(pass, 8) {
+		if code.LanguageVersion(pass, node) >= 8 {
 			if !types.IdenticalIgnoreTags(s1, s2) {
 				return
 			}
