@@ -546,7 +546,7 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 		cond := m1.State["cond"].(ast.Expr)
 		origCond := cond
 		if ret1.Name == "false" {
-			cond = negate(cond)
+			cond = negate(pass, cond)
 		}
 		report.Report(pass, n1,
 			fmt.Sprintf("should use 'return %s' instead of 'if %s { return %s }; return %s'",
@@ -558,7 +558,7 @@ func CheckIfReturn(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func negate(expr ast.Expr) ast.Expr {
+func negate(pass *analysis.Pass, expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.BinaryExpr:
 		out := *expr
@@ -568,7 +568,14 @@ func negate(expr ast.Expr) ast.Expr {
 		case token.LSS:
 			out.Op = token.GEQ
 		case token.GTR:
-			out.Op = token.LEQ
+			// Some builtins never return negative ints; "len(x) <= 0" should be "len(x) == 0".
+			if call, ok := expr.X.(*ast.CallExpr); ok &&
+				code.IsCallToAny(pass, call, "len", "cap", "copy") &&
+				code.IsIntegerLiteral(pass, expr.Y, constant.MakeInt64(0)) {
+				out.Op = token.EQL
+			} else {
+				out.Op = token.LEQ
+			}
 		case token.NEQ:
 			out.Op = token.EQL
 		case token.LEQ:

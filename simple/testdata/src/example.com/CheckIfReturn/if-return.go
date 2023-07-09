@@ -153,3 +153,10 @@ func fn21(x bool) bool {
 	}
 	return false
 }
+
+func fn22(x string) bool {
+	if len(x) > 0 { //@ diag(`should use 'return len(x) == 0'`)
+		return false
+	}
+	return true
+}
