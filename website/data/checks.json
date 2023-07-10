@@ -988,6 +988,19 @@
 			"Severity": 1,
 			"MergeIf": 0
 		},
+		"SA1031": {
+			"Title": "Overlapping byte slices passed to an encoder",
+			"Text": "In an encoding function of the form Encode(dst, src), dst and src were found to reference the same memory",
+			"TitleMarkdown": "Overlapping byte slices passed to an encoder",
+			"TextMarkdown": "In an encoding function of the form Encode(dst, src), dst and src were found to reference the same memory",
+			"Before": "",
+			"After": "",
+			"Since": "2023.2",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 1,
+			"MergeIf": 0
+		},
 		"SA2000": {
 			"Title": "sync.WaitGroup.Add called inside the goroutine, leading to a race condition",
 			"Text": "",
@@ -2116,7 +2129,8 @@
 			"SA1027",
 			"SA1028",
 			"SA1029",
-			"SA1030"
+			"SA1030",
+			"SA1031"
 		],
 		"SA2": [
 			"SA2000",

@@ -117,6 +117,51 @@ func checkValidHostPort(arg int) CallCheck {
 	}
 }
 
+func checkNonOverlappingDstSrc(dstArg, srcArg int) CallCheck {
+	return func(call *Call) {
+		dst := call.Args[dstArg]
+		src := call.Args[srcArg]
+		if dst.Value == src.Value {
+			// simple case of f(b, b)
+			// add exception for f(nil, nil)
+			_, dstConst := dst.Value.Value.(*ir.Const)
+			_, srcConst := src.Value.Value.(*ir.Const)
+			if dstConst && srcConst {
+				return
+			}
+			dst.Invalid("overlapping dst and src")
+			return
+		}
+		switch dstSlice := irutil.Flatten(dst.Value.Value).(type) {
+		case *ir.Const:
+			// probably an error but not in the purview of this check (`Encode(nil, x)`)
+			return
+		case *ir.Phi:
+			// TODO(echlebek): add support for phi and sigma nodes
+			return
+		case *ir.Slice:
+			switch srcSlice := irutil.Flatten(src.Value.Value).(type) {
+			case *ir.Const:
+				// the source is nil, and therefore doesn't overlap with dst
+				return
+			case *ir.Phi:
+				// TODO(echlebek: add support for phi and sigma nodes
+				return
+			case *ir.Slice:
+				if dstSlice.X != srcSlice.X {
+					// differing underlying arrays, all is well
+					return
+				}
+				if dstSlice.Low == srcSlice.Low {
+					// dst and src are the same slice, and have the same lower bound
+					dst.Invalid("overlapping dst and src")
+					return
+				}
+			}
+		}
+	}
+}
+
 var (
 	checkRegexpRules = map[string]CallCheck{
 		"regexp.MustCompile": validRegexp,
@@ -143,6 +188,13 @@ var (
 				arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 			}
 		},
+	}
+
+	checkEncodeRules = map[string]CallCheck{
+		"encoding/ascii85.Encode":            checkNonOverlappingDstSrc(knowledge.Arg("encoding/ascii85.Encode.dst"), knowledge.Arg("encoding/ascii85.Encode.src")),
+		"(*encoding/base32.Encoding).Encode": checkNonOverlappingDstSrc(knowledge.Arg("(*encoding/base32.Encoding).Encode.dst"), knowledge.Arg("(*encoding/base32.Encoding).Encode.src")),
+		"(*encoding/base64.Encoding).Encode": checkNonOverlappingDstSrc(knowledge.Arg("(*encoding/base64.Encoding).Encode.dst"), knowledge.Arg("(*encoding/base64.Encoding).Encode.src")),
+		"encoding/hex.Encode":                checkNonOverlappingDstSrc(knowledge.Arg("encoding/hex.Encode.dst"), knowledge.Arg("encoding/hex.Encode.src")),
 	}
 
 	checkURLsRules = map[string]CallCheck{

@@ -332,6 +332,14 @@ the various parsing and formatting functions in \'strconv\'.`,
 		MergeIf:  lint.MergeIfAny,
 	},
 
+	"SA1031": {
+		Title:    `Overlapping byte slices passed to an encoder`,
+		Text:     `In an encoding function of the form Encode(dst, src), dst and src were found to reference the same memory`,
+		Since:    "2023.2",
+		Severity: lint.SeverityError,
+		MergeIf:  lint.MergeIfAny,
+	},
+
 	"SA2000": {
 		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
 		Since:    "2017.1",
