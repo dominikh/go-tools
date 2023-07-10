@@ -88,6 +88,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA1028": makeCallCheckerAnalyzer(checkSortSliceRules),
 	"SA1029": makeCallCheckerAnalyzer(checkWithValueKeyRules),
 	"SA1030": makeCallCheckerAnalyzer(checkStrconvRules),
+	"SA1031": makeCallCheckerAnalyzer(checkEncodeRules),
 
 	"SA2000": {
 		Run:      CheckWaitgroupAdd,

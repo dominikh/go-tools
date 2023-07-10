@@ -118,6 +118,41 @@ func checkValidHostPort(arg int) CallCheck {
 	}
 }
 
+func checkNonOverlappingDstSrc(dstArg, srcArg int) CallCheck {
+	return func(call *Call) {
+		dst := call.Args[dstArg]
+		src := call.Args[srcArg]
+		_, dstConst := irutil.Flatten(dst.Value.Value).(*ir.Const)
+		_, srcConst := irutil.Flatten(src.Value.Value).(*ir.Const)
+		if dstConst || srcConst {
+			// one of the arguments is nil, therefore overlap is not possible
+			return
+		}
+		if dst.Value == src.Value {
+			// simple case of f(b, b)
+			dst.Invalid("overlapping dst and src")
+			return
+		}
+		dstSlice, ok := irutil.Flatten(dst.Value.Value).(*ir.Slice)
+		if !ok {
+			return
+		}
+		srcSlice, ok := irutil.Flatten(src.Value.Value).(*ir.Slice)
+		if !ok {
+			return
+		}
+		if irutil.Flatten(dstSlice.X) != irutil.Flatten(srcSlice.X) {
+			// differing underlying arrays, all is well
+			return
+		}
+		if irutil.Flatten(dstSlice.Low) == irutil.Flatten(srcSlice.Low) {
+			// dst and src are the same slice, and have the same lower bound
+			dst.Invalid("overlapping dst and src")
+			return
+		}
+	}
+}
+
 var (
 	checkRegexpRules = map[string]CallCheck{
 		"regexp.MustCompile": validRegexp,
@@ -144,6 +179,13 @@ var (
 				arg.Invalid(fmt.Sprintf("value of type %s cannot be used with binary.Write", arg.Value.Value.Type()))
 			}
 		},
+	}
+
+	checkEncodeRules = map[string]CallCheck{
+		"encoding/ascii85.Encode":            checkNonOverlappingDstSrc(knowledge.Arg("encoding/ascii85.Encode.dst"), knowledge.Arg("encoding/ascii85.Encode.src")),
+		"(*encoding/base32.Encoding).Encode": checkNonOverlappingDstSrc(knowledge.Arg("(*encoding/base32.Encoding).Encode.dst"), knowledge.Arg("(*encoding/base32.Encoding).Encode.src")),
+		"(*encoding/base64.Encoding).Encode": checkNonOverlappingDstSrc(knowledge.Arg("(*encoding/base64.Encoding).Encode.dst"), knowledge.Arg("(*encoding/base64.Encoding).Encode.src")),
+		"encoding/hex.Encode":                checkNonOverlappingDstSrc(knowledge.Arg("encoding/hex.Encode.dst"), knowledge.Arg("encoding/hex.Encode.src")),
 	}
 
 	checkURLsRules = map[string]CallCheck{
