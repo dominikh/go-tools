@@ -1,7 +1,6 @@
 package quickfix
 
 import (
-	"honnef.co/go/tools/analysis/facts/tokenfile"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/internal/sharedcheck"
 
@@ -40,7 +39,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"QF1008": {
 		Run:      CheckExplicitEmbeddedSelector,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	"QF1009": {
 		Run:      CheckTimeEquality,

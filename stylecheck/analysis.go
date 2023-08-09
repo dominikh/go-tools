@@ -2,7 +2,6 @@ package stylecheck
 
 import (
 	"honnef.co/go/tools/analysis/facts/generated"
-	"honnef.co/go/tools/analysis/facts/tokenfile"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/internal/passes/buildir"
@@ -44,13 +43,12 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run: CheckErrorVarNames,
 	},
 	"ST1013": {
-		Run: CheckHTTPStatusCodes,
-		// TODO(dh): why does this depend on tokenfile.TokenFile?
-		Requires: []*analysis.Analyzer{generated.Analyzer, tokenfile.Analyzer, config.Analyzer, inspect.Analyzer},
+		Run:      CheckHTTPStatusCodes,
+		Requires: []*analysis.Analyzer{generated.Analyzer, config.Analyzer, inspect.Analyzer},
 	},
 	"ST1015": {
 		Run:      CheckDefaultCaseOrder,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	"ST1016": {
 		Run:      CheckReceiverNamesIdentical,
@@ -58,7 +56,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"ST1017": {
 		Run:      CheckYodaConditions,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	"ST1018": {
 		Run:      CheckInvisibleCharacters,

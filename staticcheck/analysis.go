@@ -5,7 +5,6 @@ import (
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/facts/nilness"
 	"honnef.co/go/tools/analysis/facts/purity"
-	"honnef.co/go/tools/analysis/facts/tokenfile"
 	"honnef.co/go/tools/analysis/facts/typedness"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/internal/passes/buildir"
@@ -15,7 +14,7 @@ import (
 )
 
 func makeCallCheckerAnalyzer(rules map[string]CallCheck, extraReqs ...*analysis.Analyzer) *analysis.Analyzer {
-	reqs := []*analysis.Analyzer{buildir.Analyzer, tokenfile.Analyzer}
+	reqs := []*analysis.Analyzer{buildir.Analyzer}
 	reqs = append(reqs, extraReqs...)
 	return &analysis.Analyzer{
 		Run:      callChecker(rules),
@@ -118,7 +117,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 
 	"SA4000": {
 		Run:      CheckLhsRhsIdentical,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, tokenfile.Analyzer, generated.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	"SA4001": {
 		Run:      CheckIneffectiveCopy,
@@ -171,7 +170,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA4015": makeCallCheckerAnalyzer(checkMathIntRules),
 	"SA4016": {
 		Run:      CheckSillyBitwiseOps,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	"SA4017": {
 		Run:      CheckSideEffectFreeCalls,
@@ -179,7 +178,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"SA4018": {
 		Run:      CheckSelfAssignment,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, tokenfile.Analyzer, purity.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, purity.Analyzer},
 	},
 	"SA4019": {
 		Run:      CheckDuplicateBuildConstraints,
@@ -191,7 +190,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"SA4021": {
 		Run:      CheckSingleArgAppend,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	"SA4022": {
 		Run:      CheckAddressIsNil,
@@ -231,7 +230,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"SA4031": {
 		Run:      CheckAllocationNilCheck,
-		Requires: []*analysis.Analyzer{buildir.Analyzer, inspect.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, inspect.Analyzer},
 	},
 
 	"SA5000": {
@@ -269,7 +268,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA5009": makeCallCheckerAnalyzer(checkPrintfRules),
 	"SA5010": {
 		Run:      CheckImpossibleTypeAssertion,
-		Requires: []*analysis.Analyzer{buildir.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	"SA5011": {
 		Run:      CheckMaybeNil,
@@ -311,7 +310,7 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	},
 	"SA9003": {
 		Run:      CheckEmptyBranch,
-		Requires: []*analysis.Analyzer{buildir.Analyzer, tokenfile.Analyzer, generated.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, generated.Analyzer},
 	},
 	"SA9004": {
 		Run:      CheckMissingEnumTypesInDeclaration,
@@ -330,6 +329,6 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 
 	"SA9008": {
 		Run:      CheckTypeAssertionShadowingElse,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, buildir.Analyzer, tokenfile.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, buildir.Analyzer},
 	},
 })

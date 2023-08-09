@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
+	"honnef.co/go/tools/analysis/facts/tokenfile"
 )
 
 // Analyzer wraps a go/analysis.Analyzer and provides structured documentation.
@@ -31,6 +32,7 @@ func (a *Analyzer) initialize() {
 		fs.Var(newVersionFlag(), "go", "Target Go version")
 		a.Analyzer.Flags = *fs
 	}
+	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 }
 
 // InitializeAnalyzers takes a map of documentation and a map of go/analysis.Analyzers and returns a slice of Analyzers.
