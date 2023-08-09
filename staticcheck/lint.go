@@ -3093,13 +3093,6 @@ func CheckDeprecated(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	handleDeprecation := func(depr *deprecated.IsDeprecated, node ast.Node, deprecatedObjName string, pkgPath string, tfn types.Object) {
-		// Note: gopls doesn't correctly run analyzers on
-		// dependencies, so we'll never be able to find deprecated
-		// objects in imported code. We've experimented with
-		// lifting the stdlib handling out of the general check,
-		// to at least work for deprecated objects in the stdlib,
-		// but we gave up on that, because we wouldn't have access
-		// to the deprecation message.
 		std, ok := knowledge.StdlibDeprecations[deprecatedObjName]
 		if !ok && isStdlibPath(pkgPath) {
 			// Deprecated object in the standard library, but we don't know the details of the deprecation.
