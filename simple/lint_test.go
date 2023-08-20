@@ -11,7 +11,11 @@ func TestAll(t *testing.T) {
 		"S1000": {{Dir: "example.com/CheckSingleCaseSelect"}},
 		"S1001": {{Dir: "example.com/CheckLoopCopy"}},
 		"S1002": {{Dir: "example.com/CheckIfBoolCmp"}},
-		"S1003": {{Dir: "example.com/CheckStringsContains"}},
+		"S1003": {
+			{Dir: "example.com/CheckStringsContains"},
+			{Dir: "example.com/CheckStringsContains_go120", Version: "1.20"},
+			{Dir: "example.com/CheckStringsContains_go121", Version: "1.21"},
+		},
 		"S1004": {{Dir: "example.com/CheckBytesCompare"}},
 		"S1005": {
 			{Dir: "example.com/CheckUnnecessaryBlank"},
