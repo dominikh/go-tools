@@ -42,6 +42,13 @@ type T18 struct {
 	Actual int
 }
 
+type t19 string
+type T20 string
+
+type T21 struct{ t19 }
+type T22 struct{ T20 }
+type T23 struct{ *T20 }
+
 func fn() {
 	// don't flag structs with no fields
 	json.Marshal(T1{})
@@ -79,7 +86,14 @@ func fn() {
 	json.Marshal(T17{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T17' doesn't have any exported fields, nor custom marshaling`)
 	json.Marshal(T18{})
 
-	// MarshalJSON does not apply to JSON
+	// embedding an unexported, non-struct type
+	json.Marshal(T21{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T21' doesn't have any exported fields, nor custom marshaling`)
+	// embedding an exported, non-struct type
+	json.Marshal(T22{})
+	// embedding an exported, non-struct type
+	json.Marshal(T23{})
+
+	// MarshalJSON does not apply to XML
 	xml.Marshal(T7{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
 	// MarshalXML
 	xml.Marshal(T8{})
