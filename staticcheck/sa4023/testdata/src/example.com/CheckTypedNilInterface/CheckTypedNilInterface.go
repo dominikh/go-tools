@@ -206,7 +206,7 @@ func test() {
 	_ = gen22() == nil //@ diag(`never true`)
 
 	var v1 interface{} = 0
-	_ = v1 == nil //@ diag(`never true; the lhs`)
+	_ = v1 == nil //@ diag(`never true`)
 
 	_ = any((*int)(nil)) == nil //@ diag(`never true`)
 	_ = any((error)(nil)) == nil

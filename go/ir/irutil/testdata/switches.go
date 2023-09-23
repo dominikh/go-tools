@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -17,17 +18,17 @@ func four() int { return 4 }
 // A non-constant case makes a switch "impure", but its pure
 // cases form two separate switches.
 func SwitchWithNonConstantCase(x int) {
-	// switch t8 {
-	// case t1: Call <()> print t1
-	// case t2: Call <()> print t4
-	// case t3: Call <()> print t4
-	// default: BinOp <bool> {==} t26 t27
+	// switch t12 {
+	// case t1: Call <()> print t2
+	// case t3: Call <()> print t5
+	// case t4: Call <()> print t5
+	// default: BinOp <bool> {==} t30 t31
 	// }
 
-	// switch t32 {
-	// case t5: Call <()> print t5
-	// case t6: Call <()> print t6
-	// default: Call <()> print t7
+	// switch t36 {
+	// case t7: Call <()> print t8
+	// case t9: Call <()> print t10
+	// default: Call <()> print t11
 	// }
 	switch x {
 	case 1:
@@ -48,19 +49,19 @@ func SwitchWithNonConstantCase(x int) {
 // program doesn't have a switch statement.
 
 func ImplicitSwitches(x, y int) {
-	// switch t12 {
+	// switch t13 {
 	// case t1: Call <()> print t4
 	// case t2: Call <()> print t4
-	// default: BinOp <bool> {<} t27 t3
+	// default: BinOp <bool> {<} t28 t3
 	// }
 	if x == 1 || 2 == x || x < 5 {
 		print(12)
 	}
 
-	// switch t24 {
+	// switch t25 {
 	// case t5: Call <()> print t7
 	// case t6: Call <()> print t7
-	// default: BinOp <bool> {==} t49 t50
+	// default: BinOp <bool> {==} t50 t51
 	// }
 	if x == 3 || 4 == x || x == y {
 		print(34)
@@ -78,10 +79,10 @@ func ImplicitSwitches(x, y int) {
 }
 
 func IfElseBasedSwitch(x int) {
-	// switch t4 {
-	// case t1: Call <()> print t1
-	// case t2: Call <()> print t2
-	// default: Call <()> print t3
+	// switch t6 {
+	// case t1: Call <()> print t2
+	// case t3: Call <()> print t4
+	// default: Call <()> print t5
 	// }
 	if x == 1 {
 		print(1)
@@ -93,9 +94,9 @@ func IfElseBasedSwitch(x int) {
 }
 
 func GotoBasedSwitch(x int) {
-	// switch t4 {
-	// case t1: Call <()> print t1
-	// case t2: Call <()> print t2
+	// switch t6 {
+	// case t1: Call <()> print t4
+	// case t2: Call <()> print t5
 	// default: Call <()> print t3
 	// }
 	if x == 1 {
@@ -114,10 +115,10 @@ end:
 }
 
 func SwitchInAForLoop(x, y int) {
-	// switch t11 {
-	// case t2: Call <()> print t2
-	// case t3: Call <()> print t3
-	// default: BinOp <bool> {==} t29 t28
+	// switch t13 {
+	// case t2: Call <()> print t3
+	// case t4: Call <()> print t5
+	// default: BinOp <bool> {==} t31 t30
 	// }
 loop:
 	for {
@@ -140,10 +141,10 @@ loop:
 // As before, the default case points back to the block containing the
 // switch, but that's ok.
 func SwitchInAForLoopUsingGoto(x int) {
-	// switch t8 {
-	// case t2: Call <()> print t2
-	// case t3: Call <()> print t3
-	// default: BinOp <bool> {==} t8 t2
+	// switch t10 {
+	// case t2: Call <()> print t4
+	// case t3: Call <()> print t5
+	// default: BinOp <bool> {==} t10 t2
 	// }
 loop:
 	print("head")
@@ -163,10 +164,10 @@ end:
 }
 
 func UnstructuredSwitchInAForLoop(x int) {
-	// switch t8 {
-	// case t1: Call <()> print t1
-	// case t2: BinOp <bool> {==} t8 t1
-	// default: Call <()> print t3
+	// switch t9 {
+	// case t1: Call <()> print t2
+	// case t3: BinOp <bool> {==} t9 t1
+	// default: Call <()> print t4
 	// }
 	for {
 		if x == 1 {
@@ -199,10 +200,10 @@ func CaseWithMultiplePreds(x int) {
 }
 
 func DuplicateConstantsAreNotEliminated(x int) {
-	// switch t4 {
-	// case t1: Call <()> print t1
+	// switch t7 {
 	// case t1: Call <()> print t2
-	// case t3: Call <()> print t3
+	// case t3: Call <()> print t4
+	// case t5: Call <()> print t6
 	// default: Return
 	// }
 	if x == 1 {
@@ -225,10 +226,10 @@ func MakeInterfaceIsNotAConstant(x interface{}) {
 }
 
 func ZeroInitializedVarsAreConstants(x int) {
-	// switch t5 {
-	// case t4: Call <()> print t1
-	// case t2: Call <()> print t2
-	// default: Call <()> print t3
+	// switch t6 {
+	// case t5: Call <()> print t1
+	// case t2: Call <()> print t3
+	// default: Call <()> print t4
 	// }
 	var zero int // SSA construction replaces zero with 0
 	if x == zero {

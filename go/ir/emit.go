@@ -224,7 +224,7 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 
 		// Untyped nil constant?  Return interface-typed nil constant.
 		if ut_src == tUntypedNil {
-			return emitConst(f, nilConst(t_dst))
+			return emitConst(f, nilConst(t_dst, source))
 		}
 
 		// Convert (non-nil) "untyped" literals to their default type.
@@ -247,7 +247,7 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 			// constant of the destination type and
 			// (initially) the same abstract value.
 			// We don't truncate the value yet.
-			return emitConst(f, NewConst(c.Value, t_dst))
+			return emitConst(f, NewConst(c.Value, t_dst, source))
 		}
 
 		// We're converting from constant to non-constant type,
@@ -486,12 +486,13 @@ func emitFieldSelection(f *Function, v Value, index int, wantAddr bool, id *ast.
 // zeroValue emits to f code to produce a zero value of type t,
 // and returns it.
 func zeroValue(f *Function, t types.Type, source ast.Node) Value {
-	return emitConst(f, zeroConst(t))
+	return emitConst(f, zeroConst(t, source))
 }
 
 type constKey struct {
-	typ   types.Type
-	value constant.Value
+	typ    types.Type
+	value  constant.Value
+	source ast.Node
 }
 
 func emitConst(f *Function, c Constant) Constant {
@@ -529,8 +530,9 @@ func emitConst(f *Function, c Constant) Constant {
 		panic(fmt.Sprintf("unexpected type %T", c))
 	}
 	k := constKey{
-		typ:   typ,
-		value: val,
+		typ:    typ,
+		value:  val,
+		source: c.Source(),
 	}
 	dup, ok := f.consts[k]
 	if ok {

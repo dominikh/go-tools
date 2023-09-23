@@ -1,6 +1,9 @@
 package sa1031
 
 import (
+	"go/constant"
+	"go/token"
+
 	"honnef.co/go/tools/analysis/callcheck"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/go/ir"
@@ -65,7 +68,11 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) callcheck.Check {
 			// differing underlying arrays, all is well
 			return
 		}
-		if irutil.Flatten(dstSlice.Low) == irutil.Flatten(srcSlice.Low) {
+		l1 := irutil.Flatten(dstSlice.Low)
+		l2 := irutil.Flatten(srcSlice.Low)
+		c1, ok1 := l1.(*ir.Const)
+		c2, ok2 := l2.(*ir.Const)
+		if l1 == l2 || (ok1 && ok2 && constant.Compare(c1.Value, token.EQL, c2.Value)) {
 			// dst and src are the same slice, and have the same lower bound
 			dst.Invalid("overlapping dst and src")
 			return

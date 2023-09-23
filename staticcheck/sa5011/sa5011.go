@@ -166,13 +166,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				// Restrict ourselves to actual if statements, as these are more likely to affect control flow in a way we can observe.
 				if instr, ok := instr.(*ir.If); ok {
 					if cond, ok := instr.Cond.(*ir.BinOp); ok {
-						var ptr ir.Value
 						if isNilConst(cond.X) {
-							ptr = cond.Y
-						} else if isNilConst(cond.Y) {
-							ptr = cond.X
+							maybeNil[cond.Y] = cond
 						}
-						maybeNil[ptr] = cond
+						if isNilConst(cond.Y) {
+							maybeNil[cond.X] = cond
+						}
 					}
 				}
 			}
