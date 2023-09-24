@@ -75,7 +75,7 @@ func implements(V types.Type, T *types.Interface, msV *types.MethodSet) ([]*type
 			return nil, false
 		}
 
-		if !c.satisfies(f, m) {
+		if !c.methodIsCompatible(f, m) {
 			return nil, false
 		}
 
@@ -94,7 +94,7 @@ func newMethodChecker() *methodsChecker {
 	}
 }
 
-func (c *methodsChecker) satisfies(implFunc *types.Func, interfaceFunc *types.Func) bool {
+func (c *methodsChecker) methodIsCompatible(implFunc *types.Func, interfaceFunc *types.Func) bool {
 	if types.Identical(implFunc.Type(), interfaceFunc.Type()) {
 		return true
 	}
@@ -105,28 +105,26 @@ func (c *methodsChecker) satisfies(implFunc *types.Func, interfaceFunc *types.Fu
 		return false
 	}
 
-	implParams := implSig.Params()
-	interfaceParams := interfaceSig.Params()
-	if implParams.Len() != interfaceParams.Len() {
+	if !c.typesAreCompatible(implSig.Params(), interfaceSig.Params()) {
 		return false
 	}
-	for i := 0; i < implParams.Len(); i++ {
-		if !c.typeIsCompatible(implParams.At(i).Type(), interfaceParams.At(i).Type()) {
+
+	if !c.typesAreCompatible(implSig.Results(), interfaceSig.Results()) {
+		return false
+	}
+
+	return true
+}
+
+func (c *methodsChecker) typesAreCompatible(implTypes, interfaceTypes *types.Tuple) bool {
+	if implTypes.Len() != interfaceTypes.Len() {
+		return false
+	}
+	for i := 0; i < implTypes.Len(); i++ {
+		if !c.typeIsCompatible(implTypes.At(i).Type(), interfaceTypes.At(i).Type()) {
 			return false
 		}
 	}
-
-	implRess := implSig.Results()
-	interfaceRess := interfaceSig.Results()
-	if implRess.Len() != interfaceRess.Len() {
-		return false
-	}
-	for i := 0; i < implRess.Len(); i++ {
-		if !c.typeIsCompatible(implRess.At(i).Type(), interfaceRess.At(i).Type()) {
-			return false
-		}
-	}
-
 	return true
 }
 
