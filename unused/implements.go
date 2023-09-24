@@ -101,7 +101,8 @@ func (c *methodsChecker) satisfies(implFunc *types.Func, interfaceFunc *types.Fu
 	implSig, implOk := implFunc.Type().(*types.Signature)
 	interfaceSig, interfaceOk := interfaceFunc.Type().(*types.Signature)
 	if !implOk || !interfaceOk {
-		panic("unreachable")
+		// probably not reachable. handle conservatively.
+		return false
 	}
 
 	implParams := implSig.Params()
