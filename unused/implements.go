@@ -111,49 +111,41 @@ func (c *methodsChecker) satisfies(implFunc *types.Func, interfaceFunc *types.Fu
 		return false
 	}
 	for i := 0; i < implParams.Len(); i++ {
-		implParam := implParams.At(i)
-		interfaceParam := interfaceParams.At(i)
-		if types.Identical(implParam.Type(), interfaceParam.Type()) {
-			continue
-		}
-		if tp, ok := interfaceParam.Type().(*types.TypeParam); ok {
-			if c.typeParams[tp] == nil {
-				if !satisfiesConstraint(implParam.Type(), tp) {
-					return false
-				}
-				c.typeParams[tp] = implParam.Type()
-				continue
-			}
-			if !types.Identical(c.typeParams[tp], implParam.Type()) {
-				return false
-			}
+		if !c.typeIsCompatible(implParams.At(i).Type(), interfaceParams.At(i).Type()) {
+			return false
 		}
 	}
+
 	implRess := implSig.Results()
 	interfaceRess := interfaceSig.Results()
 	if implRess.Len() != interfaceRess.Len() {
 		return false
 	}
 	for i := 0; i < implRess.Len(); i++ {
-		implRes := implRess.At(i)
-		interfaceRes := interfaceRess.At(i)
-		if types.Identical(implRes.Type(), interfaceRes.Type()) {
-			continue
-		}
-		if tp, ok := interfaceRes.Type().(*types.TypeParam); ok {
-			if c.typeParams[tp] == nil {
-				if !satisfiesConstraint(implRes.Type(), tp) {
-					return false
-				}
-				c.typeParams[tp] = implRes.Type()
-				continue
-			}
-			if !types.Identical(c.typeParams[tp], implRes.Type()) {
-				return false
-			}
+		if !c.typeIsCompatible(implRess.At(i).Type(), interfaceRess.At(i).Type()) {
+			return false
 		}
 	}
+
 	return true
+}
+
+func (c *methodsChecker) typeIsCompatible(implType, interfaceType types.Type) bool {
+	if types.Identical(implType, interfaceType) {
+		return true
+	}
+	tp, ok := interfaceType.(*types.TypeParam)
+	if !ok {
+		return false
+	}
+	if c.typeParams[tp] == nil {
+		if !satisfiesConstraint(implType, tp) {
+			return false
+		}
+		c.typeParams[tp] = implType
+		return true
+	}
+	return types.Identical(c.typeParams[tp], implType)
 }
 
 func satisfiesConstraint(t types.Type, tp *types.TypeParam) bool {
