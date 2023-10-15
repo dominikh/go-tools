@@ -805,6 +805,13 @@ or \'1\', it always generates \'0\'.`,
 		MergeIf:  lint.MergeIfAny,
 	},
 
+	"SA4032": {
+		Title:    `Comparing \'runtime.GOOS\' or \'runtime.GOARCH\' against impossible value`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
+	},
+
 	"SA5000": {
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",

@@ -232,6 +232,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 		Run:      CheckAllocationNilCheck,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, inspect.Analyzer},
 	},
+	"SA4032": {
+		Run:      CheckImpossibleGOOSGOARCH,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA5000": {
 		Run:      CheckNilMaps,

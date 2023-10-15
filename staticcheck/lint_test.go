@@ -98,6 +98,7 @@ func TestAll(t *testing.T) {
 		"SA4029": {{Dir: "example.com/CheckIneffectiveSort"}},
 		"SA4030": {{Dir: "example.com/CheckIneffectiveRandInt"}},
 		"SA4031": {{Dir: "example.com/CheckAllocationNilCheck"}},
+		"SA4032": {{Dir: "example.com/CheckGOOSComparison"}},
 		"SA5000": {{Dir: "example.com/CheckNilMaps"}},
 		"SA5001": {{Dir: "example.com/CheckEarlyDefer"}},
 		"SA5002": {{Dir: "example.com/CheckInfiniteEmptyLoop"}},

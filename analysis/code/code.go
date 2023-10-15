@@ -5,9 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
 	"go/constant"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -17,6 +19,7 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
@@ -202,7 +205,91 @@ func File(pass *analysis.Pass, node Positioner) *ast.File {
 	return m[pass.Fset.File(node.Pos())]
 }
 
-// IsGenerated reports whether pos is in a generated file, It ignores
+// BuildConstraints returns the build constraints for file f. It considers both //go:build lines as well as
+// GOOS and GOARCH in file names.
+func BuildConstraints(pass *analysis.Pass, f *ast.File) (constraint.Expr, bool) {
+	var expr constraint.Expr
+	for _, cmt := range f.Comments {
+		if len(cmt.List) == 0 {
+			continue
+		}
+		for _, el := range cmt.List {
+			if el.Pos() > f.Package {
+				break
+			}
+			if line := el.Text; strings.HasPrefix(line, "//go:build") {
+				var err error
+				expr, err = constraint.Parse(line)
+				if err != nil {
+					expr = nil
+				}
+				break
+			}
+		}
+	}
+
+	name := pass.Fset.PositionFor(f.Pos(), false).Filename
+	oexpr := constraintsFromName(name)
+	if oexpr != nil {
+		if expr == nil {
+			expr = oexpr
+		} else {
+			expr = &constraint.AndExpr{X: expr, Y: oexpr}
+		}
+	}
+
+	return expr, expr != nil
+}
+
+func constraintsFromName(name string) constraint.Expr {
+	name = filepath.Base(name)
+	name = strings.TrimSuffix(name, ".go")
+	name = strings.TrimSuffix(name, "_test")
+	var goos, goarch string
+	switch strings.Count(name, "_") {
+	case 0:
+		// No GOOS or GOARCH in the file name.
+	case 1:
+		_, c, _ := strings.Cut(name, "_")
+		if _, ok := knowledge.KnownGOOS[c]; ok {
+			goos = c
+		} else if _, ok := knowledge.KnownGOARCH[c]; ok {
+			goarch = c
+		}
+	default:
+		n := strings.LastIndex(name, "_")
+		if _, ok := knowledge.KnownGOOS[name[n+1:]]; ok {
+			// The file name is *_stuff_GOOS.go
+			goos = name[n+1:]
+		} else if _, ok := knowledge.KnownGOARCH[name[n+1:]]; ok {
+			// The file name is *_GOOS_GOARCH.go or *_stuff_GOARCH.go
+			goarch = name[n+1:]
+			_, c, _ := strings.Cut(name[:n], "_")
+			if _, ok := knowledge.KnownGOOS[c]; ok {
+				// The file name is *_GOOS_GOARCH.go
+				goos = c
+			}
+		} else {
+			// The file name could also be something like foo_windows_nonsense.go — and because nonsense
+			// isn't a known GOARCH, "windows" won't be interpreted as a GOOS, either.
+		}
+	}
+
+	var expr constraint.Expr
+	if goos != "" {
+		expr = &constraint.TagExpr{Tag: goos}
+	}
+	if goarch != "" {
+		if expr == nil {
+			expr = &constraint.TagExpr{Tag: goarch}
+		} else {
+			expr = &constraint.AndExpr{X: expr, Y: &constraint.TagExpr{Tag: goarch}}
+		}
+	}
+	return expr
+}
+
+// IsGenerated reports whether pos is in a generated file. It ignores
 // //line directives.
 func IsGenerated(pass *analysis.Pass, pos token.Pos) bool {
 	_, ok := Generator(pass, pos)
