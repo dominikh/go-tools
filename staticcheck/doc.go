@@ -1142,10 +1142,11 @@ instead.`,
 	},
 
 	"SA9003": {
-		Title:    `Empty body in an if or else branch`,
-		Since:    "2017.1",
-		Severity: lint.SeverityWarning,
-		MergeIf:  lint.MergeIfAny,
+		Title:      `Empty body in an if or else branch`,
+		Since:      "2017.1",
+		NonDefault: true,
+		Severity:   lint.SeverityWarning,
+		MergeIf:    lint.MergeIfAny,
 	},
 
 	"SA9004": {
