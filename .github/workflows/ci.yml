@@ -8,21 +8,21 @@ jobs:
       fail-fast: false
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-        go: ["1.19.x"]
+        go: ["1.20.x", "1.21.x"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v1
       with:
         fetch-depth: 1
-    - uses: WillAbides/setup-go-faster@v1.7.0
+    - uses: WillAbides/setup-go-faster@v1.12.0
       with:
         go-version: ${{ matrix.go }}
     - run: "go test ./..."
     - run: "go vet ./..."
-    - uses: dominikh/staticcheck-action@9f77055cca7bfaafb836cbd6720865187f5fbf51
+    - uses: dominikh/staticcheck-action@v1.3.0
       with:
-        version: "3d6c86f0908ab82d6ff280219e2968ee65f83b2e"
-        min-go-version: "1.17"
+        version: "2023.1.6"
+        min-go-version: "module"
         install-go: false
         cache-key: ${{ matrix.go }}
         output-format: binary
@@ -38,19 +38,19 @@ jobs:
     needs: ci
     runs-on: "ubuntu-latest"
     steps:
-    - uses: WillAbides/setup-go-faster@v1.7.0
+    - uses: WillAbides/setup-go-faster@v1.12.0
       with:
-        go-version: "1.19.x"
+        go-version: "1.20.x"
     # this downloads all artifacts of the current workflow into the current working directory, creating one directory per artifact
     - uses: actions/download-artifact@v3
     - id: glob
       run: |
-        # We replace newliens with %0A, which GitHub apparently magically turns back into newlines
+        # We replace newlines with %0A, which GitHub apparently magically turns back into newlines
         out=$(ls -1 ./staticcheck-*.bin/*.bin)
         echo "::set-output name=files::${out//$'\n'/%0A}"
-    - uses: dominikh/staticcheck-action@9f77055cca7bfaafb836cbd6720865187f5fbf51
+    - uses: dominikh/staticcheck-action@v1.3.0
       with:
-        version: "3d6c86f0908ab82d6ff280219e2968ee65f83b2e"
-        min-go-version: "1.19"
+        version: "2023.1.6"
+        min-go-version: "module"
         install-go: false
         merge-files: ${{ steps.glob.outputs.files }}
