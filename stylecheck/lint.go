@@ -732,7 +732,7 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 			if unicode.Is(unicode.Cf, r) {
 				// Don't flag joined emojis. These are multiple emojis joined with ZWJ, which some platform render as single composite emojis.
 				// For the purpose of this check, we consider all symbols, including all symbol modifiers, emoji.
-				if r != zwj || (r == zwj && !unicode.Is(unicode.S, prev)) {
+				if r != zwj || (prev != '\ufe0f' && !unicode.Is(unicode.S, prev)) {
 					invalids = append(invalids, invalid{r, off})
 					hasFormat = true
 				}
