@@ -132,26 +132,22 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) CallCheck {
 			dst.Invalid("overlapping dst and src")
 			return
 		}
-		switch dstSlice := irutil.Flatten(dst.Value.Value).(type) {
-		case *ir.Phi:
-			// TODO(echlebek): add support for phi and sigma nodes
+		dstSlice, ok := irutil.Flatten(dst.Value.Value).(*ir.Slice)
+		if !ok {
+			panic("unhandled ir type for dst")
+		}
+		srcSlice, ok := irutil.Flatten(src.Value.Value).(*ir.Slice)
+		if !ok {
+			panic("unhandled ir type for src")
+		}
+		if irutil.Flatten(dstSlice.X) != irutil.Flatten(srcSlice.X) {
+			// differing underlying arrays, all is well
 			return
-		case *ir.Slice:
-			switch srcSlice := irutil.Flatten(src.Value.Value).(type) {
-			case *ir.Phi:
-				// TODO(echlebek: add support for phi and sigma nodes
-				return
-			case *ir.Slice:
-				if dstSlice.X != srcSlice.X {
-					// differing underlying arrays, all is well
-					return
-				}
-				if dstSlice.Low == srcSlice.Low {
-					// dst and src are the same slice, and have the same lower bound
-					dst.Invalid("overlapping dst and src")
-					return
-				}
-			}
+		}
+		if irutil.Flatten(dstSlice.Low) == irutil.Flatten(srcSlice.Low) {
+			// dst and src are the same slice, and have the same lower bound
+			dst.Invalid("overlapping dst and src")
+			return
 		}
 	}
 }
