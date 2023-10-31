@@ -226,7 +226,9 @@ func impl(pass *analysis.Pass, fn *ir.Function, seenFns map[*ir.Function]struct{
 				return onlyGlobal
 			}
 			return nilly
-		case *ir.AggregateConst:
+		case *ir.AggregateConst, *ir.ArrayConst:
+			// According to https://go.dev/ref/spec#Composite_literals
+			// the LiteralType's core type T must be a struct, array, slice, or map type.
 			return neverNil
 		case *ir.TypeAssert, *ir.ChangeInterface, *ir.Field, *ir.Const, *ir.GenericConst, *ir.Index, *ir.MapLookup, *ir.Parameter, *ir.Recv, *ir.TypeSwitch:
 			return nilly

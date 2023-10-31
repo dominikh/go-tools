@@ -2,7 +2,7 @@
 
 package pkg
 
-func tpgen1[T *int,]() T {
+func tpgen1[T *int]() T {
 	return (T)(nil)
 }
 
@@ -31,6 +31,22 @@ func tpgen4[T ~*int](x T) any {
 	return any(x)
 }
 
+func tpgen5[T struct{}]() T {
+	return T{} // *ir.AggregateConst
+}
+
+func tpgen6[T [3]int]() T {
+	return T{} // *ir.ArrayConst
+}
+
+func tpgen7[T []int]() T {
+	return T{} // *ir.Slice + *ir.Alloc
+}
+
+func tpgen8[T map[int]int]() T {
+	return T{} // *ir.MakeMap
+}
+
 func tptest() {
 	_ = tpgen1() == nil
 
@@ -40,4 +56,6 @@ func tptest() {
 	_ = tpgen3[*int](nil) == nil
 
 	_ = tpgen4[*int](nil) == nil //@ diag(`never true`)
+
+	_, _, _, _ = tpgen5(), tpgen6(), tpgen7(), tpgen8()
 }
