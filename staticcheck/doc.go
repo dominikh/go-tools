@@ -335,7 +335,7 @@ the various parsing and formatting functions in \'strconv\'.`,
 	"SA1031": {
 		Title:    `Overlapping byte slices passed to an encoder`,
 		Text:     `In an encoding function of the form Encode(dst, src), dst and src were found to reference the same memory`,
-		Since:    "2023.2",
+		Since:    "Unreleased",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,
 	},
