@@ -121,8 +121,8 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) CallCheck {
 	return func(call *Call) {
 		dst := call.Args[dstArg]
 		src := call.Args[srcArg]
-		_, dstConst := dst.Value.Value.(*ir.Const)
-		_, srcConst := src.Value.Value.(*ir.Const)
+		_, dstConst := irutil.Flatten(dst.Value.Value).(*ir.Const)
+		_, srcConst := irutil.Flatten(src.Value.Value).(*ir.Const)
 		if dstConst || srcConst {
 			// one of the arguments is nil, therefore overlap is not possible
 			return
