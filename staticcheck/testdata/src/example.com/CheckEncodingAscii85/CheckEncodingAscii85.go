@@ -25,3 +25,22 @@ func fn() {
 		log.Println(ascii85.Encode(sliceD, sliceE)) //@ diag(`overlapping dst and src`)
 	}
 }
+
+func fooSigmaA(a *[4]byte) {
+	low := 2
+	x := a[low:]
+
+	if true {
+		y := a[low:]
+		log.Println(ascii85.Encode(x, y)) //@ diag(`overlapping dst and src`)
+	}
+}
+
+func fooSigmaB(a *[4]byte) {
+	x := a[:]
+
+	if true {
+		y := a[:]
+		log.Println(ascii85.Encode(x, y)) //@ diag(`overlapping dst and src`)
+	}
+}

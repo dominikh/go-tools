@@ -25,3 +25,24 @@ func fn() {
 		encoding.Encode(sliceD, sliceE) //@ diag(`overlapping dst and src`)
 	}
 }
+
+func fooSigmaA(a *[4]byte) {
+	encoding := base64.StdEncoding
+	low := 2
+	x := a[low:]
+
+	if true {
+		y := a[low:]
+		encoding.Encode(x, y) //@ diag(`overlapping dst and src`)
+	}
+}
+
+func fooSigmaB(a *[4]byte) {
+	encoding := base64.StdEncoding
+	x := a[:]
+
+	if true {
+		y := a[:]
+		encoding.Encode(x, y) //@ diag(`overlapping dst and src`)
+	}
+}
