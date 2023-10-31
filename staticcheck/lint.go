@@ -121,29 +121,23 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) CallCheck {
 	return func(call *Call) {
 		dst := call.Args[dstArg]
 		src := call.Args[srcArg]
+		_, dstConst := dst.Value.Value.(*ir.Const)
+		_, srcConst := src.Value.Value.(*ir.Const)
+		if dstConst || srcConst {
+			// one of the arguments is nil, therefore overlap is not possible
+			return
+		}
 		if dst.Value == src.Value {
 			// simple case of f(b, b)
-			// add exception for f(nil, nil)
-			_, dstConst := dst.Value.Value.(*ir.Const)
-			_, srcConst := src.Value.Value.(*ir.Const)
-			if dstConst && srcConst {
-				return
-			}
 			dst.Invalid("overlapping dst and src")
 			return
 		}
 		switch dstSlice := irutil.Flatten(dst.Value.Value).(type) {
-		case *ir.Const:
-			// probably an error but not in the purview of this check (`Encode(nil, x)`)
-			return
 		case *ir.Phi:
 			// TODO(echlebek): add support for phi and sigma nodes
 			return
 		case *ir.Slice:
 			switch srcSlice := irutil.Flatten(src.Value.Value).(type) {
-			case *ir.Const:
-				// the source is nil, and therefore doesn't overlap with dst
-				return
 			case *ir.Phi:
 				// TODO(echlebek: add support for phi and sigma nodes
 				return
