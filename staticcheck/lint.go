@@ -134,11 +134,11 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) CallCheck {
 		}
 		dstSlice, ok := irutil.Flatten(dst.Value.Value).(*ir.Slice)
 		if !ok {
-			panic("unhandled ir type for dst")
+			return
 		}
 		srcSlice, ok := irutil.Flatten(src.Value.Value).(*ir.Slice)
 		if !ok {
-			panic("unhandled ir type for src")
+			return
 		}
 		if irutil.Flatten(dstSlice.X) != irutil.Flatten(srcSlice.X) {
 			// differing underlying arrays, all is well
