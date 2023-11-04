@@ -378,7 +378,10 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		var edits []analysis.TextEdit
+		var (
+			edits []analysis.TextEdit
+			first = true
+		)
 		for item := ifstmt; item != nil; {
 			var end token.Pos
 			if item.Else != nil {
@@ -396,9 +399,15 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 				}
 				conds = append(conds, report.Render(pass, y))
 			}
-			sconds := strings.Join(conds, ", ")
+
+			replaceStr := fmt.Sprintf("case %s:", strings.Join(conds, ","))
+			if first {
+				// FIXME this forces the first case to begin in column 0. try to fix the indentation
+				replaceStr = fmt.Sprintf("switch %s {\n%s", report.Render(pass, x), replaceStr)
+				first = false
+			}
 			edits = append(edits,
-				edit.ReplaceWithString(edit.Range{item.If, item.Body.Lbrace + 1}, "case "+sconds+":"),
+				edit.ReplaceWithString(edit.Range{item.If, item.Body.Lbrace + 1}, replaceStr),
 				edit.Delete(edit.Range{item.Body.Rbrace, end}))
 
 			switch els := item.Else.(type) {
@@ -413,8 +422,6 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 				panic(fmt.Sprintf("unreachable: %T", els))
 			}
 		}
-		// FIXME this forces the first case to begin in column 0. try to fix the indentation
-		edits = append(edits, edit.ReplaceWithString(edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
 		report.Report(pass, ifstmt, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)),
 			report.ShortRange())
@@ -577,8 +584,10 @@ func CheckForLoopIfBreak(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-var checkConditionalAssignmentQ = pattern.MustParse(`(AssignStmt x@(Object _) ":=" assign@(Builtin b@(Or "true" "false")))`)
-var checkConditionalAssignmentIfQ = pattern.MustParse(`(IfStmt nil cond [(AssignStmt x@(Object _) "=" (Builtin b@(Or "true" "false")))] nil)`)
+var (
+	checkConditionalAssignmentQ   = pattern.MustParse(`(AssignStmt x@(Object _) ":=" assign@(Builtin b@(Or "true" "false")))`)
+	checkConditionalAssignmentIfQ = pattern.MustParse(`(IfStmt nil cond [(AssignStmt x@(Object _) "=" (Builtin b@(Or "true" "false")))] nil)`)
+)
 
 func CheckConditionalAssignment(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
