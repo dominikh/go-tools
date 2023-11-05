@@ -1469,6 +1469,19 @@
 			"Severity": 3,
 			"MergeIf": 0
 		},
+		"SA4032": {
+			"Title": "Comparing runtime.GOOS or runtime.GOARCH against impossible value",
+			"Text": "",
+			"TitleMarkdown": "Comparing `runtime.GOOS` or `runtime.GOARCH` against impossible value",
+			"TextMarkdown": "",
+			"Before": "",
+			"After": "",
+			"Since": "Unreleased",
+			"NonDefault": false,
+			"Options": null,
+			"Severity": 3,
+			"MergeIf": 0
+		},
 		"SA5000": {
 			"Title": "Assignment to nil map",
 			"Text": "",
@@ -1737,7 +1750,7 @@
 			"Before": "",
 			"After": "",
 			"Since": "2017.1",
-			"NonDefault": false,
+			"NonDefault": true,
 			"Options": null,
 			"Severity": 3,
 			"MergeIf": 0
@@ -2172,7 +2185,8 @@
 			"SA4028",
 			"SA4029",
 			"SA4030",
-			"SA4031"
+			"SA4031",
+			"SA4032"
 		],
 		"SA5": [
 			"SA5000",
