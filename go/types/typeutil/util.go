@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"go/types"
 	"sync"
+
+	"golang.org/x/exp/typeparams"
 )
 
 var bufferPool = &sync.Pool{
@@ -83,9 +85,26 @@ func IsObject(obj types.Object, name string) bool {
 // OPT(dh): IsType is kind of expensive; should we really use it?
 func IsType(T types.Type, name string) bool { return types.TypeString(T, nil) == name }
 
+// IsPointerLike returns true if type T is like a pointer. This returns true for all nillable types,
+// unsafe.Pointer, and type sets where at least one term is pointer-like.
 func IsPointerLike(T types.Type) bool {
 	switch T := T.Underlying().(type) {
-	case *types.Interface, *types.Chan, *types.Map, *types.Signature, *types.Pointer, *types.Slice:
+	case *types.Interface:
+		if T.IsMethodSet() {
+			return true
+		} else {
+			terms, err := typeparams.NormalTerms(T)
+			if err != nil {
+				return false
+			}
+			for _, term := range terms {
+				if IsPointerLike(term.Type()) {
+					return true
+				}
+			}
+			return false
+		}
+	case *types.Chan, *types.Map, *types.Signature, *types.Pointer, *types.Slice:
 		return true
 	case *types.Basic:
 		return T.Kind() == types.UnsafePointer
