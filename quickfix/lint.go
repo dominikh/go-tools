@@ -379,6 +379,8 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		var edits []analysis.TextEdit
+		// FIXME this forces the first case to begin in column 0. try to fix the indentation
+		edits = append(edits, edit.ReplaceWithString(edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
 		for item := ifstmt; item != nil; {
 			var end token.Pos
 			if item.Else != nil {
@@ -413,8 +415,6 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 				panic(fmt.Sprintf("unreachable: %T", els))
 			}
 		}
-		// FIXME this forces the first case to begin in column 0. try to fix the indentation
-		edits = append(edits, edit.ReplaceWithString(edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
 		report.Report(pass, ifstmt, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)),
 			report.ShortRange())
