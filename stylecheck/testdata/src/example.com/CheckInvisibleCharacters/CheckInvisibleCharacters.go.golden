@@ -12,6 +12,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬\a" //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 -- delete control character U+0007 --
@@ -28,6 +31,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬"   //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 -- delete format character U+200B --
@@ -44,6 +50,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 -- replace format character U+200B with '\u200b' --
@@ -60,6 +69,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 -- delete all control characters --
@@ -76,6 +88,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 -- replace all control characters with escape sequences --
@@ -92,6 +107,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 
@@ -109,6 +127,9 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬" //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬"  //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
 -- replace all format and control characters with escape sequences --
@@ -125,4 +146,7 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬"        //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬\a\u200b" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )

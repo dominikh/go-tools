@@ -11,4 +11,7 @@ est`
 	f = "\u200b"
 	g = "👩🏽‍🔬" //@ diag(`Unicode control character U+0007`)
 	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
+	i = "👨‍👩‍👦"
+	j = "🏳️‍🌈"
+	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )

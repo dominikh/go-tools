@@ -730,11 +730,28 @@ func CheckInvisibleCharacters(pass *analysis.Pass) (interface{}, error) {
 		const zwj = '\u200d'
 		for off, r := range lit.Value {
 			if unicode.Is(unicode.Cf, r) {
-				// Don't flag joined emojis. These are multiple emojis joined with ZWJ, which some platform render as single composite emojis.
-				// For the purpose of this check, we consider all symbols, including all symbol modifiers, emoji.
-				if r != zwj || (r == zwj && !unicode.Is(unicode.S, prev)) {
-					invalids = append(invalids, invalid{r, off})
-					hasFormat = true
+				if r >= '\U000e0020' && r <= '\U000e007f' {
+					// These are used for spelling out country codes for flag emoji
+				} else if unicode.Is(unicode.Variation_Selector, r) {
+					// Always allow variation selectors
+				} else if r == zwj && (unicode.Is(unicode.S, prev) || unicode.Is(unicode.Variation_Selector, prev)) {
+					// Allow zero-width joiner in emoji, including those that use variation selectors.
+
+					// Technically some foreign scripts make valid use of zero-width joiners, too, but for now we'll err
+					// on the side of flagging all non-emoji uses of ZWJ.
+				} else {
+					switch r {
+					case '\u0600', '\u0601', '\u0602', '\u0603', '\u0604', '\u0605', '\u0890', '\u0891', '\u08e2':
+						// Arabic characters that are not actually invisible. If anyone knows why these are in the
+						// Other, Format category please let me know.
+					case '\u061c', '\u202A', '\u202B', '\u202D', '\u202E', '\u2066', '\u2067', '\u2068', '\u202C', '\u2069':
+						// Bidirectional formatting characters. At best they will render confusingly, at worst they're used
+						// to cause confusion.
+						fallthrough
+					default:
+						invalids = append(invalids, invalid{r, off})
+						hasFormat = true
+					}
 				}
 			} else if unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' && r != '\r' {
 				invalids = append(invalids, invalid{r, off})
