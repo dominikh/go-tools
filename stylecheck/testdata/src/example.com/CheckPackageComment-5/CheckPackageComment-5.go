@@ -1,0 +1,2 @@
+// Package pkg
+package pkg

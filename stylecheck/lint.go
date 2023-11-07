@@ -58,8 +58,13 @@ func CheckPackageComment(pass *analysis.Pass) (interface{}, error) {
 		text, ok := docText(f.Doc)
 		if ok {
 			hasDocs = true
-			prefix := "Package " + f.Name.Name + " "
-			if !strings.HasPrefix(text, prefix) {
+			prefix := "Package " + f.Name.Name
+			isNonAlpha := func(b byte) bool {
+				// This check only considers ASCII, which can lead to false negatives for some malformed package
+				// comments.
+				return !((b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z'))
+			}
+			if !strings.HasPrefix(text, prefix) || (len(text) > len(prefix) && !isNonAlpha(text[len(prefix)])) {
 				report.Report(pass, f.Doc, fmt.Sprintf(`package comment should be of the form "%s..."`, prefix))
 			}
 		}

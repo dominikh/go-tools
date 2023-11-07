@@ -8,7 +8,14 @@ import (
 
 func TestAll(t *testing.T) {
 	checks := map[string][]testutil.Test{
-		"ST1000": {{Dir: "example.com/CheckPackageComment-1"}, {Dir: "example.com/CheckPackageComment-2"}, {Dir: "example.com/CheckPackageComment-3"}},
+		"ST1000": {
+			{Dir: "example.com/CheckPackageComment-1"},
+			{Dir: "example.com/CheckPackageComment-2"},
+			{Dir: "example.com/CheckPackageComment-3"},
+			{Dir: "example.com/CheckPackageComment-4"},
+			{Dir: "example.com/CheckPackageComment-5"},
+			{Dir: "example.com/CheckPackageComment-6"},
+		},
 		"ST1001": {{Dir: "example.com/CheckDotImports"}},
 		"ST1003": {{Dir: "example.com/CheckNames"}, {Dir: "example.com/CheckNames_generated"}},
 		"ST1005": {{Dir: "example.com/CheckErrorStrings"}},
