@@ -1,6 +1,9 @@
 package pkg
 
-import "io"
+import (
+	"io"
+	"os"
+)
 
 type I1[T any] interface { //@ used("I1", true), used("T", true)
 	m1() T //@ used("m1", true)
@@ -121,4 +124,44 @@ func (s *S6_3) m6_1(p int) int { //@ quiet("s"), quiet("p"), used("m6_1", false)
 }
 func (s *S6_3) m6_2(p io.Writer) io.Writer { //@ quiet("s"), quiet("p"), used("m6_2", false)
 	return p
+}
+
+type S6_4 struct{} //@ used("S6_4", true)
+func (s *S6_4) m6_1(p *os.File) *os.File { //@ used("s", true), used("p", true), used("m6_1", true)
+	return p
+}
+func (s *S6_4) m6_2(p *os.File) *os.File { //@ used("s", true), used("p", true), used("m6_2", true)
+	return p
+}
+
+type S6_5 struct{} //@ used("S6_5", true)
+func (s *S6_5) m6_1(p os.File) os.File { //@ quiet("s"), quiet("p"), used("m6_1", false)
+	return p
+}
+func (s *S6_5) m6_2(p os.File) os.File { //@ quiet("s"), quiet("p"), used("m6_2", false)
+	return p
+}
+
+type I7[T ~int | ~string] interface { //@ used("I7", true), used("T", true)
+	m7() T //@ used("m7", true)
+}
+
+type S7_1 struct{} //@ used("S7_1", true)
+func (s *S7_1) m7() int { //@ used("s", true), used("m7", true)
+	return 0
+}
+
+type S7_2 struct{} //@ used("S7_2", true)
+func (s *S7_2) m7() string { //@ used("s", true), used("m7", true)
+	return ""
+}
+
+type S7_3 struct{} //@ used("S7_3", true)
+func (s *S7_3) m7() float32 { //@ quiet("s"), used("m7", false)
+	return 0
+}
+
+type S7_4 struct{} //@ used("S7_4", true)
+func (s *S7_4) m7() any { //@ quiet("s"), used("m7", false)
+	return nil
 }
