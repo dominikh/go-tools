@@ -1,5 +1,7 @@
 package pkg
 
+import "io"
+
 type I1[T any] interface { //@ used("I1", true), used("T", true)
 	m1() T //@ used("m1", true)
 }
@@ -78,11 +80,45 @@ func (s *S5_1) m5(p string) int { //@ used("s", true), used("p", true), used("m5
 }
 
 type S5_2 struct{} //@ used("S5_2", true)
-func (s *S5_2) m5(p any) int { //@ quiet("s"), quiet("p"), used("m5", false)
+func (s *S5_2) m5(p any) int { //@ used("s", true), used("p", true), used("m5", true)
 	return 0
 }
 
 type S5_3 struct{} //@ used("S5_3", true)
-func (s *S5_3) m5(p string) any { //@ quiet("s"), quiet("p"), used("m5", false)
+func (s *S5_3) m5(p string) any { //@ used("s", true), used("p", true), used("m5", true)
 	return 0
+}
+
+type S5_4 struct{} //@ used("S5_4", true)
+func (s *S5_4) m5(p string) io.Reader { //@ used("s", true), used("p", true), used("m5", true)
+	return nil
+}
+
+type I6[R io.Reader, W io.Writer] interface { //@ used("I6", true), used("R", true), used("W", true)
+	m6_1(R) R //@ used("m6_1", true)
+	m6_2(W) W //@ used("m6_2", true)
+}
+
+type S6_1 struct{} //@ used("S6_1", true)
+func (s *S6_1) m6_1(p io.Reader) io.Reader { //@ used("s", true), used("p", true), used("m6_1", true)
+	return p
+}
+func (s *S6_1) m6_2(p io.Writer) io.Writer { //@ used("s", true), used("p", true), used("m6_2", true)
+	return p
+}
+
+type S6_2 struct{} //@ used("S6_2", true)
+func (s *S6_2) m6_1(p io.ReadCloser) io.ReadCloser { //@ used("s", true), used("p", true), used("m6_1", true)
+	return p
+}
+func (s *S6_2) m6_2(p io.WriteCloser) io.WriteCloser { //@ used("s", true), used("p", true), used("m6_2", true)
+	return p
+}
+
+type S6_3 struct{} //@ used("S6_3", true)
+func (s *S6_3) m6_1(p int) int { //@ quiet("s"), quiet("p"), used("m6_1", false)
+	return p
+}
+func (s *S6_3) m6_2(p io.Writer) io.Writer { //@ quiet("s"), quiet("p"), used("m6_2", false)
+	return p
 }

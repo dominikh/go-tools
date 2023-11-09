@@ -148,9 +148,9 @@ func (c *methodsChecker) typeIsCompatible(implType, interfaceType types.Type) bo
 }
 
 func satisfiesConstraint(t types.Type, tp *types.TypeParam) bool {
-	bound, ok := tp.Underlying().(*types.Interface)
+	bound, ok := tp.Constraint().Underlying().(*types.Interface)
 	if !ok {
 		panic("unexpected failure on type assertion (types.Type to *types.Interface)")
 	}
-	return types.Implements(t, bound)
+	return types.Satisfies(t, bound)
 }
