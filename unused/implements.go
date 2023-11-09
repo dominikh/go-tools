@@ -88,9 +88,9 @@ type methodsChecker struct {
 	typeParams map[*types.TypeParam]types.Type
 }
 
-func newMethodChecker() *methodsChecker {
-	return &methodsChecker{
-		typeParams: make(map[*types.TypeParam]types.Type),
+func newMethodChecker() methodsChecker {
+	return methodsChecker{
+		typeParams: nil, // want to allocate lazily
 	}
 }
 
@@ -136,6 +136,9 @@ func (c *methodsChecker) typeIsCompatible(implType, interfaceType types.Type) bo
 	tp, ok := interfaceType.(*types.TypeParam)
 	if !ok {
 		return false
+	}
+	if c.typeParams == nil {
+		c.typeParams = make(map[*types.TypeParam]types.Type)
 	}
 	if c.typeParams[tp] == nil {
 		if !satisfiesConstraint(implType, tp) {
