@@ -165,3 +165,14 @@ type S7_4 struct{} //@ used("S7_4", true)
 func (s *S7_4) m7() any { //@ quiet("s"), used("m7", false)
 	return nil
 }
+
+type I8[T io.Reader] interface { //@ used("I8", true), used("T", true)
+	m8() []T //@ used("m8", true)
+}
+
+type S8_1 struct{} //@ used("S8_1", true)
+// This should be considered as used obviously. It's known incompleteness that we want to improve.
+// This test case just verifies that it doesn't crash.
+func (s *S8_1) m8() []io.Reader { //@ quiet("s"), used("m8", false)
+	return nil
+}
