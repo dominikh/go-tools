@@ -94,6 +94,7 @@ func newMethodChecker() *methodsChecker {
 	}
 }
 
+// Currently, this doesn't support methods like `foo(x []T)`.
 func (c *methodsChecker) methodIsCompatible(implFunc *types.Func, interfaceFunc *types.Func) bool {
 	if types.Identical(implFunc.Type(), interfaceFunc.Type()) {
 		return true
@@ -149,7 +150,7 @@ func (c *methodsChecker) typeIsCompatible(implType, interfaceType types.Type) bo
 func satisfiesConstraint(t types.Type, tp *types.TypeParam) bool {
 	bound, ok := tp.Underlying().(*types.Interface)
 	if !ok {
-		return false
+		panic("unexpected failure on type assertion (types.Type to *types.Interface)")
 	}
 	return types.Implements(t, bound)
 }
