@@ -349,6 +349,7 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
+		var opts []report.Option
 		var r ast.Expr
 		switch funIdent.Name {
 		case "IndexRune":
@@ -366,6 +367,12 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 				X:   pkgIdent,
 				Sel: &ast.Ident{Name: "Contains"},
 			}
+		case "IndexFunc":
+			r = &ast.SelectorExpr{
+				X:   pkgIdent,
+				Sel: &ast.Ident{Name: "ContainsFunc"},
+			}
+			opts = append(opts, report.MinimumStdlibVersion(21))
 		default:
 			return
 		}
@@ -381,9 +388,10 @@ func CheckStringsContains(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		report.Report(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)),
+		opts = append(opts,
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix(fmt.Sprintf("simplify use of %s", report.Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r))))
+		report.Report(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)), opts...)
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
