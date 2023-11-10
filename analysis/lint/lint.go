@@ -41,6 +41,7 @@ func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*a
 	out := make([]*Analyzer, 0, len(analyzers))
 	for k, v := range analyzers {
 		v.Name = k
+		v.URL = "https://staticcheck.dev/docs/checks/#" + k
 		a := &Analyzer{
 			Doc:      docs[k],
 			Analyzer: v,
