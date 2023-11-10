@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"go/types"
 	htmltemplate "html/template"
+	"math"
 	"net/http"
 	"os"
 	"reflect"
@@ -1990,6 +1991,9 @@ func CheckNilMaps(pass *analysis.Pass) (interface{}, error) {
 
 func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 	isobj := func(expr ast.Expr, name string) bool {
+		if name == "" {
+			return false
+		}
 		sel, ok := expr.(*ast.SelectorExpr)
 		if !ok {
 			return false
@@ -2005,50 +2009,86 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		var max string
-		var min string
+		// We only check for the math constants and integer literals, not for all constant expressions. This is to avoid
+		// false positives when constant values differ under different build tags.
+		var (
+			maxMathConst string
+			minMathConst string
+			maxLiteral   constant.Value
+			minLiteral   constant.Value
+		)
 
 		switch basic.Kind() {
 		case types.Uint8:
-			max = "math.MaxUint8"
+			maxMathConst = "math.MaxUint8"
+			minLiteral = constant.MakeUint64(0)
+			maxLiteral = constant.MakeUint64(math.MaxUint8)
 		case types.Uint16:
-			max = "math.MaxUint16"
+			maxMathConst = "math.MaxUint16"
+			minLiteral = constant.MakeUint64(0)
+			maxLiteral = constant.MakeUint64(math.MaxUint16)
 		case types.Uint32:
-			max = "math.MaxUint32"
+			maxMathConst = "math.MaxUint32"
+			minLiteral = constant.MakeUint64(0)
+			maxLiteral = constant.MakeUint64(math.MaxUint32)
 		case types.Uint64:
-			max = "math.MaxUint64"
+			maxMathConst = "math.MaxUint64"
+			minLiteral = constant.MakeUint64(0)
+			maxLiteral = constant.MakeUint64(math.MaxUint64)
 		case types.Uint:
-			max = "math.MaxUint64"
+			// TODO(dh): we could chose 32 bit vs 64 bit depending on the file's build tags
+			maxMathConst = "math.MaxUint64"
+			minLiteral = constant.MakeUint64(0)
+			maxLiteral = constant.MakeUint64(math.MaxUint64)
 
 		case types.Int8:
-			min = "math.MinInt8"
-			max = "math.MaxInt8"
+			minMathConst = "math.MinInt8"
+			maxMathConst = "math.MaxInt8"
+			minLiteral = constant.MakeInt64(math.MinInt8)
+			maxLiteral = constant.MakeInt64(math.MaxInt8)
 		case types.Int16:
-			min = "math.MinInt16"
-			max = "math.MaxInt16"
+			minMathConst = "math.MinInt16"
+			maxMathConst = "math.MaxInt16"
+			minLiteral = constant.MakeInt64(math.MinInt16)
+			maxLiteral = constant.MakeInt64(math.MaxInt16)
 		case types.Int32:
-			min = "math.MinInt32"
-			max = "math.MaxInt32"
+			minMathConst = "math.MinInt32"
+			maxMathConst = "math.MaxInt32"
+			minLiteral = constant.MakeInt64(math.MinInt32)
+			maxLiteral = constant.MakeInt64(math.MaxInt32)
 		case types.Int64:
-			min = "math.MinInt64"
-			max = "math.MaxInt64"
+			minMathConst = "math.MinInt64"
+			maxMathConst = "math.MaxInt64"
+			minLiteral = constant.MakeInt64(math.MinInt64)
+			maxLiteral = constant.MakeInt64(math.MaxInt64)
 		case types.Int:
-			min = "math.MinInt64"
-			max = "math.MaxInt64"
+			// TODO(dh): we could chose 32 bit vs 64 bit depending on the file's build tags
+			minMathConst = "math.MinInt64"
+			maxMathConst = "math.MaxInt64"
+			minLiteral = constant.MakeInt64(math.MinInt64)
+			maxLiteral = constant.MakeInt64(math.MaxInt64)
 		}
 
-		if (expr.Op == token.GTR || expr.Op == token.GEQ) && isobj(expr.Y, max) ||
-			(expr.Op == token.LSS || expr.Op == token.LEQ) && isobj(expr.X, max) {
-			report.Report(pass, expr, fmt.Sprintf("no value of type %s is greater than %s", basic, max))
+		isLiteral := func(expr ast.Expr, c constant.Value) bool {
+			if c == nil {
+				return false
+			}
+			return code.IsIntegerLiteral(pass, expr, c)
 		}
-		if expr.Op == token.LEQ && isobj(expr.Y, max) ||
-			expr.Op == token.GEQ && isobj(expr.X, max) {
-			report.Report(pass, expr, fmt.Sprintf("every value of type %s is <= %s", basic, max))
-		}
-
 		isZeroLiteral := func(expr ast.Expr) bool {
 			return code.IsIntegerLiteral(pass, expr, constant.MakeInt64(0))
 		}
+
+		if (expr.Op == token.GTR || expr.Op == token.GEQ) && (isobj(expr.Y, maxMathConst) || isLiteral(expr.Y, maxLiteral)) ||
+			(expr.Op == token.LSS || expr.Op == token.LEQ) && (isobj(expr.X, maxMathConst) || isLiteral(expr.X, maxLiteral)) {
+			report.Report(pass, expr, fmt.Sprintf("no value of type %s is greater than %s", basic, maxMathConst))
+		}
+
+		if expr.Op == token.LEQ && (isobj(expr.Y, maxMathConst) || isLiteral(expr.Y, maxLiteral)) ||
+			expr.Op == token.GEQ && (isobj(expr.X, maxMathConst) || isLiteral(expr.X, maxLiteral)) {
+			report.Report(pass, expr, fmt.Sprintf("every value of type %s is <= %s", basic, maxMathConst))
+		}
+
 		if (basic.Info() & types.IsUnsigned) != 0 {
 			if (expr.Op == token.LSS && isZeroLiteral(expr.Y)) ||
 				(expr.Op == token.GTR && isZeroLiteral(expr.X)) {
@@ -2059,13 +2099,13 @@ func CheckExtremeComparison(pass *analysis.Pass) (interface{}, error) {
 				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= 0", basic))
 			}
 		} else {
-			if (expr.Op == token.LSS || expr.Op == token.LEQ) && isobj(expr.Y, min) ||
-				(expr.Op == token.GTR || expr.Op == token.GEQ) && isobj(expr.X, min) {
-				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than %s", basic, min))
+			if (expr.Op == token.LSS || expr.Op == token.LEQ) && (isobj(expr.Y, minMathConst) || isLiteral(expr.Y, minLiteral)) ||
+				(expr.Op == token.GTR || expr.Op == token.GEQ) && (isobj(expr.X, minMathConst) || isLiteral(expr.X, minLiteral)) {
+				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than %s", basic, minMathConst))
 			}
-			if expr.Op == token.GEQ && isobj(expr.Y, min) ||
-				expr.Op == token.LEQ && isobj(expr.X, min) {
-				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= %s", basic, min))
+			if expr.Op == token.GEQ && (isobj(expr.Y, minMathConst) || isLiteral(expr.Y, minLiteral)) ||
+				expr.Op == token.LEQ && (isobj(expr.X, minMathConst) || isLiteral(expr.X, minLiteral)) {
+				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= %s", basic, minMathConst))
 			}
 		}
 

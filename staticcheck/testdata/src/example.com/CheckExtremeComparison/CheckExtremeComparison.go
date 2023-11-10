@@ -40,4 +40,19 @@ func fn1() {
 	_ = i8 <= math.MinInt8 //@ diag(`no value of type int8 is less than math.MinInt8`)
 	_ = i8 < math.MinInt8  //@ diag(`no value of type int8 is less than math.MinInt8`)
 	_ = i8 >= math.MinInt8 //@ diag(`every value of type int8 is >= math.MinInt8`)
+
+	_ = i8 > -128
+	_ = i8 >= -128 //@ diag(`every value of type int8 is >= math.MinInt8`)
+	_ = i8 < 127
+	_ = i8 <= 127 //@ diag(`every value of type int8 is <= math.MaxInt8`)
+	_ = i8 > 127  //@ diag(`no value of type int8 is greater than math.MaxInt8`)
+	_ = i8 >= 127 //@ diag(`no value of type int8 is greater than math.MaxInt8`)
+
+	_ = u8 < 255
+	_ = u8 <= 255 //@ diag(`every value of type uint8 is <= math.MaxUint8`)
+	_ = u8 > 255  //@ diag(`no value of type uint8 is greater than math.MaxUint8`)
+	_ = u8 >= 255 //@ diag(`no value of type uint8 is greater than math.MaxUint8`)
+
+	const k = 255
+	_ = u8 <= k
 }
