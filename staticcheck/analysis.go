@@ -89,6 +89,10 @@ var Analyzers = lint.InitializeAnalyzers(Docs, map[string]*analysis.Analyzer{
 	"SA1029": makeCallCheckerAnalyzer(checkWithValueKeyRules),
 	"SA1030": makeCallCheckerAnalyzer(checkStrconvRules),
 	"SA1031": makeCallCheckerAnalyzer(checkEncodeRules),
+	"SA1032": {
+		Run:      CheckIgnoredError,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	},
 
 	"SA2000": {
 		Run:      CheckWaitgroupAdd,

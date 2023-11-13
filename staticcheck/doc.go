@@ -343,6 +343,14 @@ writes more than one byte per \'src\' byte.`,
 		MergeIf:  lint.MergeIfAny,
 	},
 
+	"SA1032": {
+		Title:    `Find ignored errors`,
+		Text:     `Finds function calls, where the function returns an error but the call site ignored the error.`,
+		Since:    "Unreleased",
+		Severity: lint.SeverityWarning,
+		MergeIf:  lint.MergeIfAny,
+	},
+
 	"SA2000": {
 		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
 		Since:    "2017.1",

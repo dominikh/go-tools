@@ -5516,3 +5516,42 @@ func CheckImpossibleGOOSGOARCH(pass *analysis.Pass) (any, error) {
 
 	return nil, nil
 }
+
+var checkIgnoredErrorQ = pattern.MustParse(`(CallExpr fun@(Symbol _) args)`)
+
+// CheckIgnoredError checks for called functions that return an error, where the error is not used.
+func CheckIgnoredError(pass *analysis.Pass) (interface{}, error) {
+	fn := func(node ast.Node) {
+		es, ok := node.(*ast.ExprStmt)
+		if !ok {
+			return
+		}
+		call, ok := (es.X).(*ast.CallExpr)
+		if !ok {
+			// nested expression is not a call expression
+			return
+		}
+		m, ok := code.Match(pass, checkIgnoredErrorQ, call)
+		if !ok {
+			return
+		}
+		fun, ok := m.State["fun"].(*types.Func)
+		if !ok {
+			return
+		}
+		sig := fun.Type().(*types.Signature)
+		if sig.Results().Len() == 0 {
+			return
+		}
+		lastReturn := sig.Results().At(sig.Results().Len() - 1)
+		if !typeutil.IsType(lastReturn.Type(), "error") {
+			// function does not return an error as last return value
+			return
+		}
+		report.Report(pass, call.Fun,
+			fmt.Sprintf("The error returned from calling '%s' is ignored. Do not ignore returned errors as this might hide bugs.", fun.Name()), report.Fixes())
+	}
+	// Visit all expression statements, as function calls in expression statements are the places where return values are ignored
+	code.Preorder(pass, fn, (*ast.ExprStmt)(nil))
+	return nil, nil
+}

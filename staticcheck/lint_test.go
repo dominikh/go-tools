@@ -52,6 +52,9 @@ func TestAll(t *testing.T) {
 			{Dir: "example.com/CheckEncodingBase64"},
 			{Dir: "example.com/CheckEncodingHex"},
 		},
+		"SA1032": {
+			{Dir: "example.com/CheckIgnoredError"},
+		},
 		"SA2000": {{Dir: "example.com/CheckWaitgroupAdd"}},
 		"SA2001": {{Dir: "example.com/CheckEmptyCriticalSection"}},
 		"SA2002": {{Dir: "example.com/CheckConcurrentTesting"}},
