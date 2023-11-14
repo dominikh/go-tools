@@ -410,7 +410,7 @@ func (cmd *Command) merge() int {
 
 	relevantDiagnostics := mergeRuns(runs)
 	cs := cmd.analyzersAsSlice()
-	cmd.printDiagnostics(cs, relevantDiagnostics)
+	return cmd.printDiagnostics(cs, relevantDiagnostics)
 	return 0
 }
 
