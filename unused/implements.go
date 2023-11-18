@@ -62,7 +62,7 @@ func implements(V types.Type, T *types.Interface, msV *types.MethodSet) ([]*type
 
 	// A concrete type implements T if it implements all methods of T.
 	var sels []*types.Selection
-	c := newMethodChecker()
+	var c methodsChecker
 	for i := 0; i < T.NumMethods(); i++ {
 		m := T.Method(i)
 		sel := msV.Lookup(m.Pkg(), m.Name())
@@ -86,12 +86,6 @@ func implements(V types.Type, T *types.Interface, msV *types.MethodSet) ([]*type
 
 type methodsChecker struct {
 	typeParams map[*types.TypeParam]types.Type
-}
-
-func newMethodChecker() methodsChecker {
-	return methodsChecker{
-		typeParams: nil, // want to allocate lazily
-	}
 }
 
 // Currently, this doesn't support methods like `foo(x []T)`.
@@ -133,6 +127,7 @@ func (c *methodsChecker) typeIsCompatible(implType, interfaceType types.Type) bo
 	if types.Identical(implType, interfaceType) {
 		return true
 	}
+	// We only support trivial use of type parameters. This isn't fully compatible with compiler type checking yet.
 	tp, ok := interfaceType.(*types.TypeParam)
 	if !ok {
 		return false
@@ -151,9 +146,6 @@ func (c *methodsChecker) typeIsCompatible(implType, interfaceType types.Type) bo
 }
 
 func satisfiesConstraint(t types.Type, tp *types.TypeParam) bool {
-	bound, ok := tp.Constraint().Underlying().(*types.Interface)
-	if !ok {
-		panic("unexpected failure on type assertion (types.Type to *types.Interface)")
-	}
+	bound := tp.Constraint().Underlying().(*types.Interface)
 	return types.Satisfies(t, bound)
 }
