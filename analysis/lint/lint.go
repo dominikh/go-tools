@@ -35,6 +35,18 @@ func (a *Analyzer) initialize() {
 	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 }
 
+func InitializeAnalyzer(a *Analyzer) *Analyzer {
+	a.Analyzer.Doc = a.Doc.String()
+	a.Analyzer.URL = "https://staticcheck.dev/docs/checks/#" + a.Analyzer.Name
+	if a.Analyzer.Flags.Usage == nil {
+		fs := flag.NewFlagSet("", flag.PanicOnError)
+		fs.Var(newVersionFlag(), "go", "Target Go version")
+		a.Analyzer.Flags = *fs
+	}
+	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
+	return a
+}
+
 // InitializeAnalyzers takes a map of documentation and a map of go/analysis.Analyzers and returns a slice of Analyzers.
 // The map keys are the analyzer names.
 func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) []*Analyzer {

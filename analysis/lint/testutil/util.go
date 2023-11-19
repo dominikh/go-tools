@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"honnef.co/go/tools/analysis/lint"
@@ -53,47 +55,41 @@ func defaultGoVersion() string {
 	return v
 }
 
-func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
-	analyzersByName := map[string]*lint.Analyzer{}
-	for _, a := range analyzers {
-		analyzersByName[a.Analyzer.Name] = a
+var testVersionRegexp = regexp.MustCompile(`^.+_go1(\d+)$`)
+
+func Run(t *testing.T, a *lint.Analyzer) {
+	dirs, err := filepath.Glob("testdata/src/example.com/*")
+	if err != nil {
+		t.Fatalf("couldn't enumerate test data: %s", err)
 	}
 
-	analyzersByVersion := map[string]map[*lint.Analyzer]struct{}{}
+	if len(dirs) == 0 {
+		t.Fatalf("found no tests")
+	}
+
+	tests := make([]Test, 0, len(dirs))
+	for _, dir := range dirs {
+		t := Test{
+			Dir: strings.TrimPrefix(dir, "testdata/src/"),
+		}
+		if sub := testVersionRegexp.FindStringSubmatch(dir); sub != nil {
+			t.Version = "1." + sub[1]
+		}
+		tests = append(tests, t)
+	}
+
 	dirsByVersion := map[string][]string{}
 
-	for analyzerName, ttt := range tests {
-		for _, tt := range ttt {
-			m := analyzersByVersion[tt.Version]
-			if m == nil {
-				m = map[*lint.Analyzer]struct{}{}
-				analyzersByVersion[tt.Version] = m
-			}
-
-			analyzer, ok := analyzersByName[analyzerName]
-			if !ok {
-				t.Errorf("found tests for analyzer %q, but no such analyzer exists", analyzerName)
-				continue
-			}
-			m[analyzer] = struct{}{}
-
-			dirsByVersion[tt.Version] = append(dirsByVersion[tt.Version], tt.Dir)
-		}
+	// Group tests by Go version so that we can run multiple tests at once, saving time and memory on type
+	// checking and export data parsing.
+	for _, tt := range tests {
+		dirsByVersion[tt.Version] = append(dirsByVersion[tt.Version], tt.Dir)
 	}
 
-	for v, asm := range analyzersByVersion {
-		dirs := dirsByVersion[v]
-
+	for v, dirs := range dirsByVersion {
 		actualVersion := v
 		if actualVersion == "" {
 			actualVersion = defaultGoVersion()
-		}
-		as := make([]*analysis.Analyzer, 0, len(asm))
-		for a := range asm {
-			as = append(as, a.Analyzer)
-			if err := a.Analyzer.Flags.Lookup("go").Value.Set(actualVersion); err != nil {
-				t.Fatal(err)
-			}
 		}
 
 		c, err := cache.Open(t.TempDir())
@@ -123,13 +119,10 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 		if len(dirs) == 0 {
 			t.Fatal("no directories for version", v)
 		}
-		res, err := r.Run(cfg, as, dirs)
+		res, err := r.Run(cfg, []*analysis.Analyzer{a.Analyzer}, dirs)
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		// Each result in res contains all diagnostics and facts for all checked packages for all checked analyzers.
-		// For each package, we only care about the diagnostics and facts reported by a single analyzer.
 
 		// resultByPath maps from import path to results
 		resultByPath := map[string][]runner.Result{}
@@ -150,57 +143,46 @@ func Run(t *testing.T, analyzers []*lint.Analyzer, tests map[string][]Test) {
 			t.Fatal("failed processing package, but got no errors")
 		}
 
-		for a, ttt := range tests {
-			for _, tt := range ttt {
-				if tt.Version != v {
+		for _, tt := range tests {
+			if tt.Version != v {
+				continue
+			}
+			any := false
+			for _, suffix := range []string{"", ".test", "_test"} {
+				dir := tt.Dir + suffix
+				rr, ok := resultByPath[dir]
+				if !ok {
 					continue
 				}
-				any := false
-				for _, suffix := range []string{"", ".test", "_test"} {
-					dir := tt.Dir + suffix
-					rr, ok := resultByPath[dir]
-					if !ok {
-						continue
+				any = true
+				// Remove this result. We later check that there remain no tests we haven't checked.
+				delete(resultByPath, dir)
+
+				for _, r := range rr {
+					data, err := r.Load()
+					if err != nil {
+						t.Fatal(err)
 					}
-					any = true
-					// Remove this result. We later check that there remain no tests we haven't checked.
-					delete(resultByPath, dir)
-
-					for _, r := range rr {
-						data, err := r.Load()
-						if err != nil {
-							t.Fatal(err)
-						}
-						tdata, err := r.LoadTest()
-						if err != nil {
-							t.Fatal(err)
-						}
-
-						// Select those diagnostics made by the analyzer we're currently checking
-						var relevantDiags []runner.Diagnostic
-						for _, diag := range data.Diagnostics {
-							// FIXME(dh): Category might not match analyzer names. it does for Staticcheck, for now
-							if diag.Category != a {
-								continue
-							}
-							relevantDiags = append(relevantDiags, diag)
-						}
-
-						var relevantFacts []runner.TestFact
-						for _, fact := range tdata.Facts {
-							if fact.Analyzer != a {
-								continue
-							}
-							relevantFacts = append(relevantFacts, fact)
-						}
-
-						Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
-						CheckSuggestedFixes(t, relevantDiags)
+					tdata, err := r.LoadTest()
+					if err != nil {
+						t.Fatal(err)
 					}
+
+					relevantDiags := data.Diagnostics
+					var relevantFacts []runner.TestFact
+					for _, fact := range tdata.Facts {
+						if fact.Analyzer != a.Analyzer.Name {
+							continue
+						}
+						relevantFacts = append(relevantFacts, fact)
+					}
+
+					Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
+					CheckSuggestedFixes(t, relevantDiags)
 				}
-				if !any {
-					t.Errorf("no result for directory %s", tt.Dir)
-				}
+			}
+			if !any {
+				t.Errorf("no result for directory %s", tt.Dir)
 			}
 		}
 		for key, rr := range resultByPath {

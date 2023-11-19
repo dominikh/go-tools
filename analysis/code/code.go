@@ -567,3 +567,20 @@ func IsMethod(pass *analysis.Pass, expr *ast.SelectorExpr, name string, meth *ty
 	}
 	return types.Identical(sel.Type(), meth)
 }
+
+func RefersTo(pass *analysis.Pass, expr ast.Expr, ident types.Object) bool {
+	found := false
+	fn := func(node ast.Node) bool {
+		ident2, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if ident == pass.TypesInfo.ObjectOf(ident2) {
+			found = true
+			return false
+		}
+		return true
+	}
+	ast.Inspect(expr, fn)
+	return found
+}
