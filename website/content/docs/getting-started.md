@@ -29,7 +29,7 @@ What follows is a non-exhaustive list of the package names in various package re
 <div id="getting-started-distribution-packages">
 
 Arch Linux
-: [staticcheck](https://archlinux.org/packages/community/x86_64/staticcheck/)
+: [staticcheck](https://archlinux.org/packages/extra/x86_64/staticcheck/)
 
 Debian
 : [go-staticcheck](https://packages.debian.org/go-staticcheck)
