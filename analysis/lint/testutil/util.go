@@ -69,6 +69,8 @@ func Run(t *testing.T, a *lint.Analyzer) {
 
 	tests := make([]Test, 0, len(dirs))
 	for _, dir := range dirs {
+		// Work around Windows paths
+		dir = strings.ReplaceAll(dir, `\`, `/`)
 		t := Test{
 			Dir: strings.TrimPrefix(dir, "testdata/src/"),
 		}
