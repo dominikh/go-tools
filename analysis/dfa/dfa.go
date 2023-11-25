@@ -22,14 +22,6 @@ func debugf(f string, args ...any) {
 	}
 }
 
-type extremum uint8
-
-const (
-	none extremum = iota
-	bottom
-	top
-)
-
 // Join defines the [∨] operation for a [join-semilattice]. It must implement a commutative and associative binary operation
 // that returns the least upper bound of two states from S.
 //
