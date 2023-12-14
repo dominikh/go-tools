@@ -61,14 +61,14 @@ func main() {
 	}
 
 	name := os.Args[1]
-	checkRe := regexp.MustCompile(`^([A-Z]+)\d{4}$`)
+	checkRe := regexp.MustCompile(`^([A-Za-z]+)\d{4}$`)
 	parts := checkRe.FindStringSubmatch(name)
 	if parts == nil {
 		log.Fatalf("invalid check name %q", name)
 	}
 
 	var catDir string
-	prefix := parts[1]
+	prefix := strings.ToUpper(parts[1])
 	switch prefix {
 	case "SA":
 		catDir = "staticcheck"
