@@ -29,7 +29,7 @@ with whitespace.`,
 var Analyzer = SCAnalyzer.Analyzer
 
 func run(pass *analysis.Pass) (any, error) {
-	re := regexp.MustCompile("[ \t]*(//|/\\*)[ \t]+go:")
+	re := regexp.MustCompile("^[ \t]*(//|/\\*)[ \t]+go:")
 	for _, f := range pass.Files {
 		for _, cg := range f.Comments {
 			for _, c := range cg.List {
