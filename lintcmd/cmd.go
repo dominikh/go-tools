@@ -191,7 +191,7 @@ func (cmd *Command) ParseFlags(args []string) {
 	cmd.flags.fs.Parse(args)
 }
 
-// diagnosticDescriptor represents the uniquiely identifying information of diagnostics.
+// diagnosticDescriptor represents the uniquely identifying information of diagnostics.
 type diagnosticDescriptor struct {
 	Position token.Position
 	End      token.Position
