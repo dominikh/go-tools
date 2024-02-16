@@ -353,11 +353,16 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) (RET lvalue) {
 		}
 		wantAddr := true
 		v := b.receiver(fn, e.X, wantAddr, escaping, sel, e)
-		last := len(sel.Index()) - 1
-		return &address{
-			addr: emitFieldSelection(fn, v, sel.Index()[last], true, e.Sel),
-			expr: e.Sel,
+		index := sel.Index()[len(sel.Index())-1]
+		vut := typeutil.CoreType(deref(v.Type())).Underlying().(*types.Struct)
+		fld := vut.Field(index)
+		// Due to the two phases of resolving AssignStmt, a panic from x.f = p()
+		// when x is nil is required to come after the side-effects of
+		// evaluating x and p().
+		emit := func(fn *Function) Value {
+			return emitFieldSelection(fn, v, index, true, e.Sel)
 		}
+		return &lazyAddress{addr: emit, t: fld.Type(), expr: e.Sel}
 
 	case *ast.IndexExpr:
 		var x Value
@@ -411,12 +416,19 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) (RET lvalue) {
 			panic("unexpected container type in IndexExpr: " + t.String())
 		}
 
-		v := &IndexAddr{
-			X:     x,
-			Index: b.expr(fn, e.Index),
+		// Due to the two phases of resolving AssignStmt, a panic from x[i] = p()
+		// when x is nil or i is out-of-bounds is required to come after the
+		// side-effects of evaluating x, i and p().
+		index := b.expr(fn, e.Index)
+		emit := func(fn *Function) Value {
+			v := &IndexAddr{
+				X:     x,
+				Index: index,
+			}
+			v.setType(et)
+			return fn.emit(v, e)
 		}
-		v.setType(et)
-		return &address{addr: fn.emit(v, e), expr: e}
+		return &lazyAddress{addr: emit, t: deref(et), expr: e}
 
 	case *ast.StarExpr:
 		return &address{addr: b.expr(fn, e.X), expr: e}
