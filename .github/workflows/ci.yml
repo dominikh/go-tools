@@ -8,7 +8,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-        go: ["1.21.x"]
+        go: ["1.22.x"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v1
@@ -40,7 +40,7 @@ jobs:
     steps:
     - uses: WillAbides/setup-go-faster@v1.12.0
       with:
-        go-version: "1.20.x"
+        go-version: "1.22.x"
     # this downloads all artifacts of the current workflow into the current working directory, creating one directory per artifact
     - uses: actions/download-artifact@v3
     - id: glob

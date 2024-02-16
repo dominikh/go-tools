@@ -59,5 +59,5 @@ You'll have to expect semiregular backwards-incompatible changes if you decide t
 
 ## System requirements
 
-Releases support the current and previous version of Go at the time of release.
-The master branch supports the current version of Go.
+Staticcheck can be compiled and run with the latest release of Go. It can analyze code targeting any version of Go upto
+the latest release.
