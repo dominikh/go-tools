@@ -378,7 +378,22 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		var edits []analysis.TextEdit
+		// Note that we insert the switch statement as the first text edit instead of the last one so that gopls has an
+		// easier time converting it to an LSP-conforming edit.
+		//
+		// Specifically:
+		// > Text edits ranges must never overlap, that means no part of the original
+		// > document must be manipulated by more than one edit. However, it is
+		// > possible that multiple edits have the same start position: multiple
+		// > inserts, or any number of inserts followed by a single remove or replace
+		// > edit. If multiple inserts have the same position, the order in the array
+		// > defines the order in which the inserted strings appear in the resulting
+		// > text.
+		//
+		// See https://go.dev/issue/63930
+		//
+		// FIXME this edit forces the first case to begin in column 0 because we ignore indentation. try to fix that.
+		edits := []analysis.TextEdit{edit.ReplaceWithString(edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x)))}
 		for item := ifstmt; item != nil; {
 			var end token.Pos
 			if item.Else != nil {
@@ -413,8 +428,6 @@ func CheckIfElseToSwitch(pass *analysis.Pass) (interface{}, error) {
 				panic(fmt.Sprintf("unreachable: %T", els))
 			}
 		}
-		// FIXME this forces the first case to begin in column 0. try to fix the indentation
-		edits = append(edits, edit.ReplaceWithString(edit.Range{ifstmt.If, ifstmt.If}, fmt.Sprintf("switch %s {\n", report.Render(pass, x))))
 		report.Report(pass, ifstmt, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)),
 			report.ShortRange())
