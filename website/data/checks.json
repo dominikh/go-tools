@@ -1822,9 +1822,9 @@
 		},
 		"ST1000": {
 			"Title": "Incorrect or missing package comment",
-			"Text": "Packages must have a package comment that is formatted according to\nthe guidelines laid out in\nhttps://github.com/golang/go/wiki/CodeReviewComments#package-comments.",
+			"Text": "Packages must have a package comment that is formatted according to\nthe guidelines laid out in\nhttps://go.dev/wiki/CodeReviewComments#package-comments.",
 			"TitleMarkdown": "Incorrect or missing package comment",
-			"TextMarkdown": "Packages must have a package comment that is formatted according to\nthe guidelines laid out in\nhttps://github.com/golang/go/wiki/CodeReviewComments#package-comments.",
+			"TextMarkdown": "Packages must have a package comment that is formatted according to\nthe guidelines laid out in\nhttps://go.dev/wiki/CodeReviewComments#package-comments.",
 			"Before": "",
 			"After": "",
 			"Since": "2019.1",
