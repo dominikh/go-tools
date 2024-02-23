@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Title: `Incorrect or missing package comment`,
 		Text: `Packages must have a package comment that is formatted according to
 the guidelines laid out in
-https://github.com/golang/go/wiki/CodeReviewComments#package-comments.`,
+https://go.dev/wiki/CodeReviewComments#package-comments.`,
 		Since:      "2019.1",
 		NonDefault: true,
 		MergeIf:    lint.MergeIfAny,
