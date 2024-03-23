@@ -14,14 +14,14 @@ jobs:
     - uses: actions/checkout@v1
       with:
         fetch-depth: 1
-    - uses: WillAbides/setup-go-faster@v1.12.0
+    - uses: WillAbides/setup-go-faster@v1.14.0
       with:
         go-version: ${{ matrix.go }}
     - run: "go test ./..."
     - run: "go vet ./..."
-    - uses: dominikh/staticcheck-action@v1.3.0
+    - uses: dominikh/staticcheck-action@fe1dd0c3658873b46f8c9bb3291096a617310ca6
       with:
-        version: "2023.1.6"
+        version: "2023.1.7"
         min-go-version: "module"
         install-go: false
         cache-key: ${{ matrix.go }}
@@ -38,9 +38,9 @@ jobs:
     needs: ci
     runs-on: "ubuntu-latest"
     steps:
-    - uses: WillAbides/setup-go-faster@v1.12.0
+    - uses: WillAbides/setup-go-faster@v1.14.0
       with:
-        go-version: "1.22.x"
+        go-version: "stable"
     # this downloads all artifacts of the current workflow into the current working directory, creating one directory per artifact
     - uses: actions/download-artifact@v3
     - id: glob
@@ -48,9 +48,7 @@ jobs:
         # We replace newlines with %0A, which GitHub apparently magically turns back into newlines
         out=$(ls -1 ./staticcheck-*.bin/*.bin)
         echo "::set-output name=files::${out//$'\n'/%0A}"
-    - uses: dominikh/staticcheck-action@v1.3.0
+    - uses: dominikh/staticcheck-action@fe1dd0c3658873b46f8c9bb3291096a617310ca6
       with:
-        version: "2023.1.6"
-        min-go-version: "module"
         install-go: false
         merge-files: ${{ steps.glob.outputs.files }}
