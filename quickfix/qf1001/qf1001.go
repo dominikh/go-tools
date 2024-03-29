@@ -40,10 +40,12 @@ func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
 		found := false
 		ast.Inspect(expr, func(node ast.Node) bool {
 			if expr, ok := node.(ast.Expr); ok {
-				if basic, ok := pass.TypesInfo.TypeOf(expr).Underlying().(*types.Basic); ok {
-					if (basic.Info() & types.IsFloat) != 0 {
-						found = true
-						return false
+				if typ := pass.TypesInfo.TypeOf(expr); typ != nil {
+					if basic, ok := typ.Underlying().(*types.Basic); ok {
+						if (basic.Info() & types.IsFloat) != 0 {
+							found = true
+							return false
+						}
 					}
 				}
 			}
