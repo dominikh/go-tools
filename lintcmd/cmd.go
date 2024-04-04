@@ -275,6 +275,7 @@ func (cmd *Command) Run() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer f.Close()
 		pprof.StartCPUProfile(f)
 	}
 	if path := cmd.flags.debugTrace; path != "" {
