@@ -21,6 +21,8 @@ type T1 struct {
 	M complex128 `json:",string"` //@ diag(`the JSON string option`)
 	N int        `json:"some-name"`
 	O int        `json:"some-name,omitzero,omitempty,nocase,inline,unknown,format:'something,with,commas'"`
+	P int        `json:"`          //@ diag(`missing closing quote`)
+	Q int        `json:"some-name` //@ diag(`missing closing quote`)
 }
 
 type T2 struct {
