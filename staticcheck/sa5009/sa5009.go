@@ -117,7 +117,7 @@ func checkImpl(carg *callcheck.Argument, f ir.Value, args []ir.Value) {
 			if verbs[verb]&isSlice != 0 {
 				return []types.Type{T}, false
 			}
-			if verbs[verb]&isString != 0 && typeutil.IsType(T.Elem().Underlying(), "byte") {
+			if verbs[verb]&isString != 0 && types.Identical(T.Elem().Underlying(), types.Typ[types.Byte]) {
 				return []types.Type{T}, false
 			}
 			return []types.Type{T.Elem()}, true

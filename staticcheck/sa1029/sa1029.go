@@ -43,9 +43,14 @@ var checkWithValueKeyRules = map[string]callcheck.Check{
 func checkWithValueKey(call *callcheck.Call) {
 	arg := call.Args[1]
 	T := arg.Value.Value.Type()
-	if T, ok := T.(*types.Basic); ok {
-		arg.Invalid(
-			fmt.Sprintf("should not use built-in type %s as key for value; define your own type to avoid collisions", T))
+	if typ, ok := types.Unalias(T).(*types.Basic); ok {
+		if _, ok := T.(*types.Alias); ok {
+			arg.Invalid(
+				fmt.Sprintf("should not use built-in type %s (via alias %s) as key for value; define your own type to avoid collisions", typ, types.TypeString(T, types.RelativeTo(call.Pass.Pkg))))
+		} else {
+			arg.Invalid(
+				fmt.Sprintf("should not use built-in type %s as key for value; define your own type to avoid collisions", typ))
+		}
 	}
 	if !types.Comparable(T) {
 		arg.Invalid(fmt.Sprintf("keys used with context.WithValue must be comparable, but type %s is not comparable", T))

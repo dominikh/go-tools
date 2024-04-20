@@ -54,7 +54,19 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		lit := node.(*ast.CompositeLit)
-		typ1, _ := pass.TypesInfo.TypeOf(lit.Type).(*types.Named)
+		var typ1 types.Type
+		var named1 *types.Named
+		switch typ := pass.TypesInfo.TypeOf(lit.Type).(type) {
+		case *types.Named:
+			typ1 = typ
+			named1 = typ
+		case *types.Alias:
+			ua := types.Unalias(typ)
+			if n, ok := ua.(*types.Named); ok {
+				typ1 = typ
+				named1 = n
+			}
+		}
 		if typ1 == nil {
 			return
 		}
@@ -63,7 +75,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		var typ2 *types.Named
+		var typ2 types.Type
+		var named2 *types.Named
 		var ident *ast.Ident
 		getSelType := func(expr ast.Expr) (types.Type, *ast.Ident, bool) {
 			sel, ok := expr.(*ast.SelectorExpr)
@@ -115,7 +128,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if ident != nil && pass.TypesInfo.ObjectOf(ident) != pass.TypesInfo.ObjectOf(id) {
 				return
 			}
-			typ2, _ = t.(*types.Named)
+			switch t := t.(type) {
+			case *types.Named:
+				typ2 = t
+				named2 = t
+			case *types.Alias:
+				if n, ok := types.Unalias(t).(*types.Named); ok {
+					typ2 = t
+					named2 = n
+				}
+			}
 			if typ2 == nil {
 				return
 			}
@@ -126,7 +148,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if typ1.Obj().Pkg() != typ2.Obj().Pkg() {
+		if named1.Obj().Pkg() != named2.Obj().Pkg() {
 			// Do not suggest type conversions between different
 			// packages. Types in different packages might only match
 			// by coincidence. Furthermore, if the dependency ever

@@ -291,7 +291,7 @@ func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *type
 	if sig.Recv() != nil {
 		assert(targs == nil)
 		// Methods don't have their own type parameters, but the receiver does
-		targs = deref(sig.Recv().Type()).(*types.Named).TypeArgs()
+		targs = types.Unalias(deref(sig.Recv().Type())).(*types.Named).TypeArgs()
 	} else {
 		assert(targs != nil)
 	}

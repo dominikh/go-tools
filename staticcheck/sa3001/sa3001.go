@@ -45,7 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if sel.Sel.Name != "N" {
 			return
 		}
-		if !code.IsOfType(pass, sel.X, "*testing.B") {
+		if !code.IsOfPointerToTypeWithName(pass, sel.X, "testing.B") {
 			return
 		}
 		report.Report(pass, assign, fmt.Sprintf("should not assign to %s", report.Render(pass, sel)))

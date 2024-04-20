@@ -6,7 +6,6 @@ import (
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
@@ -43,7 +42,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if !typeutil.IsType(pass.TypesInfo.TypeOf(m.State["arg"].(ast.Expr)).Underlying(), "[]byte") {
+		if !code.IsOfStringConvertibleByteSlice(pass, m.State["arg"].(ast.Expr)) {
 			return
 		}
 		report.Report(pass, node, "use io.Writer.Write instead of converting from []byte to string to use io.WriteString")

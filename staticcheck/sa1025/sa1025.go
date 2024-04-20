@@ -1,11 +1,12 @@
 package sa1025
 
 import (
+	"go/types"
+
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
-	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
 	"golang.org/x/tools/go/analysis"
@@ -64,14 +65,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 								return false
 							}
 							for _, ins := range b.Instrs {
-								// TODO(dh): we should check that
-								// we're receiving from the channel of
-								// a time.Timer to further reduce
-								// false positives. Not a key
-								// priority, considering the rarity of
-								// Reset and the tiny likeliness of a
-								// false positive
-								if ins, ok := ins.(*ir.Recv); ok && typeutil.IsType(ins.Chan.Type(), "<-chan time.Time") {
+								// TODO(dh): we should check that we're receiving from the
+								// channel of a time.Timer to further reduce false
+								// positives. Not a key priority, considering the rarity
+								// of Reset and the tiny likeliness of a false positive
+								//
+								// We intentionally don't handle aliases here, because
+								// we're only interested in time.Timer.C.
+								if ins, ok := ins.(*ir.Recv); ok && types.TypeString(ins.Chan.Type(), nil) == "<-chan time.Time" {
 									found = true
 									return false
 								}

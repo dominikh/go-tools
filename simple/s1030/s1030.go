@@ -58,7 +58,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		sel := m.State["sel"].(*ast.SelectorExpr)
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
-		if typ == types.Universe.Lookup("string").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
+		if types.Unalias(typ) == types.Universe.Lookup("string").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
 			if _, ok := stack[len(stack)-2].(*ast.IndexExpr); ok {
 				// Don't flag m[string(buf.Bytes())] – thanks to a
 				// compiler optimization, this is actually faster than
@@ -69,7 +69,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRs, m.State))))
-		} else if typ, ok := typ.(*types.Slice); ok && typ.Elem() == types.Universe.Lookup("byte").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).String") {
+		} else if typ, ok := types.Unalias(typ).(*types.Slice); ok &&
+			types.Unalias(typ.Elem()) == types.Universe.Lookup("byte").Type() &&
+			code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).String") {
 			report.Report(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
 				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRb, m.State))))

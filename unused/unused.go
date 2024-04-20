@@ -344,7 +344,7 @@ func (g *graph) objectToObject(obj types.Object) Object {
 	}
 	name := obj.Name()
 	if sig, ok := obj.Type().(*types.Signature); ok && sig.Recv() != nil {
-		switch sig.Recv().Type().(type) {
+		switch types.Unalias(sig.Recv().Type()).(type) {
 		case *types.Named, *types.Pointer:
 			typ := types.TypeString(sig.Recv().Type(), func(*types.Package) string { return "" })
 			if len(typ) > 0 && typ[0] == '*' {
@@ -628,7 +628,7 @@ func (g *graph) entry() {
 				// use methods and fields of ignored types
 				if obj, ok := obj.(*types.TypeName); ok {
 					if obj.IsAlias() {
-						if typ, ok := obj.Type().(*types.Named); ok && (g.opts.ExportedIsUsed && typ.Obj().Pkg() != obj.Pkg() || typ.Obj().Pkg() == nil) {
+						if typ, ok := types.Unalias(obj.Type()).(*types.Named); ok && (g.opts.ExportedIsUsed && typ.Obj().Pkg() != obj.Pkg() || typ.Obj().Pkg() == nil) {
 							// This is an alias of a named type in another package.
 							// Don't walk its fields or methods; we don't have to.
 							//
@@ -637,7 +637,7 @@ func (g *graph) entry() {
 							continue
 						}
 					}
-					if typ, ok := obj.Type().(*types.Named); ok {
+					if typ, ok := types.Unalias(obj.Type()).(*types.Named); ok {
 						for i := 0; i < typ.NumMethods(); i++ {
 							g.use(typ.Method(i), nil)
 						}
@@ -1457,7 +1457,7 @@ func isNoCopyType(typ types.Type) bool {
 		return false
 	}
 
-	named, ok := typ.(*types.Named)
+	named, ok := types.Unalias(typ).(*types.Named)
 	if !ok {
 		return false
 	}

@@ -130,7 +130,7 @@ fnLoop:
 					}
 				}
 				fieldName := recv.Type().Underlying().(*types.Struct).Field(field).Name()
-				report.Report(pass, w, fmt.Sprintf("ineffective assignment to field %s.%s", recv.Type().(*types.Named).Obj().Name(), fieldName))
+				report.Report(pass, w, fmt.Sprintf("ineffective assignment to field %s.%s", recv.Type().(interface{ Obj() *types.TypeName }).Obj().Name(), fieldName))
 			}
 		}
 	}

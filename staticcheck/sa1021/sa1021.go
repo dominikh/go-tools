@@ -1,10 +1,11 @@
 package sa1021
 
 import (
+	"go/types"
+
 	"honnef.co/go/tools/analysis/callcheck"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/go/ir"
-	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 	"honnef.co/go/tools/knowledge"
 
@@ -44,5 +45,5 @@ var rules = map[string]callcheck.Check{
 // ConvertedFrom reports whether value v was converted from type typ.
 func isConvertedFrom(v callcheck.Value, typ string) bool {
 	change, ok := v.Value.(*ir.ChangeType)
-	return ok && typeutil.IsType(change.X.Type(), typ)
+	return ok && types.TypeString(types.Unalias(change.X.Type()), nil) == typ
 }

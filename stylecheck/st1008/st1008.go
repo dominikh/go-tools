@@ -35,18 +35,20 @@ fnLoop:
 			continue
 		}
 
-		if rets.At(rets.Len()-1).Type() == types.Universe.Lookup("error").Type() {
+		if types.Unalias(rets.At(rets.Len()-1).Type()) == types.Universe.Lookup("error").Type() {
 			// Last return type is error. If the function also returns
 			// errors in other positions, that's fine.
 			continue
 		}
 
-		if rets.Len() >= 2 && rets.At(rets.Len()-1).Type() == types.Universe.Lookup("bool").Type() && rets.At(rets.Len()-2).Type() == types.Universe.Lookup("error").Type() {
+		if rets.Len() >= 2 &&
+			types.Unalias(rets.At(rets.Len()-1).Type()) == types.Universe.Lookup("bool").Type() &&
+			types.Unalias(rets.At(rets.Len()-2).Type()) == types.Universe.Lookup("error").Type() {
 			// Accept (..., error, bool) and assume it's a comma-ok function. It's not clear whether the bool should come last or not for these kinds of functions.
 			continue
 		}
 		for i := rets.Len() - 2; i >= 0; i-- {
-			if rets.At(i).Type() == types.Universe.Lookup("error").Type() {
+			if types.Unalias(rets.At(i).Type()) == types.Universe.Lookup("error").Type() {
 				report.Report(pass, rets.At(i), "error should be returned as the last argument", report.ShortRange())
 				continue fnLoop
 			}

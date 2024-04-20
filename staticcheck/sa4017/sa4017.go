@@ -41,7 +41,7 @@ fnLoop:
 			params := fn.Signature.Params()
 			for i := 0; i < params.Len(); i++ {
 				param := params.At(i)
-				if typeutil.IsType(param.Type(), "*testing.B") {
+				if typeutil.IsPointerToTypeWithName(param.Type(), "testing.B") {
 					// Ignore discarded pure functions in code related
 					// to benchmarks. Instead of matching BenchmarkFoo
 					// functions, we match any function accepting a
