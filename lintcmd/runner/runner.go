@@ -550,6 +550,7 @@ func (r *subrunner) do(act action) error {
 	fmt.Fprintf(h, "pkg %x\n", a.Package.Hash)
 	fmt.Fprintf(h, "analyzers %s\n", r.analyzerNames)
 	fmt.Fprintf(h, "go %s\n", r.actualGoVersion)
+	fmt.Fprintf(h, "env godebug %q\n", os.Getenv("GODEBUG"))
 
 	// OPT(dh): do we actually need to hash vetx? can we not assume
 	// that for identical inputs, staticcheck will produce identical
