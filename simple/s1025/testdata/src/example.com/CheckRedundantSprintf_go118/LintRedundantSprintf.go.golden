@@ -1,0 +1,11 @@
+package pkg
+
+import "fmt"
+
+type MyByte byte
+type T1 []MyByte
+
+func fn() {
+	var t1 T1
+	_ = string(t1) //@ diag(`underlying type is a slice of bytes`)
+}

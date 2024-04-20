@@ -39,7 +39,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if expr.Op != token.EQL {
 			return
 		}
-		if !code.IsOfType(pass, expr.X, "time.Time") || !code.IsOfType(pass, expr.Y, "time.Time") {
+		if !code.IsOfTypeWithName(pass, expr.X, "time.Time") || !code.IsOfTypeWithName(pass, expr.Y, "time.Time") {
 			return
 		}
 		report.Report(pass, node, "probably want to use time.Time.Equal instead",

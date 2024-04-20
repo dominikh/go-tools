@@ -8,7 +8,6 @@ import (
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
 
@@ -66,16 +65,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		args := m.State["args"].([]ast.Expr)
 		for _, arg := range args {
-			T := pass.TypesInfo.TypeOf(arg)
-			if typeutil.IsType(T.Underlying(), "[]byte") {
-				// don't convert arguments that implement fmt.Stringer
-				if types.Implements(T, knowledge.Interfaces["fmt.Stringer"]) {
-					continue
-				}
-
-				fix := edit.Fix("Convert argument to string", edit.ReplaceWithPattern(pass.Fset, arg, byteSlicePrintingR, pattern.State{"arg": arg}))
-				report.Report(pass, arg, "could convert argument to string", report.Fixes(fix))
+			if !code.IsOfStringConvertibleByteSlice(pass, arg) {
+				continue
 			}
+			if types.Implements(pass.TypesInfo.TypeOf(arg), knowledge.Interfaces["fmt.Stringer"]) {
+				continue
+			}
+
+			fix := edit.Fix("Convert argument to string", edit.ReplaceWithPattern(pass.Fset, arg, byteSlicePrintingR, pattern.State{"arg": arg}))
+			report.Report(pass, arg, "could convert argument to string", report.Fixes(fix))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))

@@ -48,7 +48,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if !code.IsOfType(pass, m.State["recv"].(ast.Expr), "*net/url.URL") {
+		if !code.IsOfPointerToTypeWithName(pass, m.State["recv"].(ast.Expr), "net/url.URL") {
 			return
 		}
 		switch m.State["meth"].(string) {

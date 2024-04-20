@@ -66,7 +66,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
-				if code.IsOfType(pass, op.X, "net/http.Header") {
+				if code.IsOfTypeWithName(pass, op.X, "net/http.Header") {
 					return false
 				}
 			}
@@ -76,7 +76,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return true
 		}
-		if !code.IsOfType(pass, op.X, "net/http.Header") {
+		if !code.IsOfTypeWithName(pass, op.X, "net/http.Header") {
 			return true
 		}
 		s, ok := code.ExprToString(pass, op.Index)

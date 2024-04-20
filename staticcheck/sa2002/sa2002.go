@@ -66,7 +66,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						if recv == nil {
 							continue
 						}
-						if !typeutil.IsType(recv.Type(), "*testing.common") {
+						if !typeutil.IsPointerToTypeWithName(recv.Type(), "testing.common") {
 							continue
 						}
 						fn, ok := call.Call.StaticCallee().Object().(*types.Func)

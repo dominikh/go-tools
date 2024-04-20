@@ -235,6 +235,9 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 			prog.needMethods(t.At(i).Type(), false)
 		}
 
+	case *types.Alias:
+		prog.needMethods(types.Unalias(t), false)
+
 	default:
 		lint.ExhaustiveTypeSwitch(T)
 	}

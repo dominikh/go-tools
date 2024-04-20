@@ -48,14 +48,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		_, ok = pass.TypesInfo.TypeOf(m.State["target"].(ast.Expr)).(*types.Slice)
+		_, ok = types.Unalias(pass.TypesInfo.TypeOf(m.State["target"].(ast.Expr))).(*types.Slice)
 		if !ok {
 			// Avoid flagging 'x = sort.StringSlice(x)' where TypeOf(x) == sort.StringSlice
 			return
 		}
 
 		var alternative string
-		typeName := types.TypeString(m.State["typ"].(*types.TypeName).Type(), nil)
+		typeName := types.TypeString(types.Unalias(m.State["typ"].(*types.TypeName).Type()), nil)
 		switch typeName {
 		case "sort.Float64Slice":
 			alternative = "Float64s"

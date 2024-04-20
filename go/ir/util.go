@@ -45,9 +45,12 @@ func isPointer(typ types.Type) bool {
 // deref returns a pointer's element type; otherwise it returns typ.
 func deref(typ types.Type) types.Type {
 	orig := typ
+	typ = types.Unalias(typ)
 
 	if t, ok := typ.(*types.TypeParam); ok {
 		if ctyp := typeutil.CoreType(t); ctyp != nil {
+			// This can happen, for example, with len(T) where T is a
+			// type parameter whose core type is a pointer to array.
 			typ = ctyp
 		}
 	}

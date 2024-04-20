@@ -29,8 +29,30 @@ type Positioner interface {
 	Pos() token.Pos
 }
 
-func IsOfType(pass *analysis.Pass, expr ast.Expr, name string) bool {
-	return typeutil.IsType(pass.TypesInfo.TypeOf(expr), name)
+func IsOfStringConvertibleByteSlice(pass *analysis.Pass, expr ast.Expr) bool {
+	typ, ok := pass.TypesInfo.TypeOf(expr).Underlying().(*types.Slice)
+	if !ok {
+		return false
+	}
+	elem := types.Unalias(typ.Elem())
+	if LanguageVersion(pass, expr) >= 18 {
+		// Before Go 1.18, one could not directly convert from []T (where 'type T byte')
+		// to string. See also https://github.com/golang/go/issues/23536.
+		elem = elem.Underlying()
+	}
+	return types.Identical(elem, types.Typ[types.Byte])
+}
+
+func IsOfPointerToTypeWithName(pass *analysis.Pass, expr ast.Expr, name string) bool {
+	ptr, ok := types.Unalias(pass.TypesInfo.TypeOf(expr)).(*types.Pointer)
+	if !ok {
+		return false
+	}
+	return typeutil.IsTypeWithName(ptr.Elem(), name)
+}
+
+func IsOfTypeWithName(pass *analysis.Pass, expr ast.Expr, name string) bool {
+	return typeutil.IsTypeWithName(pass.TypesInfo.TypeOf(expr), name)
 }
 
 func IsInTest(pass *analysis.Pass, node Positioner) bool {
@@ -99,8 +121,9 @@ func BoolConst(pass *analysis.Pass, expr ast.Expr) bool {
 
 func IsBoolConst(pass *analysis.Pass, expr ast.Expr) bool {
 	// We explicitly don't support typed bools because more often than
-	// not, custom bool types are used as binary enums and the
-	// explicit comparison is desired.
+	// not, custom bool types are used as binary enums and the explicit
+	// comparison is desired. We err on the side of false negatives and
+	// treat aliases like other custom types.
 
 	ident, ok := expr.(*ast.Ident)
 	if !ok {
@@ -144,6 +167,9 @@ func ExprToString(pass *analysis.Pass, expr ast.Expr) (string, bool) {
 }
 
 func CallName(pass *analysis.Pass, call *ast.CallExpr) string {
+	// See the comment in typeutil.FuncName for why this doesn't require special handling
+	// of aliases.
+
 	fun := astutil.Unparen(call.Fun)
 
 	// Instantiating a function cannot return another generic function, so doing this once is enough
@@ -179,6 +205,9 @@ func CallName(pass *analysis.Pass, call *ast.CallExpr) string {
 }
 
 func IsCallTo(pass *analysis.Pass, node ast.Node, name string) bool {
+	// See the comment in typeutil.FuncName for why this doesn't require special handling
+	// of aliases.
+
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return false
@@ -187,6 +216,9 @@ func IsCallTo(pass *analysis.Pass, node ast.Node, name string) bool {
 }
 
 func IsCallToAny(pass *analysis.Pass, node ast.Node, names ...string) bool {
+	// See the comment in typeutil.FuncName for why this doesn't require special handling
+	// of aliases.
+
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return false

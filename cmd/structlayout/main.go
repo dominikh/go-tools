@@ -65,7 +65,7 @@ func main() {
 			log.Fatal("identifier is not a struct type")
 		}
 
-		fields := sizes(st, typ.(*types.Named).Obj().Name(), 0, nil)
+		fields := sizes(st, types.Unalias(typ).(*types.Named).Obj().Name(), 0, nil)
 		if fJSON {
 			emitJSON(fields)
 		} else {

@@ -7,8 +7,8 @@ import (
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
-	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
+	"honnef.co/go/tools/knowledge"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -37,20 +37,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		sig := fn.Signature
-		if fn.Name() != "Write" || sig.Recv() == nil || sig.Params().Len() != 1 || sig.Results().Len() != 2 {
+		if fn.Name() != "Write" || sig.Recv() == nil {
 			continue
 		}
-		tArg, ok := sig.Params().At(0).Type().(*types.Slice)
-		if !ok {
-			continue
-		}
-		if basic, ok := tArg.Elem().(*types.Basic); !ok || basic.Kind() != types.Byte {
-			continue
-		}
-		if basic, ok := sig.Results().At(0).Type().(*types.Basic); !ok || basic.Kind() != types.Int {
-			continue
-		}
-		if named, ok := sig.Results().At(1).Type().(*types.Named); !ok || !typeutil.IsType(named, "error") {
+		if !types.Identical(sig, knowledge.Signatures["(io.Writer).Write"]) {
 			continue
 		}
 

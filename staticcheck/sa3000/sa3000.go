@@ -113,5 +113,5 @@ func isTestMain(pass *analysis.Pass, decl *ast.FuncDecl) bool {
 	if len(arg.Names) != 1 {
 		return false
 	}
-	return code.IsOfType(pass, arg.Type, "*testing.M")
+	return code.IsOfPointerToTypeWithName(pass, arg.Type, "testing.M")
 }

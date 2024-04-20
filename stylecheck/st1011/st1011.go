@@ -49,7 +49,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 			T := pass.TypesInfo.TypeOf(name)
-			if !typeutil.IsType(T, "time.Duration") && !typeutil.IsType(T, "*time.Duration") {
+			if !typeutil.IsTypeWithName(T, "time.Duration") && !typeutil.IsPointerToTypeWithName(T, "time.Duration") {
 				continue
 			}
 			for _, suffix := range suffixes {

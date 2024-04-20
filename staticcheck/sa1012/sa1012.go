@@ -59,7 +59,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// the Foo method, but the method receiver.
 			return
 		}
-		if !typeutil.IsType(sig.Params().At(0).Type(), "context.Context") {
+		if !typeutil.IsTypeWithName(sig.Params().At(0).Type(), "context.Context") {
 			return
 		}
 		report.Report(pass, call.Args[0],

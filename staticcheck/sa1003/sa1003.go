@@ -49,7 +49,7 @@ func CanBinaryMarshal(pass *analysis.Pass, node code.Positioner, v callcheck.Val
 	if ttyp, ok := typ.(*types.Pointer); ok {
 		typ = ttyp.Elem().Underlying()
 	}
-	if ttyp, ok := typ.(interface {
+	if ttyp, ok := types.Unalias(typ).(interface {
 		Elem() types.Type
 	}); ok {
 		if _, ok := ttyp.(*types.Pointer); !ok {
