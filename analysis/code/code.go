@@ -450,13 +450,13 @@ func LanguageVersion(pass *analysis.Pass, node Positioner) int {
 
 	f := File(pass, node)
 	var n int
-	if v := fileGoVersion(f); v != "" {
+	if v := f.GoVersion; v != "" {
 		var ok bool
 		n, ok = lint.ParseGoVersion(v)
 		if !ok {
 			panic(fmt.Sprintf("unexpected failure parsing version %q", v))
 		}
-	} else if v := packageGoVersion(pass.Pkg); v != "" {
+	} else if v := pass.Pkg.GoVersion(); v != "" {
 		var ok bool
 		n, ok = lint.ParseGoVersion(v)
 		if !ok {
@@ -475,7 +475,7 @@ func LanguageVersion(pass *analysis.Pass, node Positioner) int {
 
 func StdlibVersion(pass *analysis.Pass, node Positioner) int {
 	var n int
-	if v := packageGoVersion(pass.Pkg); v != "" {
+	if v := pass.Pkg.GoVersion(); v != "" {
 		var ok bool
 		n, ok = lint.ParseGoVersion(v)
 		if !ok {
@@ -494,7 +494,7 @@ func StdlibVersion(pass *analysis.Pass, node Positioner) int {
 		panic(fmt.Sprintf("no file found for node with position %s", pass.Fset.PositionFor(node.Pos(), false)))
 	}
 
-	if v := fileGoVersion(f); v != "" {
+	if v := f.GoVersion; v != "" {
 		nf, err := strconv.Atoi(strings.TrimPrefix(v, "go1."))
 		if err != nil {
 			panic(fmt.Sprintf("unexpected error: %s", err))
