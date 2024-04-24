@@ -506,7 +506,7 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 		}
 
 		if _, ok := loc.(*address); ok {
-			if isInterface(loc.typ()) && !typeparams.IsTypeParam(loc.typ()) {
+			if types.IsInterface(loc.typ()) && !typeparams.IsTypeParam(loc.typ()) {
 				// e.g. var x interface{} = T{...}
 				// Can't in-place initialize an interface value.
 				// Fall back to copying.
@@ -757,7 +757,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			wantAddr := isPointer(rt)
 			escaping := true
 			v := b.receiver(fn, e.X, wantAddr, escaping, sel, e)
-			if isInterface(rt) {
+			if types.IsInterface(rt) {
 				// If v has interface type I,
 				// we must emit a check that v is non-nil.
 				// We use: typeassert v.(I).
@@ -899,7 +899,7 @@ func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
 			wantAddr := isPointer(recv)
 			escaping := true
 			v := b.receiver(fn, selector.X, wantAddr, escaping, sel, selector)
-			if isInterface(recv) {
+			if types.IsInterface(recv) {
 				// Invoke-mode call.
 
 				// Methods in interfaces cannot have their own type parameters, so we needn't do anything for type
