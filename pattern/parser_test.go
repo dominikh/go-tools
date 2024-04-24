@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"honnef.co/go/tools/debug"
 )
 
 func TestParse(t *testing.T) {
@@ -111,4 +113,35 @@ func FuzzParse(f *testing.F) {
 			}
 		}
 	})
+}
+
+func TestMatchAlias(t *testing.T) {
+	p1 := MustParse(`(CallExpr (Symbol "foo.Alias") _)`)
+	p2 := MustParse(`(CallExpr (Symbol "int") _)`)
+
+	f, _, info, err := debug.TypeCheck(`
+package pkg
+type Alias = int
+func _() { _ = Alias(0) }
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &Matcher{
+		TypesInfo: info,
+	}
+	node := f.Decls[1].(*ast.FuncDecl).Body.List[0].(*ast.AssignStmt).Rhs[0]
+
+	if debug.AliasesEnabled() {
+		// Check that we can match on the name of the alias
+		if ok := m.Match(p1, node); !ok {
+			t.Errorf("%s did not match", p1.Root)
+		}
+	}
+
+	// Check that we can match on the name of the alias's target
+	if ok := m.Match(p2, node); !ok {
+		t.Errorf("%s did not match", p2.Root)
+	}
 }

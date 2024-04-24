@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"sync"
 )
 
 // TypeCheck parses and type-checks a single-file Go package from a string.
@@ -44,4 +45,18 @@ func FormatNode(node ast.Node) string {
 	fset := token.NewFileSet()
 	format.Node(&buf, fset, node)
 	return buf.String()
+}
+
+var aliasesDefaultOnce sync.Once
+var gotypesaliasDefault bool
+
+func AliasesEnabled() bool {
+	// Dynamically check if Aliases will be produced from go/types.
+	aliasesDefaultOnce.Do(func() {
+		fset := token.NewFileSet()
+		f, _ := parser.ParseFile(fset, "a.go", "package p; type A = int", 0)
+		pkg, _ := new(types.Config).Check("p", fset, []*ast.File{f}, nil)
+		_, gotypesaliasDefault = pkg.Scope().Lookup("A").Type().(*types.Alias)
+	})
+	return gotypesaliasDefault
 }
