@@ -9,6 +9,7 @@ jobs:
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
         go: ["1.22.x", "tip"]
+        godebug: ["gotypesalias=0", "gotypesalias=1"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v1
@@ -18,6 +19,8 @@ jobs:
       with:
         go-version: ${{ matrix.go }}
     - run: "go test ./..."
+      env:
+        GODEBUG: ${{ matrix.godebug }}
     - run: "go vet ./..."
     - uses: dominikh/staticcheck-action@v1
       with:
