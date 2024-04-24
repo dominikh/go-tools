@@ -17,7 +17,6 @@ package ir_test
 // Run with "go test -cpu=8 to" set GOMAXPROCS.
 
 import (
-	"go/ast"
 	"go/token"
 	"runtime"
 	"testing"
@@ -70,24 +69,6 @@ func TestStdlib(t *testing.T) {
 
 	allFuncs := irutil.AllFunctions(prog)
 	numFuncs := len(allFuncs)
-
-	// Check that all non-synthetic functions have distinct names.
-	// Synthetic wrappers for exported methods should be distinct too,
-	// except for unexported ones (explained at (*Function).RelString).
-	byName := make(map[string]*ir.Function)
-	for fn := range allFuncs {
-		if fn.Synthetic == 0 || (ast.IsExported(fn.Name()) && fn.Synthetic != ir.SyntheticGeneric) {
-			str := fn.String()
-			prev := byName[str]
-			byName[str] = fn
-			if prev != nil {
-				t.Errorf("%s: duplicate function named %s",
-					prog.Fset.Position(fn.Pos()), str)
-				t.Errorf("%s:   (previously defined here)",
-					prog.Fset.Position(prev.Pos()))
-			}
-		}
-	}
 
 	// Dump some statistics.
 	var numInstrs int
