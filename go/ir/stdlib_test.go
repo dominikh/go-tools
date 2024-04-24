@@ -41,18 +41,6 @@ func TestStdlib(t *testing.T) {
 		t.Skip("skipping in short mode; too slow (golang.org/issue/14113)")
 	}
 
-	var (
-		numFuncs  int
-		numInstrs int
-
-		dLoad   time.Duration
-		dCreate time.Duration
-		dBuild  time.Duration
-
-		allocLoad  uint64
-		allocBuild uint64
-	)
-
 	// Load, parse and type-check the program.
 	t0 := time.Now()
 	alloc0 := bytesAllocated()
@@ -64,65 +52,51 @@ func TestStdlib(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
-	allocLoad = bytesAllocated() - alloc0
-	dLoad = time.Since(t0)
+	allocLoad := bytesAllocated() - alloc0
+	dLoad := time.Since(t0)
 
 	alloc0 = bytesAllocated()
-	for _, pkg := range pkgs {
-		if len(pkg.Errors) != 0 {
-			t.Fatalf("Load failed: %v", pkg.Errors)
-		}
+	var mode ir.BuilderMode
+	// Comment out these lines during benchmarking.  Approx IR build costs are noted.
+	mode |= ir.SanityCheckFunctions // + 2% space, + 4% time
+	mode |= ir.GlobalDebug          // +30% space, +18% time
+	t0 = time.Now()
+	prog, _ := irutil.Packages(pkgs, mode, nil)
+	dCreate := time.Since(t0)
 
-		var mode ir.BuilderMode
-		// Comment out these lines during benchmarking.  Approx IR build costs are noted.
-		mode |= ir.SanityCheckFunctions // + 2% space, + 4% time
-		mode |= ir.GlobalDebug          // +30% space, +18% time
-		prog := ir.NewProgram(pkg.Fset, mode)
+	t0 = time.Now()
+	prog.Build()
+	dBuild := time.Since(t0)
 
-		t0 := time.Now()
-		var irpkg *ir.Package
-		for _, pkg2 := range pkgs {
-			r := prog.CreatePackage(pkg2.Types, pkg2.Syntax, pkg2.TypesInfo, true)
-			if pkg2 == pkg {
-				irpkg = r
-			}
-		}
-		dCreate += time.Since(t0)
+	allFuncs := irutil.AllFunctions(prog)
+	numFuncs := len(allFuncs)
 
-		t0 = time.Now()
-		irpkg.Build()
-		dBuild += time.Since(t0)
-
-		allFuncs := irutil.AllFunctions(prog)
-		numFuncs += len(allFuncs)
-
-		// Check that all non-synthetic functions have distinct names.
-		// Synthetic wrappers for exported methods should be distinct too,
-		// except for unexported ones (explained at (*Function).RelString).
-		byName := make(map[string]*ir.Function)
-		for fn := range allFuncs {
-			if fn.Synthetic == 0 || (ast.IsExported(fn.Name()) && fn.Synthetic != ir.SyntheticGeneric) {
-				str := fn.String()
-				prev := byName[str]
-				byName[str] = fn
-				if prev != nil {
-					t.Errorf("%s: duplicate function named %s",
-						prog.Fset.Position(fn.Pos()), str)
-					t.Errorf("%s:   (previously defined here)",
-						prog.Fset.Position(prev.Pos()))
-				}
-			}
-		}
-
-		// Dump some statistics.
-		var numInstrs int
-		for fn := range allFuncs {
-			for _, b := range fn.Blocks {
-				numInstrs += len(b.Instrs)
+	// Check that all non-synthetic functions have distinct names.
+	// Synthetic wrappers for exported methods should be distinct too,
+	// except for unexported ones (explained at (*Function).RelString).
+	byName := make(map[string]*ir.Function)
+	for fn := range allFuncs {
+		if fn.Synthetic == 0 || (ast.IsExported(fn.Name()) && fn.Synthetic != ir.SyntheticGeneric) {
+			str := fn.String()
+			prev := byName[str]
+			byName[str] = fn
+			if prev != nil {
+				t.Errorf("%s: duplicate function named %s",
+					prog.Fset.Position(fn.Pos()), str)
+				t.Errorf("%s:   (previously defined here)",
+					prog.Fset.Position(prev.Pos()))
 			}
 		}
 	}
-	allocBuild = bytesAllocated() - alloc0
+
+	// Dump some statistics.
+	var numInstrs int
+	for fn := range allFuncs {
+		for _, b := range fn.Blocks {
+			numInstrs += len(b.Instrs)
+		}
+	}
+	allocBuild := bytesAllocated() - alloc0
 
 	// determine line count
 	var lineCount int
