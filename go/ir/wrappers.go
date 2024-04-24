@@ -116,7 +116,7 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 	// address of implicit  C field.
 
 	var c Call
-	if r := recvType(obj); !isInterface(r) { // concrete method
+	if r := recvType(obj); !types.IsInterface(r) { // concrete method
 		if !isPointer(r) {
 			v = emitLoad(fn, v, nil)
 		}
@@ -194,7 +194,7 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 		createParams(fn, 0)
 		var c Call
 
-		if !isInterface(recvType(obj)) { // concrete
+		if !types.IsInterface(recvType(obj)) { // concrete
 			c.Call.Value = prog.declaredFunc(obj)
 			c.Call.Args = []Value{fv}
 		} else {

@@ -42,8 +42,6 @@ func isPointer(typ types.Type) bool {
 	return ok
 }
 
-func isInterface(T types.Type) bool { return types.IsInterface(T) }
-
 // deref returns a pointer's element type; otherwise it returns typ.
 func deref(typ types.Type) types.Type {
 	orig := typ
