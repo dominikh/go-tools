@@ -17,10 +17,7 @@ package ir_test
 // Run with "go test -cpu=8 to" set GOMAXPROCS.
 
 import (
-	"go/token"
-	"runtime"
 	"testing"
-	"time"
 
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
@@ -28,21 +25,10 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func bytesAllocated() uint64 {
-	runtime.GC()
-	var stats runtime.MemStats
-	runtime.ReadMemStats(&stats)
-	return stats.TotalAlloc
-}
-
 func TestStdlib(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode; too slow (golang.org/issue/14113)")
 	}
-
-	// Load, parse and type-check the program.
-	t0 := time.Now()
-	alloc0 := bytesAllocated()
 
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypesSizes,
@@ -51,54 +37,15 @@ func TestStdlib(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
-	allocLoad := bytesAllocated() - alloc0
-	dLoad := time.Since(t0)
-
-	alloc0 = bytesAllocated()
-	var mode ir.BuilderMode
-	// Comment out these lines during benchmarking.  Approx IR build costs are noted.
-	mode |= ir.SanityCheckFunctions // + 2% space, + 4% time
-	mode |= ir.GlobalDebug          // +30% space, +18% time
-	t0 = time.Now()
-	prog, _ := irutil.Packages(pkgs, mode, nil)
-	dCreate := time.Since(t0)
-
-	t0 = time.Now()
-	prog.Build()
-	dBuild := time.Since(t0)
-
-	allFuncs := irutil.AllFunctions(prog)
-	numFuncs := len(allFuncs)
-
-	// Dump some statistics.
-	var numInstrs int
-	for fn := range allFuncs {
-		for _, b := range fn.Blocks {
-			numInstrs += len(b.Instrs)
+	for _, pkg := range pkgs {
+		if len(pkg.Errors) != 0 {
+			t.Fatalf("Load failed: %v", pkg.Errors[0])
 		}
 	}
-	allocBuild := bytesAllocated() - alloc0
 
-	// determine line count
-	var lineCount int
-	pkgs[0].Fset.Iterate(func(f *token.File) bool {
-		lineCount += f.LineCount()
-		return true
-	})
-
-	// NB: when benchmarking, don't forget to clear the debug +
-	// sanity builder flags for better performance.
-
-	t.Log("GOMAXPROCS:           ", runtime.GOMAXPROCS(0))
-	t.Log("#Source lines:        ", lineCount)
-	t.Log("Load/parse/typecheck: ", dLoad)
-	t.Log("IR create:           ", dCreate)
-	t.Log("IR build:            ", dBuild)
-
-	// IR stats:
-	t.Log("#Packages:            ", len(pkgs))
-	t.Log("#Functions:           ", numFuncs)
-	t.Log("#Instructions:        ", numInstrs)
-	t.Log("#MB AST+types:        ", allocLoad/1e6)
-	t.Log("#MB IR:              ", allocBuild/1e6)
+	var mode ir.BuilderMode
+	mode |= ir.SanityCheckFunctions
+	mode |= ir.GlobalDebug
+	prog, _ := irutil.Packages(pkgs, mode, nil)
+	prog.Build()
 }
