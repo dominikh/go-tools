@@ -33,7 +33,7 @@ If every doc comment begins with the name of the item it describes,
 you can use the \'doc\' subcommand of the \'go\' tool and run the output
 through grep.
 
-See https://golang.org/doc/effective_go.html#commentary for more
+See https://go.dev/doc/effective_go#commentary for more
 information on how to write good documentation.`,
 		Since:      "2020.1",
 		NonDefault: true,

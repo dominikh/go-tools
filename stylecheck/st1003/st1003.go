@@ -29,10 +29,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 See the following links for details:
 
-- https://golang.org/doc/effective_go.html#package-names
-- https://golang.org/doc/effective_go.html#mixed-caps
-- https://github.com/golang/go/wiki/CodeReviewComments#initialisms
-- https://github.com/golang/go/wiki/CodeReviewComments#variable-names`,
+- https://go.dev/doc/effective_go#package-names
+- https://go.dev/doc/effective_go#mixed-caps
+- https://go.dev/wiki/CodeReviewComments#initialisms
+- https://go.dev/wiki/CodeReviewComments#variable-names`,
 		Since:      "2019.1",
 		NonDefault: true,
 		Options:    []string{"initialisms"},
