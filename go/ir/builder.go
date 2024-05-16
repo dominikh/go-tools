@@ -271,9 +271,9 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 		// For example, for len(gen()), we need to evaluate gen() for its side-effects, but don't need the returned
 		// value to determine the length of the array, which is constant.
 		//
-		// This never applies to type parameters. Even if the constraint has a structural type, len/cap on a type
-		// parameter aren't constant.
-		t := deref(fn.Pkg.typeOf(args[0])).Underlying()
+		// Technically this shouldn't apply to type parameters because their length/capacity is never constant. We still
+		// choose to treat them as constant so that users of the IR get the practically constant length for free.
+		t := typeutil.CoreType(deref(fn.Pkg.typeOf(args[0])))
 		if at, ok := t.(*types.Array); ok {
 			b.expr(fn, args[0]) // for effects only
 			return emitConst(fn, intConst(at.Len(), args[0]))
@@ -1984,12 +1984,14 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 	//
 	// We store the length in an Alloc and load it on each iteration so that lifting produces the necessary σ nodes
 	length := newVariable(fn, tInt, source)
-	if arr, ok := deref(x.Type()).Underlying().(*types.Array); ok && !typeparams.IsTypeParam(x.Type()) {
+	if arr, ok := typeutil.CoreType(deref(x.Type())).(*types.Array); ok {
 		// For array or *array, the number of iterations is known statically thanks to the type. We avoid a data
 		// dependence upon x, permitting later dead-code elimination if x is pure, static unrolling, etc. Ranging over a
 		// nil *array may have >0 iterations. We still generate code for x, in case it has effects.
 		//
-		// This intentionally misses type parameters with core types, because their length isn't technically constant.
+		// We use the core type of x, even though the length of type parameters isn't constant as per the language
+		// specification. Just because len(x) isn't constant doesn't mean we can't emit IR that takes advantage of a
+		// known length.
 		length.store(emitConst(fn, intConst(arr.Len(), nil)))
 	} else {
 		// length = len(x).
