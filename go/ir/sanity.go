@@ -152,6 +152,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 			s.errorf("convert %s -> %s: at least one type set must contain basic type", instr.X.Type(), instr.Type())
 		}
 
+	case *MultiConvert:
 	case *Defer:
 	case *Extract:
 	case *Field:

@@ -892,6 +892,26 @@ type Convert struct {
 	X Value
 }
 
+// The MultiConvert instruction yields the conversion of value X to type
+// Type(). Either X.Type() or Type() must be a type parameter. Each
+// type in the type set of X.Type() can be converted to each type in the
+// type set of Type().
+//
+// See the documentation for Convert, ChangeType, SliceToArray, and SliceToArrayPointer
+// for the conversions that are permitted.
+//
+// This operation can fail dynamically (see SliceToArrayPointer).
+//
+// Example printed form:
+//
+//	t1 = multiconvert D <- S (t0) [*[2]rune <- []rune | string <- []rune]
+type MultiConvert struct {
+	register
+	X    Value
+	from typeutil.TypeSet
+	to   typeutil.TypeSet
+}
+
 // ChangeInterface constructs a value of one interface type from a
 // value of another interface type known to be assignable to it.
 // This operation cannot fail.
@@ -1906,6 +1926,10 @@ func (v *ChangeType) Operands(rands []*Value) []*Value {
 }
 
 func (v *Convert) Operands(rands []*Value) []*Value {
+	return append(rands, &v.X)
+}
+
+func (v *MultiConvert) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
 }
 

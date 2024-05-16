@@ -79,6 +79,7 @@
 //	*MakeSlice            ✔               ✔
 //	*MapLookup            ✔               ✔
 //	*MapUpdate            ✔               ✔
+//	*MultiConvert         ✔               ✔
 //	*NamedConst                                           ✔ (const)
 //	*Next                 ✔               ✔
 //	*Panic                                ✔

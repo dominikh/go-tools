@@ -59,12 +59,24 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, b := range fn.Blocks {
 		insLoop:
 			for _, ins := range b.Instrs {
+				var fromType types.Type
+				var toType types.Type
+
 				// find []byte -> string conversions
-				conv, ok := ins.(*ir.Convert)
-				if !ok || conv.Type() != types.Universe.Lookup("string").Type() {
+				switch ins := ins.(type) {
+				case *ir.Convert:
+					fromType = ins.X.Type()
+					toType = ins.Type()
+				case *ir.MultiConvert:
+					fromType = ins.X.Type()
+					toType = ins.Type()
+				default:
 					continue
 				}
-				tset := typeutil.NewTypeSet(conv.X.Type())
+				if toType != types.Universe.Lookup("string").Type() {
+					continue
+				}
+				tset := typeutil.NewTypeSet(fromType)
 				// If at least one of the types is []byte, then it's more efficient to inline the conversion
 				if !tset.Any(func(term *types.Term) bool {
 					s, ok := term.Type().Underlying().(*types.Slice)
@@ -72,7 +84,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				}) {
 					continue
 				}
-				refs := conv.Referrers()
+				refs := ins.Referrers()
 				// need at least two (DebugRef) references: the
 				// conversion and the *ast.Ident
 				if refs == nil || len(*refs) < 2 {
@@ -104,7 +116,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !ident {
 					continue
 				}
-				report.Report(pass, conv, "m[string(key)] would be more efficient than k := string(key); m[k]")
+				report.Report(pass, ins, "m[string(key)] would be more efficient than k := string(key); m[k]")
 			}
 		}
 	}
