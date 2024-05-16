@@ -8,6 +8,7 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
+	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
 	"golang.org/x/tools/go/analysis"
@@ -48,12 +49,8 @@ func ConvertedFromInt(v callcheck.Value) bool {
 	if !ok {
 		return false
 	}
-	b, ok := conv.X.Type().Underlying().(*types.Basic)
-	if !ok {
-		return false
-	}
-	if (b.Info() & types.IsInteger) == 0 {
-		return false
-	}
-	return true
+	return typeutil.NewTypeSet(conv.X.Type()).All(func(t *types.Term) bool {
+		b, ok := t.Type().Underlying().(*types.Basic)
+		return ok && b.Info()&types.IsInteger != 0
+	})
 }
