@@ -152,6 +152,7 @@ func BuildPackage(tc *types.Config, fset *token.FileSet, pkg *types.Package, fil
 		Implicits:  make(map[ast.Node]types.Object),
 		Scopes:     make(map[ast.Node]*types.Scope),
 		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+		Instances:  make(map[*ast.Ident]types.Instance),
 	}
 	if err := types.NewChecker(tc, fset, pkg, info).Files(files); err != nil {
 		return nil, nil, err
