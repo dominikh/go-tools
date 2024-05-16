@@ -224,13 +224,14 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 		Syntax:      make([]*ast.File, len(spec.CompiledGoFiles)),
 		Fset:        prog.fset,
 		TypesInfo: &types.Info{
-			Types:      make(map[ast.Expr]types.TypeAndValue),
-			Defs:       make(map[*ast.Ident]types.Object),
-			Uses:       make(map[*ast.Ident]types.Object),
-			Implicits:  make(map[ast.Node]types.Object),
-			Scopes:     make(map[ast.Node]*types.Scope),
-			Selections: make(map[*ast.SelectorExpr]*types.Selection),
-			Instances:  map[*ast.Ident]types.Instance{},
+			Types:        make(map[ast.Expr]types.TypeAndValue),
+			Defs:         make(map[*ast.Ident]types.Object),
+			Uses:         make(map[*ast.Ident]types.Object),
+			Implicits:    make(map[ast.Node]types.Object),
+			Scopes:       make(map[ast.Node]*types.Scope),
+			Selections:   make(map[*ast.SelectorExpr]*types.Selection),
+			Instances:    make(map[*ast.Ident]types.Instance),
+			FileVersions: make(map[*ast.File]string),
 		},
 	}
 	// runtime.SetFinalizer(pkg, func(pkg *Package) {

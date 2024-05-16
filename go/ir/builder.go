@@ -589,6 +589,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			Pkg:          fn.Pkg,
 			Prog:         fn.Prog,
 			functionBody: new(functionBody),
+			goversion:    fn.goversion, // share the parent's goversion
 		}
 		fn2.source = e
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
@@ -2620,6 +2621,12 @@ func (p *Package) build() {
 			fmt.Fprintf(os.Stderr, "build global initializer %v @ %s\n",
 				varinit.Lhs, p.Prog.Fset.Position(varinit.Rhs.Pos()))
 		}
+		// Initializers for global vars are evaluated in dependency
+		// order, but may come from arbitrary files of the package
+		// with different versions, so we transiently update
+		// init.goversion for each one. (Since init is a synthetic
+		// function it has no syntax of its own that needs a version.)
+		init.goversion = p.initVersion[varinit.Rhs]
 		if len(varinit.Lhs) == 1 {
 			// 1:1 initialization: var x, y = a(), b()
 			var lval lvalue
@@ -2641,6 +2648,7 @@ func (p *Package) build() {
 			}
 		}
 	}
+	init.goversion = "" // The rest of the init function is synthetic. No syntax => no goversion.
 
 	// Build all package-level functions, init functions
 	// and methods, including unreachable/blank ones.
@@ -2657,7 +2665,9 @@ func (p *Package) build() {
 	emitJump(init, done, nil)
 	init.finishBody()
 
-	p.info = nil // We no longer need ASTs or go/types deductions.
+	// We no longer need ASTs or go/types deductions.
+	p.info = nil
+	p.initVersion = nil
 
 	if p.Prog.mode&SanityCheckFunctions != 0 {
 		sanityCheckPackage(p)

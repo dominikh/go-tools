@@ -551,6 +551,7 @@ func (f *Function) finishBody() {
 
 	f.namedResults = nil // (used by lifting)
 	f.implicitResults = nil
+	f.goversion = ""
 
 	numberNodes(f)
 

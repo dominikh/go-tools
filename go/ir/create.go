@@ -12,6 +12,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"go/version"
 	"os"
 	"sync"
 
@@ -47,10 +48,10 @@ func NewProgram(fset *token.FileSet, mode BuilderMode) *Program {
 // memberFromObject populates package pkg with a member for the
 // typechecker object obj.
 //
-// For objects from Go source code, syntax is the associated syntax
-// tree (for funcs and vars only); it will be used during the build
-// phase.
-func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
+// For objects from Go source code, syntax is the associated syntax tree
+// (for funcs and vars only) and goversion defines the appropriate
+// interpretation; they will be used during the build phase.
+func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion string) {
 	name := obj.Name()
 	switch obj := obj.(type) {
 	case *types.Builtin:
@@ -95,6 +96,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 			Signature: sig,
 			Pkg:       pkg,
 			Prog:      pkg.Prog,
+			goversion: goversion,
 		}
 
 		fn.source = syntax
@@ -126,7 +128,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node) {
 // membersFromDecl populates package pkg with members for each
 // typechecker object (var, func, const or type) associated with the
 // specified decl.
-func membersFromDecl(pkg *Package, decl ast.Decl) {
+func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 	switch decl := decl.(type) {
 	case *ast.GenDecl: // import, const, type or var
 		switch decl.Tok {
@@ -134,16 +136,19 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 			for _, spec := range decl.Specs {
 				for _, id := range spec.(*ast.ValueSpec).Names {
 					if !isBlankIdent(id) {
-						memberFromObject(pkg, pkg.info.Defs[id], nil)
+						memberFromObject(pkg, pkg.info.Defs[id], nil, "")
 					}
 				}
 			}
 
 		case token.VAR:
 			for _, spec := range decl.Specs {
+				for _, rhs := range spec.(*ast.ValueSpec).Values {
+					pkg.initVersion[rhs] = goversion
+				}
 				for _, id := range spec.(*ast.ValueSpec).Names {
 					if !isBlankIdent(id) {
-						memberFromObject(pkg, pkg.info.Defs[id], spec)
+						memberFromObject(pkg, pkg.info.Defs[id], spec, goversion)
 					}
 				}
 			}
@@ -152,7 +157,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 			for _, spec := range decl.Specs {
 				id := spec.(*ast.TypeSpec).Name
 				if !isBlankIdent(id) {
-					memberFromObject(pkg, pkg.info.Defs[id], nil)
+					memberFromObject(pkg, pkg.info.Defs[id], nil, "")
 				}
 			}
 		}
@@ -160,7 +165,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 	case *ast.FuncDecl:
 		id := decl.Name
 		if !isBlankIdent(id) {
-			memberFromObject(pkg, pkg.info.Defs[id], decl)
+			memberFromObject(pkg, pkg.info.Defs[id], decl, goversion)
 		}
 	}
 }
@@ -176,13 +181,15 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 // until a subsequent call to Package.Build().
 func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *types.Info, importable bool) *Package {
 	p := &Package{
-		Prog:      prog,
-		Members:   make(map[string]Member),
-		values:    make(map[types.Object]Value),
-		Pkg:       pkg,
-		info:      info,  // transient (CREATE and BUILD phases)
-		files:     files, // transient (CREATE and BUILD phases)
-		printFunc: prog.PrintFunc,
+		Prog:    prog,
+		Members: make(map[string]Member),
+		values:  make(map[types.Object]Value),
+		Pkg:     pkg,
+		// transient values (CREATE and BUILD phases)
+		info:        info,
+		files:       files,
+		printFunc:   prog.PrintFunc,
+		initVersion: make(map[ast.Expr]string),
 	}
 
 	// Add init() function.
@@ -193,6 +200,7 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		Pkg:          p,
 		Prog:         prog,
 		functionBody: new(functionBody),
+		goversion:    "", // See Package.build for details.
 	}
 	p.init.initHTML(prog.PrintFunc)
 	p.Members[p.init.name] = p.init
@@ -203,8 +211,9 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 	if len(files) > 0 {
 		// Go source package.
 		for _, file := range files {
+			goversion := version.Lang(p.info.FileVersions[file])
 			for _, decl := range file.Decls {
-				membersFromDecl(p, decl)
+				membersFromDecl(p, decl, goversion)
 			}
 		}
 	} else {
@@ -214,11 +223,11 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		scope := p.Pkg.Scope()
 		for _, name := range scope.Names() {
 			obj := scope.Lookup(name)
-			memberFromObject(p, obj, nil)
+			memberFromObject(p, obj, nil, "")
 			if obj, ok := obj.(*types.TypeName); ok {
 				if named, ok := obj.Type().(*types.Named); ok {
 					for i, n := 0, named.NumMethods(); i < n; i++ {
-						memberFromObject(p, named.Method(i), nil)
+						memberFromObject(p, named.Method(i), nil, "")
 					}
 				}
 			}

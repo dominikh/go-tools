@@ -64,10 +64,11 @@ type Package struct {
 
 	// The following fields are set transiently, then cleared
 	// after building.
-	buildOnce sync.Once   // ensures package building occurs once
-	ninit     int32       // number of init functions
-	info      *types.Info // package type information
-	files     []*ast.File // package ASTs
+	buildOnce   sync.Once           // ensures package building occurs once
+	ninit       int32               // number of init functions
+	info        *types.Info         // package type information
+	files       []*ast.File         // package ASTs
+	initVersion map[ast.Expr]string // goversion to use for each global var init expr
 }
 
 // A Member is a member of a Go package, implemented by *NamedConst,
@@ -368,6 +369,7 @@ type Function struct {
 	AnonFuncs []*Function   // anonymous functions directly beneath this one
 	referrers []Instruction // referring instructions (iff Parent() != nil)
 	NoReturn  NoReturn      // Calling this function will always terminate control flow.
+	goversion string        // Go version of syntax (NB: init is special)
 
 	*functionBody
 }
