@@ -2158,6 +2158,57 @@ func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, source ast.Nod
 	return
 }
 
+// rangeInt emits to fn the header for a range loop with an integer operand.
+// tk is the key value's type, or nil if the k result is not wanted.
+// pos is the position of the "for" token.
+func (b *builder) rangeInt(fn *Function, x Value, tk types.Type, source ast.Node) (k Value, loop, done *BasicBlock) {
+	//
+	//     iter = 0
+	//     if 0 < x goto body else done
+	// loop:                                   (target of continue)
+	//     iter++
+	//     if iter < x goto body else done
+	// body:
+	//     k = x
+	//     ...body...
+	//     jump loop
+	// done:                                   (target of break)
+
+	if b, ok := x.Type().(*types.Basic); ok && b.Info()&types.IsUntyped != 0 {
+		x = emitConv(fn, x, tInt, source)
+	}
+
+	T := x.Type()
+	iter := fn.addLocal(T, source)
+	// x may be unsigned. Avoid initializing x to -1.
+
+	body := fn.newBasicBlock("rangeint.body")
+	done = fn.newBasicBlock("rangeint.done")
+	emitIf(fn, emitCompare(fn, token.LSS, zeroConst(T, source), x, source), body, done, source)
+
+	loop = fn.newBasicBlock("rangeint.loop")
+	fn.currentBlock = loop
+
+	incr := &BinOp{
+		Op: token.ADD,
+		X:  emitLoad(fn, iter, source),
+		Y:  emitConv(fn, intConst(1, source), T, source),
+	}
+	incr.setType(T)
+	emitStore(fn, iter, fn.emit(incr, source), source)
+	emitIf(fn, emitCompare(fn, token.LSS, incr, x, source), body, done, source)
+	fn.currentBlock = body
+
+	if tk != nil {
+		// Integer types (int, uint8, etc.) are named and
+		// we know that k is assignable to x when tk != nil.
+		// This implies tk and T are identical so no conversion is needed.
+		k = emitLoad(fn, iter, source)
+	}
+
+	return
+}
+
 type variable struct {
 	alloc  *Alloc
 	fn     *Function
@@ -2221,8 +2272,20 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, sourc
 	case *types.Chan:
 		k, loop, done = b.rangeChan(fn, x, tk, source)
 
-	case *types.Map, *types.Basic: // string
+	case *types.Map:
 		k, v, loop, done = b.rangeIter(fn, x, tk, tv, source)
+
+	case *types.Basic:
+		switch {
+		case rt.Info()&types.IsString != 0:
+			k, v, loop, done = b.rangeIter(fn, x, tk, tv, source)
+
+		case rt.Info()&types.IsInteger != 0:
+			k, loop, done = b.rangeInt(fn, x, tk, source)
+
+		default:
+			panic("Cannot range over basic type: " + rt.String())
+		}
 
 	default:
 		panic("Cannot range over: " + rt.String())
