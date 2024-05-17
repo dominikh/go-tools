@@ -30,6 +30,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"go/version"
 	"os"
 
 	"honnef.co/go/tools/analysis/lint"
@@ -2246,19 +2247,25 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, sourc
 		tv = fn.Pkg.typeOf(s.Value)
 	}
 
-	// If iteration variables are defined (:=), this
-	// occurs once outside the loop.
-	//
-	// Unlike a short variable declaration, a RangeStmt
-	// using := never redeclares an existing variable; it
-	// always creates a new one.
-	if s.Tok == token.DEFINE {
+	// create locals for s.Key and s.Value
+	createVars := func() {
+		// Unlike a short variable declaration, a RangeStmt
+		// using := never redeclares an existing variable; it
+		// always creates a new one.
 		if tk != nil {
 			fn.addLocalForIdent(s.Key.(*ast.Ident))
 		}
 		if tv != nil {
 			fn.addLocalForIdent(s.Value.(*ast.Ident))
 		}
+	}
+
+	afterGo122 := version.Compare(fn.goversion, "go1.22") >= 0
+
+	if s.Tok == token.DEFINE && !afterGo122 {
+		// pre-go1.22: If iteration variables are defined (:=), this
+		// occurs once outside the loop.
+		createVars()
 	}
 
 	x := b.expr(fn, s.X)
@@ -2289,6 +2296,11 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, sourc
 
 	default:
 		panic("Cannot range over: " + rt.String())
+	}
+
+	if s.Tok == token.DEFINE && afterGo122 {
+		// go1.22: If iteration variables are defined (:=), this occurs inside the loop.
+		createVars()
 	}
 
 	// Evaluate both LHS expressions before we update either.
