@@ -226,7 +226,7 @@ func (f *Function) addParam(name string, typ types.Type, source ast.Node) *Param
 	return v
 }
 
-func (f *Function) addParamObj(obj types.Object, source ast.Node) *Parameter {
+func (f *Function) addParamObj(obj *types.Var, source ast.Node) *Parameter {
 	name := obj.Name()
 	if name == "" {
 		name = fmt.Sprintf("arg%d", len(f.Params))
@@ -239,15 +239,9 @@ func (f *Function) addParamObj(obj types.Object, source ast.Node) *Parameter {
 // addSpilledParam declares a parameter that is pre-spilled to the
 // stack; the function body will load/store the spilled location.
 // Subsequent lifting will eliminate spills where possible.
-func (f *Function) addSpilledParam(obj types.Object, source ast.Node) {
+func (f *Function) addSpilledParam(obj *types.Var, source ast.Node) {
 	param := f.addParamObj(obj, source)
-	spill := &Alloc{}
-	spill.comment = obj.Name()
-	spill.setType(types.NewPointer(obj.Type()))
-	spill.source = source
-	f.objects[obj] = spill
-	f.Locals = append(f.Locals, spill)
-	f.emit(spill, source)
+	spill := emitLocalVar(f, obj, source)
 	emitStore(f, spill, param, source)
 	// f.emit(&Store{Addr: spill, Val: param})
 }
@@ -307,7 +301,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 	if recv != nil {
 		for _, field := range recv.List {
 			for _, n := range field.Names {
-				f.addSpilledParam(f.Pkg.info.Defs[n], n)
+				f.addSpilledParam(identVar(f, n), n)
 			}
 			// Anonymous receiver?  No need to spill.
 			if field.Names == nil {
@@ -321,7 +315,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 		n := len(f.Params) // 1 if has recv, 0 otherwise
 		for _, field := range functype.Params.List {
 			for _, n := range field.Names {
-				f.addSpilledParam(f.Pkg.info.Defs[n], n)
+				f.addSpilledParam(identVar(f, n), n)
 			}
 			// Anonymous parameter?  No need to spill.
 			if field.Names == nil {
@@ -335,7 +329,8 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 		for _, field := range functype.Results.List {
 			// Implicit "var" decl of locals for named results.
 			for _, n := range field.Names {
-				f.namedResults = append(f.namedResults, f.addLocalForIdent(n))
+				namedResult := emitLocalVar(f, identVar(f, n), n)
+				f.namedResults = append(f.namedResults, namedResult)
 			}
 		}
 
@@ -343,8 +338,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 			sig := f.Signature.Results()
 			for i := 0; i < sig.Len(); i++ {
 				// XXX position information
-				v := f.addLocal(sig.At(i).Type(), nil)
-				v.comment = fmt.Sprintf("ret.%d", i)
+				v := emitLocal(f, sig.At(i).Type(), nil, fmt.Sprintf("ret.%d", i))
 				f.implicitResults = append(f.implicitResults, v)
 			}
 		}
@@ -628,30 +622,6 @@ func (pkg *Package) SetDebugMode(debug bool) {
 // debugInfo reports whether debug info is wanted for this function.
 func (f *Function) debugInfo() bool {
 	return f.Pkg != nil && f.Pkg.debug
-}
-
-// addNamedLocal creates a local variable, adds it to function f and
-// returns it.  Its name and type are taken from obj.  Subsequent
-// calls to f.lookup(obj) will return the same local.
-func (f *Function) addNamedLocal(obj types.Object, source ast.Node) *Alloc {
-	l := f.addLocal(obj.Type(), source)
-	l.comment = obj.Name()
-	f.objects[obj] = l
-	return l
-}
-
-func (f *Function) addLocalForIdent(id *ast.Ident) *Alloc {
-	return f.addNamedLocal(f.Pkg.info.Defs[id], id)
-}
-
-// addLocal creates an anonymous local variable of type typ, adds it
-// to function f and returns it.  pos is the optional source location.
-func (f *Function) addLocal(typ types.Type, source ast.Node) *Alloc {
-	v := &Alloc{}
-	v.setType(types.NewPointer(typ))
-	f.Locals = append(f.Locals, v)
-	f.emit(v, source)
-	return v
 }
 
 // lookup returns the address of the named variable identified by obj
@@ -958,4 +928,9 @@ func killInstruction(instr Instruction) {
 			*refs = removeInstr(*refs, instr)
 		}
 	}
+}
+
+// identVar returns the variable defined by id.
+func identVar(fn *Function, id *ast.Ident) *types.Var {
+	return fn.Pkg.info.Defs[id].(*types.Var)
 }
