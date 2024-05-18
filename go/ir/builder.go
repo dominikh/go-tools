@@ -1910,6 +1910,16 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 // forStmt emits to fn code for the for statement s, optionally
 // labelled by label.
 func (b *builder) forStmt(fn *Function, s *ast.ForStmt, label *lblock) {
+	// Use forStmtGo122 instead if it applies.
+	if s.Init != nil {
+		if assign, ok := s.Init.(*ast.AssignStmt); ok && assign.Tok == token.DEFINE {
+			if version.Compare(fn.goversion, "go1.22") >= 0 {
+				b.forStmtGo122(fn, s, label)
+				return
+			}
+		}
+	}
+
 	//	...init...
 	//      jump loop
 	// loop:
@@ -1959,6 +1969,169 @@ func (b *builder) forStmt(fn *Function, s *ast.ForStmt, label *lblock) {
 		emitJump(fn, loop, s) // back-edge
 	}
 	fn.currentBlock = done
+}
+
+// forStmtGo122 emits to fn code for the for statement s, optionally
+// labelled by label. s must define its variables.
+//
+// This allocates once per loop iteration. This is only correct in
+// GoVersions >= go1.22.
+func (b *builder) forStmtGo122(fn *Function, s *ast.ForStmt, label *lblock) {
+	//     i_outer = alloc[T]
+	//     *i_outer = ...init...        // under objects[i] = i_outer
+	//     jump loop
+	// loop:
+	//     i = phi [head: i_outer, loop: i_next]
+	//     ...cond...                   // under objects[i] = i
+	//     if cond goto body else done
+	// body:
+	//     ...body...                   // under objects[i] = i (same as loop)
+	//     jump post
+	// post:
+	//     tmp = *i
+	//     i_next = alloc[T]
+	//     *i_next = tmp
+	//     ...post...                   // under objects[i] = i_next
+	//     goto loop
+	// done:
+
+	init := s.Init.(*ast.AssignStmt)
+	startingBlocks := len(fn.Blocks)
+
+	pre := fn.currentBlock               // current block before starting
+	loop := fn.newBasicBlock("for.loop") // target of back-edge
+	body := fn.newBasicBlock("for.body")
+	post := fn.newBasicBlock("for.post") // target of 'continue'
+	done := fn.newBasicBlock("for.done") // target of 'break'
+
+	// For each of the n loop variables, we create five SSA values,
+	// outer, phi, next, load, and store in pre, loop, and post.
+	// There is no limit on n.
+	type loopVar struct {
+		obj   *types.Var
+		outer *Alloc
+		phi   *Phi
+		load  *Load
+		next  *Alloc
+		store *Store
+	}
+	vars := make([]loopVar, len(init.Lhs))
+	for i, lhs := range init.Lhs {
+		v := identVar(fn, lhs.(*ast.Ident))
+
+		fn.currentBlock = pre
+		outer := emitLocal(fn, v.Type(), lhs, v.Name())
+
+		fn.currentBlock = loop
+		phi := &Phi{}
+		phi.comment = v.Name()
+		phi.typ = outer.Type()
+		fn.emit(phi, lhs)
+
+		fn.currentBlock = post
+		// If next is is local, it reuses the address and zeroes the old value so
+		// load before allocating next.
+		load := emitLoad(fn, phi, init)
+		next := emitLocal(fn, v.Type(), lhs, v.Name())
+		store := emitStore(fn, next, load, s)
+
+		phi.Edges = []Value{outer, next} // pre edge is emitted before post edge.
+		vars[i] = loopVar{v, outer, phi, load, next, store}
+	}
+
+	// ...init... under fn.objects[v] = i_outer
+	fn.currentBlock = pre
+	for _, v := range vars {
+		fn.vars[v.obj] = v.outer
+	}
+	const isDef = false // assign to already-allocated outers
+	b.assignStmt(fn, init.Lhs, init.Rhs, isDef, s)
+	if label != nil {
+		label._break = done
+		label._continue = post
+	}
+	emitJump(fn, loop, s)
+
+	// ...cond... under fn.objects[v] = i
+	fn.currentBlock = loop
+	for _, v := range vars {
+		fn.vars[v.obj] = v.phi
+	}
+	if s.Cond != nil {
+		b.cond(fn, s.Cond, body, done)
+	} else {
+		emitJump(fn, body, s)
+	}
+
+	// ...body... under fn.objects[v] = i
+	fn.currentBlock = body
+	fn.targets = &targets{
+		tail:      fn.targets,
+		_break:    done,
+		_continue: post,
+	}
+	b.stmt(fn, s.Body)
+	fn.targets = fn.targets.tail
+	emitJump(fn, post, s)
+
+	// ...post... under fn.objects[v] = i_next
+	for _, v := range vars {
+		fn.vars[v.obj] = v.next
+	}
+	fn.currentBlock = post
+	if s.Post != nil {
+		b.stmt(fn, s.Post)
+	}
+	emitJump(fn, loop, s) // back-edge
+	fn.currentBlock = done
+
+	// For each loop variable that does not escape,
+	// (the common case), fuse its next cells into its
+	// (local) outer cell as they have disjoint live ranges.
+	//
+	// It is sufficient to test whether i_next escapes,
+	// because its Heap flag will be marked true if either
+	// the cond or post expression causes i to escape
+	// (because escape distributes over phi).
+	var nlocals int
+	for _, v := range vars {
+		if !v.next.Heap {
+			nlocals++
+		}
+	}
+	if nlocals > 0 {
+		replace := make(map[Value]Value, 2*nlocals)
+		dead := make(map[Instruction]bool, 4*nlocals)
+		for _, v := range vars {
+			if !v.next.Heap {
+				replace[v.next] = v.outer
+				replace[v.phi] = v.outer
+				dead[v.phi], dead[v.next], dead[v.load], dead[v.store] = true, true, true, true
+			}
+		}
+
+		// Replace all uses of i_next and phi with i_outer.
+		// Referrers have not been built for fn yet so only update Instruction operands.
+		// We need only look within the blocks added by the loop.
+		var operands []*Value // recycle storage
+		for _, b := range fn.Blocks[startingBlocks:] {
+			for _, instr := range b.Instrs {
+				operands = instr.Operands(operands[:0])
+				for _, ptr := range operands {
+					k := *ptr
+					if v := replace[k]; v != nil {
+						*ptr = v
+					}
+				}
+			}
+		}
+
+		// Remove instructions for phi, load, and store.
+		// lift() will remove the unused i_next *Alloc.
+		isDead := func(i Instruction) bool { return dead[i] }
+		loop.Instrs = removeInstrsIf(loop.Instrs, isDead)
+		post.Instrs = removeInstrsIf(post.Instrs, isDead)
+	}
 }
 
 // rangeIndexed emits to fn the header for an integer-indexed loop

@@ -46,6 +46,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"slices"
 )
 
 // If true, show diagnostic information at each step of lifting.
@@ -135,18 +136,11 @@ func buildPostDomFrontier(fn *Function) postDomFrontier {
 }
 
 func removeInstr(refs []Instruction, instr Instruction) []Instruction {
-	i := 0
-	for _, ref := range refs {
-		if ref == instr {
-			continue
-		}
-		refs[i] = ref
-		i++
-	}
-	for j := i; j != len(refs); j++ {
-		refs[j] = nil // aid GC
-	}
-	return refs[:i]
+	return removeInstrsIf(refs, func(i Instruction) bool { return i == instr })
+}
+
+func removeInstrsIf(refs []Instruction, p func(Instruction) bool) []Instruction {
+	return slices.DeleteFunc(refs, p)
 }
 
 func clearInstrs(instrs []Instruction) {
