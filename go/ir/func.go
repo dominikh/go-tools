@@ -242,6 +242,7 @@ func (f *Function) addParamObj(obj types.Object, source ast.Node) *Parameter {
 func (f *Function) addSpilledParam(obj types.Object, source ast.Node) {
 	param := f.addParamObj(obj, source)
 	spill := &Alloc{}
+	spill.comment = obj.Name()
 	spill.setType(types.NewPointer(obj.Type()))
 	spill.source = source
 	f.objects[obj] = spill
@@ -343,6 +344,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 			for i := 0; i < sig.Len(); i++ {
 				// XXX position information
 				v := f.addLocal(sig.At(i).Type(), nil)
+				v.comment = fmt.Sprintf("ret.%d", i)
 				f.implicitResults = append(f.implicitResults, v)
 			}
 		}
@@ -633,6 +635,7 @@ func (f *Function) debugInfo() bool {
 // calls to f.lookup(obj) will return the same local.
 func (f *Function) addNamedLocal(obj types.Object, source ast.Node) *Alloc {
 	l := f.addLocal(obj.Type(), source)
+	l.comment = obj.Name()
 	f.objects[obj] = l
 	return l
 }

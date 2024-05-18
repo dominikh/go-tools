@@ -1228,7 +1228,7 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 						phi := &Phi{
 							Edges: make([]Value, len(y.Preds)),
 						}
-
+						phi.comment = alloc.comment
 						phi.source = alloc.source
 						phi.setType(deref(alloc.Type()))
 						phi.block = y
@@ -1271,6 +1271,7 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 									From: y,
 									X:    alloc,
 								}
+								sigma.comment = alloc.comment
 								sigma.source = alloc.source
 								sigma.setType(deref(alloc.Type()))
 								sigma.block = succ

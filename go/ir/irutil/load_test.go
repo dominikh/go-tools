@@ -84,7 +84,7 @@ b0: # entry
 	t1 = Const <int> {0}
 	t2 = Const <readOp> {0}
 	t3 = Parameter <[]byte> {buf}
-	t4 = HeapAlloc <*Buffer>
+	t4 = HeapAlloc <*Buffer> # complit
 	t5 = CompositeValue <Buffer> [100] t3 t1 t2
 	Store {bytes.Buffer} t4 t5
 	Jump → b1
