@@ -352,15 +352,18 @@ type Function struct {
 	node
 
 	name      string
-	object    types.Object     // a declared *types.Func or one of its wrappers
+	object    *types.Func      // symbol for declared function (nil for FuncLit or synthetic init)
 	method    *types.Selection // info about provenance of synthetic methods
 	Signature *types.Signature
 	generics  instanceWrapperMap
 
-	Synthetic Synthetic
-	parent    *Function     // enclosing function if anon; nil if global
-	Pkg       *Package      // enclosing package; nil for shared funcs (wrappers and error.Error)
-	Prog      *Program      // enclosing program
+	Synthetic Synthetic // provenance of synthetic function; 0 for true source functions
+	parent    *Function // enclosing function if anon; nil if global
+	Pkg       *Package  // enclosing package; nil for shared funcs (wrappers and error.Error)
+	Prog      *Program  // enclosing program
+
+	// These fields are populated only when the function body is built:
+
 	Params    []*Parameter  // function parameters; for methods, includes receiver
 	FreeVars  []*FreeVar    // free variables whose values must be supplied by closure
 	Locals    []*Alloc      // frame-allocated variables of this function
@@ -469,11 +472,11 @@ type functionBody struct {
 	// The following fields are set transiently during building,
 	// then cleared.
 	currentBlock    *BasicBlock              // where to emit code
-	objects         map[types.Object]Value   // addresses of local variables
+	vars            map[*types.Var]Value     // addresses of local variables
 	namedResults    []*Alloc                 // tuple of named results
 	implicitResults []*Alloc                 // tuple of results
 	targets         *targets                 // linked stack of branch targets
-	lblocks         map[types.Object]*lblock // labelled blocks
+	lblocks         map[*types.Label]*lblock // labelled blocks
 
 	consts          map[constKey]constValue
 	aggregateConsts typeutil.Map[[]*AggregateConst]
@@ -562,7 +565,7 @@ type Parameter struct {
 	register
 
 	name   string
-	object types.Object // a *types.Var; nil for non-source locals
+	object *types.Var // non-nil
 }
 
 // A Const represents the value of a constant expression.
@@ -1809,13 +1812,18 @@ func (v *Global) String() string                       { return v.RelString(nil)
 func (v *Global) Package() *Package                    { return v.Pkg }
 func (v *Global) RelString(from *types.Package) string { return relString(v, from) }
 
-func (v *Function) Name() string         { return v.name }
-func (v *Function) Type() types.Type     { return v.Signature }
-func (v *Function) Token() token.Token   { return token.FUNC }
-func (v *Function) Object() types.Object { return v.object }
-func (v *Function) String() string       { return v.RelString(nil) }
-func (v *Function) Package() *Package    { return v.Pkg }
-func (v *Function) Parent() *Function    { return v.parent }
+func (v *Function) Name() string       { return v.name }
+func (v *Function) Type() types.Type   { return v.Signature }
+func (v *Function) Token() token.Token { return token.FUNC }
+func (v *Function) Object() types.Object {
+	if v.object != nil {
+		return types.Object(v.object)
+	}
+	return nil
+}
+func (v *Function) String() string    { return v.RelString(nil) }
+func (v *Function) Package() *Package { return v.Pkg }
+func (v *Function) Parent() *Function { return v.parent }
 func (v *Function) Referrers() *[]Instruction {
 	if v.parent != nil {
 		return &v.referrers

@@ -60,7 +60,7 @@ func emitLocal(f *Function, t types.Type, source ast.Node, comment string) *Allo
 // Subsequent calls to f.lookup(v) return it.
 func emitLocalVar(f *Function, v *types.Var, source ast.Node) *Alloc {
 	alloc := emitLocal(f, v.Type(), source, v.Name())
-	f.objects[v] = alloc
+	f.vars[v] = alloc
 	return alloc
 }
 

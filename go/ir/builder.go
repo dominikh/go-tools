@@ -322,7 +322,7 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) (RET lvalue) {
 		obj := fn.Pkg.objectOf(e)
 		v := fn.Prog.packageLevelValue(obj) // var (address)
 		if v == nil {
-			v = fn.lookup(obj, escaping)
+			v = fn.lookup(obj.(*types.Var), escaping)
 		}
 		return &address{addr: v, expr: e}
 
@@ -732,7 +732,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			return v // (func)
 		}
 		// Local var.
-		return emitLoad(fn, fn.lookup(obj, false), e) // var (address)
+		return emitLoad(fn, fn.lookup(obj.(*types.Var), false), e) // var (address)
 
 	case *ast.SelectorExpr:
 		sel, ok := fn.Pkg.info.Selections[e]
@@ -1662,14 +1662,14 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 			heads = append(heads, head)
 			fn.currentBlock = head
 
-			if obj := fn.Pkg.info.Implicits[cc]; obj != nil {
+			if obj, ok := fn.Pkg.info.Implicits[cc].(*types.Var); ok {
 				// In a switch y := x.(type), each case clause
 				// implicitly declares a distinct object y.
 				// In a single-type case, y has that type.
 				// In multi-type cases, 'case nil' and default,
 				// y has the same type as the interface operand.
 
-				l := fn.objects[obj]
+				l := fn.vars[obj]
 				if rets[index] == tUntypedNil {
 					emitStore(fn, l, emitConst(fn, nilConst(tswtch.Tag.Type(), nil)), s.Assign)
 				} else {
@@ -1702,8 +1702,8 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 			tail:   fn.targets,
 			_break: done,
 		}
-		if obj := fn.Pkg.info.Implicits[default_]; obj != nil {
-			l := fn.objects[obj]
+		if obj, ok := fn.Pkg.info.Implicits[default_].(*types.Var); ok {
+			l := fn.vars[obj]
 			x := emitExtract(fn, tswtch, index+1, s.Assign)
 			emitStore(fn, l, x, s)
 		}
@@ -2568,12 +2568,12 @@ func (b *builder) buildFunction(fn *Function) {
 			// code to reference them.  This simplifies clients.
 			if recv := fn.Signature.Recv(); recv != nil {
 				// XXX synthesize an ast.Node
-				fn.addParamObj(recv, nil)
+				fn.addParamVar(recv, nil)
 			}
 			params := fn.Signature.Params()
 			for i, n := 0, params.Len(); i < n; i++ {
 				// XXX synthesize an ast.Node
-				fn.addParamObj(params.At(i), nil)
+				fn.addParamVar(params.At(i), nil)
 			}
 		}
 		return

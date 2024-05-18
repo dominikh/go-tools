@@ -185,7 +185,7 @@ type lblock struct {
 // labelledBlock returns the branch target associated with the
 // specified label, creating it if needed.
 func (f *Function) labelledBlock(label *ast.Ident) *lblock {
-	obj := f.Pkg.info.ObjectOf(label)
+	obj := f.Pkg.info.ObjectOf(label).(*types.Label)
 	if obj == nil {
 		// Blank label, as in '_:' - don't store to f.lblocks, this label can never be referred to; just return a fresh
 		// lbock.
@@ -196,43 +196,31 @@ func (f *Function) labelledBlock(label *ast.Ident) *lblock {
 	if lb == nil {
 		lb = &lblock{_goto: f.newBasicBlock(label.Name)}
 		if f.lblocks == nil {
-			f.lblocks = make(map[types.Object]*lblock)
+			f.lblocks = make(map[*types.Label]*lblock)
 		}
 		f.lblocks[obj] = lb
 	}
 	return lb
 }
 
-// addParam adds a (non-escaping) parameter to f.Params of the
-// specified name, type and source position.
-func (f *Function) addParam(name string, typ types.Type, source ast.Node) *Parameter {
+func (f *Function) addParamVar(v *types.Var, source ast.Node) *Parameter {
+	name := v.Name()
+	if name == "" {
+		name = fmt.Sprintf("arg%d", len(f.Params))
+	}
 	var b *BasicBlock
 	if len(f.Blocks) > 0 {
 		b = f.Blocks[0]
 	}
-	v := &Parameter{
-		name: name,
-	}
-	v.setBlock(b)
-	v.setType(typ)
-	v.setSource(source)
-	f.Params = append(f.Params, v)
+	param := &Parameter{name: name}
+	param.setBlock(b)
+	param.setType(v.Type())
+	param.setSource(source)
+	param.object = v
+	f.Params = append(f.Params, param)
 	if b != nil {
-		// There may be no blocks if this function has no body. We
-		// still create params, but aren't interested in the
-		// instruction.
-		f.Blocks[0].Instrs = append(f.Blocks[0].Instrs, v)
+		f.Blocks[0].Instrs = append(f.Blocks[0].Instrs, param)
 	}
-	return v
-}
-
-func (f *Function) addParamObj(obj *types.Var, source ast.Node) *Parameter {
-	name := obj.Name()
-	if name == "" {
-		name = fmt.Sprintf("arg%d", len(f.Params))
-	}
-	param := f.addParam(name, obj.Type(), source)
-	param.object = obj
 	return param
 }
 
@@ -240,7 +228,7 @@ func (f *Function) addParamObj(obj *types.Var, source ast.Node) *Parameter {
 // stack; the function body will load/store the spilled location.
 // Subsequent lifting will eliminate spills where possible.
 func (f *Function) addSpilledParam(obj *types.Var, source ast.Node) {
-	param := f.addParamObj(obj, source)
+	param := f.addParamVar(obj, source)
 	spill := emitLocalVar(f, obj, source)
 	emitStore(f, spill, param, source)
 	// f.emit(&Store{Addr: spill, Val: param})
@@ -251,7 +239,7 @@ func (f *Function) addSpilledParam(obj *types.Var, source ast.Node) {
 func (f *Function) startBody() {
 	entry := f.newBasicBlock("entry")
 	f.currentBlock = entry
-	f.objects = make(map[types.Object]Value) // needed for some synthetics, e.g. init
+	f.vars = make(map[*types.Var]Value) // needed for some synthetics, e.g. init
 }
 
 func (f *Function) blockset(i int) *BlockSet {
@@ -305,7 +293,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 			}
 			// Anonymous receiver?  No need to spill.
 			if field.Names == nil {
-				f.addParamObj(f.Signature.Recv(), field)
+				f.addParamVar(f.Signature.Recv(), field)
 			}
 		}
 	}
@@ -319,7 +307,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 			}
 			// Anonymous parameter?  No need to spill.
 			if field.Names == nil {
-				f.addParamObj(f.Signature.Params().At(len(f.Params)-n), field)
+				f.addParamVar(f.Signature.Params().At(len(f.Params)-n), field)
 			}
 		}
 	}
@@ -504,7 +492,7 @@ buildLoop:
 
 // finishBody() finalizes the function after IR code generation of its body.
 func (f *Function) finishBody() {
-	f.objects = nil
+	f.vars = nil
 	f.currentBlock = nil
 	f.lblocks = nil
 
@@ -628,8 +616,8 @@ func (f *Function) debugInfo() bool {
 // that is local to function f or one of its enclosing functions.
 // If escaping, the reference comes from a potentially escaping pointer
 // expression and the referent must be heap-allocated.
-func (f *Function) lookup(obj types.Object, escaping bool) Value {
-	if v, ok := f.objects[obj]; ok {
+func (f *Function) lookup(obj *types.Var, escaping bool) Value {
+	if v, ok := f.vars[obj]; ok {
 		if alloc, ok := v.(*Alloc); ok && escaping {
 			alloc.Heap = true
 		}
@@ -648,7 +636,7 @@ func (f *Function) lookup(obj types.Object, escaping bool) Value {
 		outer:  outer,
 		parent: f,
 	}
-	f.objects[obj] = v
+	f.vars[obj] = v
 	f.FreeVars = append(f.FreeVars, v)
 	return v
 }
