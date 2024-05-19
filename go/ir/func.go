@@ -184,13 +184,9 @@ type lblock struct {
 
 // labelledBlock returns the branch target associated with the
 // specified label, creating it if needed.
+// label should be a non-blank identifier (label.Name != "_").
 func (f *Function) labelledBlock(label *ast.Ident) *lblock {
 	obj := f.Pkg.info.ObjectOf(label).(*types.Label)
-	if obj == nil {
-		// Blank label, as in '_:' - don't store to f.lblocks, this label can never be referred to; just return a fresh
-		// lbock.
-		return &lblock{_goto: f.newBasicBlock(label.Name)}
-	}
 
 	lb := f.lblocks[obj]
 	if lb == nil {
