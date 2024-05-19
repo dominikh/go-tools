@@ -18,7 +18,7 @@ func Test(t *testing.T) {
 
 	irinfo := result.(*buildir.IR)
 	got := fmt.Sprint(irinfo.SrcFuncs)
-	want := `[a.init a.Fib (a.T).fib]`
+	want := `[a.init a.Fib (a.T).fib a._ a._]`
 	if got != want {
 		t.Errorf("IR.SrcFuncs = %s, want %s", got, want)
 		for _, f := range irinfo.SrcFuncs {

@@ -58,9 +58,11 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 		}
 
 	case *types.TypeName:
-		pkg.Members[name] = &Type{
-			object: obj,
-			pkg:    pkg,
+		if name != "_" {
+			pkg.Members[name] = &Type{
+				object: obj,
+				pkg:    pkg,
+			}
 		}
 
 	case *types.Const:
@@ -70,7 +72,9 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 			pkg:    pkg,
 		}
 		pkg.values[obj] = c.Value
-		pkg.Members[name] = c
+		if name != "_" {
+			pkg.Members[name] = c
+		}
 
 	case *types.Var:
 		g := &Global{
@@ -80,7 +84,9 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 			typ:    types.NewPointer(obj.Type()), // address
 		}
 		pkg.values[obj] = g
-		pkg.Members[name] = g
+		if name != "_" {
+			pkg.Members[name] = g
+		}
 
 	case *types.Func:
 		sig := obj.Type().(*types.Signature)
@@ -114,7 +120,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 
 		pkg.values[obj] = fn
 		pkg.Functions = append(pkg.Functions, fn)
-		if sig.Recv() == nil {
+		if name != "_" && sig.Recv() == nil {
 			pkg.Members[name] = fn // package-level function
 		}
 
@@ -133,9 +139,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 		case token.CONST:
 			for _, spec := range decl.Specs {
 				for _, id := range spec.(*ast.ValueSpec).Names {
-					if !isBlankIdent(id) {
-						memberFromObject(pkg, pkg.info.Defs[id], nil, "")
-					}
+					memberFromObject(pkg, pkg.info.Defs[id], nil, "")
 				}
 			}
 
@@ -145,26 +149,20 @@ func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 					pkg.initVersion[rhs] = goversion
 				}
 				for _, id := range spec.(*ast.ValueSpec).Names {
-					if !isBlankIdent(id) {
-						memberFromObject(pkg, pkg.info.Defs[id], spec, goversion)
-					}
+					memberFromObject(pkg, pkg.info.Defs[id], spec, goversion)
 				}
 			}
 
 		case token.TYPE:
 			for _, spec := range decl.Specs {
 				id := spec.(*ast.TypeSpec).Name
-				if !isBlankIdent(id) {
-					memberFromObject(pkg, pkg.info.Defs[id], nil, "")
-				}
+				memberFromObject(pkg, pkg.info.Defs[id], nil, "")
 			}
 		}
 
 	case *ast.FuncDecl:
 		id := decl.Name
-		if !isBlankIdent(id) {
-			memberFromObject(pkg, pkg.info.Defs[id], decl, goversion)
-		}
+		memberFromObject(pkg, pkg.info.Defs[id], decl, goversion)
 	}
 }
 
