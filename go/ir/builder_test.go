@@ -575,3 +575,34 @@ func TestBuildPackageGo120(t *testing.T) {
 		})
 	}
 }
+
+func TestGo117Builtins(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      string
+		importer types.Importer
+	}{
+		{"slice to array pointer", "package p; var s []byte; var _ = (*[4]byte)(s)", nil},
+		{"unsafe slice", `package p; import "unsafe"; var _ = unsafe.Add(nil, 0)`, importer.Default()},
+		{"unsafe add", `package p; import "unsafe"; var _ = unsafe.Slice((*int)(nil), 0)`, importer.Default()},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "p.go", tc.src, parser.ParseComments|parser.SkipObjectResolution)
+			if err != nil {
+				t.Error(err)
+			}
+			files := []*ast.File{f}
+
+			pkg := types.NewPackage("p", "")
+			conf := &types.Config{Importer: tc.importer}
+			if _, _, err := irutil.BuildPackage(conf, fset, pkg, files, ir.SanityCheckFunctions); err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
