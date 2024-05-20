@@ -407,7 +407,12 @@ func (recv *Recv) String() string {
 }
 
 func (s *Defer) String() string {
-	return printCall(&s.Call, "Defer", s)
+	prefix := "Defer "
+	if s._DeferStack != nil {
+		prefix += "[" + relName(s._DeferStack, s) + "] "
+	}
+	c := printCall(&s.Call, prefix, s)
+	return c
 }
 
 func (s *Select) String() string {

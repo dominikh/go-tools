@@ -291,6 +291,7 @@ const (
 	SyntheticWrapper
 	SyntheticBound
 	SyntheticGeneric
+	SyntheticRangeOverFuncYield
 )
 
 func (syn Synthetic) String() string {
@@ -307,6 +308,8 @@ func (syn Synthetic) String() string {
 		return "bound"
 	case SyntheticGeneric:
 		return "generic"
+	case SyntheticRangeOverFuncYield:
+		return "range-over-func yield"
 	default:
 		return fmt.Sprintf("Synthetic(%d)", syn)
 	}
@@ -345,6 +348,20 @@ func (syn Synthetic) String() string {
 // the same position as the function they wrap.
 // Syntax.Pos() always returns the position of the declaring "func" token.
 //
+// When the operand of a range statement is an iterator function,
+// the loop body is transformed into a synthetic anonymous function
+// that is passed as the yield argument in a call to the iterator.
+// In that case, Function.Source() is the ast.RangeStmt.
+//
+// Synthetic functions, for which Synthetic != "", are functions
+// that do not appear in the source AST. These include:
+//   - method wrappers,
+//   - thunks,
+//   - bound functions,
+//   - empty functions built from loaded type information,
+//   - yield functions created from range-over-func loops, and
+//   - package init functions.
+//
 // Type() returns the function's Signature.
 type Function struct {
 	node
@@ -367,10 +384,14 @@ type Function struct {
 	Locals    []*Alloc      // frame-allocated variables of this function
 	Blocks    []*BasicBlock // basic blocks of the function; nil => external
 	Exit      *BasicBlock   // The function's exit block
-	AnonFuncs []*Function   // anonymous functions directly beneath this one
+	AnonFuncs []*Function   // anonymous functions (from FuncLit, RangeStmt) directly beneath this one
 	referrers []Instruction // referring instructions (iff Parent() != nil)
 	NoReturn  NoReturn      // Calling this function will always terminate control flow.
-	goversion string        // Go version of syntax (NB: init is special)
+
+	goversion string // Go version of syntax (NB: init is special)
+
+	// uniq is not stored in functionBody because we need it after function building finishes
+	uniq int64 // source of unique ints within the source tree while building
 
 	*functionBody
 }
@@ -469,12 +490,16 @@ type constValue struct {
 type functionBody struct {
 	// The following fields are set transiently during building,
 	// then cleared.
-	currentBlock    *BasicBlock              // where to emit code
-	vars            map[*types.Var]Value     // addresses of local variables
-	namedResults    []*Alloc                 // tuple of named results
-	implicitResults []*Alloc                 // tuple of results
-	targets         *targets                 // linked stack of branch targets
-	lblocks         map[*types.Label]*lblock // labelled blocks
+	currentBlock *BasicBlock              // where to emit code
+	vars         map[*types.Var]Value     // addresses of local variables
+	results      []*Alloc                 // result allocations of the current function
+	returnVars   []*types.Var             // variables for a return statement. Either results or for range-over-func a parent's results
+	targets      *targets                 // linked stack of branch targets
+	lblocks      map[*types.Label]*lblock // labelled blocks
+	jump         *types.Var               // synthetic variable for the yield state (non-nil => range-over-func)
+	deferstack   *types.Var               // synthetic variable holding enclosing ssa:deferstack()
+	sourceFn     *Function                // nearest enclosing source function
+	exits        []*exit                  // exits of the function that need to be resolved
 
 	consts          map[constKey]constValue
 	aggregateConsts typeutil.Map[[]*AggregateConst]
@@ -487,13 +512,6 @@ type functionBody struct {
 	// a contiguous block of instructions that will be used by blocks,
 	// to avoid making multiple allocations.
 	scratchInstructions []Instruction
-}
-
-func (fn *Function) results() []*Alloc {
-	if len(fn.namedResults) > 0 {
-		return fn.namedResults
-	}
-	return fn.implicitResults
 }
 
 // BasicBlock represents an IR basic block.
@@ -1483,6 +1501,12 @@ type Go struct {
 // The Defer instruction pushes the specified call onto a stack of
 // functions to be called by a RunDefers instruction or by a panic.
 //
+// If _DeferStack != nil, it indicates the defer list that the defer is
+// added to. Defer list values come from the Builtin function
+// ssa:deferstack. Calls to ssa:deferstack() produces the defer stack
+// of the current function frame. _DeferStack allows for deferring into an
+// alternative function stack than the current function.
+//
 // See CallCommon for generic function call documentation.
 //
 // Pos() returns the ast.DeferStmt.Defer.
@@ -1494,7 +1518,10 @@ type Go struct {
 //	DeferInvoke t4.Bar t2
 type Defer struct {
 	anInstruction
-	Call CallCommon
+	Call        CallCommon
+	_DeferStack Value // stack (from ssa:deferstack() intrinsic) onto which this function is pushed
+
+	// TODO: Exporting _DeferStack and possibly making _DeferStack != nil awaits proposal https://github.com/golang/go/issues/66601.
 }
 
 // The Send instruction sends X on channel Chan.
@@ -1919,7 +1946,7 @@ func (s *Call) Operands(rands []*Value) []*Value {
 }
 
 func (s *Defer) Operands(rands []*Value) []*Value {
-	return s.Call.Operands(rands)
+	return append(s.Call.Operands(rands), &s._DeferStack)
 }
 
 func (v *ChangeInterface) Operands(rands []*Value) []*Value {

@@ -176,27 +176,102 @@ type targets struct {
 // Destinations associated with a labelled block.
 // We populate these as labels are encountered in forward gotos or
 // labelled statements.
+// Forward gotos are resolved once it is known which statement they
+// are associated with inside the Function.
 type lblock struct {
+	label     *types.Label // Label targeted by the blocks.
+	resolved  bool         // _goto block encountered (back jump or resolved fwd jump)
 	_goto     *BasicBlock
 	_break    *BasicBlock
 	_continue *BasicBlock
 }
 
-// labelledBlock returns the branch target associated with the
-// specified label, creating it if needed.
+// label returns the symbol denoted by a label identifier.
+//
 // label should be a non-blank identifier (label.Name != "_").
-func (f *Function) labelledBlock(label *ast.Ident) *lblock {
-	obj := f.Pkg.info.ObjectOf(label).(*types.Label)
+func (f *Function) label(label *ast.Ident) *types.Label {
+	return f.Pkg.objectOf(label).(*types.Label)
+}
 
-	lb := f.lblocks[obj]
+// lblockOf returns the branch target associated with the
+// specified label, creating it if needed.
+func (f *Function) lblockOf(label *types.Label) *lblock {
+	lb := f.lblocks[label]
 	if lb == nil {
-		lb = &lblock{_goto: f.newBasicBlock(label.Name)}
+		lb = &lblock{
+			label: label,
+			_goto: f.newBasicBlock(label.Name()),
+		}
 		if f.lblocks == nil {
 			f.lblocks = make(map[*types.Label]*lblock)
 		}
-		f.lblocks[obj] = lb
+		f.lblocks[label] = lb
 	}
 	return lb
+}
+
+// labelledBlock searches f for the block of the specified label.
+//
+// If f is a yield function, it additionally searches ancestor Functions
+// corresponding to enclosing range-over-func statements within the
+// same source function, so the returned block may belong to a different Function.
+func labelledBlock(f *Function, label *types.Label, tok token.Token) *BasicBlock {
+	if lb := f.lblocks[label]; lb != nil {
+		var block *BasicBlock
+		switch tok {
+		case token.BREAK:
+			block = lb._break
+		case token.CONTINUE:
+			block = lb._continue
+		case token.GOTO:
+			block = lb._goto
+		}
+		if block != nil {
+			return block
+		}
+	}
+	// Search ancestors if this is a yield function.
+	if f.jump != nil {
+		return labelledBlock(f.parent, label, tok)
+	}
+	return nil
+}
+
+// targetedBlock looks for the nearest block in f.targets
+// (and f's ancestors) that matches tok's type, and returns
+// the block and function it was found in.
+func targetedBlock(f *Function, tok token.Token) *BasicBlock {
+	if f == nil {
+		return nil
+	}
+	for t := f.targets; t != nil; t = t.tail {
+		var block *BasicBlock
+		switch tok {
+		case token.BREAK:
+			block = t._break
+		case token.CONTINUE:
+			block = t._continue
+		case token.FALLTHROUGH:
+			block = t._fallthrough
+		}
+		if block != nil {
+			return block
+		}
+	}
+	// Search f's ancestors (in case f is a yield function).
+	return targetedBlock(f.parent, tok)
+}
+
+// addResultVar adds a result for a variable v to f.results and v to f.returnVars.
+func (f *Function) addResultVar(v *types.Var, source ast.Node) {
+	name := v.Name()
+	if name == "" {
+		name = fmt.Sprintf("res.%d", len(f.results))
+	}
+	result := emitLocalVar(f, v, source)
+	result.comment = name
+	f.results = append(f.results, result)
+	f.returnVars = append(f.returnVars, v)
 }
 
 func (f *Function) addParamVar(v *types.Var, source ast.Node) *Parameter {
@@ -259,12 +334,11 @@ func (f *Function) exitBlock() {
 	f.Exit = f.newBasicBlock("exit")
 	f.currentBlock = f.Exit
 
-	ret := f.results()
-	results := make([]Value, len(ret))
+	results := make([]Value, len(f.results))
 	// Run function calls deferred in this
 	// function when explicitly returning from it.
 	f.emit(new(RunDefers), nil)
-	for i, r := range ret {
+	for i, r := range f.results {
 		results[i] = emitLoad(f, r, nil)
 	}
 
@@ -308,25 +382,34 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 		}
 	}
 
-	// Named results.
+	// Results.
 	if functype.Results != nil {
 		for _, field := range functype.Results.List {
 			// Implicit "var" decl of locals for named results.
 			for _, n := range field.Names {
-				namedResult := emitLocalVar(f, identVar(f, n), n)
-				f.namedResults = append(f.namedResults, namedResult)
+				v := identVar(f, n)
+				f.addResultVar(v, n)
 			}
-		}
-
-		if len(f.namedResults) == 0 {
-			sig := f.Signature.Results()
-			for i := 0; i < sig.Len(); i++ {
-				// XXX position information
-				v := emitLocal(f, sig.At(i).Type(), nil, fmt.Sprintf("ret.%d", i))
-				f.implicitResults = append(f.implicitResults, v)
+			// Implicit "var" decl of local for an unnamed result.
+			if field.Names == nil {
+				v := f.Signature.Results().At(len(f.results))
+				f.addResultVar(v, field.Type)
 			}
 		}
 	}
+}
+
+// createDeferStack initializes fn.deferstack to a local variable
+// initialized to a ssa:deferstack() call.
+func (fn *Function) createDeferStack() {
+	// Each syntactic function makes a call to ssa:deferstack,
+	// which is spilled to a local. Unused ones are later removed.
+	fn.deferstack = newVar("defer$stack", tDeferStack)
+	call := &Call{Call: CallCommon{Value: vDeferStack}}
+	call.setType(tDeferStack)
+	deferstack := fn.emit(call, nil)
+	spill := emitLocalVar(fn, fn.deferstack, nil)
+	emitStore(fn, spill, deferstack, nil)
 }
 
 func numberNodes(f *Function) {
@@ -488,7 +571,6 @@ buildLoop:
 
 // finishBody() finalizes the function after IR code generation of its body.
 func (f *Function) finishBody() {
-	f.vars = nil
 	f.currentBlock = nil
 	f.lblocks = nil
 
@@ -529,8 +611,10 @@ func (f *Function) finishBody() {
 		splitOnNewInformation(f.Blocks[0], &StackMap{})
 	}
 
-	f.namedResults = nil // (used by lifting)
-	f.implicitResults = nil
+	// clear remaining builder state
+	f.results = nil    // (used by lifting)
+	f.deferstack = nil // (used by lifting)
+	f.vars = nil       // (used by lifting)
 	f.goversion = ""
 
 	numberNodes(f)
@@ -928,4 +1012,79 @@ func killInstruction(instr Instruction) {
 // identVar returns the variable defined by id.
 func identVar(fn *Function, id *ast.Ident) *types.Var {
 	return fn.Pkg.info.Defs[id].(*types.Var)
+}
+
+// unique returns a unique positive int within the source tree of f.
+// The source tree of f includes all of f's ancestors by parent and all
+// of the AnonFuncs contained within these.
+func unique(f *Function) int64 {
+	f.uniq++
+	return f.uniq
+}
+
+// exit is a change of control flow going from a range-over-func
+// yield function to an ancestor function caused by a break, continue,
+// goto, or return statement.
+//
+// There are 3 types of exits:
+// * return from the source function (from ReturnStmt),
+// * jump to a block (from break and continue statements [labelled/unlabelled]),
+// * go to a label (from goto statements).
+//
+// As the builder does one pass over the ast, it is unclear whether
+// a forward goto statement will leave a range-over-func body.
+// The function being exited to is unresolved until the end
+// of building the range-over-func body.
+type exit struct {
+	id     int64     // unique value for exit within from and to
+	from   *Function // the function the exit starts from
+	to     *Function // the function being exited to (nil if unresolved)
+	source ast.Node
+
+	block *BasicBlock  // basic block within to being jumped to.
+	label *types.Label // forward label being jumped to via goto.
+	// block == nil && label == nil => return
+}
+
+// storeVar emits to function f code to store a value v to a *types.Var x.
+func storeVar(f *Function, x *types.Var, v Value, source ast.Node) {
+	emitStore(f, f.lookup(x, true), v, source)
+}
+
+// labelExit creates a new exit to a yield fn to exit the function using a label.
+func labelExit(fn *Function, label *types.Label, source ast.Node) *exit {
+	e := &exit{
+		id:     unique(fn),
+		from:   fn,
+		to:     nil,
+		source: source,
+		label:  label,
+	}
+	fn.exits = append(fn.exits, e)
+	return e
+}
+
+// blockExit creates a new exit to a yield fn that jumps to a basic block.
+func blockExit(fn *Function, block *BasicBlock, source ast.Node) *exit {
+	e := &exit{
+		id:     unique(fn),
+		from:   fn,
+		to:     block.parent,
+		source: source,
+		block:  block,
+	}
+	fn.exits = append(fn.exits, e)
+	return e
+}
+
+// returnExit creates a new exit to a yield fn that returns to the source function.
+func returnExit(fn *Function, source ast.Node) *exit {
+	e := &exit{
+		id:     unique(fn),
+		from:   fn,
+		to:     fn.sourceFn,
+		source: source,
+	}
+	fn.exits = append(fn.exits, e)
+	return e
 }

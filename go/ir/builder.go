@@ -50,7 +50,23 @@ var (
 	tString     = types.Typ[types.String]
 	tUntypedNil = types.Typ[types.UntypedNil]
 	tEface      = types.NewInterfaceType(nil, nil).Complete()
+	tDeferStack = types.NewPointer(typeutil.NewDeferStack())
+
+	jReady = intConst(0, nil)  // range-over-func jump is READY
+	jBusy  = intConst(-1, nil) // range-over-func jump is BUSY
+	jDone  = intConst(-2, nil) // range-over-func jump is DONE
+
+	vDeferStack = &Builtin{
+		name: "ssa:deferstack",
+		sig:  types.NewSignatureType(nil, nil, nil, nil, types.NewTuple(anonVar(tDeferStack)), false),
+	}
 )
+
+func init() {
+	jReady.comment = "rangefunc.exit.ready"
+	jBusy.comment = "rangefunc.exit.busy"
+	jDone.comment = "rangefunc.exit.done"
+}
 
 // builder holds state associated with the package currently being built.
 // Its methods contain all the logic for AST-to-IR conversion.
@@ -591,10 +607,12 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			functionBody: new(functionBody),
 			goversion:    fn.goversion, // share the parent's goversion
 		}
+		fn2.uniq = fn.uniq // start from parent's unique values
 		fn2.source = e
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
 		fn2.initHTML(b.printFunc)
 		b.buildFunction(fn2)
+		fn.uniq = fn2.uniq // resume after anon's unique values
 		if fn2.FreeVars == nil {
 			return fn2
 		}
@@ -2470,6 +2488,14 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, sourc
 			panic("Cannot range over basic type: " + rt.String())
 		}
 
+	case *types.Signature:
+		// Special case rewrite (fn.goversion >= go1.23):
+		//      for x := range f { ... }
+		// into
+		//      f(func(x T) bool { ... })
+		b.rangeFunc(fn, x, tk, tv, s, label)
+		return
+
 	default:
 		panic("Cannot range over: " + rt.String())
 	}
@@ -2510,6 +2536,283 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, sourc
 	fn.currentBlock = done
 }
 
+// rangeFunc emits to fn code for the range-over-func rng.Body of the iterator
+// function x, optionally labelled by label. It creates a new anonymous function
+// yield for rng and builds the function.
+func (b *builder) rangeFunc(fn *Function, x Value, tk, tv types.Type, rng *ast.RangeStmt, label *lblock) {
+	// Consider the SSA code for the outermost range-over-func in fn:
+	//
+	//   func fn(...) (ret R) {
+	//     ...
+	//     for k, v = range x {
+	//           ...
+	//     }
+	//     ...
+	//   }
+	//
+	// The code emitted into fn will look something like this.
+	//
+	// loop:
+	//     jump := READY
+	//     y := make closure yield [ret, deferstack, jump, k, v]
+	//     x(y)
+	//     switch jump {
+	//        [see resuming execution]
+	//     }
+	//     goto done
+	// done:
+	//     ...
+	//
+	// where yield is a new synthetic yield function:
+	//
+	// func yield(_k tk, _v tv) bool
+	//   free variables: [ret, stack, jump, k, v]
+	// {
+	//    entry:
+	//      if jump != READY then goto invalid else valid
+	//    invalid:
+	//      panic("iterator called when it is not in a ready state")
+	//    valid:
+	//      jump = BUSY
+	//      k = _k
+	//      v = _v
+	//    ...
+	//    cont:
+	//      jump = READY
+	//      return true
+	// }
+	//
+	// Yield state:
+	//
+	// Each range loop has an associated jump variable that records
+	// the state of the iterator. A yield function is initially
+	// in a READY (0) and callable state.  If the yield function is called
+	// and is not in READY state, it panics. When it is called in a callable
+	// state, it becomes BUSY. When execution reaches the end of the body
+	// of the loop (or a continue statement targeting the loop is executed),
+	// the yield function returns true and resumes being in a READY state.
+	// After the iterator function x(y) returns, then if the yield function
+	// is in a READY state, the yield enters the DONE state.
+	//
+	// Each lowered control statement (break X, continue X, goto Z, or return)
+	// that exits the loop sets the variable to a unique positive EXIT value,
+	// before returning false from the yield function.
+	//
+	// If the yield function returns abruptly due to a panic or GoExit,
+	// it remains in a BUSY state. The generated code asserts that, after
+	// the iterator call x(y) returns normally, the jump variable state
+	// is DONE.
+	//
+	// Resuming execution:
+	//
+	// The code generated for the range statement checks the jump
+	// variable to determine how to resume execution.
+	//
+	//    switch jump {
+	//    case BUSY:  panic("...")
+	//    case DONE:  goto done
+	//    case READY: state = DONE; goto done
+	//    case 123:   ... // action for exit 123.
+	//    case 456:   ... // action for exit 456.
+	//    ...
+	//    }
+	//
+	// Forward goto statements within a yield are jumps to labels that
+	// have not yet been traversed in fn. They may be in the Body of the
+	// function. What we emit for these is:
+	//
+	//    goto target
+	//  target:
+	//    ...
+	//
+	// We leave an unresolved exit in yield.exits to check at the end
+	// of building yield if it encountered target in the body. If it
+	// encountered target, no additional work is required. Otherwise,
+	// the yield emits a new early exit in the basic block for target.
+	// We expect that blockopt will fuse the early exit into the case
+	// block later. The unresolved exit is then added to yield.parent.exits.
+
+	loop := fn.newBasicBlock("rangefunc.loop")
+	done := fn.newBasicBlock("rangefunc.done")
+
+	// These are targets within y.
+	fn.targets = &targets{
+		tail:   fn.targets,
+		_break: done,
+		// _continue is within y.
+	}
+	if label != nil {
+		label._break = done
+		// _continue is within y
+	}
+
+	emitJump(fn, loop, nil)
+	fn.currentBlock = loop
+
+	// loop:
+	//     jump := READY
+
+	anonIdx := len(fn.AnonFuncs)
+
+	jump := newVar(fmt.Sprintf("jump$%d", anonIdx+1), tInt)
+	emitLocalVar(fn, jump, nil) // zero value is READY
+
+	xsig := typeutil.CoreType(x.Type()).(*types.Signature)
+	ysig := typeutil.CoreType(xsig.Params().At(0).Type()).(*types.Signature)
+
+	/* synthetic yield function for body of range-over-func loop */
+	y := &Function{
+		name:         fmt.Sprintf("%s$%d", fn.Name(), anonIdx+1),
+		Signature:    ysig,
+		Synthetic:    SyntheticRangeOverFuncYield,
+		parent:       fn,
+		Pkg:          fn.Pkg,
+		Prog:         fn.Prog,
+		functionBody: new(functionBody),
+	}
+	y.source = rng
+	y.goversion = fn.goversion
+	y.jump = jump
+	y.deferstack = fn.deferstack
+	y.returnVars = fn.returnVars // use the parent's return variables
+	y.uniq = fn.uniq             // start from parent's unique values
+
+	// If the RangeStmt has a label, this is how it is passed to buildYieldFunc.
+	if label != nil {
+		y.lblocks = map[*types.Label]*lblock{label.label: nil}
+	}
+	fn.AnonFuncs = append(fn.AnonFuncs, y)
+
+	// Build y immediately. It may:
+	// * cause fn's locals to escape, and
+	// * create new exit nodes in exits.
+	// (y is not marked 'built' until the end of the enclosing FuncDecl.)
+	unresolved := len(fn.exits)
+	b.buildYieldFunc(y)
+	fn.uniq = y.uniq // resume after y's unique values
+
+	// Emit the call of y.
+	//   c := MakeClosure y
+	//   x(c)
+	c := &MakeClosure{Fn: y}
+	c.setType(ysig)
+	c.comment = "yield"
+	for _, fv := range y.FreeVars {
+		c.Bindings = append(c.Bindings, fv.outer)
+		fv.outer = nil
+	}
+	fn.emit(c, nil)
+	call := Call{
+		Call: CallCommon{
+			Value: x,
+			Args:  []Value{c},
+		},
+	}
+	call.setType(xsig.Results())
+	fn.emit(&call, nil)
+
+	exits := fn.exits[unresolved:]
+	b.buildYieldResume(fn, jump, exits, done)
+
+	fn.currentBlock = done
+}
+
+// buildYieldResume emits to fn code for how to resume execution once a call to
+// the iterator function over the yield function returns x(y). It does this by building
+// a switch over the value of jump for when it is READY, BUSY, or EXIT(id).
+func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit, done *BasicBlock) {
+	//    v := *jump
+	//    switch v {
+	//    case BUSY:    panic("...")
+	//    case READY:   jump = DONE; goto done
+	//    case EXIT(a): ...
+	//    case EXIT(b): ...
+	//    ...
+	//    }
+	v := emitLoad(fn, fn.lookup(jump, false), nil)
+
+	entry := fn.currentBlock
+	bodies := make([]*BasicBlock, 2, 2+len(exits))
+	bodies[0] = fn.newBasicBlock("rangefunc.resume.busy")
+	bodies[1] = fn.newBasicBlock("rangefunc.resume.ready")
+
+	conds := make([]Value, 2, 2+len(exits))
+	conds[0] = emitConst(fn, jBusy)
+	conds[1] = emitConst(fn, jReady)
+
+	fn.currentBlock = bodies[0]
+	fn.emit(
+		&Panic{
+			X: emitConv(fn, emitConst(fn, stringConst("iterator call did not preserve panic", nil)), tEface, nil),
+		},
+		nil,
+	)
+	addEdge(fn.currentBlock, fn.Exit)
+
+	fn.currentBlock = bodies[1]
+	storeVar(fn, jump, emitConst(fn, jDone), nil)
+	emitJump(fn, done, nil)
+
+	for _, e := range exits {
+		body := fn.newBasicBlock(fmt.Sprintf("rangefunc.resume.exit.%d", e.id))
+		bodies = append(bodies, body)
+		id_ := intConst(e.id, nil)
+		id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
+		id := emitConst(fn, id_)
+		conds = append(conds, id)
+
+		fn.currentBlock = body
+		switch {
+		case e.label != nil: // forward goto?
+			// case EXIT(id): goto lb // label
+			lb := fn.lblockOf(e.label)
+			// Do not mark lb as resolved.
+			// If fn does not contain label, lb remains unresolved and
+			// fn must itself be a range-over-func function. lb will be:
+			//   lb:
+			//     fn.jump = id
+			//     return false
+			emitJump(fn, lb._goto, e.source)
+
+		case e.to != fn: // e jumps to an ancestor of fn?
+			// case EXIT(id): { fn.jump = id; return false }
+			// fn is a range-over-func function.
+
+			storeVar(fn, fn.jump, id, e.source)
+			vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
+			emitReturn(fn, []Value{vFalse}, e.source)
+
+		case e.block == nil && e.label == nil: // return from fn?
+			// case EXIT(id): { return ... }
+
+			// The results have already been stored to variables in fn.results, so
+			// emitReturn doesn't have to do it again.
+			emitReturn(fn, nil, e.source)
+
+		case e.block != nil:
+			// case EXIT(id): goto block
+			emitJump(fn, e.block, e.source)
+
+		default:
+			panic("unreachable")
+		}
+
+	}
+
+	fn.currentBlock = entry
+	// Note that this switch does not have an implicit default case. This wouldn't be
+	// valid for a user-provided switch statement, but for range-over-func we know all
+	// possible values and we can avoid the impossible branch.
+	swtch := &ConstantSwitch{
+		Tag:   v,
+		Conds: conds,
+	}
+	fn.emit(swtch, nil)
+	for _, body := range bodies {
+		addEdge(entry, body)
+	}
+}
+
 // stmt lowers statement s to IR form, emitting code to fn.
 func (b *builder) stmt(fn *Function, _s ast.Stmt) {
 	// The label of the current statement.  If non-nil, its _goto
@@ -2539,7 +2842,8 @@ start:
 			_s = s.Stmt
 			goto start
 		}
-		label = fn.labelledBlock(s.Label)
+		label = fn.lblockOf(fn.label(s.Label))
+		label.resolved = true
 		emitJump(fn, label._goto, s)
 		fn.currentBlock = label._goto
 		_s = s.Stmt
@@ -2584,73 +2888,17 @@ start:
 	case *ast.DeferStmt:
 		// The "intrinsics" new/make/len/cap are forbidden here.
 		// panic is treated like an ordinary function call.
-		v := Defer{}
+		deferstack := emitLoad(fn, fn.lookup(fn.deferstack, false), s)
+		v := Defer{_DeferStack: deferstack}
 		b.setCall(fn, s.Call, &v.Call)
 		fn.hasDefer = true
 		fn.emit(&v, s)
 
 	case *ast.ReturnStmt:
-		// TODO(dh): we could emit tighter position information by
-		// using the ith returned expression
-
-		var results []Value
-		if len(s.Results) == 1 && fn.Signature.Results().Len() > 1 {
-			// Return of one expression in a multi-valued function.
-			tuple := b.exprN(fn, s.Results[0])
-			ttuple := tuple.Type().(*types.Tuple)
-			for i, n := 0, ttuple.Len(); i < n; i++ {
-				results = append(results,
-					emitConv(fn, emitExtract(fn, tuple, i, s),
-						fn.Signature.Results().At(i).Type(), s))
-			}
-		} else {
-			// 1:1 return, or no-arg return in non-void function.
-			for i, r := range s.Results {
-				v := emitConv(fn, b.expr(fn, r), fn.Signature.Results().At(i).Type(), s)
-				results = append(results, v)
-			}
-		}
-
-		ret := fn.results()
-		for i, r := range results {
-			emitStore(fn, ret[i], r, s)
-		}
-
-		emitJump(fn, fn.Exit, s)
-		fn.currentBlock = fn.newBasicBlock("unreachable")
+		b.returnStmt(fn, s)
 
 	case *ast.BranchStmt:
-		var block *BasicBlock
-		switch s.Tok {
-		case token.BREAK:
-			if s.Label != nil {
-				block = fn.labelledBlock(s.Label)._break
-			} else {
-				for t := fn.targets; t != nil && block == nil; t = t.tail {
-					block = t._break
-				}
-			}
-
-		case token.CONTINUE:
-			if s.Label != nil {
-				block = fn.labelledBlock(s.Label)._continue
-			} else {
-				for t := fn.targets; t != nil && block == nil; t = t.tail {
-					block = t._continue
-				}
-			}
-
-		case token.FALLTHROUGH:
-			for t := fn.targets; t != nil && block == nil; t = t.tail {
-				block = t._fallthrough
-			}
-
-		case token.GOTO:
-			block = fn.labelledBlock(s.Label)._goto
-		}
-		j := emitJump(fn, block, s)
-		j.comment = s.Tok.String()
-		fn.currentBlock = fn.newBasicBlock("unreachable")
+		b.branchStmt(fn, s)
 
 	case *ast.BlockStmt:
 		b.stmtList(fn, s.List)
@@ -2700,6 +2948,106 @@ start:
 	default:
 		panic(fmt.Sprintf("unexpected statement kind: %T", s))
 	}
+}
+
+func (b *builder) branchStmt(fn *Function, s *ast.BranchStmt) {
+	var block *BasicBlock
+	if s.Label == nil {
+		block = targetedBlock(fn, s.Tok)
+	} else {
+		target := fn.label(s.Label)
+		block = labelledBlock(fn, target, s.Tok)
+		if block == nil { // forward goto
+			lb := fn.lblockOf(target)
+			block = lb._goto // jump to lb._goto
+			if fn.jump != nil {
+				// fn is a range-over-func and the goto may exit fn.
+				// Create an exit and resolve it at the end of
+				// builder.buildYieldFunc.
+				labelExit(fn, target, s)
+			}
+		}
+	}
+	to := block.parent
+
+	if to == fn {
+		emitJump(fn, block, s)
+	} else { // break outside of fn.
+		// fn must be a range-over-func
+		e := blockExit(fn, block, s)
+		id_ := intConst(e.id, s)
+		id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
+		id := emitConst(fn, id_)
+		storeVar(fn, fn.jump, id, s)
+		vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, s))
+		emitReturn(fn, []Value{vFalse}, s)
+	}
+	fn.currentBlock = fn.newBasicBlock("unreachable")
+}
+
+func (b *builder) returnStmt(fn *Function, s *ast.ReturnStmt) {
+	// TODO(dh): we could emit tighter position information by
+	// using the ith returned expression
+
+	var results []Value
+
+	sig := fn.sourceFn.Signature // signature of the enclosing source function
+
+	// Convert return operands to result type.
+	if len(s.Results) == 1 && sig.Results().Len() > 1 {
+		// Return of one expression in a multi-valued function.
+		tuple := b.exprN(fn, s.Results[0])
+		ttuple := tuple.Type().(*types.Tuple)
+		for i, n := 0, ttuple.Len(); i < n; i++ {
+			results = append(results,
+				emitConv(fn, emitExtract(fn, tuple, i, s),
+					sig.Results().At(i).Type(), s))
+		}
+	} else {
+		// 1:1 return, or no-arg return in non-void function.
+		for i, r := range s.Results {
+			v := emitConv(fn, b.expr(fn, r), sig.Results().At(i).Type(), s)
+			results = append(results, v)
+		}
+	}
+
+	// Store the results.
+	for i, r := range results {
+		var result Value // fn.sourceFn.result[i] conceptually
+		if fn == fn.sourceFn {
+			result = fn.results[i]
+		} else { // lookup needed?
+			result = fn.lookup(fn.returnVars[i], false)
+		}
+		emitStore(fn, result, r, s)
+	}
+
+	if fn.jump != nil {
+		// Return from body of a range-over-func.
+		// The return statement is syntactically within the loop,
+		// but the generated code is in the 'switch jump {...}' after it.
+		e := returnExit(fn, s)
+		id_ := intConst(e.id, e.source)
+		id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
+		id := emitConst(fn, id_)
+		storeVar(fn, fn.jump, id, e.source)
+		vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
+		emitReturn(fn, []Value{vFalse}, e.source)
+		return
+	}
+
+	// The results have already been stored to variables in fn.results, so
+	// emitReturn doesn't have to do it again.
+	emitReturn(fn, nil, s)
+}
+
+func emitReturn(fn *Function, results []Value, source ast.Node) {
+	for i, r := range results {
+		emitStore(fn, fn.results[i], r, source)
+	}
+
+	emitJump(fn, fn.Exit, source)
+	fn.currentBlock = fn.newBasicBlock("unreachable")
 }
 
 // buildFunction builds IR code for the body of function fn.  Idempotent.
@@ -2762,8 +3110,10 @@ func (b *builder) buildFunction(fn *Function) {
 	}
 	fn.blocksets = b.blocksets
 	fn.Blocks = make([]*BasicBlock, 0, avgBlocks)
+	fn.sourceFn = fn
 	fn.startBody()
 	fn.createSyntacticParams(recvField, functype)
+	fn.createDeferStack()
 	fn.exitBlock()
 	b.stmt(fn, body)
 	if cb := fn.currentBlock; cb != nil && (cb == fn.Blocks[0] || cb.Preds != nil) {
@@ -2785,6 +3135,157 @@ func (b *builder) buildFunction(fn *Function) {
 	fn.finishBody()
 	b.blocksets = fn.blocksets
 	fn.functionBody = nil
+}
+
+// buildYieldFunc builds the body of the yield function created
+// from a range-over-func *ast.RangeStmt.
+func (b *builder) buildYieldFunc(fn *Function) {
+	// See builder.rangeFunc for detailed documentation on how fn is set up.
+	//
+	// In psuedo-Go this roughly builds:
+	// func yield(_k tk, _v tv) bool {
+	//         if jump != READY { panic("yield function called after range loop exit") }
+	//     jump = BUSY
+	//     k, v = _k, _v // assign the iterator variable (if needed)
+	//     ... // rng.Body
+	//   continue:
+	//     jump = READY
+	//     return true
+	// }
+	s := fn.source.(*ast.RangeStmt)
+	fn.sourceFn = fn.parent.sourceFn
+	fn.startBody()
+	fn.exitBlock()
+	params := fn.Signature.Params()
+	for i := 0; i < params.Len(); i++ {
+		fn.addParamVar(params.At(i), nil)
+	}
+	fn.addResultVar(fn.Signature.Results().At(0), nil)
+
+	// Initial targets
+	ycont := fn.newBasicBlock("yield-continue")
+	// lblocks is either {} or is {label: nil} where label is the label of syntax.
+	for label := range fn.lblocks {
+		fn.lblocks[label] = &lblock{
+			label:     label,
+			resolved:  true,
+			_goto:     ycont,
+			_continue: ycont,
+			// `break label` statement targets fn.parent.targets._break
+		}
+	}
+	fn.targets = &targets{
+		_continue: ycont,
+		// `break` statement targets fn.parent.targets._break.
+	}
+
+	// continue:
+	//   jump = READY
+	//   return true
+	saved := fn.currentBlock
+	fn.currentBlock = ycont
+	storeVar(fn, fn.jump, emitConst(fn, jReady), s.Body)
+	vTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil))
+	emitReturn(fn, []Value{vTrue}, nil)
+
+	// Emit header:
+	//
+	//   if jump != READY { panic("yield iterator accessed after exit") }
+	//   jump = BUSY
+	//   k, v = _k, _v
+	fn.currentBlock = saved
+	yloop := fn.newBasicBlock("yield-loop")
+	invalid := fn.newBasicBlock("yield-invalid")
+
+	jumpVal := emitLoad(fn, fn.lookup(fn.jump, true), nil)
+	emitIf(fn, emitCompare(fn, token.EQL, jumpVal, emitConst(fn, jReady), nil), yloop, invalid, nil)
+	fn.currentBlock = invalid
+	fn.emit(
+		&Panic{
+			X: emitConv(fn, emitConst(fn, stringConst("yield function called after range loop exit", nil)), tEface, nil),
+		},
+		nil,
+	)
+	addEdge(fn.currentBlock, fn.Exit)
+
+	fn.currentBlock = yloop
+	storeVar(fn, fn.jump, emitConst(fn, jBusy), s.Body)
+
+	// Initialize k and v from params.
+	var tk, tv types.Type
+	if s.Key != nil && !isBlankIdent(s.Key) {
+		tk = fn.Pkg.typeOf(s.Key) // fn.parent.typeOf is identical
+	}
+	if s.Value != nil && !isBlankIdent(s.Value) {
+		tv = fn.Pkg.typeOf(s.Value)
+	}
+	if s.Tok == token.DEFINE {
+		if tk != nil {
+			emitLocalVar(fn, identVar(fn, s.Key.(*ast.Ident)), s.Key)
+		}
+		if tv != nil {
+			emitLocalVar(fn, identVar(fn, s.Value.(*ast.Ident)), s.Value)
+		}
+	}
+	var k, v Value
+	if len(fn.Params) > 0 {
+		k = fn.Params[0]
+	}
+	if len(fn.Params) > 1 {
+		v = fn.Params[1]
+	}
+	var kl, vl lvalue
+	if tk != nil {
+		kl = b.addr(fn, s.Key, false) // non-escaping
+	}
+	if tv != nil {
+		vl = b.addr(fn, s.Value, false) // non-escaping
+	}
+	if tk != nil {
+		kl.store(fn, k, s.Key)
+	}
+	if tv != nil {
+		vl.store(fn, v, s.Value)
+	}
+
+	// Build the body of the range loop.
+	b.stmt(fn, s.Body)
+	if cb := fn.currentBlock; cb != nil && (cb == fn.Blocks[0] || cb.Preds != nil) {
+		// Control fell off the end of the function's body block.
+		// Block optimizations eliminate the current block, if
+		// unreachable.
+		emitJump(fn, ycont, nil)
+	}
+
+	// Clean up exits and promote any unresolved exits to fn.parent.
+	for _, e := range fn.exits {
+		if e.label != nil {
+			lb := fn.lblocks[e.label]
+			if lb.resolved {
+				// label was resolved. Do not turn lb into an exit.
+				// e does not need to be handled by the parent.
+				continue
+			}
+
+			// _goto becomes an exit.
+			//   _goto:
+			//     jump = id
+			//     return false
+			fn.currentBlock = lb._goto
+			id_ := intConst(e.id, e.source)
+			id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
+			id := emitConst(fn, id_)
+			storeVar(fn, fn.jump, id, e.source)
+			vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
+			emitReturn(fn, []Value{vFalse}, e.source)
+		}
+
+		if e.to != fn { // e needs to be handled by the parent too.
+			fn.parent.exits = append(fn.parent.exits, e)
+		}
+	}
+
+	fn.finishBody()
 }
 
 // buildFuncDecl builds IR code for the function or method declared
