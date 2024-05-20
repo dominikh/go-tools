@@ -78,6 +78,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						// looping once over a map is a valid pattern for
 						// getting an arbitrary element.
 						return false
+					case *types.Signature:
+						// we have no idea what semantics the function implements
+						return false
 					default:
 						lint.ExhaustiveTypeSwitch(term.Type().Underlying())
 						return false

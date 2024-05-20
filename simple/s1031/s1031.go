@@ -62,7 +62,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice, *types.Map:
 				return true
-			case *types.TypeParam, *types.Chan, *types.Pointer:
+			case *types.TypeParam, *types.Chan, *types.Pointer, *types.Signature:
 				return false
 			default:
 				lint.ExhaustiveTypeSwitch(term.Type().Underlying())

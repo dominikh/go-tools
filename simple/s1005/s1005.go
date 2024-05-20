@@ -2,6 +2,7 @@ package s1005
 
 import (
 	"go/ast"
+	"go/types"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -69,6 +70,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	fn3 := func(node ast.Node) {
 		rs := node.(*ast.RangeStmt)
+
+		if _, ok := pass.TypesInfo.TypeOf(rs.X).Underlying().(*types.Signature); ok {
+			// iteration variables are not optional with rangefunc
+			return
+		}
 
 		// for _
 		if rs.Value == nil && astutil.IsBlank(rs.Key) {
