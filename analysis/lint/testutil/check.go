@@ -138,6 +138,11 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 					t.Errorf("no section for suggested fix %q in %s.golden", sf, file)
 				}
 			}
+			for _, vf := range ar.Files {
+				if _, ok := fixes[vf.Name]; !ok {
+					t.Errorf("%s.golden has section for suggested fix %q, but we didn't produce any fix by that name", file, vf.Name)
+				}
+			}
 		} else {
 			// all suggested fixes are represented by a single file
 
