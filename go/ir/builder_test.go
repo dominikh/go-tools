@@ -633,3 +633,39 @@ func TestLabels(t *testing.T) {
 		pkg.Build()
 	}
 }
+
+func TestUnreachableExit(t *testing.T) {
+	tests := []string{
+		`
+		package pkg
+
+		func foo() (err error) {
+			if true {
+				println()
+			}
+
+			println()
+
+			for {
+				err = nil
+			}
+		}`,
+	}
+	for _, test := range tests {
+		conf := loader.Config{Fset: token.NewFileSet()}
+		f, err := parser.ParseFile(conf.Fset, "<input>", test, 0)
+		if err != nil {
+			t.Errorf("parse error: %s", err)
+			return
+		}
+		conf.CreateFromFiles("pkg", f)
+		iprog, err := conf.Load()
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		prog := irutil.CreateProgram(iprog, ir.BuilderMode(0))
+		pkg := prog.Package(iprog.Created[0].Pkg)
+		pkg.Build()
+	}
+}

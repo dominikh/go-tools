@@ -1243,6 +1243,22 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 
 						// Create φ-node.
 						// It will be prepended to v.Instrs later, if needed.
+						if len(y.Preds) == 0 {
+							// The exit block may be unreachable if the function doesn't
+							// return, e.g. due to an infinite loop. In that case we
+							// should not replace loads in the exit block with ϕ node that
+							// have no edges. Such loads exist when the function has named
+							// return parameters, as the exit block loads them to turn
+							// them into a Return instruction. By not replacing the loads
+							// with ϕ nodes, they will later be replaced by zero
+							// constants. This is arguably more correct, and more
+							// importantly, it doesn't break code that assumes that phis
+							// have at least one edge.
+							//
+							// For one instance of breakage see
+							// https://staticcheck.dev/issues/1533
+							continue
+						}
 						phi := &Phi{
 							Edges: make([]Value, len(y.Preds)),
 						}
