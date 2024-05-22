@@ -80,7 +80,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if rs.Value == nil && astutil.IsBlank(rs.Key) {
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
-				report.MinimumLanguageVersion(4),
+				report.MinimumLanguageVersion("go1.4"),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
@@ -89,7 +89,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// FIXME we should mark both key and value
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
-				report.MinimumLanguageVersion(4),
+				report.MinimumLanguageVersion("go1.4"),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
@@ -97,7 +97,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !astutil.IsBlank(rs.Key) && astutil.IsBlank(rs.Value) {
 			report.Report(pass, rs.Value, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
-				report.MinimumLanguageVersion(4),
+				report.MinimumLanguageVersion("go1.4"),
 				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()}))))
 		}
 	}

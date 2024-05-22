@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"go/version"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -164,7 +165,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if typ1 == typ2 {
 			return
 		}
-		if code.LanguageVersion(pass, node) >= 8 {
+		if version.Compare(code.LanguageVersion(pass, node), "go1.8") >= 0 {
 			if !types.IdenticalIgnoreTags(s1, s2) {
 				return
 			}

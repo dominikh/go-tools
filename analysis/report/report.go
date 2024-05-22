@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/format"
 	"go/token"
+	"go/version"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,10 +23,10 @@ type Options struct {
 	FilterGenerated        bool
 	Fixes                  []analysis.SuggestedFix
 	Related                []analysis.RelatedInformation
-	MinimumLanguageVersion int
-	MaximumLanguageVersion int
-	MinimumStdlibVersion   int
-	MaximumStdlibVersion   int
+	MinimumLanguageVersion string
+	MaximumLanguageVersion string
+	MinimumStdlibVersion   string
+	MaximumStdlibVersion   string
 }
 
 type Option func(*Options)
@@ -63,16 +64,16 @@ func Related(node Positioner, message string) Option {
 	}
 }
 
-func MinimumLanguageVersion(vers int) Option {
+func MinimumLanguageVersion(vers string) Option {
 	return func(opts *Options) { opts.MinimumLanguageVersion = vers }
 }
-func MaximumLanguageVersion(vers int) Option {
+func MaximumLanguageVersion(vers string) Option {
 	return func(opts *Options) { opts.MinimumLanguageVersion = vers }
 }
-func MinimumStdlibVersion(vers int) Option {
+func MinimumStdlibVersion(vers string) Option {
 	return func(opts *Options) { opts.MinimumStdlibVersion = vers }
 }
-func MaximumStdlibVersion(vers int) Option {
+func MaximumStdlibVersion(vers string) Option {
 	return func(opts *Options) { opts.MaximumStdlibVersion = vers }
 }
 
@@ -190,16 +191,16 @@ func Report(pass *analysis.Pass, node Positioner, message string, opts ...Option
 
 	langVersion := code.LanguageVersion(pass, node)
 	stdlibVersion := code.StdlibVersion(pass, node)
-	if n := cfg.MaximumLanguageVersion; n != 0 && n < langVersion {
+	if n := cfg.MaximumLanguageVersion; n != "" && version.Compare(n, langVersion) == -1 {
 		return
 	}
-	if n := cfg.MaximumStdlibVersion; n != 0 && n < stdlibVersion {
+	if n := cfg.MaximumStdlibVersion; n != "" && version.Compare(n, stdlibVersion) == -1 {
 		return
 	}
-	if n := cfg.MinimumLanguageVersion; n != 0 && n > langVersion {
+	if n := cfg.MinimumLanguageVersion; n != "" && version.Compare(n, langVersion) == 1 {
 		return
 	}
-	if n := cfg.MinimumStdlibVersion; n != 0 && n > stdlibVersion {
+	if n := cfg.MinimumStdlibVersion; n != "" && version.Compare(n, stdlibVersion) == 1 {
 		return
 	}
 

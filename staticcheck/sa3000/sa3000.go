@@ -3,6 +3,7 @@ package sa3000
 import (
 	"go/ast"
 	"go/types"
+	"go/version"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
@@ -64,7 +65,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if !isTestMain(pass, node) {
 				return false
 			}
-			if code.StdlibVersion(pass, node) >= 15 {
+			if version.Compare(code.StdlibVersion(pass, node), "go1.15") >= 0 {
 				// Beginning with Go 1.15, the test framework will call
 				// os.Exit for us.
 				return false

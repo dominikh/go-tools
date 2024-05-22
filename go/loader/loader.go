@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/scanner"
 	"go/token"
@@ -291,6 +292,9 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 	}
 	if spec.Module != nil && spec.Module.GoVersion != "" {
 		tc.GoVersion = "go" + spec.Module.GoVersion
+	} else {
+		tags := build.Default.ReleaseTags
+		tc.GoVersion = tags[len(tags)-1]
 	}
 	types.NewChecker(tc, pkg.Fset, pkg.Types, pkg.TypesInfo).Files(pkg.Syntax)
 	return pkg, nil

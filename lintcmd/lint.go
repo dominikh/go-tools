@@ -3,7 +3,6 @@ package lintcmd
 import (
 	"crypto/sha256"
 	"fmt"
-	"go/build"
 	"go/token"
 	"io"
 	"os"
@@ -94,7 +93,6 @@ type options struct {
 	analyzers                []*lint.Analyzer
 	patterns                 []string
 	lintTests                bool
-	goVersion                string
 	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
@@ -111,8 +109,6 @@ func (l *linter) run(bconf buildConfig) (lintResult, error) {
 	if err != nil {
 		return lintResult{}, err
 	}
-	r.FallbackGoVersion = defaultGoVersion()
-	r.GoVersion = l.opts.goVersion
 	r.Stats.PrintAnalyzerMeasurement = l.opts.printAnalyzerMeasurement
 
 	printStats := func() {
@@ -503,12 +499,6 @@ func success(allowedAnalyzers map[string]bool, res runner.ResultData) []diagnost
 		diagnostics = append(diagnostics, diagnostic{Diagnostic: diag})
 	}
 	return diagnostics
-}
-
-func defaultGoVersion() string {
-	tags := build.Default.ReleaseTags
-	v := tags[len(tags)-1][2:]
-	return v
 }
 
 func filterAnalyzerNames(analyzers []string, checks []string) map[string]bool {

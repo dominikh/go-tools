@@ -2,11 +2,10 @@ package testutil
 
 import (
 	"crypto/sha256"
-	"go/build"
+	"go/version"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -49,16 +48,8 @@ func computeSalt() ([]byte, error) {
 	}
 }
 
-func defaultGoVersion() string {
-	tags := build.Default.ReleaseTags
-	v := tags[len(tags)-1][2:]
-	return v
-}
-
-var testVersionRegexp = regexp.MustCompile(`^.+_go1(\d+)$`)
-
 func Run(t *testing.T, a *lint.Analyzer) {
-	dirs, err := filepath.Glob("testdata/src/example.com/*")
+	dirs, err := filepath.Glob("testdata/*")
 	if err != nil {
 		t.Fatalf("couldn't enumerate test data: %s", err)
 	}
@@ -67,136 +58,83 @@ func Run(t *testing.T, a *lint.Analyzer) {
 		t.Fatalf("found no tests")
 	}
 
-	tests := make([]Test, 0, len(dirs))
+	c, err := cache.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	salt, err := computeSalt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetSalt(salt)
+
 	for _, dir := range dirs {
-		// Work around Windows paths
-		dir = strings.ReplaceAll(dir, `\`, `/`)
-		t := Test{
-			Dir: strings.TrimPrefix(dir, "testdata/src/"),
-		}
-		if sub := testVersionRegexp.FindStringSubmatch(dir); sub != nil {
-			t.Version = "1." + sub[1]
-		}
-		tests = append(tests, t)
-	}
-
-	dirsByVersion := map[string][]string{}
-
-	// Group tests by Go version so that we can run multiple tests at once, saving time and memory on type
-	// checking and export data parsing.
-	for _, tt := range tests {
-		dirsByVersion[tt.Version] = append(dirsByVersion[tt.Version], tt.Dir)
-	}
-
-	for v, dirs := range dirsByVersion {
-		actualVersion := v
-		if actualVersion == "" {
-			actualVersion = defaultGoVersion()
-		}
-
-		c, err := cache.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		salt, err := computeSalt()
-		if err != nil {
-			t.Fatal(err)
-		}
-		c.SetSalt(salt)
-		r, err := runner.New(config.Config{}, c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		r.GoVersion = actualVersion
-		r.TestMode = true
-
-		testdata, err := filepath.Abs("testdata")
-		if err != nil {
-			t.Fatal(err)
-		}
-		cfg := &packages.Config{
-			Tests: true,
-			Env:   append(os.Environ(), "GOPATH="+testdata, "GO111MODULE=off", "GOPROXY=off"),
-		}
-		if len(dirs) == 0 {
-			t.Fatal("no directories for version", v)
-		}
-		res, err := r.Run(cfg, []*analysis.Analyzer{a.Analyzer}, dirs)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// resultByPath maps from import path to results
-		resultByPath := map[string][]runner.Result{}
-		failed := false
-		for _, r := range res {
-			if r.Failed {
-				failed = true
-				if len(r.Errors) > 0 {
-					t.Fatalf("failed checking %s: %v", r.Package.PkgPath, r.Errors)
-				}
+		vers := filepath.Base(dir)
+		t.Run(vers, func(t *testing.T) {
+			r, err := runner.New(config.Config{}, c)
+			if err != nil {
+				t.Fatal(err)
 			}
-			// r.Package.PkgPath is not unique. The same path can refer to a package and a package plus its
-			// (non-external) tests.
-			resultByPath[r.Package.PkgPath] = append(resultByPath[r.Package.PkgPath], r)
-		}
+			r.TestMode = true
 
-		if failed {
-			t.Fatal("failed processing package, but got no errors")
-		}
-
-		for _, tt := range tests {
-			if tt.Version != v {
-				continue
+			testdata, err := filepath.Abs("testdata")
+			if err != nil {
+				t.Fatal(err)
 			}
-			any := false
-			for _, suffix := range []string{"", ".test", "_test"} {
-				dir := tt.Dir + suffix
-				rr, ok := resultByPath[dir]
-				if !ok {
-					continue
-				}
-				any = true
-				// Remove this result. We later check that there remain no tests we haven't checked.
-				delete(resultByPath, dir)
+			if !version.IsValid(vers) {
+				t.Fatalf("%q is not a valid Go version", dir)
+			}
+			cfg := &packages.Config{
+				Dir:   dir,
+				Tests: true,
+				Env:   append(os.Environ(), "GOPROXY=off", "GOFLAGS=-mod=vendor"),
+				Overlay: map[string][]byte{
+					"go.mod": []byte("module example.com\ngo " + strings.TrimPrefix(vers, "go")),
+				},
+			}
+			res, err := r.Run(cfg, []*analysis.Analyzer{a.Analyzer}, []string{"./..."})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-				for _, r := range rr {
-					data, err := r.Load()
-					if err != nil {
-						t.Fatal(err)
-					}
-					tdata, err := r.LoadTest()
-					if err != nil {
-						t.Fatal(err)
-					}
+			if len(res) == 0 {
+				t.Fatalf("got no results for %s/...", dir)
+			}
 
-					relevantDiags := data.Diagnostics
-					var relevantFacts []runner.TestFact
-					for _, fact := range tdata.Facts {
-						if fact.Analyzer != a.Analyzer.Name {
-							continue
+			for _, r := range res {
+				if r.Failed {
+					if len(r.Errors) > 0 {
+						sb := strings.Builder{}
+						for _, err := range r.Errors {
+							sb.WriteString(err.Error())
+							sb.WriteString("\n")
 						}
-						relevantFacts = append(relevantFacts, fact)
+						t.Fatalf("failed checking %s:\n%s", r.Package.PkgPath, sb.String())
+					} else {
+						t.Fatalf("failed processing package %s, but got no errors", r.Package.PkgPath)
 					}
-
-					Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
-					CheckSuggestedFixes(t, relevantDiags)
 				}
-			}
-			if !any {
-				t.Errorf("no result for directory %s", tt.Dir)
-			}
-		}
-		for key, rr := range resultByPath {
-			for _, r := range rr {
 				data, err := r.Load()
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(data.Diagnostics) != 0 {
-					t.Errorf("unexpected diagnostics in package %s", key)
+				tdata, err := r.LoadTest()
+				if err != nil {
+					t.Fatal(err)
 				}
+
+				relevantDiags := data.Diagnostics
+				var relevantFacts []runner.TestFact
+				for _, fact := range tdata.Facts {
+					if fact.Analyzer != a.Analyzer.Name {
+						continue
+					}
+					relevantFacts = append(relevantFacts, fact)
+				}
+
+				Check(t, testdata, tdata.Files, relevantDiags, relevantFacts)
+				CheckSuggestedFixes(t, relevantDiags)
 			}
-		}
+		})
 	}
 }

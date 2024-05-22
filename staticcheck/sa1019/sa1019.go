@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
+	"go/version"
 	"strings"
 
 	"honnef.co/go/tools/analysis/code"
@@ -33,6 +34,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 })
 
 var Analyzer = SCAnalyzer.Analyzer
+
+func formatGoVersion(s string) string {
+	return "Go " + strings.TrimPrefix(s, "go")
+}
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	deprs := pass.ResultOf[deprecated.Analyzer].(deprecated.Result)
@@ -76,7 +81,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// warnings.
 			//
 			// See also https://staticcheck.dev/issues/1318.
-			if code.StdlibVersion(pass, node) < std.DeprecatedSince {
+			if version.Compare(code.StdlibVersion(pass, node), std.DeprecatedSince) == -1 {
 				return
 			}
 		}
@@ -93,16 +98,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			switch std.AlternativeAvailableSince {
 			case knowledge.DeprecatedNeverUse:
 				report.Report(pass, node,
-					fmt.Sprintf("%s has been deprecated since Go 1.%d because it shouldn't be used: %s",
-						report.Render(pass, node), std.DeprecatedSince, depr.Msg))
+					fmt.Sprintf("%s has been deprecated since %s because it shouldn't be used: %s",
+						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), depr.Msg))
 			case std.DeprecatedSince, knowledge.DeprecatedUseNoLonger:
 				report.Report(pass, node,
-					fmt.Sprintf("%s has been deprecated since Go 1.%d: %s",
-						report.Render(pass, node), std.DeprecatedSince, depr.Msg))
+					fmt.Sprintf("%s has been deprecated since %s: %s",
+						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), depr.Msg))
 			default:
 				report.Report(pass, node,
-					fmt.Sprintf("%s has been deprecated since Go 1.%d and an alternative has been available since Go 1.%d: %s",
-						report.Render(pass, node), std.DeprecatedSince, std.AlternativeAvailableSince, depr.Msg))
+					fmt.Sprintf("%s has been deprecated since %s and an alternative has been available since %s: %s",
+						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), formatGoVersion(std.AlternativeAvailableSince), depr.Msg))
 			}
 		} else {
 			report.Report(pass, node, fmt.Sprintf("%s is deprecated: %s", report.Render(pass, node), depr.Msg))

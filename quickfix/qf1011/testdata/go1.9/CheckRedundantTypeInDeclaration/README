@@ -1,0 +1,2 @@
+The cgo test case needs Go 1.9 because modern cgo generates code that
+uses aliases.

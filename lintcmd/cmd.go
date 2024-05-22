@@ -66,9 +66,8 @@ type Command struct {
 		debugMeasureAnalyzers string
 		debugTrace            string
 
-		checks    list
-		fail      list
-		goVersion versionFlag
+		checks list
+		fail   list
 	}
 }
 
@@ -157,10 +156,8 @@ func (cmd *Command) initFlagSet(name string) {
 
 	cmd.flags.checks = list{"inherit"}
 	cmd.flags.fail = list{"all"}
-	cmd.flags.goVersion = versionFlag("module")
 	flags.Var(&cmd.flags.checks, "checks", "Comma-separated list of `checks` to enable.")
 	flags.Var(&cmd.flags.fail, "fail", "Comma-separated list of `checks` that can cause a non-zero exit status.")
-	flags.Var(&cmd.flags.goVersion, "go", "Target Go `version` in the format '1.x', or the literal 'module' to use the module's Go version")
 }
 
 type list []string
@@ -180,25 +177,6 @@ func (list *list) Set(s string) error {
 		elems[i] = strings.TrimSpace(elem)
 	}
 	*list = elems
-	return nil
-}
-
-type versionFlag string
-
-func (v *versionFlag) String() string {
-	return fmt.Sprintf("%q", string(*v))
-}
-
-func (v *versionFlag) Set(s string) error {
-	if s == "module" {
-		*v = "module"
-	} else {
-		var vf lint.VersionFlag
-		if err := vf.Set(s); err != nil {
-			return err
-		}
-		*v = versionFlag(s)
-	}
 	return nil
 }
 
@@ -479,7 +457,6 @@ func (cmd *Command) lint() int {
 		analyzers: cs,
 		patterns:  cmd.flags.fs.Args(),
 		lintTests: cmd.flags.tests,
-		goVersion: string(cmd.flags.goVersion),
 		config: config.Config{
 			Checks: cmd.flags.checks,
 		},

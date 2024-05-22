@@ -3,6 +3,7 @@ package sa1003
 import (
 	"fmt"
 	"go/types"
+	"go/version"
 
 	"honnef.co/go/tools/analysis/callcheck"
 	"honnef.co/go/tools/analysis/code"
@@ -70,7 +71,7 @@ func validEncodingBinaryType(pass *analysis.Pass, node code.Positioner, typ type
 			types.Float32, types.Float64, types.Complex64, types.Complex128, types.Invalid:
 			return true
 		case types.Bool:
-			return code.StdlibVersion(pass, node) >= 8
+			return version.Compare(code.StdlibVersion(pass, node), "go1.8") >= 0
 		}
 		return false
 	case *types.Struct:

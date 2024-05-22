@@ -45,11 +45,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]interface{}{"arg": sel.X}).(ast.Node)
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 					report.FilterGenerated(),
-					report.MinimumStdlibVersion(8),
+					report.MinimumStdlibVersion("go1.8"),
 					report.Fixes(edit.Fix("replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
 			} else {
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
-					report.MinimumStdlibVersion(8),
+					report.MinimumStdlibVersion("go1.8"),
 					report.FilterGenerated())
 			}
 		}

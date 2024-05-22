@@ -3,13 +3,9 @@
 package lint
 
 import (
-	"flag"
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/token"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -27,22 +23,12 @@ type Analyzer struct {
 
 func (a *Analyzer) initialize() {
 	a.Analyzer.Doc = a.Doc.String()
-	if a.Analyzer.Flags.Usage == nil {
-		fs := flag.NewFlagSet("", flag.PanicOnError)
-		fs.Var(newVersionFlag(), "go", "Target Go version")
-		a.Analyzer.Flags = *fs
-	}
 	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 }
 
 func InitializeAnalyzer(a *Analyzer) *Analyzer {
 	a.Analyzer.Doc = a.Doc.String()
 	a.Analyzer.URL = "https://staticcheck.dev/docs/checks/#" + a.Analyzer.Name
-	if a.Analyzer.Flags.Usage == nil {
-		fs := flag.NewFlagSet("", flag.PanicOnError)
-		fs.Var(newVersionFlag(), "go", "Target Go version")
-		a.Analyzer.Flags = *fs
-	}
 	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 	return a
 }
@@ -204,51 +190,6 @@ func (doc *Documentation) format(markdown bool, metadata bool) string {
 
 func (doc *Documentation) String() string {
 	return doc.Format(true)
-}
-
-func newVersionFlag() flag.Getter {
-	tags := build.Default.ReleaseTags
-	v := tags[len(tags)-1][2:]
-	version := new(VersionFlag)
-	if err := version.Set(v); err != nil {
-		panic(fmt.Sprintf("internal error: %s", err))
-	}
-	return version
-}
-
-type VersionFlag int
-
-func (v *VersionFlag) String() string {
-	return fmt.Sprintf("1.%d", *v)
-}
-
-var goVersionRE = regexp.MustCompile(`^(?:go)?1.(\d+).*$`)
-
-// ParseGoVersion parses Go versions of the form 1.M, 1.M.N, or 1.M.NrcR, with an optional "go" prefix. It assumes that
-// versions have already been verified and are valid.
-func ParseGoVersion(s string) (int, bool) {
-	m := goVersionRE.FindStringSubmatch(s)
-	if m == nil {
-		return 0, false
-	}
-	n, err := strconv.Atoi(m[1])
-	if err != nil {
-		return 0, false
-	}
-	return n, true
-}
-
-func (v *VersionFlag) Set(s string) error {
-	n, ok := ParseGoVersion(s)
-	if !ok {
-		return fmt.Errorf("invalid Go version: %q", s)
-	}
-	*v = VersionFlag(n)
-	return nil
-}
-
-func (v *VersionFlag) Get() interface{} {
-	return int(*v)
 }
 
 // ExhaustiveTypeSwitch panics when called. It can be used to ensure

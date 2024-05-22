@@ -19,8 +19,3 @@ Some checks, particularly those in the `ST` (stylecheck) category, may not be ap
 [`checks` option]({{< relref "/docs/configuration/options#checks" >}})
 in your [configuration]({{< relref "/docs/configuration/#configuration-files" >}}).
 {{% /faq/question %}}
-
-{{% faq/question id="go-version" question="Staticcheck's suggestions don't apply to my version of Go" %}}
-You can [specify the version of Go your code should work with.]({{< relref "/docs/configuration/#targeting-go-versions" >}})
-{{% /faq/question %}}
-{{% /faq/list %}}

@@ -19,9 +19,9 @@ func computeHash(c *cache.Cache, pkg *PackageSpec) (cache.ActionID, error) {
 	fmt.Fprintf(key, "import %q\n", pkg.PkgPath)
 
 	// Compute the hashes of all files making up the package. As an
-	// optimization, we use the build ID that Go already computed for
-	// us, because it is virtually identical to hashed all
-	// CompiledGoFiles.
+	// optimization, we use the build ID that Go already computed for us,
+	// because it is virtually identical to hashing all CompiledGoFiles. It is
+	// also sensitive to the Go version declared in go.mod.
 	success := false
 	if pkg.ExportFile != "" {
 		id, err := getBuildid(pkg.ExportFile)
@@ -39,6 +39,20 @@ func computeHash(c *cache.Cache, pkg *PackageSpec) (cache.ActionID, error) {
 				return cache.ActionID{}, err
 			}
 			fmt.Fprintf(key, "file %s %x\n", f, h)
+		}
+		if pkg.Module != nil && pkg.Module.GoMod != "" {
+			// The go.mod file specifies the language version, which affects how
+			// packages are analyzed.
+			h, err := cache.FileHash(pkg.Module.GoMod)
+			if err != nil {
+				// TODO(dh): this doesn't work for tests because the go.mod file doesn't
+				// exist on disk and is instead provided via an overlay. However, we're
+				// unlikely to get here in the first place, as reading the build ID from
+				// the export file is likely to succeed.
+				return cache.ActionID{}, fmt.Errorf("couldn't hash go.mod: %w", err)
+			} else {
+				fmt.Fprintf(key, "file %s %x\n", pkg.Module.GoMod, h)
+			}
 		}
 	}
 
