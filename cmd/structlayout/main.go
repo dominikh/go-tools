@@ -9,6 +9,7 @@ import (
 	"go/types"
 	"log"
 	"os"
+	"text/tabwriter"
 
 	"honnef.co/go/tools/go/gcsizes"
 	"honnef.co/go/tools/lintcmd/version"
@@ -85,9 +86,16 @@ func emitJSON(fields []st.Field) {
 }
 
 func emitText(fields []st.Field) {
-	for _, field := range fields {
-		fmt.Println(field)
+	t := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+	for _, f := range fields {
+		n := f.Name
+		if f.IsPadding {
+			n = "  padding"
+		}
+		fmt.Fprintf(t, "%s\t%s\t%2d-%d\t(size %2d,\talign %2d)\n",
+			n, f.Type, f.Start, f.End, f.Size, f.Align)
 	}
+	t.Flush()
 }
 func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Field {
 	s := gcsizes.ForArch(build.Default.GOARCH)
