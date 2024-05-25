@@ -10,6 +10,7 @@ package ir
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
 	"go/types"
 	"io"
 	"os"
@@ -462,7 +463,10 @@ func (s *sanity) checkFunction(fn *Function) bool {
 		}
 	}
 	if syn, src := fn.Synthetic == 0, fn.source != nil; src != syn {
-		s.errorf("got fromSource=%t, hasSyntax=%t; want same values", src, syn)
+		if _, ok := fn.source.(*ast.RangeStmt); !ok || fn.Synthetic != SyntheticRangeOverFuncYield {
+			// Only range-over-func yield functions are synthetic and have syntax
+			s.errorf("got fromSource=%t, hasSyntax=%t; want same values", src, syn)
+		}
 	}
 	for i, l := range fn.Locals {
 		if l.Parent() != fn {
