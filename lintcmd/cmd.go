@@ -344,6 +344,8 @@ func (cmd *Command) printDebugVersion() int {
 	return 0
 }
 
+var quoteReplacer = strings.NewReplacer(`\'`, `'`, `\"`, `"`)
+
 func (cmd *Command) listChecks() int {
 	cs := cmd.analyzersAsSlice()
 	sort.Slice(cs, func(i, j int) bool {
@@ -354,7 +356,7 @@ func (cmd *Command) listChecks() int {
 		if c.Doc != nil {
 			title = c.Doc.Title
 		}
-		fmt.Printf("%s %s\n", c.Analyzer.Name, title)
+		fmt.Printf("%s %s\n", c.Analyzer.Name, quoteReplacer.Replace(title))
 	}
 	return 0
 }
@@ -375,7 +377,7 @@ func (cmd *Command) explain() int {
 		fmt.Fprintln(os.Stderr, explain, "has no documentation")
 		return 1
 	}
-	fmt.Println(check.Doc)
+	fmt.Println(quoteReplacer.Replace(check.Doc.String()))
 	fmt.Println("Online documentation\n    https://staticcheck.dev/docs/checks#" + check.Analyzer.Name)
 	return 0
 }
