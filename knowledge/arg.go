@@ -22,6 +22,8 @@ var Args = map[string]int{
 	"(*encoding/json.Encoder).Encode.v":      0,
 	"(*encoding/xml.Decoder).Decode.v":       0,
 	"(*encoding/xml.Encoder).Encode.v":       0,
+	"errors.As.err":                          0,
+	"errors.Is.err":                          0,
 	"errors.New.text":                        0,
 	"fmt.Fprintf.format":                     1,
 	"fmt.Printf.format":                      0,
