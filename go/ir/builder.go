@@ -2377,7 +2377,7 @@ func (b *builder) rangeInt(fn *Function, x Value, tk types.Type, source ast.Node
 
 	body := fn.newBasicBlock("rangeint.body")
 	done = fn.newBasicBlock("rangeint.done")
-	emitIf(fn, emitCompare(fn, token.LSS, zeroConst(T, source), x, source), body, done, source)
+	emitIf(fn, emitCompare(fn, token.LSS, emitConst(fn, zeroConst(T, source)), x, source), body, done, source)
 
 	loop = fn.newBasicBlock("rangeint.loop")
 	fn.currentBlock = loop
@@ -2385,7 +2385,7 @@ func (b *builder) rangeInt(fn *Function, x Value, tk types.Type, source ast.Node
 	incr := &BinOp{
 		Op: token.ADD,
 		X:  emitLoad(fn, iter, source),
-		Y:  emitConv(fn, intConst(1, source), T, source),
+		Y:  emitConv(fn, emitConst(fn, intConst(1, source)), T, source),
 	}
 	incr.setType(T)
 	emitStore(fn, iter, fn.emit(incr, source), source)
