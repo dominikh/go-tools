@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
+	"strings"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -57,7 +58,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		var arg int
 
 		switch name {
-		case "fmt.Printf", "fmt.Sprintf", "log.Printf":
+		case "fmt.Errorf", "fmt.Printf", "fmt.Sprintf",
+			"log.Fatalf", "log.Panicf", "log.Printf", "(*log.Logger).Printf",
+			"(*testing.common).Logf", "(*testing.common).Errorf",
+			"(*testing.common).Fatalf", "(*testing.common).Skipf",
+			"(testing.TB).Logf", "(testing.TB).Errorf",
+			"(testing.TB).Fatalf", "(testing.TB).Skipf":
 			arg = knowledge.Arg("fmt.Printf.format")
 		case "fmt.Fprintf":
 			arg = knowledge.Arg("fmt.Fprintf.format")
@@ -80,7 +86,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		alt := name[:len(name)-1]
+		alt := name[:len(name)-1] // fmt.Printf
+		if alt[0] == '(' {        // (*log.Logger).Printf
+			_, alt, _ = strings.Cut(alt, ")")
+			alt = call.Fun.(*ast.SelectorExpr).X.(*ast.Ident).Name + alt
+		}
 		report.Report(pass, call,
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
 			report.Fixes(edit.Fix(fmt.Sprintf("use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))

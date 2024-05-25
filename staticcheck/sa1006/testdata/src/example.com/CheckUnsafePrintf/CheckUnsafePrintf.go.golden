@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"testing"
 )
 
 func fn(s string) {
@@ -20,6 +21,28 @@ func fn(s string) {
 	fmt.Printf("")
 	fmt.Printf("%s", "")
 	fmt.Printf(fn3())
+
+	l := log.New(os.Stdout, "", 0)
+	l.Printf("xx: %q", "yy")
+	l.Print(s) //@ diag(`should use print-style function`)
+
+	var t testing.T
+	t.Log(fn2()) //@ diag(`should use print-style function`)
+	t.Error(s)   //@ diag(`should use print-style function`)
+	t.Fatal(s)   //@ diag(`should use print-style function`)
+	t.Skip(s)    //@ diag(`should use print-style function`)
+
+	var b testing.B
+	b.Log(fn2()) //@ diag(`should use print-style function`)
+	b.Error(s)   //@ diag(`should use print-style function`)
+	b.Fatal(s)   //@ diag(`should use print-style function`)
+	b.Skip(s)    //@ diag(`should use print-style function`)
+
+	var tb testing.TB
+	tb.Log(fn2()) //@ diag(`should use print-style function`)
+	tb.Error(s)   //@ diag(`should use print-style function`)
+	tb.Fatal(s)   //@ diag(`should use print-style function`)
+	tb.Skip(s)    //@ diag(`should use print-style function`)
 }
 
 func fn3() (string, int) { return "", 0 }
