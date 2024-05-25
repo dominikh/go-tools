@@ -73,6 +73,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return sameNonDynamic(call.Args[knowledge.Arg("len.v")], ident)
 	}
 
+	seen := make(map[ast.Node]struct{})
 	fn := func(node ast.Node) {
 		var pkg string
 		var fun string
@@ -82,6 +83,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		if ifstmt.Else != nil {
+			seen[ifstmt.Else] = struct{}{}
+			return
+		}
+		if _, ok := seen[ifstmt]; ok {
 			return
 		}
 		if len(ifstmt.Body.List) != 1 {

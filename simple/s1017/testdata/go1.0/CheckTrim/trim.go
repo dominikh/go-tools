@@ -167,6 +167,13 @@ func fn2() {
 	if strings.HasSuffix(s, ".json") {
 		s = s[:len(s)-4] // wrong length
 	}
+
+	// Don't check with else if branch; see https://staticcheck.dev/issues/1447
+	if strings.HasPrefix(s, "\xff\xfe") {
+		s = s[2:]
+	} else if strings.HasPrefix(s, "\xef\xbb\xbf") {
+		s = s[3:]
+	}
 }
 
 func fn3() {
