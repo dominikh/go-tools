@@ -461,7 +461,7 @@ func (s *sanity) checkFunction(fn *Function) bool {
 			}
 		}
 	}
-	if src, syn := fn.Synthetic == 0, fn.source != nil; src != syn {
+	if syn, src := fn.Synthetic == 0, fn.source != nil; src != syn {
 		s.errorf("got fromSource=%t, hasSyntax=%t; want same values", src, syn)
 	}
 	for i, l := range fn.Locals {
