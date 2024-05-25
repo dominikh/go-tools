@@ -34,6 +34,7 @@ import (
 	"honnef.co/go/tools/staticcheck/sa1029"
 	"honnef.co/go/tools/staticcheck/sa1030"
 	"honnef.co/go/tools/staticcheck/sa1031"
+	"honnef.co/go/tools/staticcheck/sa1032"
 	"honnef.co/go/tools/staticcheck/sa2000"
 	"honnef.co/go/tools/staticcheck/sa2001"
 	"honnef.co/go/tools/staticcheck/sa2002"
@@ -130,6 +131,7 @@ var Analyzers = []*lint.Analyzer{
 	sa1029.SCAnalyzer,
 	sa1030.SCAnalyzer,
 	sa1031.SCAnalyzer,
+	sa1032.SCAnalyzer,
 	sa2000.SCAnalyzer,
 	sa2001.SCAnalyzer,
 	sa2002.SCAnalyzer,
