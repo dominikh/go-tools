@@ -336,7 +336,7 @@ func convertError(err error) []packages.Error {
 
 	case config.ParseError:
 		errs = append(errs, packages.Error{
-			Pos:  fmt.Sprintf("%s:%d", err.Filename, err.Position.Line),
+			Pos:  fmt.Sprintf("%s:%d:%d", err.Filename, err.Position.Line, err.Position.Col),
 			Msg:  fmt.Sprintf("%s (last key parsed: %q)", err.Message, err.LastKey),
 			Kind: packages.ParseError,
 		})
