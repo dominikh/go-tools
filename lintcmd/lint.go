@@ -429,6 +429,11 @@ func failed(res runner.Result) []diagnostic {
 				msg = msg[1:]
 			}
 
+			cat := "compile"
+			if e.Kind == packages.ParseError {
+				cat = "config"
+			}
+
 			var posn token.Position
 			if e.Pos == "" {
 				// Under certain conditions (malformed package
@@ -456,7 +461,7 @@ func failed(res runner.Result) []diagnostic {
 				Diagnostic: runner.Diagnostic{
 					Position: posn,
 					Message:  msg,
-					Category: "compile",
+					Category: cat,
 				},
 				Severity: severityError,
 			}
