@@ -73,3 +73,21 @@ func fn3() {
 	if x == nil || len(x) == 0 {
 	}
 }
+
+func issue1527() {
+	var t struct {
+		pa *[5]int
+		s  []int
+		m  map[uint64]bool
+		ch chan int
+	}
+
+	if t.s == nil || len(t.s) == 0 { //@ diag(`should omit nil check`)
+	}
+	if t.m == nil || len(t.m) == 0 { //@ diag(`should omit nil check`)
+	}
+	if t.ch == nil || len(t.ch) == 0 { //@ diag(`should omit nil check`)
+	}
+	if t.pa == nil || len(t.pa) == 0 { // nil check cannot be removed with pointer to an array
+	}
+}

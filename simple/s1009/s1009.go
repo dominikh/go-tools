@@ -25,10 +25,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title: `Omit redundant nil check on slices`,
-		Text: `The \'len\' function is defined for all slices, even nil ones, which have
-a length of zero. It is not necessary to check if a slice is not nil
-before checking that its length is not zero.`,
+		Title: `Omit redundant nil check on slices, maps, and channels`,
+		Text: `The \'len\' function is defined for all slices, maps, and
+channels, even nil ones, which have a length of zero. It is not necessary to
+check for nil before checking that their length is not zero.`,
 		Before:  `if x != nil && len(x) != 0 {}`,
 		After:   `if len(x) != 0 {}`,
 		Since:   "2017.1",
@@ -81,8 +81,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !eqNil && x.Op != token.NEQ {
 			return
 		}
-		xx, ok := x.X.(*ast.Ident)
-		if !ok {
+		var xx *ast.Ident
+		switch s := x.X.(type) {
+		case *ast.Ident:
+			xx = s
+		case *ast.SelectorExpr:
+			xx = s.Sel
+		default:
 			return
 		}
 		if !code.IsNil(pass, x.Y) {
@@ -104,8 +109,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !code.IsCallTo(pass, yx, "len") {
 			return
 		}
-		yxArg, ok := yx.Args[knowledge.Arg("len.v")].(*ast.Ident)
-		if !ok {
+		var yxArg *ast.Ident
+		switch s := yx.Args[knowledge.Arg("len.v")].(type) {
+		case *ast.Ident:
+			yxArg = s
+		case *ast.SelectorExpr:
+			yxArg = s.Sel
+		default:
 			return
 		}
 		if yxArg.Name != xx.Name {
