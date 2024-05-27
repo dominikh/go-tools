@@ -55,6 +55,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ast.IsExported(decl.Name.Name) {
 			return
 		}
+		if strings.HasPrefix(text, "Deprecated: ") {
+			return
+		}
+
 		kind := "function"
 		if decl.Recv != nil {
 			kind = "method"

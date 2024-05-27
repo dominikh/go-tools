@@ -20,6 +20,9 @@ func (T) Foo() {}
 // Whatever //@ diag(`comment on exported method`)
 func (T) Bar() {}
 
+// Deprecated: don't use.
+func (T) Dep() {}
+
 //
 func Qux() {} // this is fine, because "no comment" and "empty comment" are treated the same
 
@@ -41,3 +44,15 @@ func F2() {}
 //some:directive //@ diag(`comment on exported function`)
 // Whatever
 func F3() {}
+
+// Deprecated: don't use.
+func F4() {}
+
+//some:directive
+// Deprecated: don't use.
+func F5() {}
+
+// wrong comment yo. //@diag (`comment on exported function`)
+//
+// Deprecated: don't use.
+func F6() {}
