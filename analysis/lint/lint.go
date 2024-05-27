@@ -155,25 +155,25 @@ func (doc *Documentation) format(markdown bool, metadata bool) string {
 	if markdown {
 		fmt.Fprintf(b, "%s\n\n", doc.TitleMarkdown)
 		if doc.Text != "" {
-			fmt.Fprintf(b, "%s\n\n", doc.TextMarkdown)
+			fmt.Fprintf(b, "%s\n\n", strings.TrimSpace(doc.TextMarkdown))
 		}
 	} else {
 		fmt.Fprintf(b, "%s\n\n", doc.Title)
 		if doc.Text != "" {
-			fmt.Fprintf(b, "%s\n\n", doc.Text)
+			fmt.Fprintf(b, "%s\n\n", strings.TrimSpace(doc.Text))
 		}
 	}
 
 	if doc.Before != "" {
 		fmt.Fprintln(b, "Before:")
 		fmt.Fprintln(b, "")
-		for _, line := range strings.Split(doc.Before, "\n") {
+		for _, line := range strings.Split(strings.TrimSpace(doc.Before), "\n") {
 			fmt.Fprint(b, "    ", line, "\n")
 		}
 		fmt.Fprintln(b, "")
 		fmt.Fprintln(b, "After:")
 		fmt.Fprintln(b, "")
-		for _, line := range strings.Split(doc.After, "\n") {
+		for _, line := range strings.Split(strings.TrimSpace(doc.After), "\n") {
 			fmt.Fprint(b, "    ", line, "\n")
 		}
 		fmt.Fprintln(b, "")
