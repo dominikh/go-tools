@@ -91,6 +91,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			_, alt, _ = strings.Cut(alt, ")")
 			alt = call.Fun.(*ast.SelectorExpr).X.(*ast.Ident).Name + alt
 		}
+		if name == "fmt.Errorf" { // Special case.
+			alt = "errors.New"
+		}
 		report.Report(pass, call,
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
 			report.Fixes(edit.Fix(fmt.Sprintf("use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))

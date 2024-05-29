@@ -43,6 +43,8 @@ func fn(s string) {
 	tb.Error(s)   //@ diag(`should use print-style function`)
 	tb.Fatal(s)   //@ diag(`should use print-style function`)
 	tb.Skip(s)    //@ diag(`should use print-style function`)
+
+	errors.New(s) //@ diag(`should use print-style function`)
 }
 
 func fn3() (string, int) { return "", 0 }
