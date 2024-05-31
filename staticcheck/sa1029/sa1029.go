@@ -52,7 +52,10 @@ func checkWithValueKey(call *callcheck.Call) {
 				fmt.Sprintf("should not use built-in type %s as key for value; define your own type to avoid collisions", typ))
 		}
 	}
-	if !types.Comparable(T) {
+	// TODO(dh): we should probably flag all anonymous structs, as they all risk collisions
+	if s, ok := T.(*types.Struct); ok && s.NumFields() == 0 {
+		arg.Invalid("should not use empty anonymous struct as key for value; define your own type to avoid collisions")
+	} else if !types.Comparable(T) {
 		arg.Invalid(fmt.Sprintf("keys used with context.WithValue must be comparable, but type %s is not comparable", T))
 	}
 }
