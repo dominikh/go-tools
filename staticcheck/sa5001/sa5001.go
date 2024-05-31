@@ -91,7 +91,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if sel.Sel.Name != "Close" {
 				continue
 			}
-			report.Report(pass, def, fmt.Sprintf("should check returned error before deferring %s", report.Render(pass, def.Call)))
+			report.Report(pass, def, fmt.Sprintf("should check error returned from %s() before deferring %s",
+				report.Render(pass, call.Fun), report.Render(pass, def.Call)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
