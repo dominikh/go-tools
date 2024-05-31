@@ -3,10 +3,12 @@
 
 package sa5008
 
-import "strconv"
+import (
+	"errors"
+	"strconv"
+)
 
 func parseStructTag(tag string) (map[string][]string, error) {
-	// FIXME(dh): detect missing closing quote
 	out := map[string][]string{}
 
 	for tag != "" {
@@ -43,7 +45,7 @@ func parseStructTag(tag string) (map[string][]string, error) {
 			i++
 		}
 		if i >= len(tag) {
-			break
+			return nil, errors.New("missing closing quote")
 		}
 		qvalue := string(tag[:i+1])
 		tag = tag[i+1:]
