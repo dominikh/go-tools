@@ -52,20 +52,31 @@ var (
 	tEface      = types.NewInterfaceType(nil, nil).Complete()
 	tDeferStack = types.NewPointer(typeutil.NewDeferStack())
 
-	jReady = intConst(0, nil)  // range-over-func jump is READY
-	jBusy  = intConst(-1, nil) // range-over-func jump is BUSY
-	jDone  = intConst(-2, nil) // range-over-func jump is DONE
-
 	vDeferStack = &Builtin{
 		name: "ssa:deferstack",
 		sig:  types.NewSignatureType(nil, nil, nil, nil, types.NewTuple(anonVar(tDeferStack)), false),
 	}
 )
 
-func init() {
-	jReady.comment = "rangefunc.exit.ready"
-	jBusy.comment = "rangefunc.exit.busy"
-	jDone.comment = "rangefunc.exit.done"
+// range-over-func jump is READY
+func jReady() *Const {
+	c := intConst(0, nil)
+	c.comment = "rangefunc.exit.ready"
+	return c
+}
+
+// range-over-func jump is BUSY
+func jBusy() *Const {
+	c := intConst(-1, nil)
+	c.comment = "rangefunc.exit.busy"
+	return c
+}
+
+// range-over-func jump is DONE
+func jDone() *Const {
+	c := intConst(-2, nil)
+	c.comment = "rangefunc.exit.done"
+	return c
 }
 
 // builder holds state associated with the package currently being built.
@@ -2737,8 +2748,8 @@ func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit,
 	bodies[1] = fn.newBasicBlock("rangefunc.resume.ready")
 
 	conds := make([]Value, 2, 2+len(exits))
-	conds[0] = emitConst(fn, jBusy)
-	conds[1] = emitConst(fn, jReady)
+	conds[0] = emitConst(fn, jBusy())
+	conds[1] = emitConst(fn, jReady())
 
 	fn.currentBlock = bodies[0]
 	fn.emit(
@@ -2750,7 +2761,7 @@ func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit,
 	addEdge(fn.currentBlock, fn.Exit)
 
 	fn.currentBlock = bodies[1]
-	storeVar(fn, jump, emitConst(fn, jDone), nil)
+	storeVar(fn, jump, emitConst(fn, jDone()), nil)
 	emitJump(fn, done, nil)
 
 	for _, e := range exits {
@@ -3184,7 +3195,7 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	//   return true
 	saved := fn.currentBlock
 	fn.currentBlock = ycont
-	storeVar(fn, fn.jump, emitConst(fn, jReady), s.Body)
+	storeVar(fn, fn.jump, emitConst(fn, jReady()), s.Body)
 	vTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil))
 	emitReturn(fn, []Value{vTrue}, nil)
 
@@ -3198,7 +3209,7 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	invalid := fn.newBasicBlock("yield-invalid")
 
 	jumpVal := emitLoad(fn, fn.lookup(fn.jump, true), nil)
-	emitIf(fn, emitCompare(fn, token.EQL, jumpVal, emitConst(fn, jReady), nil), yloop, invalid, nil)
+	emitIf(fn, emitCompare(fn, token.EQL, jumpVal, emitConst(fn, jReady()), nil), yloop, invalid, nil)
 	fn.currentBlock = invalid
 	fn.emit(
 		&Panic{
@@ -3209,7 +3220,7 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	addEdge(fn.currentBlock, fn.Exit)
 
 	fn.currentBlock = yloop
-	storeVar(fn, fn.jump, emitConst(fn, jBusy), s.Body)
+	storeVar(fn, fn.jump, emitConst(fn, jBusy()), s.Body)
 
 	// Initialize k and v from params.
 	var tk, tv types.Type
