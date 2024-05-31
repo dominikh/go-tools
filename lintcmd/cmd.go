@@ -678,7 +678,11 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 	for i, a := range cs {
 		analyzerNames[i] = a.Analyzer.Name
 	}
-	shouldExit := filterAnalyzerNames(analyzerNames, fail)
+	shouldExit, err := filterAnalyzerNames(analyzerNames, fail)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		return 1
+	}
 	shouldExit["staticcheck"] = true
 	shouldExit["compile"] = true
 

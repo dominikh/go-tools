@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -199,7 +200,10 @@ func (l *linter) lint(r *runner.Runner, cfg *packages.Config, patterns []string)
 			}
 
 			out.CheckedFiles = append(out.CheckedFiles, res.Package.GoFiles...)
-			allowedAnalyzers := filterAnalyzerNames(analyzerNames, res.Config.Checks)
+			allowedAnalyzers, err := filterAnalyzerNames(analyzerNames, res.Config.Checks)
+			if err != nil {
+				return out, err
+			}
 			resd, err := res.Load()
 			if err != nil {
 				return out, err
@@ -511,16 +515,17 @@ func defaultGoVersion() string {
 	return v
 }
 
-func filterAnalyzerNames(analyzers []string, checks []string) map[string]bool {
+func filterAnalyzerNames(analyzers []string, checks []string) (map[string]bool, error) {
 	allowedChecks := map[string]bool{}
 
 	for _, check := range checks {
+		check = strings.ToUpper(check)
 		b := true
 		if len(check) > 1 && check[0] == '-' {
 			b = false
 			check = check[1:]
 		}
-		if check == "*" || check == "all" {
+		if check == "*" || check == "ALL" {
 			// Match all
 			for _, c := range analyzers {
 				allowedChecks[c] = b
@@ -530,27 +535,36 @@ func filterAnalyzerNames(analyzers []string, checks []string) map[string]bool {
 			prefix := check[:len(check)-1]
 			isCat := strings.IndexFunc(prefix, func(r rune) bool { return unicode.IsNumber(r) }) == -1
 
+			matched := false
 			for _, a := range analyzers {
 				idx := strings.IndexFunc(a, func(r rune) bool { return unicode.IsNumber(r) })
 				if isCat {
 					// Glob is S*, which should match S1000 but not SA1000
 					cat := a[:idx]
 					if prefix == cat {
+						matched = true
 						allowedChecks[a] = b
 					}
 				} else {
 					// Glob is S1*
 					if strings.HasPrefix(a, prefix) {
+						matched = true
 						allowedChecks[a] = b
 					}
 				}
 			}
+			if !matched {
+				return nil, fmt.Errorf("%q matched no checks", check)
+			}
 		} else {
 			// Literal check name
+			if !slices.Contains(analyzers, check) {
+				return nil, fmt.Errorf("unknown check: %q", check)
+			}
 			allowedChecks[check] = b
 		}
 	}
-	return allowedChecks
+	return allowedChecks, nil
 }
 
 var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?`)
