@@ -1,6 +1,9 @@
 package pkg
 
-import "io"
+import (
+	"io"
+	"os"
+)
 
 func fn1() (io.ReadCloser, error) {
 	return nil, nil
@@ -16,7 +19,7 @@ func fn3() (T, error) {
 
 func fn2() {
 	rc, err := fn1()
-	defer rc.Close() //@ diag(`should check returned error before deferring rc.Close`)
+	defer rc.Close() //@ diag(`should check returned error from fn1() before deferring rc.Close`)
 	if err != nil {
 		println()
 	}
@@ -31,7 +34,13 @@ func fn2() {
 	defer rc.Close()
 
 	t, err := fn3()
-	defer t.rc.Close() //@ diag(`should check returned error before deferring t.rc.Close`)
+	defer t.rc.Close() //@ diag(`should check returned error from fn3() before deferring t.rc.Close`)
+	if err != nil {
+		println()
+	}
+
+	fp, err := os.Open("path")
+	defer fp.Close() //@ diag(`should check returned error from os.Open() before deferring fp.Close()`)
 	if err != nil {
 		println()
 	}
