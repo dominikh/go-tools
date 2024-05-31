@@ -30,4 +30,9 @@ func fn(arg1 interface{}, arg2 string) {
 	context.WithValue(ctx, []byte(nil), nil) //@ diag(`must be comparable`)
 	context.WithValue(ctx, T2{}, nil)
 	context.WithValue(ctx, T3{}, nil) //@ diag(`must be comparable`)
+
+	context.WithValue(ctx, struct{ key string }{"k"}, nil)
+	var empty struct{}
+	context.WithValue(ctx, struct{}{}, nil) //@ diag(`should not use empty anonymous struct`)
+	context.WithValue(ctx, empty, nil)      //@ diag(`should not use empty anonymous struct`)
 }
