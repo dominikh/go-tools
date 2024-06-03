@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"crypto/sha256"
+	"go/build"
 	"go/version"
 	"io"
 	"os"
@@ -68,9 +69,17 @@ func Run(t *testing.T, a *lint.Analyzer) {
 	}
 	c.SetSalt(salt)
 
+	tags := build.Default.ReleaseTags
+	maxVersion := tags[len(tags)-1]
 	for _, dir := range dirs {
 		vers := filepath.Base(dir)
 		t.Run(vers, func(t *testing.T) {
+			if !version.IsValid(vers) {
+				t.Fatalf("%q is not a valid Go version", dir)
+			}
+			if version.Compare(vers, maxVersion) == 1 {
+				t.Skipf("%s is newer than our Go version (%s), skipping", vers, maxVersion)
+			}
 			r, err := runner.New(config.Config{}, c)
 			if err != nil {
 				t.Fatal(err)
@@ -80,9 +89,6 @@ func Run(t *testing.T, a *lint.Analyzer) {
 			testdata, err := filepath.Abs("testdata")
 			if err != nil {
 				t.Fatal(err)
-			}
-			if !version.IsValid(vers) {
-				t.Fatalf("%q is not a valid Go version", dir)
 			}
 			cfg := &packages.Config{
 				Dir:   dir,
