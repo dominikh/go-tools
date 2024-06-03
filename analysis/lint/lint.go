@@ -21,33 +21,11 @@ type Analyzer struct {
 	Analyzer *analysis.Analyzer
 }
 
-func (a *Analyzer) initialize() {
-	a.Analyzer.Doc = a.Doc.String()
-	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
-}
-
 func InitializeAnalyzer(a *Analyzer) *Analyzer {
 	a.Analyzer.Doc = a.Doc.String()
 	a.Analyzer.URL = "https://staticcheck.dev/docs/checks/#" + a.Analyzer.Name
 	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 	return a
-}
-
-// InitializeAnalyzers takes a map of documentation and a map of go/analysis.Analyzers and returns a slice of Analyzers.
-// The map keys are the analyzer names.
-func InitializeAnalyzers(docs map[string]*Documentation, analyzers map[string]*analysis.Analyzer) []*Analyzer {
-	out := make([]*Analyzer, 0, len(analyzers))
-	for k, v := range analyzers {
-		v.Name = k
-		v.URL = "https://staticcheck.dev/docs/checks/#" + k
-		a := &Analyzer{
-			Doc:      docs[k],
-			Analyzer: v,
-		}
-		a.initialize()
-		out = append(out, a)
-	}
-	return out
 }
 
 // Severity describes the severity of diagnostics reported by an analyzer.
