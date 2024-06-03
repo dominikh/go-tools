@@ -25,7 +25,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, deprecated.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Using a deprecated function, variable, constant or field`,
 		Since:    "2017.1",
 		Severity: lint.SeverityDeprecated,

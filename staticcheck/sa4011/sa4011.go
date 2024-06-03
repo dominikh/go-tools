@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Break statement with no effect. Did you mean to break out of an outer loop?`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

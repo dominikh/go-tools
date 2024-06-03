@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Use a type conversion instead of manually copying struct fields`,
 		Text: `Two struct types with identical fields can be converted between each
 other. In older versions of Go, the fields had to have identical

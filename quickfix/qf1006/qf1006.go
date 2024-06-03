@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Lift \'if\'+\'break\' into loop condition`,
 		Before: `
 for {

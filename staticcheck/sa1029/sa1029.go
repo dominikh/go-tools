@@ -17,7 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkWithValueKeyRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Inappropriate key in call to \'context.WithValue\'`,
 		Text: `The provided key must be comparable and should not be
 of type \'string\' or any other built-in type to avoid collisions between

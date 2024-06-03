@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Redundant call to \'net/http.CanonicalHeaderKey\' in method call on \'net/http.Header\'`,
 		Text: `
 The methods on \'net/http.Header\', namely \'Add\', \'Del\', \'Get\'

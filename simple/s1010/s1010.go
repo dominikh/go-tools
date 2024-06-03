@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Omit default slice index`,
 		Text: `When slicing, the second index defaults to the length of the value,
 making \'s[n:len(s)]\' and \'s[n:]\' equivalent.`,

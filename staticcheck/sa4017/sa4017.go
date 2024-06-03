@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, purity.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Discarding the return values of a function without side effects, making the call pointless`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

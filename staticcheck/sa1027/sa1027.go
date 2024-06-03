@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkAtomicAlignment),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Atomic access to 64-bit variable must be 64-bit aligned`,
 		Text: `On ARM, x86-32, and 32-bit MIPS, it is the caller's responsibility to
 arrange for 64-bit alignment of 64-bit words accessed atomically. The

@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Using io.WriteString to write \'[]byte\'`,
 		Text: `Using io.WriteString to write a slice of bytes, as in
 

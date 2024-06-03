@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Trapping a signal that cannot be trapped`,
 		Text: `Not all signals can be intercepted by a process. Specifically, on
 UNIX-like systems, the \'syscall.SIGKILL\' and \'syscall.SIGSTOP\' signals are

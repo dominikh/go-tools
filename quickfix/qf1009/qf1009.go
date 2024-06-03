@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Use \'time.Time.Equal\' instead of \'==\' operator`,
 		Since:    "2021.1",
 		Severity: lint.SeverityInfo,

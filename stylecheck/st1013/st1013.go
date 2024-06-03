@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{generated.Analyzer, config.Analyzer, inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Should use constants for HTTP error codes, not magic numbers`,
 		Text: `HTTP has a tremendous number of status codes. While some of those are
 well known (200, 400, 404, 500), most of them are not. The \'net/http\'

@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   "Unnecessarily complex way of printing formatted string",
 		Text:    `Instead of using \'fmt.Print(fmt.Sprintf(...))\', one can use \'fmt.Printf(...)\'.`,
 		Since:   "2020.1",

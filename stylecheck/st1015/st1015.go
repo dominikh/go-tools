@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `A switch's default case should be the first or last case`,
 		Since:   "2019.1",
 		MergeIf: lint.MergeIfAny,

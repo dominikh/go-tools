@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Use result of type assertion to simplify cases`,
 		Since:   "2019.2",
 		MergeIf: lint.MergeIfAny,

@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Assigning to \'b.N\' in benchmarks distorts the results`,
 		Text: `The testing package dynamically sets \'b.N\' to improve the reliability of
 benchmarks and uses it in computations to determine the duration of a

@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      CheckDeMorgan,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    "Apply De Morgan's law",
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,

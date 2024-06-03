@@ -16,7 +16,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{generated.Analyzer, config.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Dot imports are discouraged`,
 		Text: `Dot imports that aren't in external test packages are discouraged.
 

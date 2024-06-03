@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Using a non-octal \'os.FileMode\' that looks like it was meant to be in octal.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

@@ -16,7 +16,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Assignment to nil map`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,

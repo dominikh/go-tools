@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{generated.Analyzer, inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "The documentation of an exported function should start with the function's name",
 		Text: `Doc comments work best as complete sentences, which
 allow a wide variety of automated presentations. The first sentence

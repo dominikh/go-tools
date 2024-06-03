@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkEncodingBinaryRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Unsupported argument to functions in \'encoding/binary\'`,
 		Text: `The \'encoding/binary\' package can only serialize types with known sizes.
 This precludes the use of the \'int\' and \'uint\' types, as their sizes

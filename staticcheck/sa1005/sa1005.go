@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Invalid first argument to \'exec.Command\'`,
 		Text: `\'os/exec\' runs programs directly (using variants of the fork and exec
 system calls on Unix systems). This shouldn't be confused with running

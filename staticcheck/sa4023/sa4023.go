@@ -25,7 +25,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, typedness.Analysis, nilness.Analysis},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Impossible comparison of interface value with untyped nil`,
 		Text: `Under the covers, interfaces are implemented as two elements, a
 type T and a value V. V is a concrete value such as an int,

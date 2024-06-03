@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Name: "ST1012",
 		Run:  run,
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Poorly chosen name for error variable`,
 		Text: `Error variables that are part of an API should be called \'errFoo\' or
 \'ErrFoo\'.`,

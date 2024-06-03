@@ -17,7 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Invalid regular expression`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,

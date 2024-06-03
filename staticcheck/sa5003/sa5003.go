@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Defers in infinite loops will never execute`,
 		Text: `Defers are scoped to the surrounding function, not the surrounding
 block. In a function that never returns, i.e. one containing an

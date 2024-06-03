@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Missing an optimization opportunity when indexing maps by byte slices`,
 
 		Text: `Map keys must be comparable, which precludes the use of byte slices.

@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Invalid argument in call to a \'strconv\' function`,
 		Text: `This check validates the format, number base and bit size arguments of
 the various parsing and formatting functions in \'strconv\'.`,

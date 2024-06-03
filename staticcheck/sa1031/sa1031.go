@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkEncodeRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Overlapping byte slices passed to an encoder`,
 		Text: `In an encoding function of the form \'Encode(dst, src)\', \'dst\' and
 \'src\' were found to reference the same memory. This can result in

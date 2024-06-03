@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Drop unnecessary use of the blank identifier`,
 		Text:  `In many cases, assigning to the blank identifier is unnecessary.`,
 		Before: `

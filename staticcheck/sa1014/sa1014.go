@@ -17,7 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkUnmarshalPointerRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Non-pointer value passed to \'Unmarshal\' or \'Decode\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,

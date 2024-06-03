@@ -17,12 +17,12 @@ type Analyzer struct {
 	// The analyzer's documentation. Unlike go/analysis.Analyzer.Doc,
 	// this field is structured, providing access to severity, options
 	// etc.
-	Doc      *Documentation
+	Doc      *RawDocumentation
 	Analyzer *analysis.Analyzer
 }
 
 func InitializeAnalyzer(a *Analyzer) *Analyzer {
-	a.Analyzer.Doc = a.Doc.String()
+	a.Analyzer.Doc = a.Doc.Compile().String()
 	a.Analyzer.URL = "https://staticcheck.dev/docs/checks/#" + a.Analyzer.Name
 	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 	return a
@@ -76,26 +76,22 @@ type Documentation struct {
 	MergeIf    MergeStrategy
 }
 
-func Markdownify(m map[string]*RawDocumentation) map[string]*Documentation {
-	out := make(map[string]*Documentation, len(m))
-	for k, v := range m {
-		out[k] = &Documentation{
-			Title: strings.TrimSpace(stripMarkdown(v.Title)),
-			Text:  strings.TrimSpace(stripMarkdown(v.Text)),
+func (doc RawDocumentation) Compile() *Documentation {
+	return &Documentation{
+		Title: strings.TrimSpace(stripMarkdown(doc.Title)),
+		Text:  strings.TrimSpace(stripMarkdown(doc.Text)),
 
-			TitleMarkdown: strings.TrimSpace(toMarkdown(v.Title)),
-			TextMarkdown:  strings.TrimSpace(toMarkdown(v.Text)),
+		TitleMarkdown: strings.TrimSpace(toMarkdown(doc.Title)),
+		TextMarkdown:  strings.TrimSpace(toMarkdown(doc.Text)),
 
-			Before:     strings.TrimSpace(v.Before),
-			After:      strings.TrimSpace(v.After),
-			Since:      v.Since,
-			NonDefault: v.NonDefault,
-			Options:    v.Options,
-			Severity:   v.Severity,
-			MergeIf:    v.MergeIf,
-		}
+		Before:     strings.TrimSpace(doc.Before),
+		After:      strings.TrimSpace(doc.After),
+		Since:      doc.Since,
+		NonDefault: doc.NonDefault,
+		Options:    doc.Options,
+		Severity:   doc.Severity,
+		MergeIf:    doc.MergeIf,
 	}
-	return out
 }
 
 func toMarkdown(s string) string {

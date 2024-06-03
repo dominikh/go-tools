@@ -14,7 +14,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      sharedcheck.CheckRangeStringRunes,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Range over the string directly`,
 		Text: `Ranging over a string will yield byte offsets and runes. If the offset
 isn't used, this is functionally equivalent to converting the string

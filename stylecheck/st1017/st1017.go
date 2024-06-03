@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Don't use Yoda conditions`,
 		Text: `Yoda conditions are conditions of the kind \"if 42 == x\", where the
 literal is on the left side of the comparison. These are a common

@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      CheckImpossibleGOOSGOARCH,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Comparing \'runtime.GOOS\' or \'runtime.GOARCH\' against impossible value`,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,

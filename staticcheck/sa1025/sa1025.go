@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `It is not possible to use \'(*time.Timer).Reset\''s return value correctly`,
 		Since:    "2019.1",
 		Severity: lint.SeverityWarning,

@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "Go constants cannot express negative zero",
 		Text: `In IEEE 754 floating point math, zero has a sign and can be positive
 or negative. This can be useful in certain numerical code.

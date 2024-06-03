@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Non-canonical key in \'http.Header\' map`,
 		Text: `Keys in \'http.Header\' maps are canonical, meaning they follow a specific
 combination of uppercase and lowercase letters. Methods such as

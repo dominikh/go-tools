@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "Ineffective attempt at sorting slice",
 		Text: `
 \'sort.Float64Slice\', \'sort.IntSlice\', and \'sort.StringSlice\' are

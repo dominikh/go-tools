@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "Type assertion to current type",
 		Text: `The type assertion \'x.(SomeInterface)\', when \'x\' already has type
 \'SomeInterface\', can only fail if \'x\' is nil. Usually, this is

@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Simplify \"make\" call by omitting redundant arguments`,
 		Text: `The \"make\" function has default values for the length and capacity
 arguments. For channels, the length defaults to zero, and for slices,

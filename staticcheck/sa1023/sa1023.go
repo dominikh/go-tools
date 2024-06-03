@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Modifying the buffer in an \'io.Writer\' implementation`,
 		Text:     `\'Write\' must not modify the slice data, even temporarily.`,
 		Since:    "2017.1",

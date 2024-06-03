@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `\'&*x\' gets simplified to \'x\', it does not copy \'x\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

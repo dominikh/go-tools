@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Binary operator has identical expressions on both sides`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

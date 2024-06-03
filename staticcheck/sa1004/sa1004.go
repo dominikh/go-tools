@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Suspiciously small untyped constant in \'time.Sleep\'`,
 		Text: `The \'time\'.Sleep function takes a \'time.Duration\' as its only argument.
 Durations are expressed in nanoseconds. Thus, calling \'time.Sleep(1)\'

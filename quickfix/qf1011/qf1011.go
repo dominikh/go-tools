@@ -11,7 +11,7 @@ func init() {
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: sharedcheck.RedundantTypeInDeclarationChecker("could", true),
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    "Omit redundant type from variable declaration",
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,

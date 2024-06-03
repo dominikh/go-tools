@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Unnecessary guard around call to \"delete\"`,
 		Text:    `Calling \'delete\' on a nil map is a no-op.`,
 		Since:   "2019.2",

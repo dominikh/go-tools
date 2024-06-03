@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `A nil \'context.Context\' is being passed to a function, consider using \'context.TODO\' instead`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

@@ -16,7 +16,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `A function's error value should be its last return value`,
 		Text:    `A function's error value should be its last return value.`,
 		Since:   `2019.1`,

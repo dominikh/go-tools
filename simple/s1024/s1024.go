@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Replace \'x.Sub(time.Now())\' with \'time.Until(x)\'`,
 		Text: `The \'time.Until\' helper has the same effect as using \'x.Sub(time.Now())\'
 but is easier to read.`,

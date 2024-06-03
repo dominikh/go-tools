@@ -17,7 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkUTF8CutsetRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Various methods in the \"strings\" package expect valid UTF-8, but invalid input is provided`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,

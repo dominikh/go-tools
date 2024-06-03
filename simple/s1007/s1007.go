@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Simplify regular expression by using raw string literal`,
 		Text: `Raw string literals use backticks instead of quotation marks and do not support
 any escape sequences. This means that the backslash can be used

@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Simplify error construction with \'fmt.Errorf\'`,
 		Before:  `errors.New(fmt.Sprintf(...))`,
 		After:   `fmt.Errorf(...)`,

@@ -119,7 +119,7 @@ func (cmd *Command) AddBareAnalyzers(as ...*analysis.Analyzer) {
 			text = a.Doc[idx+2:]
 		}
 
-		doc := &lint.Documentation{
+		doc := &lint.RawDocumentation{
 			Title:    title,
 			Text:     text,
 			Severity: lint.SeverityWarning,
@@ -330,7 +330,7 @@ func (cmd *Command) listChecks() int {
 	for _, c := range cs {
 		var title string
 		if c.Doc != nil {
-			title = c.Doc.Title
+			title = c.Doc.Compile().Title
 		}
 		fmt.Printf("%s %s\n", c.Analyzer.Name, title)
 	}
@@ -353,7 +353,7 @@ func (cmd *Command) explain() int {
 		fmt.Fprintln(os.Stderr, explain, "has no documentation")
 		return 1
 	}
-	fmt.Println(check.Doc)
+	fmt.Println(check.Doc.Compile())
 	fmt.Println("Online documentation\n    https://staticcheck.dev/docs/checks#" + check.Analyzer.Name)
 	return 0
 }

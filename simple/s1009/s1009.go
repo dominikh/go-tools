@@ -24,7 +24,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Omit redundant nil check on slices`,
 		Text: `The \'len\' function is defined for all slices, even nil ones, which have
 a length of zero. It is not necessary to check if a slice is not nil

@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Omit redundant nil check in type assertion`,
 		Before:  `if _, ok := i.(T); ok && i != nil {}`,
 		After:   `if _, ok := i.(T); ok {}`,

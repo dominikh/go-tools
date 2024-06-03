@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `\'strings.Replace\' called with \'n == 0\', which does nothing`,
 		Text: `With \'n == 0\', zero instances will be replaced. To replace all
 instances, use a negative number, or use \'strings.ReplaceAll\'.`,

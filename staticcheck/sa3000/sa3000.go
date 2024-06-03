@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `\'TestMain\' doesn't call \'os.Exit\', hiding test failures`,
 		Text: `Test executables (and in turn \"go test\") exit with a non-zero status
 code if any tests failed. When specifying your own \'TestMain\' function,

@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Use \"copy\" for sliding elements`,
 		Text: `\'copy()\' permits using the same source and destination slice, even with
 overlapping ranges. This makes it ideal for sliding elements in a

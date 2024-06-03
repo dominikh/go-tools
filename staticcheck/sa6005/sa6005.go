@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Inefficient string comparison with \'strings.ToLower\' or \'strings.ToUpper\'`,
 		Text: `Converting two strings to the same case and comparing them like so
 

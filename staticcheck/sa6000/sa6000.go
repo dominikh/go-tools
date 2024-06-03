@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Using \'regexp.Match\' or related in a loop, should use \'regexp.Compile\'`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

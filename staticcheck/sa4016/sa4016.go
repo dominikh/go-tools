@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Certain bitwise operations, such as \'x ^ 0\', do not do anything useful`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkMathIntRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Calling functions like \'math.Ceil\' on floats converted from integers doesn't do anything useful`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

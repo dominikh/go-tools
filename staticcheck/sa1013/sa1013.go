@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `\'io.Seeker.Seek\' is being called with the whence constant as the first argument, but it should be the second`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

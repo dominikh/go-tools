@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `The finalizer references the finalized object, preventing garbage collection`,
 		Text: `A finalizer is a function associated with an object that runs when the
 garbage collector is ready to collect said object, that is when the

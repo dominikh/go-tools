@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      CheckBytesCompare,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
 		Before:  `if bytes.Compare(x, y) == 0 {}`,
 		After:   `if bytes.Equal(x, y) {}`,

@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

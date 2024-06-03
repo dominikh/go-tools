@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `\'(*net/url.URL).Query\' returns a copy, modifying it doesn't change the URL`,
 		Text: `\'(*net/url.URL).Query\' parses the current value of \'net/url.URL.RawQuery\'
 and returns it as a map of type \'net/url.Values\'. Subsequent changes to

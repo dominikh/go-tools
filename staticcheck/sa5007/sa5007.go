@@ -15,7 +15,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Infinite recursive call`,
 		Text: `A function that calls itself recursively needs to have an exit
 condition. Otherwise it will recurse forever, until the system runs

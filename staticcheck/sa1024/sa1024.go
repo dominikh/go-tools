@@ -17,7 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `A string cutset contains duplicate characters`,
 		Text: `The \'strings.TrimLeft\' and \'strings.TrimRight\' functions take cutsets, not
 prefixes. A cutset is treated as a set of characters to remove from a

@@ -251,13 +251,14 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 		}},
 	}
 	for _, c := range checks {
+		doc := c.Doc.Compile()
 		run.Tool.Driver.Rules = append(run.Tool.Driver.Rules,
 			sarif.ReportingDescriptor{
 				// We don't set Name, as Name and ID mustn't be identical.
 				ID: c.Analyzer.Name,
 				ShortDescription: sarif.Message{
-					Text:     c.Doc.Title,
-					Markdown: c.Doc.TitleMarkdown,
+					Text:     doc.Title,
+					Markdown: doc.TitleMarkdown,
 				},
 				HelpURI: "https://staticcheck.dev/docs/checks#" + c.Analyzer.Name,
 				// We use our markdown as the plain text version, too. We
@@ -265,13 +266,13 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 				// indented code blocks and backticks. All of these are
 				// fine as plain text, too.
 				Help: sarif.Message{
-					Text:     sarifFormatText(c.Doc.Format(false)),
-					Markdown: sarifFormatText(c.Doc.FormatMarkdown(false)),
+					Text:     sarifFormatText(doc.Format(false)),
+					Markdown: sarifFormatText(doc.FormatMarkdown(false)),
 				},
 				DefaultConfiguration: sarif.ReportingConfiguration{
 					// TODO(dh): we could figure out which checks were disabled globally
 					Enabled: true,
-					Level:   sarifLevel(c.Doc.Severity),
+					Level:   sarifLevel(doc.Severity),
 				},
 			})
 	}

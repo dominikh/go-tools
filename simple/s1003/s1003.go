@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Replace call to \'strings.Index\' with \'strings.Contains\'`,
 		Before:  `if strings.Index(x, y) != -1 {}`,
 		After:   `if strings.Contains(x, y) {}`,

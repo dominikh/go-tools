@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Poorly chosen name for variable of type \'time.Duration\'`,
 		Text: `\'time.Duration\' values represent an amount of time, which is represented
 as a count of nanoseconds. An expression like \'5 * time.Microsecond\'

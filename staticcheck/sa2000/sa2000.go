@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,

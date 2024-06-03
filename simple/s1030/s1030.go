@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Use \'bytes.Buffer.String\' or \'bytes.Buffer.Bytes\'`,
 		Text: `\'bytes.Buffer\' has both a \'String\' and a \'Bytes\' method. It is almost never
 necessary to use \'string(buf.Bytes())\' or \'[]byte(buf.String())\' – simply

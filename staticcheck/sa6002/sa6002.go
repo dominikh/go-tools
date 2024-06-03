@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Storing non-pointer values in \'sync.Pool\' allocates memory`,
 		Text: `A \'sync.Pool\' is used to avoid unnecessary allocations and reduce the
 amount of work the garbage collector has to do.

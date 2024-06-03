@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Channels used with \'os/signal.Notify\' should be buffered`,
 		Text: `The \'os/signal\' package uses non-blocking channel sends when delivering
 signals. If the receiving end of the channel isn't ready and the

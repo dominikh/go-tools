@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Using \'bytes.Equal\' to compare two \'net.IP\'`,
 		Text: `A \'net.IP\' stores an IPv4 or IPv6 address as a slice of bytes. The
 length of the slice for an IPv4 address, however, can be either 4 or

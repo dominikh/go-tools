@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:   `Use \"for { ... }\" for infinite loops`,
 		Text:    `For infinite loops, using \'for { ... }\' is the most idiomatic choice.`,
 		Since:   "2017.1",

@@ -168,7 +168,7 @@ type Result struct {
 }
 
 var Analyzer = &lint.Analyzer{
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "Unused code",
 	},
 	Analyzer: &analysis.Analyzer{

@@ -22,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `\'Printf\' with dynamic first argument and no further arguments`,
 		Text: `Using \'fmt.Printf\' with a dynamic first argument can lead to unexpected
 output. The first argument is a format string, where certain character

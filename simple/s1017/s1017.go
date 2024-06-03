@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Replace manual trimming with \'strings.TrimPrefix\'`,
 		Text: `Instead of using \'strings.HasPrefix\' and manual slicing, use the
 \'strings.TrimPrefix\' function. If the string doesn't start with the

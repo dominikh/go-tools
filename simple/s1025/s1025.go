@@ -25,7 +25,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer, inspect.Analyzer, generated.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Don't use \'fmt.Sprintf("%s", x)\' unnecessarily`,
 		Text: `In many instances, there are easier and more efficient ways of getting
 a value's string representation. Whenever a value's underlying type is

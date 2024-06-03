@@ -19,7 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,

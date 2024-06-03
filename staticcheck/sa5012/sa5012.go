@@ -24,7 +24,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		FactTypes: []analysis.Fact{new(evenElements)},
 		Requires:  []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "Passing odd-sized slice to function expecting even size",
 		Text: `Some functions that take slices as parameters expect the slices to have an even number of elements. 
 Often, these functions treat elements in a slice as pairs. 

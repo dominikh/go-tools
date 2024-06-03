@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `Expand call to \'math.Pow\'`,
 		Text:     `Some uses of \'math.Pow\' can be simplified to basic multiplication.`,
 		Before:   `math.Pow(x, 2)`,

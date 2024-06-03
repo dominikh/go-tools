@@ -17,7 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Name: "ST1000",
 		Run:  run,
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Incorrect or missing package comment`,
 		Text: `Packages must have a package comment that is formatted according to
 the guidelines laid out in

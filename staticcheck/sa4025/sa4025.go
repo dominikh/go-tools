@@ -20,7 +20,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "Integer division of literals that results in zero",
 		Text: `When dividing two integer constants, the result will
 also be an integer. Thus, a division such as \'2 / 3\' results in \'0\'.

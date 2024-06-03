@@ -25,7 +25,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		},
 		Run: callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Trying to marshal a struct with no public fields nor custom marshaling`,
 		Text: `
 The \'encoding/json\' and \'encoding/xml\' packages only operate on exported

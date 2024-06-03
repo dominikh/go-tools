@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(checkRegexpFindAllRules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `\'(*regexp.Regexp).FindAll\' called with \'n == 0\', which will always return zero results`,
 		Text: `If \'n >= 0\', the function returns at most \'n\' matches/submatches. To
 return all results, specify a negative number.`,

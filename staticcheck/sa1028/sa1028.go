@@ -18,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 		Run:      callcheck.Analyzer(rules),
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title:    `\'sort.Slice\' can only be used on slices`,
 		Text:     `The first argument of \'sort.Slice\' must be a slice.`,
 		Since:    "2020.1",

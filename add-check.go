@@ -29,7 +29,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run: run,
 		Requires: []*analysis.Analyzer{},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: "",
 		Text: {{.emptyRaw}},
 		{{- if .quickfix }}

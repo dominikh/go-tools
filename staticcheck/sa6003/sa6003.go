@@ -14,7 +14,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      sharedcheck.CheckRangeStringRunes,
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
-	Doc: &lint.Documentation{
+	Doc: &lint.RawDocumentation{
 		Title: `Converting a string to a slice of runes before ranging over it`,
 		Text: `You may want to loop over the runes in a string. Instead of converting
 the string to a slice of runes and looping over that, you can loop
