@@ -38,7 +38,6 @@ variable, such as
 var Analyzer = SCAnalyzer.Analyzer
 
 var rules = map[string]callcheck.Check{
-	"errors.As": validateIs,
 	"errors.Is": validateIs,
 }
 
@@ -71,9 +70,6 @@ func validateIs(call *callcheck.Call) {
 				// genuinely happen for external tests that check that one error "is"
 				// another one. net/http's external tests, for example, do
 				// `errors.Is(http.ErrNotSupported, errors.ErrUnsupported)`.
-				//
-				// For As, this doesn't really make sense, but neither does swapping the
-				// arguments
 				return
 			}
 		}

@@ -47,35 +47,3 @@ func is() {
 		// If both arguments are globals there's no right or wrong order.
 	}
 }
-
-func as() {
-	err := errors.New("oh noes")
-
-	_ = errors.As(err, fs.ErrNotExist)
-	_ = errors.As(fs.ErrNotExist, err) //@ diag(`wrong order`)
-	if errors.As(err, fs.ErrNotExist) {
-	}
-	if errors.As(fs.ErrNotExist, err) { //@ diag(`wrong order`)
-	}
-
-	_ = errors.As(gErr, fs.ErrNotExist)
-	_ = errors.As(fs.ErrNotExist, gErr) //@ diag(`wrong order`)
-	if errors.As(gErr, fs.ErrNotExist) {
-	}
-	if errors.As(fs.ErrNotExist, gErr) { //@ diag(`wrong order`)
-	}
-
-	_ = errors.As(myErr{}, fs.ErrNotExist)
-	_ = errors.As(fs.ErrNotExist, myErr{}) //@ diag(`wrong order`)
-	if errors.As(myErr{}, fs.ErrNotExist) {
-	}
-	if errors.As(fs.ErrNotExist, myErr{}) { //@ diag(`wrong order`)
-	}
-
-	_ = errors.As(&myErr{}, fs.ErrNotExist)
-	_ = errors.As(fs.ErrNotExist, &myErr{}) //@ diag(`wrong order`)
-	if errors.As(&myErr{}, fs.ErrNotExist) {
-	}
-	if errors.As(fs.ErrNotExist, &myErr{}) { //@ diag(`wrong order`)
-	}
-}
