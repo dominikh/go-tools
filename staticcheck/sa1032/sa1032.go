@@ -5,7 +5,6 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/internal/passes/buildir"
-	"honnef.co/go/tools/knowledge"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -39,24 +38,46 @@ variable, such as
 var Analyzer = SCAnalyzer.Analyzer
 
 var rules = map[string]callcheck.Check{
-	"errors.As": func(call *callcheck.Call) {
-		validateIs(call.Pass.Pkg.Path(), call.Args[knowledge.Arg("errors.As.err")])
-	},
-	"errors.Is": func(call *callcheck.Call) {
-		validateIs(call.Pass.Pkg.Path(), call.Args[knowledge.Arg("errors.Is.err")])
-	},
+	"errors.As": validateIs,
+	"errors.Is": validateIs,
 }
 
-func validateIs(curPkg string, arg *callcheck.Argument) {
-	v, ok := arg.Value.Value.(*ir.Load)
-	if !ok {
+func validateIs(call *callcheck.Call) {
+	if len(call.Args) != 2 {
 		return
 	}
-	g, ok := v.X.(*ir.Global)
-	if !ok {
+
+	global := func(arg *callcheck.Argument) *ir.Global {
+		v, ok := arg.Value.Value.(*ir.Load)
+		if !ok {
+			return nil
+		}
+		g, _ := v.X.(*ir.Global)
+		return g
+	}
+
+	x, y := call.Args[0], call.Args[1]
+	gx := global(x)
+	if gx == nil {
 		return
 	}
-	if pkg := g.Package().Pkg; pkg != nil && pkg.Path() != curPkg {
-		arg.Invalid("arguments have the wrong order")
+
+	if pkgx := gx.Package().Pkg; pkgx != nil && pkgx.Path() != call.Pass.Pkg.Path() {
+		// x is a global that's not in this package
+
+		if gy := global(y); gy != nil {
+			if pkgy := gy.Package().Pkg; pkgy != nil && pkgy.Path() != call.Pass.Pkg.Path() {
+				// Both arguments refer to globals that aren't in this package. This can
+				// genuinely happen for external tests that check that one error "is"
+				// another one. net/http's external tests, for example, do
+				// `errors.Is(http.ErrNotSupported, errors.ErrUnsupported)`.
+				//
+				// For As, this doesn't really make sense, but neither does swapping the
+				// arguments
+				return
+			}
+		}
+
+		call.Invalid("arguments have the wrong order")
 	}
 }

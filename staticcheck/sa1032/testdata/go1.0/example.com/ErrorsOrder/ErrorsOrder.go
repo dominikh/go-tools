@@ -2,6 +2,7 @@ package errors
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 )
 
@@ -40,6 +41,10 @@ func is() {
 	if errors.Is(&myErr{}, fs.ErrNotExist) {
 	}
 	if errors.Is(fs.ErrNotExist, &myErr{}) { //@ diag(`wrong order`)
+	}
+
+	if !errors.Is(io.EOF, fs.ErrNotExist) {
+		// If both arguments are globals there's no right or wrong order.
 	}
 }
 
