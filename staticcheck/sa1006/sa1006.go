@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-	"strings"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -71,6 +70,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		if len(call.Args) != arg+1 {
+			// This filters out calls of method expressions like (*log.Logger).Printf(nil, s)
 			return
 		}
 		switch call.Args[arg].(type) {
@@ -86,13 +86,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		alt := name[:len(name)-1] // fmt.Printf
-		if alt[0] == '(' {        // (*log.Logger).Printf
-			_, alt, _ = strings.Cut(alt, ")")
-			alt = call.Fun.(*ast.SelectorExpr).X.(*ast.Ident).Name + alt
-		}
-		if name == "fmt.Errorf" { // Special case.
+		var alt string
+		if name == "fmt.Errorf" {
+			// The alternative to fmt.Errorf isn't fmt.Error but errors.New
 			alt = "errors.New"
+		} else {
+			// This can be either a function call like log.Printf or a method call with an
+			// arbitrarily complex selector, such as foo.bar[0].Printf. In either case,
+			// all we have to do is remove the final 'f' from the existing call.Fun
+			// expression.
+			alt = report.Render(pass, call.Fun)
+			alt = alt[:len(alt)-1]
 		}
 		report.Report(pass, call,
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",

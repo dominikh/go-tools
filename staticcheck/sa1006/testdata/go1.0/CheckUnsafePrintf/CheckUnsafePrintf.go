@@ -45,6 +45,11 @@ func fn(s string) {
 	tb.Skipf(s)    //@ diag(`should use print-style function`)
 
 	fmt.Errorf(s) //@ diag(`should use print-style function`)
+
+	var nested struct {
+		l log.Logger
+	}
+	nested.l.Printf(s) //@ diag(`should use print-style function`)
 }
 
 func fn3() (string, int) { return "", 0 }
