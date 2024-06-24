@@ -42,8 +42,14 @@ var (
 	checkIfReturnQRet = pattern.MustParse(`(ReturnStmt [ret@(Builtin (Or "true" "false"))])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
+	var cm ast.CommentMap
 	fn := func(node ast.Node) {
+		if f, ok := node.(*ast.File); ok {
+			cm = ast.NewCommentMap(pass.Fset, f, f.Comments)
+			return
+		}
+
 		block := node.(*ast.BlockStmt)
 		l := len(block.List)
 		if l < 2 {
@@ -76,10 +82,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 		ret1 := m1.State["ret"].(*ast.Ident)
 		ret2 := m2.State["ret"].(*ast.Ident)
-
 		if ret1.Name == ret2.Name {
 			// we want the function to return true and false, not the
 			// same value both times.
+			return
+		}
+
+		// Don't flag if both are commented.
+		if len(cm.Filter(n1).Comments()) > 0 && len(cm.Filter(n2).Comments()) > 0 {
 			return
 		}
 
@@ -94,7 +104,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				report.Render(pass, origCond), report.Render(pass, ret1), report.Render(pass, ret2)),
 			report.FilterGenerated())
 	}
-	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
+	code.Preorder(pass, fn, (*ast.File)(nil), (*ast.BlockStmt)(nil))
 	return nil, nil
 }
 
