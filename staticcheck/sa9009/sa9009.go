@@ -21,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Text: `
 A potential Go compiler directive was found, but is ineffectual as it begins
 with whitespace.`,
-		Since:    "Unreleased",
+		Since:    "2024.1",
 		Severity: lint.SeverityWarning,
 	},
 })

@@ -26,7 +26,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 \'src\' were found to reference the same memory. This can result in
 \'src\' bytes being overwritten before they are read, when the encoder
 writes more than one byte per \'src\' byte.`,
-		Since:    "Unreleased",
+		Since:    "2024.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},

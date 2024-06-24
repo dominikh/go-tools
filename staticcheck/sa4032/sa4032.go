@@ -23,7 +23,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Comparing \'runtime.GOOS\' or \'runtime.GOARCH\' against impossible value`,
-		Since:    "Unreleased",
+		Since:    "2024.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
 	},

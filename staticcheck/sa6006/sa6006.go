@@ -28,7 +28,7 @@ is both unnecessary and inefficient. Converting from \'[]byte\' to \'string\'
 has to allocate and copy the data, and we could simply use \'w.Write(b)\'
 instead.`,
 
-		Since: "Unreleased",
+		Since: "2024.1",
 	},
 })
 

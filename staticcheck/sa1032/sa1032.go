@@ -29,7 +29,7 @@ flags any calls where the first argument is referring to a package-level error
 variable, such as
 
 	if errors.Is(io.EOF, err) { /* this is wrong */ }`,
-		Since:    "Unreleased",
+		Since:    "2024.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,
 	},
