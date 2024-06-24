@@ -1,6 +1,6 @@
 package pkg
 
-import _ "unsafe" // for go:linkname
+import _ "unsafe" // go:linkname
 
 // go:linkname bad1 foo.Bad1 //@ diag(`ineffectual compiler directive`)
 func bad1() {
@@ -10,11 +10,11 @@ func bad1() {
 func bad2() {
 }
 
-/* go:foobar 1234*/ //@ diag(`ineffectual compiler directive`)
+/* go:foobar 1234*/ // cannot be a compiler directive
 func bad3() {
 }
 
-/*	go:foobar 4321*/ //@ diag(`ineffectual compiler directive`)
+/*	go:foobar 4321*/ // cannot be a compiler directive
 func bad4() {
 }
 
@@ -26,10 +26,15 @@ func good1() {
 func good2() {
 }
 
- /*go:foobar asdf*/
+ /*go:foobar asdf*/ // cannot be a compiler directive
 func good3() {
 }
 
-	/*go:foobar asdf*/
+	/*go:foobar asdf*/ // cannot be a compiler directive
 func good4() {
+}
+
+
+// go: probably just talking about Go
+func good5() {
 }

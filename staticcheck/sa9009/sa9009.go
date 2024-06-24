@@ -2,7 +2,7 @@ package sa9009
 
 import (
 	"fmt"
-	"regexp"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 
@@ -29,15 +29,38 @@ with whitespace.`,
 var Analyzer = SCAnalyzer.Analyzer
 
 func run(pass *analysis.Pass) (any, error) {
-	re := regexp.MustCompile("^[ \t]*(//|/\\*)[ \t]+go:")
 	for _, f := range pass.Files {
 		for _, cg := range f.Comments {
 			for _, c := range cg.List {
-				if re.FindStringIndex(c.Text) == nil {
+				// Compiler directives have to be // comments
+				if !strings.HasPrefix(c.Text, "//") {
+					continue
+				}
+				if pass.Fset.PositionFor(c.Pos(), false).Column != 1 {
+					// Compiler directives have to be top-level. This also
+					// avoids a false positive for
+					// 'import _ "unsafe" // go:linkname'
+					continue
+				}
+				text := strings.TrimLeft(c.Text[2:], " \t")
+				if len(text) == len(c.Text[2:]) {
+					// There was no leading whitespace
+					continue
+				}
+				if !strings.HasPrefix(text, "go:") {
+					// Not an attempted compiler directive
+					continue
+				}
+				text = text[3:]
+				if len(text) == 0 || text[0] < 'a' || text[0] > 'z' {
+					// A letter other than a-z after "go:", so unlikely to be an
+					// attempted compiler directive
 					continue
 				}
 				report.Report(pass, c,
-					fmt.Sprintf("ineffectual compiler directive: %q", c.Text))
+					fmt.Sprintf(
+						"ineffectual compiler directive due to extraneous space: %q",
+						c.Text))
 			}
 		}
 	}
