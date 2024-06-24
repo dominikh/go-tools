@@ -201,72 +201,14 @@ var StdlibDeprecations = map[string]Deprecation{
 	"crypto/rsa.GenerateMultiPrimeKey":                 {"go1.21", DeprecatedNeverUse},
 	"(crypto/rsa.PrecomputedValues).CRTValues":         {"go1.21", DeprecatedNeverUse},
 	"(crypto/x509.RevocationList).RevokedCertificates": {"go1.21", "go1.21"},
+
+	"go/ast.NewPackage":           {"go1.22", "go1.0"},
+	"go/ast.Importer":             {"go1.22", "go1.0"},
+	"go/ast.Object":               {"go1.22", "go1.0"},
+	"go/ast.Package":              {"go1.22", "go1.0"},
+	"go/ast.Scope":                {"go1.22", "go1.0"},
+	"html/template.ErrJSTemplate": {"go1.22", DeprecatedUseNoLonger},
+	"reflect.PtrTo":               {"go1.22", "go1.18"},
 }
 
-// Last imported from Go at c19c4c566c63818dfd059b352e52c4710eecf14d with the following numbers of deprecations:
-//
-// archive/tar/common.go:2
-// archive/zip/struct.go:6
-// bytes/bytes.go:1
-// compress/flate/inflate.go:2
-// crypto/dsa/dsa.go:1
-// crypto/elliptic/elliptic.go:8
-// crypto/elliptic/params.go:5
-// crypto/rc4/rc4.go:1
-// crypto/rsa/rsa.go:2
-// crypto/tls/common.go:6
-// crypto/x509/cert_pool.go:1
-// crypto/x509/pem_decrypt.go:3
-// crypto/x509/pkix/pkix.go:2
-// crypto/x509/x509.go:6
-// database/sql/driver/driver.go:6
-// debug/gosym/pclntab.go:2
-// encoding/csv/reader.go:2
-// encoding/json/decode.go:1
-// encoding/json/encode.go:1
-// go/build/build.go:1
-// go/doc/comment.go:2
-// go/doc/doc.go:1
-// go/doc/synopsis.go:1
-// go/importer/importer.go:2
-// go/types/interface.go:2
-// go/types/signature.go:1
-// image/geom.go:2
-// image/jpeg/reader.go:1
-// internal/types/errors/codes.go:1
-// io/ioutil/ioutil.go:7
-// io/ioutil/tempfile.go:2
-// math/rand/rand.go:2
-// net/dial.go:2
-// net/http/h2_bundle.go:1
-// net/http/httptest/recorder.go:1
-// net/http/httputil/persist.go:8
-// net/http/request.go:6
-// net/http/server.go:2
-// net/http/socks_bundle.go:1
-// net/http/transport.go:3
-// net/net.go:1
-// os/file.go:1
-// path/filepath/path_plan9.go:1
-// path/filepath/path_unix.go:1
-// path/filepath/path_windows.go:1
-// reflect/value.go:3
-// regexp/regexp.go:1
-// runtime/cpuprof.go:1
-// strings/strings.go:1
-// syscall/bpf_bsd.go:18
-// syscall/bpf_darwin.go:18
-// syscall/dll_windows.go:6
-// syscall/exec_plan9.go:1
-// syscall/exec_unix.go:1
-// syscall/lsf_linux.go:6
-// syscall/route_bsd.go:7
-// syscall/route_darwin.go:1
-// syscall/route_dragonfly.go:2
-// syscall/route_freebsd.go:2
-// syscall/route_netbsd.go:1
-// syscall/route_openbsd.go:1
-// syscall/syscall.go:3
-// syscall/syscall_windows.go:6
-// text/template/parse/node.go:5
-// vendor/golang.org/x/text/transform/transform.go:1
+// Last imported from Go at e8ee1dc4f9e2632ba1018610d1a1187743ae397f
