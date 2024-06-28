@@ -16,9 +16,9 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(rules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title: `Wrong order of arguments to \'errors.Is\' or \'errors.As\'`,
+		Title: `Wrong order of arguments to \'errors.Is\'`,
 		Text: `
-The first argument of the functions \'errors.As\' and \'errors.Is\' is the error
+The first argument of the function \'errors.Is\' is the error
 that we have and the second argument is the error we're trying to match against.
 For example:
 
