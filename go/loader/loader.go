@@ -9,7 +9,9 @@ import (
 	"go/scanner"
 	"go/token"
 	"go/types"
+	"go/version"
 	"os"
+	"runtime"
 	"time"
 
 	"honnef.co/go/tools/config"
@@ -291,6 +293,41 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 		},
 	}
 	if spec.Module != nil && spec.Module.GoVersion != "" {
+		var our string
+		if version.IsValid(runtime.Version()) {
+			// Staticcheck was built with a released version of Go.
+			// runtime.Version() returns something like "go1.22.4" or
+			// "go1.23rc1".
+			our = runtime.Version()
+		} else {
+			// Staticcheck was built with a development version of Go.
+			// runtime.Version() returns something like "devel go1.23-e8ee1dc4f9
+			// Sun Jun 23 00:52:20 2024 +0000". Fall back to using ReleaseTags,
+			// where the last one will contain the language version of the
+			// development version of Go.
+			tags := build.Default.ReleaseTags
+			our = tags[len(tags)-1]
+		}
+		if version.Compare("go"+spec.Module.GoVersion, our) == 1 {
+			// We don't need this check for correctness, as go/types rejects a
+			// GoVersion that's too new. But we can produce a better error
+			// message.
+			//
+			// Note that if Staticcheck was built with a development version of
+			// Go, e.g. "devel go1.23-82c371a307", then we'll say that
+			// Staticcheck was built with go1.23, which is the language version
+			// of the development build. This matches the behavior of the Go
+			// toolchain, which says "go.mod requires go >= 1.23rc1 (running go
+			// 1.23; GOTOOLCHAIN=local)".
+			//
+			// Note that this prevents Go master from working with go1.23rc1,
+			// even if master is further ahead. This is currently unavoidable,
+			// and matches the behavior of the Go toolchain (see above.)
+			return nil, fmt.Errorf(
+				"module requires at least go%s, but Staticcheck was built with %s",
+				spec.Module.GoVersion, our,
+			)
+		}
 		tc.GoVersion = "go" + spec.Module.GoVersion
 	} else {
 		tags := build.Default.ReleaseTags
