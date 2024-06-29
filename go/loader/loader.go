@@ -296,8 +296,15 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 		tags := build.Default.ReleaseTags
 		tc.GoVersion = tags[len(tags)-1]
 	}
-	types.NewChecker(tc, pkg.Fset, pkg.Types, pkg.TypesInfo).Files(pkg.Syntax)
-	return pkg, nil
+	// Note that the type-checker can return a non-nil error even though the Go
+	// compiler has already successfully built this package (which is an
+	// invariant of getting to this point.) For example, for a module that
+	// requires Go 1.23, if Staticcheck was built with Go 1.22, but the user's
+	// toolchain is Go 1.23, then 'go list' (as invoked by go/packages) will
+	// build the package fine, but go/types will complain that the version is
+	// too new.
+	err := types.NewChecker(tc, pkg.Fset, pkg.Types, pkg.TypesInfo).Files(pkg.Syntax)
+	return pkg, err
 }
 
 func convertError(err error) []packages.Error {
