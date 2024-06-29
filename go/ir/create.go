@@ -162,7 +162,16 @@ func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 
 	case *ast.FuncDecl:
 		id := decl.Name
-		memberFromObject(pkg, pkg.info.Defs[id], decl, goversion)
+		obj, ok := pkg.info.Defs[id]
+		if !ok {
+			panic(fmt.Sprintf("couldn't find object for id %q at %s",
+				id.Name, pkg.Prog.Fset.PositionFor(id.Pos(), false)))
+		}
+		if obj == nil {
+			panic(fmt.Sprintf("found nil object for id %q at %s",
+				id.Name, pkg.Prog.Fset.PositionFor(id.Pos(), false)))
+		}
+		memberFromObject(pkg, obj, decl, goversion)
 	}
 }
 
