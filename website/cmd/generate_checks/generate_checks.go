@@ -32,29 +32,21 @@ func main() {
 		ByCategory: map[string][]string{},
 	}
 
-	for k, v := range staticcheck.Docs {
-		v.Text = convertText(v.Text)
-		v.TextMarkdown = convertText(v.TextMarkdown)
-		output.Checks[k] = v
-		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
+	groups := [][]*lint.Analyzer{
+		staticcheck.Analyzers,
+		simple.Analyzers,
+		stylecheck.Analyzers,
+		quickfix.Analyzers,
 	}
-	for k, v := range simple.Docs {
-		v.Text = convertText(v.Text)
-		v.TextMarkdown = convertText(v.TextMarkdown)
-		output.Checks[k] = v
-		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
-	}
-	for k, v := range stylecheck.Docs {
-		v.Text = convertText(v.Text)
-		v.TextMarkdown = convertText(v.TextMarkdown)
-		output.Checks[k] = v
-		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
-	}
-	for k, v := range quickfix.Docs {
-		v.Text = convertText(v.Text)
-		v.TextMarkdown = convertText(v.TextMarkdown)
-		output.Checks[k] = v
-		output.ByCategory[category(k)] = append(output.ByCategory[category(k)], k)
+	for _, group := range groups {
+		for _, a := range group {
+			doc := a.Doc.Compile()
+			doc.Text = convertText(doc.Text)
+			doc.TextMarkdown = convertText(doc.TextMarkdown)
+			output.Checks[a.Analyzer.Name] = doc
+			g := output.ByCategory[category(a.Analyzer.Name)]
+			output.ByCategory[category(a.Analyzer.Name)] = append(g, a.Analyzer.Name)
+		}
 	}
 
 	for _, v := range output.ByCategory {
