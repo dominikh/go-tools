@@ -534,6 +534,19 @@ func (g *graph) entry() {
 		}
 	}
 
+	// We use a normal map instead of a typeutil.Map because we deduplicate
+	// these on a best effort basis, as an optimization.
+	allInterfaces := make(map[*types.Interface]struct{})
+	for _, typ := range g.interfaceTypes {
+		allInterfaces[typ] = struct{}{}
+	}
+	for _, ins := range g.info.Instances {
+		if typ, ok := ins.Type.(*types.Named); ok && typ.Obj().Pkg() == g.pkg {
+			if iface, ok := typ.Underlying().(*types.Interface); ok {
+				allInterfaces[iface] = struct{}{}
+			}
+		}
+	}
 	processMethodSet := func(named *types.TypeName, ms *types.MethodSet) {
 		if g.opts.ExportedIsUsed {
 			for i := 0; i < ms.Len(); i++ {
@@ -552,7 +565,7 @@ func (g *graph) entry() {
 			// (8.0) handle interfaces
 			//
 			// We don't care about interfaces implementing interfaces; all their methods are already used, anyway
-			for _, iface := range g.interfaceTypes {
+			for iface := range allInterfaces {
 				if sels, ok := implements(named.Type(), iface, ms); ok {
 					for _, sel := range sels {
 						// (8.2) any concrete type implements all known interfaces

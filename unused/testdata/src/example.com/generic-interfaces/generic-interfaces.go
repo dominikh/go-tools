@@ -176,3 +176,18 @@ type S8_1 struct{} //@ used("S8_1", true)
 func (s *S8_1) m8() []io.Reader { //@ quiet("s"), used("m8", false)
 	return nil
 }
+
+type S8 struct{}           //@ used("S8", true)
+type I9[T any] interface { //@ used("I9", true), used("T", true)
+	make() *T //@ used("make", true)
+}
+
+type S9 struct{} //@ used("S9", true)
+
+func (S9) make() *S8 { return nil } //@ used("make", true)
+
+func i9use(i I9[S8]) { i.make() } //@ used("i9use", true), used("i", true)
+
+func init() { //@ used("init", true)
+	i9use(S9{})
+}
