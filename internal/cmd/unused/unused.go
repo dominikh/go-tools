@@ -56,7 +56,7 @@ func main() {
 			// XXX priunt errors
 			continue
 		}
-		lpkg, _, err := loader.Load(spec)
+		lpkg, _, err := loader.Load(spec, nil)
 		if err != nil {
 			continue
 		}

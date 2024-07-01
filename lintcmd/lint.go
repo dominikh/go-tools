@@ -93,6 +93,7 @@ type options struct {
 	analyzers                []*lint.Analyzer
 	patterns                 []string
 	lintTests                bool
+	goVersion                string
 	printAnalyzerMeasurement func(analysis *analysis.Analyzer, pkg *loader.PackageSpec, d time.Duration)
 }
 
@@ -109,6 +110,7 @@ func (l *linter) run(bconf buildConfig) (lintResult, error) {
 	if err != nil {
 		return lintResult{}, err
 	}
+	r.GoVersion = l.opts.goVersion
 	r.Stats.PrintAnalyzerMeasurement = l.opts.printAnalyzerMeasurement
 
 	printStats := func() {

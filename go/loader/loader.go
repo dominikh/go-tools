@@ -140,11 +140,20 @@ func Graph(c *cache.Cache, cfg *packages.Config, patterns ...string) ([]*Package
 type program struct {
 	fset     *token.FileSet
 	packages map[string]*types.Package
+	options  *Options
 }
 
 type Stats struct {
 	Source time.Duration
 	Export map[*PackageSpec]time.Duration
+}
+
+type Options struct {
+	// The Go language version to use for the type checker. If unset, or if set
+	// to "module", it will default to the Go version specified in the module;
+	// if there is no module, it will default to the version of Go the
+	// executable was built with.
+	GoVersion string
 }
 
 // Load loads the package described in spec. Imports will be loaded
@@ -154,10 +163,17 @@ type Stats struct {
 // An error will only be returned for system failures, such as failure
 // to read export data from disk. Syntax and type errors, among
 // others, will only populate the returned package's Errors field.
-func Load(spec *PackageSpec) (*Package, Stats, error) {
+func Load(spec *PackageSpec, opts *Options) (*Package, Stats, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+	if opts.GoVersion == "" {
+		opts.GoVersion = "module"
+	}
 	prog := &program{
 		fset:     token.NewFileSet(),
 		packages: map[string]*types.Package{},
+		options:  opts,
 	}
 
 	stats := Stats{
@@ -292,54 +308,62 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 			pkg.Errors = append(pkg.Errors, convertError(err)...)
 		},
 	}
-	if spec.Module != nil && spec.Module.GoVersion != "" {
-		var our string
-		if version.IsValid(runtime.Version()) {
-			// Staticcheck was built with a released version of Go.
-			// runtime.Version() returns something like "go1.22.4" or
-			// "go1.23rc1".
-			our = runtime.Version()
+	if prog.options.GoVersion == "module" {
+		if spec.Module != nil && spec.Module.GoVersion != "" {
+			var our string
+			if version.IsValid(runtime.Version()) {
+				// Staticcheck was built with a released version of Go.
+				// runtime.Version() returns something like "go1.22.4" or
+				// "go1.23rc1".
+				our = runtime.Version()
+			} else {
+				// Staticcheck was built with a development version of Go.
+				// runtime.Version() returns something like "devel go1.23-e8ee1dc4f9
+				// Sun Jun 23 00:52:20 2024 +0000". Fall back to using ReleaseTags,
+				// where the last one will contain the language version of the
+				// development version of Go.
+				tags := build.Default.ReleaseTags
+				our = tags[len(tags)-1]
+			}
+			if version.Compare("go"+spec.Module.GoVersion, our) == 1 {
+				// We don't need this check for correctness, as go/types rejects
+				// a GoVersion that's too new. But we can produce a better error
+				// message. In Go 1.22, go/types simply says "package requires
+				// newer Go version go1.23", without any information about the
+				// file, or what version Staticcheck was built with. Starting
+				// with Go 1.23, the error seems to be better:
+				// "/home/dominikh/prj/src/example.com/foo.go:3:1: package
+				// requires newer Go version go1.24 (application built with
+				// go1.23)" and we may be able to remove this custom logic once
+				// we depend on Go 1.23.
+				//
+				// Note that if Staticcheck was built with a development version of
+				// Go, e.g. "devel go1.23-82c371a307", then we'll say that
+				// Staticcheck was built with go1.23, which is the language version
+				// of the development build. This matches the behavior of the Go
+				// toolchain, which says "go.mod requires go >= 1.23rc1 (running go
+				// 1.23; GOTOOLCHAIN=local)".
+				//
+				// Note that this prevents Go master from working with go1.23rc1,
+				// even if master is further ahead. This is currently unavoidable,
+				// and matches the behavior of the Go toolchain (see above.)
+				return nil, fmt.Errorf(
+					"module requires at least go%s, but Staticcheck was built with %s",
+					spec.Module.GoVersion, our,
+				)
+			}
+			tc.GoVersion = "go" + spec.Module.GoVersion
 		} else {
-			// Staticcheck was built with a development version of Go.
-			// runtime.Version() returns something like "devel go1.23-e8ee1dc4f9
-			// Sun Jun 23 00:52:20 2024 +0000". Fall back to using ReleaseTags,
-			// where the last one will contain the language version of the
-			// development version of Go.
 			tags := build.Default.ReleaseTags
-			our = tags[len(tags)-1]
+			tc.GoVersion = tags[len(tags)-1]
 		}
-		if version.Compare("go"+spec.Module.GoVersion, our) == 1 {
-			// We don't need this check for correctness, as go/types rejects a
-			// GoVersion that's too new. But we can produce a better error
-			// message.
-			//
-			// Note that if Staticcheck was built with a development version of
-			// Go, e.g. "devel go1.23-82c371a307", then we'll say that
-			// Staticcheck was built with go1.23, which is the language version
-			// of the development build. This matches the behavior of the Go
-			// toolchain, which says "go.mod requires go >= 1.23rc1 (running go
-			// 1.23; GOTOOLCHAIN=local)".
-			//
-			// Note that this prevents Go master from working with go1.23rc1,
-			// even if master is further ahead. This is currently unavoidable,
-			// and matches the behavior of the Go toolchain (see above.)
-			return nil, fmt.Errorf(
-				"module requires at least go%s, but Staticcheck was built with %s",
-				spec.Module.GoVersion, our,
-			)
-		}
-		tc.GoVersion = "go" + spec.Module.GoVersion
 	} else {
-		tags := build.Default.ReleaseTags
-		tc.GoVersion = tags[len(tags)-1]
+		tc.GoVersion = prog.options.GoVersion
 	}
 	// Note that the type-checker can return a non-nil error even though the Go
 	// compiler has already successfully built this package (which is an
-	// invariant of getting to this point.) For example, for a module that
-	// requires Go 1.23, if Staticcheck was built with Go 1.22, but the user's
-	// toolchain is Go 1.23, then 'go list' (as invoked by go/packages) will
-	// build the package fine, but go/types will complain that the version is
-	// too new.
+	// invariant of getting to this point), for example because of the Go
+	// version passed to the type checker.
 	err := types.NewChecker(tc, pkg.Fset, pkg.Types, pkg.TypesInfo).Files(pkg.Syntax)
 	return pkg, err
 }

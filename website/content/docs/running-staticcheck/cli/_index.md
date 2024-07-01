@@ -50,6 +50,21 @@ See this [list of formatters]({{< relref "/docs/running-staticcheck/cli/formatte
 <!-- TODO -->
 <!-- ## Controlling the exit status {#fail} -->
 
+## Targeting Go versions {#go}
+
+Some of Staticcheck's analyses adjust their behavior based on the targeted Go version.
+For example, the suggestion that one use `for range xs` instead of `for _ = range xs` only applies to Go 1.4 and later, as it won't compile with versions of Go older than that.
+
+By default, Staticcheck targets the Go version declared in `go.mod` via the `go` directive.
+For Go 1.21 and never, that directive specifies the minimum required version of Go.
+
+For older versions of Go, the directive technically specifies the maximum version of language features that the module
+can use, which means it might be higher than the minimum required version. In those cases, you can manually overwrite
+the targeted Go version by using the `-go` command line flag. For example, `staticcheck -go 1.0 ./...` will only make
+suggestions that work with Go 1.0.
+
+The targeted Go version limits both language features and parts of the standard library that will be recommended.
+
 ## Excluding tests {#tests}
 
 By default, Staticcheck analyses packages as well as their tests.

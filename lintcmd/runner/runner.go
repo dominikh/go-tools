@@ -377,7 +377,8 @@ func (act *analyzerAction) String() string {
 
 // A Runner executes analyzers on packages.
 type Runner struct {
-	Stats Stats
+	Stats     Stats
+	GoVersion string
 
 	// If set to true, Runner will populate results with data relevant to testing analyzers
 	TestMode bool
@@ -543,6 +544,7 @@ func (r *subrunner) do(act action) error {
 	fmt.Fprintf(h, "cfg %#v\n", hashCfg)
 	fmt.Fprintf(h, "pkg %x\n", a.Package.Hash)
 	fmt.Fprintf(h, "analyzers %s\n", r.analyzerNames)
+	fmt.Fprintf(h, "go %s\n", r.GoVersion)
 	fmt.Fprintf(h, "env godebug %q\n", os.Getenv("GODEBUG"))
 
 	// OPT(dh): do we actually need to hash vetx? can we not assume
@@ -685,7 +687,7 @@ func (r *subrunner) doUncached(a *packageAction) (packageActionResult, error) {
 	// processed concurrently, we shouldn't load b's export data
 	// twice.
 
-	pkg, _, err := loader.Load(a.Package)
+	pkg, _, err := loader.Load(a.Package, &loader.Options{GoVersion: r.GoVersion})
 	if err != nil {
 		return packageActionResult{}, err
 	}
