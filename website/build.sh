@@ -10,4 +10,4 @@ go run ./cmd/generate_config/generate_config.go >content/docs/configuration/defa
 	npm install --omit=dev
 )
 
-hugo --minify
+go run github.com/gohugoio/hugo@v0.110.0 --minify
