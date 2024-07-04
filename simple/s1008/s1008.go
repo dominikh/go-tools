@@ -43,20 +43,17 @@ var (
 		(IfStmt 
 			nil 
 			cond 
-			[fret@(ReturnStmt _)] 
+			[fullret@(ReturnStmt _)] 
 			nil)
 	`)
 	checkIfReturnQRet = pattern.MustParse(`
-		(Binding "fret" (ReturnStmt _))
+		(Binding "fullret" (ReturnStmt _))
 	`)
 	checkReturnValue = pattern.MustParse(`
-		(Or
-			(ReturnStmt 
-				(List 
-					ret@(Builtin (Or "true" "false"))
-					tail@(Any)))
-			(ReturnStmt 
-				[ret@(Builtin (Or "true" "false"))]))
+		(ReturnStmt 
+			(List 
+				ret@(Builtin (Or "true" "false"))
+				tail@(Any)))
 	`)
 )
 
@@ -75,16 +72,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 		}
-		fm1, ok := code.Match(pass, checkIfReturnQIf, n1)
+		fullm1, ok := code.Match(pass, checkIfReturnQIf, n1)
 		if !ok {
 			return
 		}
-		fm2, ok := code.Match(pass, checkIfReturnQRet, n2)
+		fullm2, ok := code.Match(pass, checkIfReturnQRet, n2)
 		if !ok {
 			return
 		}
 
-		if op, ok := fm1.State["cond"].(*ast.BinaryExpr); ok {
+		if op, ok := fullm1.State["cond"].(*ast.BinaryExpr); ok {
 			switch op.Op {
 			case token.EQL, token.LSS, token.GTR, token.NEQ, token.LEQ, token.GEQ:
 			default:
@@ -92,14 +89,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		fret1 := fm1.State["fret"].(*ast.ReturnStmt)
-		m1, ok := code.Match(pass, checkReturnValue, fret1)
+		fullret1 := fullm1.State["fullret"].(*ast.ReturnStmt)
+		m1, ok := code.Match(pass, checkReturnValue, fullret1)
 		if !ok {
 			return
 		}
 
-		fret2 := fm2.State["fret"].(*ast.ReturnStmt)
-		m2, ok := code.Match(pass, checkReturnValue, fret2)
+		fullret2 := fullm2.State["fullret"].(*ast.ReturnStmt)
+		m2, ok := code.Match(pass, checkReturnValue, fullret2)
 		if !ok {
 			return
 		}
@@ -121,7 +118,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		cond := fm1.State["cond"].(ast.Expr)
+		cond := fullm1.State["cond"].(ast.Expr)
 		origCond := cond
 		if ret1.Name == "false" {
 			cond = negate(pass, cond)
@@ -146,22 +143,22 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func getRetAndTail(m1 *pattern.Matcher) (*ast.Ident, []ast.Expr) {
-	ret1 := m1.State["ret"].(*ast.Ident)
-	var tail1 []ast.Expr
-	if tail, ok := m1.State["tail"]; ok {
-		tail1, _ = tail.([]ast.Expr)
+func getRetAndTail(m *pattern.Matcher) (*ast.Ident, []ast.Expr) {
+	ret1 := m.State["ret"].(*ast.Ident)
+	var tail []ast.Expr
+	if t, ok := m.State["tail"]; ok {
+		tail, _ = t.([]ast.Expr)
 	}
-	return ret1, tail1
+	return ret1, tail
 }
 
 func renderTailString(pass *analysis.Pass, tail []ast.Expr) string {
-	var tail1StringBuilder strings.Builder
+	var tailStringBuilder strings.Builder
 	if len(tail) != 0 {
-		tail1StringBuilder.WriteString(", ")
-		tail1StringBuilder.WriteString(report.RenderArgs(pass, tail))
+		tailStringBuilder.WriteString(", ")
+		tailStringBuilder.WriteString(report.RenderArgs(pass, tail))
 	}
-	return tail1StringBuilder.String()
+	return tailStringBuilder.String()
 }
 
 func negate(pass *analysis.Pass, expr ast.Expr) ast.Expr {
