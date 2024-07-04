@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+	"strings"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/generated"
@@ -38,8 +39,25 @@ return false`,
 var Analyzer = SCAnalyzer.Analyzer
 
 var (
-	checkIfReturnQIf  = pattern.MustParse(`(IfStmt nil cond [(ReturnStmt [ret@(Builtin (Or "true" "false"))])] nil)`)
-	checkIfReturnQRet = pattern.MustParse(`(ReturnStmt [ret@(Builtin (Or "true" "false"))])`)
+	checkIfReturnQIf = pattern.MustParse(`
+		(IfStmt 
+			nil 
+			cond 
+			[fret@(ReturnStmt _)] 
+			nil)
+	`)
+	checkIfReturnQRet = pattern.MustParse(`
+		(Binding "fret" (ReturnStmt _))
+	`)
+	checkReturnValue = pattern.MustParse(`
+		(Or
+			(ReturnStmt 
+				(List 
+					ret@(Builtin (Or "true" "false"))
+					tail@(Any)))
+			(ReturnStmt 
+				[ret@(Builtin (Or "true" "false"))]))
+	`)
 )
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -57,16 +75,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 		}
-		m1, ok := code.Match(pass, checkIfReturnQIf, n1)
+		fm1, ok := code.Match(pass, checkIfReturnQIf, n1)
 		if !ok {
 			return
 		}
-		m2, ok := code.Match(pass, checkIfReturnQRet, n2)
+		fm2, ok := code.Match(pass, checkIfReturnQRet, n2)
 		if !ok {
 			return
 		}
 
-		if op, ok := m1.State["cond"].(*ast.BinaryExpr); ok {
+		if op, ok := fm1.State["cond"].(*ast.BinaryExpr); ok {
 			switch op.Op {
 			case token.EQL, token.LSS, token.GTR, token.NEQ, token.LEQ, token.GEQ:
 			default:
@@ -74,8 +92,28 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		ret1 := m1.State["ret"].(*ast.Ident)
-		ret2 := m2.State["ret"].(*ast.Ident)
+		fret1 := fm1.State["fret"].(*ast.ReturnStmt)
+		m1, ok := code.Match(pass, checkReturnValue, fret1)
+		if !ok {
+			return
+		}
+
+		fret2 := fm2.State["fret"].(*ast.ReturnStmt)
+		m2, ok := code.Match(pass, checkReturnValue, fret2)
+		if !ok {
+			return
+		}
+
+		ret1, tail1 := getRetAndTail(m1)
+		tail1String := renderTailString(pass, tail1)
+
+		ret2, tail2 := getRetAndTail(m2)
+		tail2String := renderTailString(pass, tail2)
+
+		if tail1String != tail2String {
+			// we want to process only return with the same values
+			return
+		}
 
 		if ret1.Name == ret2.Name {
 			// we want the function to return true and false, not the
@@ -83,19 +121,47 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		cond := m1.State["cond"].(ast.Expr)
+		cond := fm1.State["cond"].(ast.Expr)
 		origCond := cond
 		if ret1.Name == "false" {
 			cond = negate(pass, cond)
 		}
 		report.Report(pass, n1,
-			fmt.Sprintf("should use 'return %s' instead of 'if %s { return %s }; return %s'",
+			fmt.Sprintf(
+				"should use 'return %s%s' instead of 'if %s { return %s%s }; return %s%s'",
 				report.Render(pass, cond),
-				report.Render(pass, origCond), report.Render(pass, ret1), report.Render(pass, ret2)),
+				tail1String,
+				report.Render(
+					pass,
+					origCond,
+				),
+				report.Render(pass, ret1),
+				tail1String,
+				report.Render(pass, ret2),
+				tail2String,
+			),
 			report.FilterGenerated())
 	}
 	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))
 	return nil, nil
+}
+
+func getRetAndTail(m1 *pattern.Matcher) (*ast.Ident, []ast.Expr) {
+	ret1 := m1.State["ret"].(*ast.Ident)
+	var tail1 []ast.Expr
+	if tail, ok := m1.State["tail"]; ok {
+		tail1, _ = tail.([]ast.Expr)
+	}
+	return ret1, tail1
+}
+
+func renderTailString(pass *analysis.Pass, tail []ast.Expr) string {
+	var tail1StringBuilder strings.Builder
+	if len(tail) != 0 {
+		tail1StringBuilder.WriteString(", ")
+		tail1StringBuilder.WriteString(report.RenderArgs(pass, tail))
+	}
+	return tail1StringBuilder.String()
 }
 
 func negate(pass *analysis.Pass, expr ast.Expr) ast.Expr {
