@@ -3303,9 +3303,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 // by decl in package pkg.
 func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 	id := decl.Name
-	if isBlankIdent(id) {
-		return // discard
-	}
 	fn := pkg.values[pkg.info.Defs[id]].(*Function)
 	if decl.Recv == nil && id.Name == "init" {
 		var v Call
