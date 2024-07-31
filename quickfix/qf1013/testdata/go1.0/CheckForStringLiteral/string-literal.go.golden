@@ -1,5 +1,7 @@
 package pkg
 
+import "regexp"
+
 func fn2(_ string) {
 }
 
@@ -22,4 +24,7 @@ func fn() {
 	_ = "escaped double quotes \" plus a tab \t"
 
 	_ = `abc`
+	_ = regexp.MustCompile("escaped backslash: \\ foo")
+	b := "escaped backslash: \\ foo"
+	_ = regexp.MustCompile(b)
 }
