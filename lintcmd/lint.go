@@ -456,7 +456,7 @@ func failed(res runner.Result) []diagnostic {
 				var err error
 				posn, _, err = parsePos(e.Pos)
 				if err != nil {
-					panic(fmt.Sprintf("internal error: %s", e))
+					panic(fmt.Sprintf("internal error: %s", err))
 				}
 			}
 			diag := diagnostic{
@@ -558,7 +558,7 @@ func parsePos(pos string) (token.Position, int, error) {
 	}
 	parts := posRe.FindStringSubmatch(pos)
 	if parts == nil {
-		return token.Position{}, 0, fmt.Errorf("internal error: malformed position %q", pos)
+		return token.Position{}, 0, fmt.Errorf("malformed position %q", pos)
 	}
 	file := parts[1]
 	line, _ := strconv.Atoi(parts[2])
