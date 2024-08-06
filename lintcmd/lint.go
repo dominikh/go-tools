@@ -550,7 +550,10 @@ func filterAnalyzerNames(analyzers []string, checks []string) map[string]bool {
 	return allowedChecks
 }
 
-var posRe = regexp.MustCompile(`^(.+?):(\d+)(?::(\d+)?)?`)
+// Note that the file name is optional and can be empty because of //line
+// directives of the form "//line :1" (but not "//line :1:1"). See
+// https://go.dev/issue/24183 and https://staticcheck.dev/issues/1582.
+var posRe = regexp.MustCompile(`^(?:(.+?):)?(\d+)(?::(\d+)?)?`)
 
 func parsePos(pos string) (token.Position, int, error) {
 	if pos == "-" || pos == "" {
