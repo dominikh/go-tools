@@ -93,7 +93,7 @@ func Run(t *testing.T, a *lint.Analyzer) {
 			cfg := &packages.Config{
 				Dir:   dir,
 				Tests: true,
-				Env:   append(os.Environ(), "GOPROXY=off", "GOFLAGS=-mod=vendor"),
+				Env:   append(os.Environ(), "GOPROXY=off", "GOFLAGS=-mod=vendor", "GO111MODULE="),
 				Overlay: map[string][]byte{
 					"go.mod": []byte("module example.com\ngo " + strings.TrimPrefix(vers, "go")),
 				},
