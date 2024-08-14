@@ -12,6 +12,7 @@ import (
 	"go/version"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"honnef.co/go/tools/config"
@@ -311,11 +312,24 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 	if prog.options.GoVersion == "module" {
 		if spec.Module != nil && spec.Module.GoVersion != "" {
 			var our string
-			if version.IsValid(runtime.Version()) {
+			rversion := runtime.Version()
+			if fields := strings.Fields(rversion); len(fields) > 0 {
+				// When using GOEXPERIMENT, the version returned by
+				// runtime.Version might look something like "go1.23.0
+				// X:boringcrypto", which wouldn't be accepted by
+				// version.IsValid even though it's a proper release.
+				//
+				// When using a development build, the version looks like "devel
+				// go1.24-206df8e7ad Tue Aug 13 16:44:16 2024 +0000", and taking
+				// the first field of that won't change whether it's accepted as
+				// valid or not.
+				rversion = fields[0]
+			}
+			if version.IsValid(rversion) {
 				// Staticcheck was built with a released version of Go.
 				// runtime.Version() returns something like "go1.22.4" or
 				// "go1.23rc1".
-				our = runtime.Version()
+				our = rversion
 			} else {
 				// Staticcheck was built with a development version of Go.
 				// runtime.Version() returns something like "devel go1.23-e8ee1dc4f9
