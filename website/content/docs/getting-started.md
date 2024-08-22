@@ -8,7 +8,12 @@ aliases:
 
 ## Installation
 
-Beginning with Go 1.17, the simplest way of installing Staticcheck is by running `go install honnef.co/go/tools/cmd/staticcheck@latest`.
+Beginning with Go 1.17, the simplest way of installing Staticcheck is by running:
+
+```
+go install honnef.co/go/tools/cmd/staticcheck@latest
+```
+
 This will install the latest version of Staticcheck to `$GOPATH/bin`. To find out where `$GOPATH` is, run `go env GOPATH`.
 Instead of `@latest`, you can also use a specific version, such as `@2020.2.1`.
 
