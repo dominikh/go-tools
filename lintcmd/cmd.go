@@ -271,9 +271,9 @@ func decodeGob(br io.ByteReader) ([]run, error) {
 	return runs, nil
 }
 
-// Run runs all registered analyzers and reports their findings.
-// It always calls os.Exit and does not return.
-func (cmd *Command) Run() {
+// Execute runs all registered analyzers and reports their findings.
+// The status code returned can be used for os.Exit(cmd.Execute()).
+func (cmd *Command) Execute() int {
 	// Set up profiling and tracing
 	if path := cmd.flags.debugCpuprofile; path != "" {
 		f, err := os.Create(path)
@@ -331,6 +331,14 @@ func (cmd *Command) Run() {
 	if cmd.flags.debugTrace != "" {
 		trace.Stop()
 	}
+
+	return exit
+}
+
+// Run runs all registered analyzers and reports their findings.
+// It always calls os.Exit and does not return.
+func (cmd *Command) Run() {
+	exit := cmd.Execute()
 
 	// Exit with appropriate status
 	os.Exit(exit)
