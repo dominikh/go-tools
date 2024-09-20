@@ -8,7 +8,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-        go: ["1.22.x"]
+        go: ["1.23.x"]
         godebug: ["gotypesalias=0", "gotypesalias=1"]
     runs-on: ${{ matrix.os }}
     steps:
@@ -24,7 +24,7 @@ jobs:
     - run: "go vet ./..."
     - uses: dominikh/staticcheck-action@v1
       with:
-        version: "2023.1.7"
+        version: "2024.1.1"
         min-go-version: "module"
         install-go: false
         cache-key: ${{ matrix.go }}
