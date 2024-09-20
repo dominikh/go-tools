@@ -6,11 +6,11 @@ func fn() {
 	var m map[int]int
 	var ch chan int
 
-	if s == nil || len(s) == 0 { //@ diag(`should omit nil check`)
+	if s == nil || len(s) == 0 { //@ diag(re`should omit nil check.+for nil slices`)
 	}
-	if m == nil || len(m) == 0 { //@ diag(`should omit nil check`)
+	if m == nil || len(m) == 0 { //@ diag(re`should omit nil check.+for nil maps`)
 	}
-	if ch == nil || len(ch) == 0 { //@ diag(`should omit nil check`)
+	if ch == nil || len(ch) == 0 { //@ diag(re`should omit nil check.+for nil channels`)
 	}
 
 	if s != nil && len(s) != 0 { //@ diag(`should omit nil check`)

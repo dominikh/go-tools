@@ -157,13 +157,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		// finally check that xx type is one of array, slice, map or chan
 		// this is to prevent false positive in case if xx is a pointer to an array
 		typ := pass.TypesInfo.TypeOf(xx)
+		var nilType string
 		ok = typeutil.All(typ, func(term *types.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice:
+				nilType = "nil slices"
 				return true
 			case *types.Map:
+				nilType = "nil maps"
 				return true
 			case *types.Chan:
+				nilType = "nil channels"
 				return true
 			case *types.Pointer:
 				return false
@@ -178,7 +182,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", typ), report.FilterGenerated())
+		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType), report.FilterGenerated())
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
