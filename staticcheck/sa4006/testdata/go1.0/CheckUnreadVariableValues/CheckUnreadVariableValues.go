@@ -142,3 +142,43 @@ func fn10() {
 	}
 	fmt.Println(slice)
 }
+
+func issue1329() {
+	{
+		n := 1
+		n += 1 //@ diag(`this value of n is never used`)
+	}
+	{
+		n := 1
+		n ^= 1 //@ diag(`this value of n is never used`)
+	}
+	{
+		n := ""
+		n += "" //@ diag(`this value of n is never used`)
+	}
+	{
+		n := 1
+		n++ //@ diag(`this value of n is never used`)
+	}
+
+	{
+		n := 1
+		n += 1
+		fmt.Println(n)
+	}
+	{
+		n := 1
+		n ^= 1
+		fmt.Println(n)
+	}
+	{
+		n := ""
+		n += ""
+		fmt.Println(n)
+	}
+	{
+		n := 1
+		n++
+		fmt.Println(n)
+	}
+}
