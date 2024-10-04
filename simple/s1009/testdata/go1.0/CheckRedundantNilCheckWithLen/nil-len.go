@@ -91,3 +91,44 @@ func issue1527() {
 	if t.pa == nil || len(t.pa) == 0 { // nil check cannot be removed with pointer to an array
 	}
 }
+
+func issue1605() {
+	var s []int
+	var m map[int]int
+	var ch chan int
+
+	if s == nil || len(s) <= 0 { //@ diag(`should omit nil check`)
+	}
+	if m == nil || len(m) <= 0 { //@ diag(`should omit nil check`)
+	}
+	if ch == nil || len(ch) <= 0 { //@ diag(`should omit nil check`)
+	}
+
+	if s == nil || len(s) < 2 { //@ diag(`should omit nil check`)
+	}
+	if m == nil || len(m) < 2 { //@ diag(`should omit nil check`)
+	}
+	if ch == nil || len(ch) < 2 { //@ diag(`should omit nil check`)
+	}
+
+	if s == nil || len(s) <= 2 { //@ diag(`should omit nil check`)
+	}
+	if m == nil || len(m) <= 2 { //@ diag(`should omit nil check`)
+	}
+	if ch == nil || len(ch) <= 2 { //@ diag(`should omit nil check`)
+	}
+
+	if s == nil || len(s) < 0 { // nil check is not redundant here (len(s) < 0 is impossible)
+	}
+	if m == nil || len(m) < 0 { // nil check is not redundant here (len(m) < 0 is impossible)
+	}
+	if ch == nil || len(ch) < 0 { // nil check is not redundant here (len(ch) < 0 is impossible)
+	}
+
+	if s == nil || len(s) > 2 { // nil check is not redundant here
+	}
+	if m == nil || len(m) > 2 { // nil check is not redundant here
+	}
+	if ch == nil || len(ch) > 2 { // nil check is not redundant here
+	}
+}
