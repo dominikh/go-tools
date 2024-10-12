@@ -16,6 +16,7 @@ import (
 	"honnef.co/go/tools/quickfix/qf1010"
 	"honnef.co/go/tools/quickfix/qf1011"
 	"honnef.co/go/tools/quickfix/qf1012"
+	"honnef.co/go/tools/quickfix/qf1013"
 )
 
 var Analyzers = []*lint.Analyzer{
@@ -31,4 +32,5 @@ var Analyzers = []*lint.Analyzer{
 	qf1010.SCAnalyzer,
 	qf1011.SCAnalyzer,
 	qf1012.SCAnalyzer,
+	qf1013.SCAnalyzer,
 }
