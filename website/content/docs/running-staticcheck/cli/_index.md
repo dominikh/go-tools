@@ -56,7 +56,7 @@ Some of Staticcheck's analyses adjust their behavior based on the targeted Go ve
 For example, the suggestion that one use `for range xs` instead of `for _ = range xs` only applies to Go 1.4 and later, as it won't compile with versions of Go older than that.
 
 By default, Staticcheck targets the Go version declared in `go.mod` via the `go` directive.
-For Go 1.21 and never, that directive specifies the minimum required version of Go.
+For Go 1.21 and newer, that directive specifies the minimum required version of Go.
 
 For older versions of Go, the directive technically specifies the maximum version of language features that the module
 can use, which means it might be higher than the minimum required version. In those cases, you can manually overwrite
