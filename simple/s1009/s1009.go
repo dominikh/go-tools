@@ -41,6 +41,8 @@ var Analyzer = SCAnalyzer.Analyzer
 // run checks for the following redundant nil-checks:
 //
 //	if x == nil || len(x) == 0 {}
+//	if x == nil || len(x) < N {} (where N != 0)
+//	if x == nil || len(x) <= N {}
 //	if x != nil && len(x) != 0 {}
 //	if x != nil && len(x) == N {} (where N != 0)
 //	if x != nil && len(x) > N {}
@@ -99,9 +101,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if eqNil && y.Op != token.EQL { // must be len(xx) *==* 0
-			return
-		}
 		yx, ok := y.X.(*ast.CallExpr)
 		if !ok {
 			return
@@ -122,15 +121,31 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if eqNil && !code.IsIntegerLiteral(pass, y.Y, constant.MakeInt64(0)) { // must be len(x) == *0*
+		isConst, isZero := isConstZero(y.Y)
+		if !isConst {
 			return
 		}
 
-		if !eqNil {
-			isConst, isZero := isConstZero(y.Y)
-			if !isConst {
+		if eqNil {
+			switch y.Op {
+			case token.EQL:
+				// avoid false positive for "xx == nil || len(xx) == <non-zero>"
+				if !isZero {
+					return
+				}
+			case token.LEQ:
+				// ok
+			case token.LSS:
+				// avoid false positive for "xx == nil || len(xx) < 0"
+				if isZero {
+					return
+				}
+			default:
 				return
 			}
+		}
+
+		if !eqNil {
 			switch y.Op {
 			case token.EQL:
 				// avoid false positive for "xx != nil && len(xx) == 0"
