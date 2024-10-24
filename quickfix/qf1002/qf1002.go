@@ -109,7 +109,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			edits = append(edits, edit.ReplaceWithString(edit.Range{stmt.List[0].Pos(), stmt.Colon}, strings.Join(values, ", ")))
 		}
-		pos := swtch.Switch + token.Pos(len("switch"))
+		pos := swtch.Body.Lbrace
 		edits = append(edits, edit.ReplaceWithString(edit.Range{pos, pos}, " "+report.Render(pass, x)))
 		report.Report(pass, swtch, fmt.Sprintf("could use tagged switch on %s", report.Render(pass, x)),
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)))

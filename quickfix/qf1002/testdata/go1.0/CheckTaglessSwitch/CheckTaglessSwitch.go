@@ -57,4 +57,11 @@ func fn1() {
 	switch {
 	case x == 1 && x == 2:
 	}
+
+	switch b := 42; { //@ diag(`could use tagged switch on b`)
+	case b == 0:
+	case b == 1:
+	default:
+		_ = b
+	}
 }
