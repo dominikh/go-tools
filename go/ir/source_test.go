@@ -54,7 +54,7 @@ func TestObjValueLookup(t *testing.T) {
 
 	// Each note of the form @ir(x, "BinOp") in testdata/objlookup.go
 	// specifies an expectation that an object named x declared on the
-	// same line is associated with an an ir.Value of type *ir.BinOp.
+	// same line is associated with an ir.Value of type *ir.BinOp.
 	notes, err := expect.ExtractGo(conf.Fset, f)
 	if err != nil {
 		t.Fatal(err)

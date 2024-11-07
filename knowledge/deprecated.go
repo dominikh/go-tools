@@ -164,7 +164,7 @@ var StdlibDeprecations = map[string]Deprecation{
 	"syscall.GetQueuedCompletionStatus":     {"go1.17", "go1.0"},
 	"syscall.CreateIoCompletionPort":        {"go1.17", "go1.0"},
 
-	// We choose to only track the package itself, even though all functions are derecated individually, too. Anyone
+	// We choose to only track the package itself, even though all functions are deprecated individually, too. Anyone
 	// using ioutil directly will have to import it, and this keeps the noise down.
 	"io/ioutil": {"go1.19", "go1.19"},
 

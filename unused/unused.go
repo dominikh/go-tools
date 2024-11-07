@@ -888,7 +888,7 @@ func (g *graph) read(node ast.Node, by types.Object) {
 			g.read(arg, by)
 		}
 
-		// Handle conversiosn
+		// Handle conversions
 		conv := node
 		if len(conv.Args) != 1 || conv.Ellipsis.IsValid() {
 			return
