@@ -18,15 +18,15 @@ on: ["push", "pull_request"]
 
 jobs:
   ci:
-	name: "Run CI"
-	runs-on: ubuntu-latest
-	steps:
-	- uses: actions/checkout@v1
-	  with:
-		fetch-depth: 1
-	- uses: dominikh/staticcheck-action@v1.2.0
-	  with:
-		version: "2022.1.1"
+    name: "Run CI"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+    - uses: dominikh/staticcheck-action@v1.3.0
+      with:
+        version: "2023.1.1"
 ```
 
 A more advanced example that runs tests, go vet and Staticcheck on multiple OSs and Go versions looks like this:
@@ -37,27 +37,27 @@ on: ["push", "pull_request"]
 
 jobs:
   ci:
-	name: "Run CI"
-	strategy:
-	  fail-fast: false
-	  matrix:
-		os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-		go: ["1.16.x", "1.17.x"]
-	runs-on: ${{ matrix.os }}
-	steps:
-	- uses: actions/checkout@v1
-	  with:
-		fetch-depth: 1
-	- uses: WillAbides/setup-go-faster@v1.7.0
-	  with:
-		go-version: ${{ matrix.go }}
-	- run: "go test ./..."
-	- run: "go vet ./..."
-	- uses: dominikh/staticcheck-action@v1.2.0
-	  with:
-		version: "2022.1.1"
-		install-go: false
-		cache-key: ${{ matrix.go }}
+    name: "Run CI"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
+        go: ["1.16.x", "1.17.x"]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+    - uses: WillAbides/setup-go-faster@v1.8.0
+      with:
+        go-version: ${{ matrix.go }}
+    - run: "go test ./..."
+    - run: "go vet ./..."
+    - uses: dominikh/staticcheck-action@v1.3.0
+      with:
+        version: "2023.1.1"
+        install-go: false
+        cache-key: ${{ matrix.go }}
 ```
 
 Note that this example could benefit from further improvements, such as caching of Go's build cache.
