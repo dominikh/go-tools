@@ -33,7 +33,7 @@ all uses of dot imports in non-test packages. This
 setting allows setting a whitelist of import paths that can
 be dot-imported anywhere.
 
-Default value: `[]`
+Default value: `["github.com/mmcloughlin/avo/build", "github.com/mmcloughlin/avo/operand", "github.com/mmcloughlin/avo/reg"]`
 
 ## http_status_code_whitelist {#http_status_code_whitelist}
 
