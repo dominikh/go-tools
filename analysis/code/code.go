@@ -178,7 +178,7 @@ func CallName(pass *analysis.Pass, call *ast.CallExpr) string {
 		fun = idx.X
 	}
 
-	// (foo)[T] is not a valid instantiationg, so no need to unparen again.
+	// (foo)[T] is not a valid instantiation, so no need to unparen again.
 
 	switch fun := fun.(type) {
 	case *ast.SelectorExpr:
@@ -525,7 +525,7 @@ func StdlibVersion(pass *analysis.Pass, node Positioner) string {
 			// Do note that strictly speaking we're conflating the Go version and the
 			// module version in our check. Nothing is stopping a user from using Go 1.17
 			// (which didn't implement the new rules for versions in go.mod) to build a Go
-			// 1.22 module, in which case a file tagged with go1.17 will not have acces to the 1.22
+			// 1.22 module, in which case a file tagged with go1.17 will not have access to the 1.22
 			// standard library. However, we believe that if a module requires 1.21 or
 			// newer, then the author clearly expects the new behavior, and doesn't care
 			// for the old one. Otherwise they would've specified an older version.
