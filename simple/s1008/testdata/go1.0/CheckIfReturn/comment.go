@@ -45,3 +45,12 @@ func cmt6(x string) bool {
 	}
 	return true
 }
+
+func cmt7(x string) bool {
+	if len(x) > 0 {
+		// A
+		return false
+	}
+	// B
+	return true
+}
