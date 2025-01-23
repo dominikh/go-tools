@@ -89,7 +89,7 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		// Don't flag if both are commented.
-		if len(cm.Filter(n1).Comments()) > 0 && len(cm.Filter(n2).Comments()) > 0 {
+		if len(cm.Filter(n1)) > 0 && len(cm.Filter(n2)) > 0 {
 			return
 		}
 
