@@ -107,8 +107,8 @@ func run(pass *analysis.Pass) (any, error) {
 			return false
 		}
 
-		// Don't flag if both are commented.
-		if hasComments(n1) && hasComments(n2) {
+		// Don't flag if either branch is commented
+		if hasComments(n1) || hasComments(n2) {
 			return
 		}
 

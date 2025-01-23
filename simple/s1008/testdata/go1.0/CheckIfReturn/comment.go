@@ -32,14 +32,14 @@ func cmt4(x string) bool {
 }
 
 func cmt5(x string) bool {
-	if len(x) > 0 { //@ diag(`should use 'return len(x) == 0'`)
+	if len(x) > 0 {
 		return false
 	}
 	return true // A
 }
 
 func cmt6(x string) bool {
-	if len(x) > 0 { //@ diag(`should use 'return len(x) == 0'`)
+	if len(x) > 0 {
 		return false // A
 	}
 	return true
