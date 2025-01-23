@@ -32,7 +32,7 @@ jobs:
         output-file: "./staticcheck.bin"
     - uses: actions/upload-artifact@v4
       with:
-        name: "staticcheck-${{ github.sha }}-${{ matrix.go }}-${{ matrix.os }}.bin"
+        name: "staticcheck-${{ github.sha }}-${{ matrix.go }}-${{ matrix.os }}-${{ matrix.godebug }}.bin"
         path: "./staticcheck.bin"
         retention-days: 1
         if-no-files-found: warn
