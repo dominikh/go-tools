@@ -31,13 +31,12 @@ func cmt4(x string) bool {
 	// B
 }
 
-// Hard to test, as the diag line adds a comment.
-//func cmt5(x string) bool {
-//	if len(x) > 0 { // diag(`should use 'return len(x) == 0'`)
-//		return false
-//	}
-//	return true // A
-//}
+func cmt5(x string) bool {
+	if len(x) > 0 { //@ diag(`should use 'return len(x) == 0'`)
+		return false
+	}
+	return true // A
+}
 
 func cmt6(x string) bool {
 	if len(x) > 0 { //@ diag(`should use 'return len(x) == 0'`)

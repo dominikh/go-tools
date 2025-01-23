@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+	"strings"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/generated"
@@ -88,8 +89,26 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 
+		hasComments := func(n ast.Node) bool {
+			cmf := cm.Filter(n)
+			for _, groups := range cmf {
+				for _, group := range groups {
+					for _, cmt := range group.List {
+						if strings.HasPrefix(cmt.Text, "//@ diag") {
+							// Staticcheck test cases use comments to mark
+							// expected diagnostics. Ignore these comments so we
+							// can test this check.
+							continue
+						}
+						return true
+					}
+				}
+			}
+			return false
+		}
+
 		// Don't flag if both are commented.
-		if len(cm.Filter(n1)) > 0 && len(cm.Filter(n2)) > 0 {
+		if hasComments(n1) && hasComments(n2) {
 			return
 		}
 
