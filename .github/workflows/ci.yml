@@ -30,7 +30,7 @@ jobs:
         cache-key: ${{ matrix.go }}
         output-format: binary
         output-file: "./staticcheck.bin"
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: "staticcheck-${{ github.sha }}-${{ matrix.go }}-${{ matrix.os }}.bin"
         path: "./staticcheck.bin"
@@ -45,7 +45,7 @@ jobs:
       with:
         go-version: "stable"
     # this downloads all artifacts of the current workflow into the current working directory, creating one directory per artifact
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
     - id: glob
       run: |
         # We replace newlines with %0A, which GitHub apparently magically turns back into newlines
