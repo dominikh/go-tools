@@ -209,6 +209,14 @@ var StdlibDeprecations = map[string]Deprecation{
 	"go/ast.Scope":                {"go1.22", "go1.0"},
 	"html/template.ErrJSTemplate": {"go1.22", DeprecatedUseNoLonger},
 	"reflect.PtrTo":               {"go1.22", "go1.18"},
+
+	// Technically, runtime.GOROOT could be considered DeprecatedNeverUse, but
+	// using it used to be a lot more common and accepted.
+	"runtime.GOROOT": {"go1.24", DeprecatedUseNoLonger},
+	// These are never safe to use; a concrete alternative was added in Go 1.2 (crypto/cipher.AEAD).
+	"crypto/cipher.NewCFBDecrypter": {"go1.24", "go1.2"},
+	"crypto/cipher.NewCFBEncrypter": {"go1.24", "go1.2"},
+	"crypto/cipher.NewOFB":          {"go1.24", "go1.2"},
 }
 
-// Last imported from Go at e8ee1dc4f9e2632ba1018610d1a1187743ae397f
+// Last imported from GOROOT/api/go1.24.txt at fadfe2fc80f6b37e99b3e7aa068112ff539717c9.
