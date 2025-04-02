@@ -65,14 +65,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		rn := pattern.NodeToAST(checkToLowerToUpperComparisonR.Root, m.State).(ast.Expr)
+		method := "strings.EqualFold"
 		if m.State["tok"].(token.Token) == token.NEQ {
 			rn = &ast.UnaryExpr{
 				Op: token.NOT,
 				X:  rn,
 			}
+			method = "!" + method
 		}
 
-		report.Report(pass, node, "should use strings.EqualFold instead", report.Fixes(edit.Fix("replace with strings.EqualFold", edit.ReplaceWithNode(pass.Fset, node, rn))))
+		report.Report(pass, node, fmt.Sprintf("should use %s instead", method), report.Fixes(edit.Fix("replace with "+ method, edit.ReplaceWithNode(pass.Fset, node, rn))))
 	}
 
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
