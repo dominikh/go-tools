@@ -1,6 +1,7 @@
 package sa6005
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 
@@ -74,7 +75,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			method = "!" + method
 		}
 
-		report.Report(pass, node, fmt.Sprintf("should use %s instead", method), report.Fixes(edit.Fix("replace with "+ method, edit.ReplaceWithNode(pass.Fset, node, rn))))
+		report.Report(pass, node, fmt.Sprintf("should use %s instead", method), report.Fixes(edit.Fix("replace with "+method, edit.ReplaceWithNode(pass.Fset, node, rn))))
 	}
 
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))

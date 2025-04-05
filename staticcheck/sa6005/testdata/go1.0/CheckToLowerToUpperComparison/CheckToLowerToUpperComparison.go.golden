@@ -16,7 +16,7 @@ func fn() {
 		panic("")
 	}
 
-	if !strings.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
+	if !strings.EqualFold(s1, s2) { //@ diag(`should use !strings.EqualFold instead`)
 		panic("")
 	}
 
