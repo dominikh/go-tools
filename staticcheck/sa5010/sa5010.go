@@ -48,7 +48,7 @@ either.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	type entry struct {
 		l, r *types.Func
 	}
@@ -74,7 +74,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				ms := msc.MethodSet(left)
-				for i := 0; i < righti.NumMethods(); i++ {
+				for i := range righti.NumMethods() {
 					mr := righti.Method(i).Origin()
 					sel := ms.Lookup(mr.Pkg(), mr.Name())
 					if sel == nil {
