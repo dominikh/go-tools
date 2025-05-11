@@ -9,10 +9,7 @@ import (
 	"go/scanner"
 	"go/token"
 	"go/types"
-	"go/version"
 	"os"
-	"runtime"
-	"strings"
 	"time"
 
 	"honnef.co/go/tools/config"
@@ -311,61 +308,6 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 	}
 	if prog.options.GoVersion == "module" {
 		if spec.Module != nil && spec.Module.GoVersion != "" {
-			var our string
-			rversion := runtime.Version()
-			if fields := strings.Fields(rversion); len(fields) > 0 {
-				// When using GOEXPERIMENT, the version returned by
-				// runtime.Version might look something like "go1.23.0
-				// X:boringcrypto", which wouldn't be accepted by
-				// version.IsValid even though it's a proper release.
-				//
-				// When using a development build, the version looks like "devel
-				// go1.24-206df8e7ad Tue Aug 13 16:44:16 2024 +0000", and taking
-				// the first field of that won't change whether it's accepted as
-				// valid or not.
-				rversion = fields[0]
-			}
-			if version.IsValid(rversion) {
-				// Staticcheck was built with a released version of Go.
-				// runtime.Version() returns something like "go1.22.4" or
-				// "go1.23rc1".
-				our = rversion
-			} else {
-				// Staticcheck was built with a development version of Go.
-				// runtime.Version() returns something like "devel go1.23-e8ee1dc4f9
-				// Sun Jun 23 00:52:20 2024 +0000". Fall back to using ReleaseTags,
-				// where the last one will contain the language version of the
-				// development version of Go.
-				tags := build.Default.ReleaseTags
-				our = tags[len(tags)-1]
-			}
-			if version.Compare("go"+spec.Module.GoVersion, our) == 1 {
-				// We don't need this check for correctness, as go/types rejects
-				// a GoVersion that's too new. But we can produce a better error
-				// message. In Go 1.22, go/types simply says "package requires
-				// newer Go version go1.23", without any information about the
-				// file, or what version Staticcheck was built with. Starting
-				// with Go 1.23, the error seems to be better:
-				// "/home/dominikh/prj/src/example.com/foo.go:3:1: package
-				// requires newer Go version go1.24 (application built with
-				// go1.23)" and we may be able to remove this custom logic once
-				// we depend on Go 1.23.
-				//
-				// Note that if Staticcheck was built with a development version of
-				// Go, e.g. "devel go1.23-82c371a307", then we'll say that
-				// Staticcheck was built with go1.23, which is the language version
-				// of the development build. This matches the behavior of the Go
-				// toolchain, which says "go.mod requires go >= 1.23rc1 (running go
-				// 1.23; GOTOOLCHAIN=local)".
-				//
-				// Note that this prevents Go master from working with go1.23rc1,
-				// even if master is further ahead. This is currently unavoidable,
-				// and matches the behavior of the Go toolchain (see above.)
-				return nil, fmt.Errorf(
-					"module requires at least go%s, but Staticcheck was built with %s",
-					spec.Module.GoVersion, our,
-				)
-			}
 			tc.GoVersion = "go" + spec.Module.GoVersion
 		} else {
 			tags := build.Default.ReleaseTags
