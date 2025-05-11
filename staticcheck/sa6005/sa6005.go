@@ -72,7 +72,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		report.Report(pass, node, "should use strings.EqualFold instead", report.Fixes(edit.Fix("replace with strings.EqualFold", edit.ReplaceWithNode(pass.Fset, node, rn))))
+		report.Report(pass, node,
+			"should use strings.EqualFold instead",
+			report.Fixes(edit.Fix("Replace with strings.EqualFold", edit.ReplaceWithNode(pass.Fset, node, rn))))
 	}
 
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))

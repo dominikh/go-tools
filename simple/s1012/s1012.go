@@ -43,7 +43,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if _, edits, ok := code.MatchAndEdit(pass, checkTimeSinceQ, checkTimeSinceR, node); ok {
 			report.Report(pass, node, "should use time.Since instead of time.Now().Sub",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("replace with call to time.Since", edits...)))
+				report.Fixes(edit.Fix("Replace with call to time.Since", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))

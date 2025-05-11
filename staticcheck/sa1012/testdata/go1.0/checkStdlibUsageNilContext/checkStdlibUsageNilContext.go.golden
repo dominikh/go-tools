@@ -1,4 +1,4 @@
--- use context.Background --
+-- Use context.Background --
 package pkg
 
 import "context"
@@ -23,7 +23,7 @@ func fn3() {
 	_ = (func())(nil)
 	(*T).Foo(nil)
 }
--- use context.TODO --
+-- Use context.TODO --
 package pkg
 
 import "context"

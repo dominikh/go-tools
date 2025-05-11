@@ -46,7 +46,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "unnecessary guard around call to delete",
 				report.ShortRange(),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("remove guard", edit.ReplaceWithNode(pass.Fset, node, m.State["call"].(ast.Node)))))
+				report.Fixes(edit.Fix("Remove guard", edit.ReplaceWithNode(pass.Fset, node, m.State["call"].(ast.Node)))))
 		}
 	}
 

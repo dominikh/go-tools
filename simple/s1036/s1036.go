@@ -84,7 +84,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 			report.Report(pass, node, "unnecessary guard around map access",
 				report.ShortRange(),
-				report.Fixes(edit.Fix("simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
+				report.Fixes(edit.Fix("Simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.IfStmt)(nil))

@@ -158,7 +158,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "should copy arrays using assignment instead of using a loop",
 				report.FilterGenerated(),
 				report.ShortRange(),
-				report.Fixes(edit.Fix("replace loop with assignment", edit.ReplaceWithNode(pass.Fset, node, r))))
+				report.Fixes(edit.Fix("Replace loop with assignment", edit.ReplaceWithNode(pass.Fset, node, r))))
 		} else {
 			tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
 			if err == nil && tv.IsBuiltin() {
@@ -186,7 +186,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				opts := []report.Option{
 					report.ShortRange(),
 					report.FilterGenerated(),
-					report.Fixes(edit.Fix("replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))),
+					report.Fixes(edit.Fix("Replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))),
 				}
 				report.Report(pass, node, fmt.Sprintf("should use copy(%s, %s) instead of a loop", to, from), opts...)
 			}

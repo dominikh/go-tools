@@ -1,4 +1,4 @@
--- remove syscall.SIGKILL from list of arguments --
+-- Remove syscall.SIGKILL from list of arguments --
 package main
 
 import (
@@ -19,7 +19,7 @@ func fn() {
 	signal.Reset()            //@ diag(`cannot be trapped`)
 }
 
--- remove os.Kill from list of arguments --
+-- Remove os.Kill from list of arguments --
 package main
 
 import (
@@ -40,7 +40,7 @@ func fn() {
 	signal.Reset(syscall.SIGKILL)             //@ diag(`cannot be trapped`)
 }
 
--- use syscall.SIGTERM instead of syscall.SIGKILL --
+-- Use syscall.SIGTERM instead of syscall.SIGKILL --
 package main
 
 import (
@@ -61,7 +61,7 @@ func fn() {
 	signal.Reset(syscall.SIGTERM)     //@ diag(`cannot be trapped`)
 }
 
--- use syscall.SIGTERM instead of os.Kill --
+-- Use syscall.SIGTERM instead of os.Kill --
 package main
 
 import (

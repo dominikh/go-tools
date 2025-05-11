@@ -182,7 +182,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, node,
 			fmt.Sprintf("should convert %s (type %s) to %s instead of using struct literal", ident.Name, types.TypeString(typ2, types.RelativeTo(pass.Pkg)), types.TypeString(typ1, types.RelativeTo(pass.Pkg))),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
+			report.Fixes(edit.Fix("Use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
 	code.PreorderStack(pass, fn, (*ast.CompositeLit)(nil))
 	return nil, nil

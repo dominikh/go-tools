@@ -70,8 +70,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		lit := m.State["lit"].(ast.Node)
 		report.Report(pass, lit,
 			fmt.Sprintf("sleeping for %d nanoseconds is probably a bug; be explicit if it isn't", n), report.Fixes(
-				edit.Fix("explicitly use nanoseconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit})),
-				edit.Fix("use seconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}))))
+				edit.Fix("Explicitly use nanoseconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit})),
+				edit.Fix("Use seconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil

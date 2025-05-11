@@ -64,8 +64,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, call.Args[0],
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use", report.Fixes(
-				edit.Fix("use context.TODO", edit.ReplaceWithNode(pass.Fset, call.Args[0], todo)),
-				edit.Fix("use context.Background", edit.ReplaceWithNode(pass.Fset, call.Args[0], bg))))
+				edit.Fix("Use context.TODO", edit.ReplaceWithNode(pass.Fset, call.Args[0], todo)),
+				edit.Fix("Use context.Background", edit.ReplaceWithNode(pass.Fset, call.Args[0], bg))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil

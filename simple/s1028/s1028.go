@@ -42,7 +42,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// TODO(dh): the suggested fix may leave an unused import behind
 			report.Report(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("use fmt.Errorf", edits...)))
+				report.Fixes(edit.Fix("Use fmt.Errorf", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))

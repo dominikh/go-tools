@@ -68,13 +68,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRs, m.State))))
+				report.Fixes(edit.Fix("Simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRs, m.State))))
 		} else if typ, ok := types.Unalias(typ).(*types.Slice); ok &&
 			types.Unalias(typ.Elem()) == types.Universe.Lookup("byte").Type() &&
 			code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).String") {
 			report.Report(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRb, m.State))))
+				report.Fixes(edit.Fix("Simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRb, m.State))))
 		}
 
 	}

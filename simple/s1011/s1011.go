@@ -137,7 +137,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, node, fmt.Sprintf("should replace loop with %s", report.Render(pass, r)),
 			report.ShortRange(),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
+			report.Fixes(edit.Fix("Replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
 	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))
 	return nil, nil

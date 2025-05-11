@@ -35,8 +35,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkDoubleNegationQ, node); ok {
 			report.Report(pass, node, "negating a boolean twice has no effect; is this a typo?", report.Fixes(
-				edit.Fix("turn into single negation", edit.ReplaceWithNode(pass.Fset, node, m.State["single"].(ast.Node))),
-				edit.Fix("remove double negation", edit.ReplaceWithNode(pass.Fset, node, m.State["x"].(ast.Node)))))
+				edit.Fix("Turn into single negation", edit.ReplaceWithNode(pass.Fset, node, m.State["single"].(ast.Node))),
+				edit.Fix("Remove double negation", edit.ReplaceWithNode(pass.Fset, node, m.State["x"].(ast.Node)))))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil))

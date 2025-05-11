@@ -40,7 +40,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, expr.High,
 				"should omit second index in slice, s[a:len(s)] is identical to s[a:]",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify slice expression", edit.Delete(expr.High))))
+				report.Fixes(edit.Fix("Simplify slice expression", edit.Delete(expr.High))))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.SliceExpr)(nil))

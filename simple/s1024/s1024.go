@@ -46,7 +46,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 					report.FilterGenerated(),
 					report.MinimumStdlibVersion("go1.8"),
-					report.Fixes(edit.Fix("replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
+					report.Fixes(edit.Fix("Replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
 			} else {
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 					report.MinimumStdlibVersion("go1.8"),

@@ -110,7 +110,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 			report.Report(pass, decl, "should merge variable declaration with assignment on next line",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("merge declaration with assignment", edit.ReplaceWithNode(pass.Fset, edit.Range{decl.Pos(), assign.End()}, r))))
+				report.Fixes(edit.Fix("Merge declaration with assignment", edit.ReplaceWithNode(pass.Fset, edit.Range{decl.Pos(), assign.End()}, r))))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.BlockStmt)(nil))

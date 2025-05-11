@@ -74,12 +74,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					report.Render(pass, node),
 					conv.Name(),
 					report.Render(pass, m.State["lit"])),
-				report.Fixes(edit.Fix("use math.Copysign to create negative zero", edit.ReplaceWithString(node, replacement))))
+				report.Fixes(edit.Fix("Use math.Copysign to create negative zero", edit.ReplaceWithString(node, replacement))))
 		} else {
 			const replacement = `math.Copysign(0, -1)`
 			report.Report(pass, node,
 				"in Go, the floating-point literal '-0.0' is the same as '0.0', it does not produce a negative zero",
-				report.Fixes(edit.Fix("use math.Copysign to create negative zero", edit.ReplaceWithString(node, replacement))))
+				report.Fixes(edit.Fix("Use math.Copysign to create negative zero", edit.ReplaceWithString(node, replacement))))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.UnaryExpr)(nil), (*ast.CallExpr)(nil))

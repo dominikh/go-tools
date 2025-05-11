@@ -1,4 +1,4 @@
--- explicitly use nanoseconds --
+-- Explicitly use nanoseconds --
 package pkg
 
 import "time"
@@ -16,7 +16,7 @@ func fn() {
 	time.Sleep(time.Nanosecond)
 }
 
--- use seconds --
+-- Use seconds --
 package pkg
 
 import "time"

@@ -77,7 +77,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, loop, "should use copy() instead of loop for sliding slice elements",
 			report.ShortRange(),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("use copy() instead of loop", edits...)))
+			report.Fixes(edit.Fix("Use copy() instead of loop", edits...)))
 	}
 	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil

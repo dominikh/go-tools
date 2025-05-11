@@ -1,4 +1,4 @@
--- turn into single negation --
+-- Turn into single negation --
 package pkg
 
 func fn(b1, b2 bool) {
@@ -23,7 +23,7 @@ func fn(b1, b2 bool) {
 	}
 }
 
--- remove double negation --
+-- Remove double negation --
 package pkg
 
 func fn(b1, b2 bool) {

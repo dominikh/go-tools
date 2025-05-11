@@ -1,4 +1,4 @@
--- use context.Background --
+-- Use context.Background --
 package pkg
 
 import "context"
@@ -13,7 +13,7 @@ func tpbar() {
 	tpfn2[int, int](context.Background(), 0, 0) //@ diag(`do not pass a nil Context`)
 	tpfn2(context.Background(), 0, 0)           //@ diag(`do not pass a nil Context`)
 }
--- use context.TODO --
+-- Use context.TODO --
 package pkg
 
 import "context"

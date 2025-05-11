@@ -59,9 +59,9 @@ func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		var fix analysis.SuggestedFix
 		switch tok := m.State["op"].(token.Token); tok {
 		case token.EQL:
-			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRe, m.State))
+			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRe, m.State))
 		case token.NEQ:
-			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRn, m.State))
+			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRn, m.State))
 		default:
 			panic(fmt.Sprintf("unexpected token %v", tok))
 		}

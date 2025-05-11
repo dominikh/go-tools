@@ -107,7 +107,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				for _, offender := range allOffenders {
 					edits = append(edits, edit.ReplaceWithNode(pass.Fset, offender, offender.X))
 				}
-				opts = append(opts, report.Fixes(edit.Fix("simplify type switch", edits...)))
+				opts = append(opts, report.Fixes(edit.Fix("Simplify type switch", edits...)))
 				report.Report(pass, expr, msg, opts...)
 			} else {
 				report.Report(pass, expr, msg, opts...)

@@ -79,7 +79,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 					ncall := *call
 					ncall.Args = nargs
-					fixes = append(fixes, edit.Fix(fmt.Sprintf("use syscall.SIGTERM instead of %s", report.Render(pass, arg)), edit.ReplaceWithNode(pass.Fset, call, &ncall)))
+					fixes = append(fixes, edit.Fix(fmt.Sprintf("Use syscall.SIGTERM instead of %s", report.Render(pass, arg)), edit.ReplaceWithNode(pass.Fset, call, &ncall)))
 				}
 				nargs := make([]ast.Expr, 0, len(call.Args))
 				for j, a := range call.Args {
@@ -90,7 +90,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				}
 				ncall := *call
 				ncall.Args = nargs
-				fixes = append(fixes, edit.Fix(fmt.Sprintf("remove %s from list of arguments", report.Render(pass, arg)), edit.ReplaceWithNode(pass.Fset, call, &ncall)))
+				fixes = append(fixes, edit.Fix(fmt.Sprintf("Remove %s from list of arguments", report.Render(pass, arg)), edit.ReplaceWithNode(pass.Fset, call, &ncall)))
 				report.Report(pass, arg, fmt.Sprintf("%s cannot be trapped (did you mean syscall.SIGTERM?)", report.Render(pass, arg)), report.Fixes(fixes...))
 			}
 			if isSignal(pass, arg, "syscall.SIGSTOP") {
@@ -103,7 +103,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				}
 				ncall := *call
 				ncall.Args = nargs
-				report.Report(pass, arg, "syscall.SIGSTOP cannot be trapped", report.Fixes(edit.Fix("remove syscall.SIGSTOP from list of arguments", edit.ReplaceWithNode(pass.Fset, call, &ncall))))
+				report.Report(pass, arg, "syscall.SIGSTOP cannot be trapped", report.Fixes(edit.Fix("Remove syscall.SIGSTOP from list of arguments", edit.ReplaceWithNode(pass.Fset, call, &ncall))))
 			}
 		}
 	}

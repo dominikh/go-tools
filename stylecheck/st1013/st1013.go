@@ -82,7 +82,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		lit := call.Args[arg]
 		report.Report(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix(fmt.Sprintf("use http.%s instead of %d", s, n), edit.ReplaceWithString(lit, "http."+s))))
+			report.Fixes(edit.Fix(fmt.Sprintf("Use http.%s instead of %d", s, n), edit.ReplaceWithString(lit, "http."+s))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil

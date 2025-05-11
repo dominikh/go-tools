@@ -42,7 +42,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 			report.Report(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
-				report.Fixes(edit.Fix("swap arguments", edits...)))
+				report.Fixes(edit.Fix("Swap arguments", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))

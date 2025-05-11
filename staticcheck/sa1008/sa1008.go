@@ -90,13 +90,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		var fix analysis.SuggestedFix
 		switch op.Index.(type) {
 		case *ast.BasicLit:
-			fix = edit.Fix("canonicalize header key", edit.ReplaceWithString(op.Index, strconv.Quote(canonical)))
+			fix = edit.Fix("Canonicalize header key", edit.ReplaceWithString(op.Index, strconv.Quote(canonical)))
 		case *ast.Ident:
 			call := &ast.CallExpr{
 				Fun:  edit.Selector("http", "CanonicalHeaderKey"),
 				Args: []ast.Expr{op.Index},
 			}
-			fix = edit.Fix("wrap in http.CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, op.Index, call))
+			fix = edit.Fix("Wrap in http.CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, op.Index, call))
 		}
 		msg := fmt.Sprintf("keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		if fix.Message != "" {

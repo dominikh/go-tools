@@ -175,7 +175,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				nspec.Comment = nil
 				edits = append(edits, edit.ReplaceWithNode(pass.Fset, spec, &nspec))
 			}
-			report.Report(pass, group[0], "only the first constant in this group has an explicit type", report.Fixes(edit.Fix("add type to all constants in group", edits...)))
+			report.Report(pass, group[0],
+				"only the first constant in this group has an explicit type",
+				report.Fixes(edit.Fix("Add type to all constants in group", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.GenDecl)(nil))

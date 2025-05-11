@@ -100,7 +100,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, call,
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
-			report.Fixes(edit.Fix(fmt.Sprintf("use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))
+			report.Fixes(edit.Fix(fmt.Sprintf("Use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil

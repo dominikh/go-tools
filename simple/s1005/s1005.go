@@ -60,11 +60,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			r.Lhs = r.Lhs[0:1]
 			report.Report(pass, node, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.ReplaceWithNode(pass.Fset, node, &r))))
+				report.Fixes(edit.Fix("Remove assignment to blank identifier", edit.ReplaceWithNode(pass.Fset, node, &r))))
 		} else if m, ok := code.Match(pass, checkUnnecessaryBlankQ2, node); ok {
 			report.Report(pass, node, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify channel receive operation", edit.ReplaceWithNode(pass.Fset, node, m.State["recv"].(ast.Node)))))
+				report.Fixes(edit.Fix("Simplify channel receive operation", edit.ReplaceWithNode(pass.Fset, node, m.State["recv"].(ast.Node)))))
 		}
 	}
 
@@ -81,7 +81,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.MinimumLanguageVersion("go1.4"),
-				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
+				report.Fixes(edit.Fix("Remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
 		// for _, _
@@ -90,7 +90,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, rs.Key, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.MinimumLanguageVersion("go1.4"),
-				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
+				report.Fixes(edit.Fix("Remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.Pos(), rs.TokPos + 1}))))
 		}
 
 		// for x, _
@@ -98,7 +98,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, rs.Value, "unnecessary assignment to the blank identifier",
 				report.FilterGenerated(),
 				report.MinimumLanguageVersion("go1.4"),
-				report.Fixes(edit.Fix("remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()}))))
+				report.Fixes(edit.Fix("Remove assignment to blank identifier", edit.Delete(edit.Range{rs.Key.End(), rs.Value.End()}))))
 		}
 	}
 

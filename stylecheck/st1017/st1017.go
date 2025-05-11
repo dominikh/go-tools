@@ -44,7 +44,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if _, edits, ok := code.MatchAndEdit(pass, checkYodaConditionsQ, checkYodaConditionsR, node); ok {
 			report.Report(pass, node, "don't use Yoda conditions",
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("un-Yoda-fy", edits...)))
+				report.Fixes(edit.Fix("Un-Yoda-fy", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
