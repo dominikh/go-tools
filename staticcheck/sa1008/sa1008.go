@@ -52,7 +52,7 @@ The easiest way of obtaining the canonical form of a key is to use
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node, push bool) bool {
 		if !push {
 			return false

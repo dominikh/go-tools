@@ -27,7 +27,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	seen := map[ast.Node]bool{}
 
 	var collectConds func(ifstmt *ast.IfStmt, conds []ast.Expr) ([]ast.Expr, bool)

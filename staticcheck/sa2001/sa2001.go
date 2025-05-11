@@ -45,7 +45,7 @@ rare false positive.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	if pass.Pkg.Path() == "sync_test" {
 		// exception for the sync package's tests
 		return nil, nil

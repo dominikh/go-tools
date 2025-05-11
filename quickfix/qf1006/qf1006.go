@@ -44,7 +44,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var checkForLoopIfBreak = pattern.MustParse(`(ForStmt nil nil nil if@(IfStmt nil cond (BranchStmt "BREAK" nil) nil):_)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, checkForLoopIfBreak, node)
 		if !ok {

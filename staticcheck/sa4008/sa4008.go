@@ -45,7 +45,7 @@ unconditional break, return, or panic:
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		cb := func(node ast.Node) bool {
 			loop, ok := node.(*ast.ForStmt)

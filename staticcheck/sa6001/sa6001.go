@@ -54,7 +54,7 @@ f5f5a8b6209f84961687d993b93ea0d397f5d5bf in the Go repository.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, b := range fn.Blocks {
 		insLoop:

@@ -38,7 +38,7 @@ var Analyzer = SCAnalyzer.Analyzer
 var checkConditionalAssignmentQ = pattern.MustParse(`(AssignStmt x@(Object _) ":=" assign@(Builtin b@(Or "true" "false")))`)
 var checkConditionalAssignmentIfQ = pattern.MustParse(`(IfStmt nil cond [(AssignStmt x@(Object _) "=" (Builtin b@(Or "true" "false")))] nil)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		var body *ast.BlockStmt
 		switch node := node.(type) {

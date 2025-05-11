@@ -51,7 +51,7 @@ func (r *Result) MustReturnTyped(fn *types.Func, ret int) bool {
 	return (r.m[fn] & (1 << ret)) != 0
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	seen := map[*ir.Function]struct{}{}
 	out := &Result{
 		m: map[*types.Func]uint8{},

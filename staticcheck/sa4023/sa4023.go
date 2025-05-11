@@ -92,7 +92,7 @@ Commons Attribution 3.0 License.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// The comparison 'fn() == nil' can never be true if fn() returns
 	// an interface value and only returns typed nils. This is usually
 	// a mistake in the function itself, but all we can say for

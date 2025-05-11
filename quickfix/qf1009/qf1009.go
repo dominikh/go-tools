@@ -31,7 +31,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var timeEqualR = pattern.MustParse(`(CallExpr (SelectorExpr lhs (Ident "Equal")) rhs)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// FIXME(dh): create proper suggested fix for renamed import
 
 	fn := func(node ast.Node) {

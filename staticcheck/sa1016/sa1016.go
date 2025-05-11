@@ -33,7 +33,7 @@ kernel. It is therefore pointless to try and handle these signals.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	isSignal := func(pass *analysis.Pass, expr ast.Expr, name string) bool {
 		if expr, ok := expr.(*ast.SelectorExpr); ok {
 			return code.SelectorName(pass, expr) == name

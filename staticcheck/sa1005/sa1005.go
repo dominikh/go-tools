@@ -47,7 +47,7 @@ Windows, will have a \'/bin/sh\' program:
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		if !code.IsCallTo(pass, call, "os/exec.Command") {

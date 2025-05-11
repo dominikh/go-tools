@@ -32,7 +32,7 @@ falsify results.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		assign := node.(*ast.AssignStmt)
 		if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {

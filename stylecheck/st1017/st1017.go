@@ -39,7 +39,7 @@ var (
 	checkYodaConditionsR = pattern.MustParse(`(BinaryExpr right tok left)`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if _, edits, ok := code.MatchAndEdit(pass, checkYodaConditionsQ, checkYodaConditionsR, node); ok {
 			report.Report(pass, node, "don't use Yoda conditions",

@@ -41,7 +41,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var ineffectiveSortQ = pattern.MustParse(`(AssignStmt target@(Ident _) "=" (CallExpr typ@(Symbol (Or "sort.Float64Slice" "sort.IntSlice" "sort.StringSlice")) [target]))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, ineffectiveSortQ, node)
 		if !ok {

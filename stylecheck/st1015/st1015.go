@@ -28,7 +28,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	hasFallthrough := func(clause ast.Stmt) bool {
 		// A valid fallthrough statement may be used only as the final non-empty statement in a case clause. Thus we can
 		// easily avoid falsely matching fallthroughs in nested switches by not descending into blocks.

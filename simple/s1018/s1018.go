@@ -56,7 +56,7 @@ var (
 				(SliceExpr slice offset nil nil)])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): detect bs[i+offset] in addition to bs[offset+i]
 	// TODO(dh): consider merging this function with LintLoopCopy
 	// TODO(dh): detect length that is an expression, not a variable name

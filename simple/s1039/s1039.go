@@ -44,7 +44,7 @@ var checkSprintLiteralQ = pattern.MustParse(`
 			(Symbol "fmt.Sprintf"))
 		[lit@(BasicLit "STRING" _)])`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// We only flag calls with string literals, not expressions of
 	// type string, because some people use fmt.Sprint(s) as a pattern
 	// for copying strings, which may be useful when extracting a small

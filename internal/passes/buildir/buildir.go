@@ -41,7 +41,7 @@ type IR struct {
 	SrcFuncs []*ir.Function
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// Plundered from ssautil.BuildPackage.
 
 	// We must create a new Program for each Package because the

@@ -226,7 +226,7 @@ func Report(pass *analysis.Pass, node Positioner, message string, opts ...Option
 	pass.Report(d)
 }
 
-func Render(pass *analysis.Pass, x interface{}) string {
+func Render(pass *analysis.Pass, x any) string {
 	var buf bytes.Buffer
 	if err := format.Node(&buf, pass.Fset, x); err != nil {
 		panic(err)

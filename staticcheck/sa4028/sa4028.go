@@ -30,7 +30,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var moduloOneQ = pattern.MustParse(`(BinaryExpr _ "%" (IntegerLiteral "1"))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		_, ok := code.Match(pass, moduloOneQ, node)
 		if !ok {

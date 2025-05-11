@@ -52,7 +52,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var typeAssertionShadowingElseQ = pattern.MustParse(`(IfStmt (AssignStmt [obj@(Ident _) ok@(Ident _)] ":=" assert@(TypeAssertExpr obj _)) ok _ elseBranch)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): without the IR-based verification, this check is able
 	// to find more bugs, but also more prone to false positives. It
 	// would be a good candidate for the 'codereview' category of

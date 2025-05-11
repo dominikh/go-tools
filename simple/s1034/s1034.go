@@ -40,7 +40,7 @@ var (
 	checkSimplifyTypeSwitchR = pattern.MustParse(`(AssignStmt ident ":=" expr)`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, checkSimplifyTypeSwitchQ, node)
 		if !ok {

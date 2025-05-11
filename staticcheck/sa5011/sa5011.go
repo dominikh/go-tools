@@ -91,7 +91,7 @@ popular package.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// This is an extremely trivial check that doesn't try to reason
 	// about control flow. That is, phis and sigmas do not propagate
 	// any information. As such, we can flag this:

@@ -34,7 +34,7 @@ statement in a case block.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn1 := func(node ast.Node) {
 		clause := node.(*ast.CaseClause)
 		if len(clause.Body) < 2 {

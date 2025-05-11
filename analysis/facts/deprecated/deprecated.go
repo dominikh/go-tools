@@ -28,7 +28,7 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(Result{}),
 }
 
-func deprecated(pass *analysis.Pass) (interface{}, error) {
+func deprecated(pass *analysis.Pass) (any, error) {
 	var names []*ast.Ident
 
 	extractDeprecatedMessage := func(docs []*ast.CommentGroup) string {

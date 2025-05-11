@@ -33,7 +33,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var checkSlicingQ = pattern.MustParse(`(SliceExpr x@(Object _) low (CallExpr (Builtin "len") [x]) nil)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if _, ok := code.Match(pass, checkSlicingQ, node); ok {
 			expr := node.(*ast.SliceExpr)

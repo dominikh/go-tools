@@ -7,7 +7,7 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 )
 
-func directives(pass *analysis.Pass) (interface{}, error) {
+func directives(pass *analysis.Pass) (any, error) {
 	return lint.ParseDirectives(pass.Files, pass.Fset), nil
 }
 

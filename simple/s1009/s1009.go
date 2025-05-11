@@ -47,7 +47,7 @@ var Analyzer = SCAnalyzer.Analyzer
 //	if x != nil && len(x) == N {} (where N != 0)
 //	if x != nil && len(x) > N {}
 //	if x != nil && len(x) >= N {} (where N != 0)
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	isConstZero := func(expr ast.Expr) (isConst bool, isZero bool) {
 		_, ok := expr.(*ast.BasicLit)
 		if ok {

@@ -56,7 +56,7 @@ var (
 			args))`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkWriteBytesSprintfQ, node); ok {
 			recv := m.State["recv"].(ast.Expr)

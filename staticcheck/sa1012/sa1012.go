@@ -33,7 +33,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Symbol _) (Builtin "nil"):_)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	todo := &ast.CallExpr{
 		Fun: edit.Selector("context", "TODO"),
 	}

@@ -55,7 +55,7 @@ var (
 			nil)`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn1 := func(node ast.Node) {
 		m, ok := code.Match(pass, checkAssertNotNilFn1Q, node)
 		if !ok {

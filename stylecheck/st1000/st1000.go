@@ -30,7 +30,7 @@ https://go.dev/wiki/CodeReviewComments#package-comments.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// - At least one file in a non-main package should have a package comment
 	//
 	// - The comment should be of the form

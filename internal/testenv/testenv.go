@@ -21,8 +21,8 @@ import (
 
 // Testing is an abstraction of a *testing.T.
 type Testing interface {
-	Skipf(format string, args ...interface{})
-	Fatalf(format string, args ...interface{})
+	Skipf(format string, args ...any)
+	Fatalf(format string, args ...any)
 }
 
 type helperer interface {

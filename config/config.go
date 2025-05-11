@@ -59,7 +59,7 @@ func dirAST(files []*ast.File, fset *token.FileSet) string {
 var Analyzer = &analysis.Analyzer{
 	Name: "config",
 	Doc:  "loads configuration for the current package tree",
-	Run: func(pass *analysis.Pass) (interface{}, error) {
+	Run: func(pass *analysis.Pass) (any, error) {
 		dir := dirAST(pass.Files, pass.Fset)
 		if dir == "" {
 			cfg := DefaultConfig

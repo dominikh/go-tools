@@ -168,7 +168,7 @@ func (doc *Documentation) String() string {
 
 // ExhaustiveTypeSwitch panics when called. It can be used to ensure
 // that type switches are exhaustive.
-func ExhaustiveTypeSwitch(v interface{}) {
+func ExhaustiveTypeSwitch(v any) {
 	panic(fmt.Sprintf("internal error: unhandled case %T", v))
 }
 

@@ -39,7 +39,7 @@ func formatGoVersion(s string) string {
 	return "Go " + strings.TrimPrefix(s, "go")
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	deprs := pass.ResultOf[deprecated.Analyzer].(deprecated.Result)
 
 	// Selectors can appear outside of function literals, e.g. when

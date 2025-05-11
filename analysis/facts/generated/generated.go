@@ -81,7 +81,7 @@ func isGenerated(path string) (Generator, bool) {
 var Analyzer = &analysis.Analyzer{
 	Name: "isgenerated",
 	Doc:  "annotate file names that have been code generated",
-	Run: func(pass *analysis.Pass) (interface{}, error) {
+	Run: func(pass *analysis.Pass) (any, error) {
 		m := map[string]Generator{}
 		for _, f := range pass.Files {
 			path := pass.Fset.PositionFor(f.Pos(), false).Filename

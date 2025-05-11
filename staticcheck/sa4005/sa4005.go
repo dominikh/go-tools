@@ -29,7 +29,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// The analysis only considers the receiver and its first level
 	// fields. It doesn't look at other parameters, nor at nested
 	// fields.

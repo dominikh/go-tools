@@ -37,7 +37,7 @@ var (
 	checkElaborateSleepR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Sleep")) [arg])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkElaborateSleepQ, node); ok {
 			if body, ok := m.State["body"].([]ast.Stmt); ok && len(body) == 0 {

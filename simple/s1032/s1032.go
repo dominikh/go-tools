@@ -56,7 +56,7 @@ func isPermissibleSort(pass *analysis.Pass, node ast.Node) bool {
 	return false
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	type Error struct {
 		node ast.Node
 		msg  string

@@ -36,7 +36,7 @@ var checkWaitgroupAddQ = pattern.MustParse(`
 				_
 				call@(CallExpr (Symbol "(*sync.WaitGroup).Add") _):_) _))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkWaitgroupAddQ, node); ok {
 			call := m.State["call"].(ast.Node)

@@ -21,7 +21,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
-func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
+func CheckRangeStringRunes(pass *analysis.Pass) (any, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		cb := func(node ast.Node) bool {
 			rng, ok := node.(*ast.RangeStmt)
@@ -94,7 +94,7 @@ func CheckRangeStringRunes(pass *analysis.Pass) (interface{}, error) {
 // - variables named the blank identifier – a pattern used to confirm the types of variables
 // - untyped expressions on the rhs – the explicitness might aid readability
 func RedundantTypeInDeclarationChecker(verb string, flagHelpfulTypes bool) *analysis.Analyzer {
-	fn := func(pass *analysis.Pass) (interface{}, error) {
+	fn := func(pass *analysis.Pass) (any, error) {
 		eval := func(expr ast.Expr) (types.TypeAndValue, error) {
 			info := &types.Info{
 				Types: map[ast.Expr]types.TypeAndValue{},

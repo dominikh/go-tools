@@ -59,7 +59,7 @@ var (
 	`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	isDubiousShift := func(x, y ast.Expr) (int64, int64, bool) {
 		typ, ok := pass.TypesInfo.TypeOf(x).Underlying().(*types.Basic)
 		if !ok {

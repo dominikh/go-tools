@@ -34,7 +34,7 @@ should be used instead.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		eachCall(fn, func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function) {
 			if callee != fn {

@@ -57,7 +57,7 @@ func (r *Result) MayReturnNil(fn *types.Func, ret int) (yes bool, globalOnly boo
 	return v != neverNil, v == onlyGlobal
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	seen := map[*ir.Function]struct{}{}
 	out := &Result{
 		m: map[*types.Func][]neverNilness{},

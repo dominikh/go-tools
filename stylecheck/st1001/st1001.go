@@ -50,7 +50,7 @@ Quoting Go Code Review Comments:
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, f := range pass.Files {
 	imports:
 		for _, imp := range f.Imports {

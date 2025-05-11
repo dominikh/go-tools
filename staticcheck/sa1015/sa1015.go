@@ -36,7 +36,7 @@ Go 1.23 fixes this by allowing tickers to be collected even if they weren't clos
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		if fn.Pos() == token.NoPos || version.Compare(code.StdlibVersion(pass, fn), "go1.23") >= 0 {
 			// Beginning with Go 1.23, the GC is able to collect unreferenced, unclosed

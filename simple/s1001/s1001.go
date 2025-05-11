@@ -58,7 +58,7 @@ var (
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))]))`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO revisit once range doesn't require a structural type
 
 	isInvariant := func(k, v types.Object, node ast.Expr) bool {

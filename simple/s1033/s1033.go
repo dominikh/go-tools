@@ -40,7 +40,7 @@ var checkGuardedDeleteQ = pattern.MustParse(`
 		[call@(CallExpr (Builtin "delete") [m key])]
 		nil)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkGuardedDeleteQ, node); ok {
 			report.Report(pass, node, "unnecessary guard around call to delete",

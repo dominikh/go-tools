@@ -118,7 +118,7 @@ as \'EnumSecond\' has no explicit type, and thus defaults to \'int\'.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		decl := node.(*ast.GenDecl)
 		if !decl.Lparen.IsValid() {

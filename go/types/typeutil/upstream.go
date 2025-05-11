@@ -40,7 +40,7 @@ func (m *Map[V]) At(key types.Type) (V, bool) {
 func (m *Map[V]) Set(key types.Type, value V) { m.m.Set(key, value) }
 func (m *Map[V]) Len() int                    { return m.m.Len() }
 func (m *Map[V]) Iterate(f func(key types.Type, value V)) {
-	ff := func(key types.Type, value interface{}) {
+	ff := func(key types.Type, value any) {
 		f(key, value.(V))
 	}
 	m.m.Iterate(ff)

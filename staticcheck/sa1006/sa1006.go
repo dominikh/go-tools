@@ -50,7 +50,7 @@ and pass the string as an argument.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		name := code.CallName(pass, call)

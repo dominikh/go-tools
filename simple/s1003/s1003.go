@@ -32,7 +32,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// map of value to token to bool value
 	allowed := map[int64]map[token.Token]bool{
 		-1: {token.GTR: true, token.NEQ: true, token.EQL: false},

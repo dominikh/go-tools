@@ -40,7 +40,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 	for _, m := range irpkg.Members {
 		if T, ok := m.Object().(*types.TypeName); ok && !T.IsAlias() {

@@ -42,7 +42,7 @@ Quoting Go Code Review Comments:
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	objNames := map[*ir.Package]map[string]bool{}
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 	objNames[irpkg] = map[string]bool{}

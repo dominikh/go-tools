@@ -53,7 +53,7 @@ var (
 			(Ident "_") _ recv@(UnaryExpr "<-" _))`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn1 := func(node ast.Node) {
 		if _, ok := code.Match(pass, checkUnnecessaryBlankQ1, node); ok {
 			r := *node.(*ast.AssignStmt)

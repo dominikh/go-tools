@@ -37,7 +37,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var mathPowQ = pattern.MustParse(`(CallExpr (Symbol "math.Pow") [x (IntegerLiteral n)])`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		matcher, ok := code.Match(pass, mathPowQ, node)
 		if !ok {

@@ -52,7 +52,7 @@ default:
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node, stack []ast.Node) {
 		if _, ok := stack[len(stack)-2].(*ast.IfStmt); ok {
 			// this if statement is part of an if-else chain

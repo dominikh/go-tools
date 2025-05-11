@@ -46,7 +46,7 @@ y := T2(x)`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): support conversions between type parameters
 	fn := func(node ast.Node, stack []ast.Node) {
 		if unary, ok := stack[len(stack)-2].(*ast.UnaryExpr); ok && unary.Op == token.AND {

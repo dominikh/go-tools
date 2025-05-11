@@ -50,7 +50,7 @@ var builtinLessThanZeroQ = pattern.MustParse(`
 			(IntegerLiteral "0")))
 `)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		matcher, ok := code.Match(pass, builtinLessThanZeroQ, node)
 		if !ok {

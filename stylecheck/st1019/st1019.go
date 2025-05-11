@@ -47,7 +47,7 @@ advised to disable this check.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, f := range pass.Files {
 		// Collect all imports by their import path
 		imports := make(map[string][]*ast.ImportSpec, len(f.Imports))

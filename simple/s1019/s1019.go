@@ -42,7 +42,7 @@ var (
 	checkMakeLenCapQ2 = pattern.MustParse(`(CallExpr (Builtin "make") [typ size size])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if pass.Pkg.Path() == "runtime_test" && filepath.Base(pass.Fset.Position(node.Pos()).Filename) == "map_test.go" {
 			// special case of runtime tests testing map creation

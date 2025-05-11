@@ -76,7 +76,7 @@ var checkUnnecessaryGuardQ = pattern.MustParse(`
 			set@(IncDecStmt indexexpr "++")
 			(AssignStmt indexexpr "=" (IntegerLiteral "1"))))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkUnnecessaryGuardQ, node); ok {
 			if code.MayHaveSideEffects(pass, m.State["indexexpr"].(ast.Expr), nil) {

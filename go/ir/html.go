@@ -784,7 +784,7 @@ func (w *HTMLWriter) WriteColumn(phase, title, class, html string) {
 	w.WriteString("</td>")
 }
 
-func (w *HTMLWriter) Printf(msg string, v ...interface{}) {
+func (w *HTMLWriter) Printf(msg string, v ...any) {
 	if _, err := fmt.Fprintf(w.w, msg, v...); err != nil {
 		log.Fatalf("%v", err)
 	}

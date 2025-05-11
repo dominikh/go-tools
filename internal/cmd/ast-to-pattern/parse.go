@@ -62,7 +62,7 @@ func parseType(fset *token.FileSet, src string) (ast.Expr, *ast.File, error) {
 // one of: *ast.File, ast.Decl, ast.Expr, ast.Stmt, *ast.ValueSpec.
 // It also returns the *ast.File used for the parsing, so that the returned node
 // can be easily type-checked.
-func parseDetectingNode(fset *token.FileSet, src string) (interface{}, error) {
+func parseDetectingNode(fset *token.FileSet, src string) (any, error) {
 	file := fset.AddFile("", fset.Base(), len(src))
 	scan := scanner.Scanner{}
 	scan.Init(file, []byte(src), nil, 0)

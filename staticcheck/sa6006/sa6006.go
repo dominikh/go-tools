@@ -36,7 +36,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var ioWriteStringConversion = pattern.MustParse(`(CallExpr (Symbol "io.WriteString") [_ (CallExpr (Builtin "string") [arg])])`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, ioWriteStringConversion, node)
 		if !ok {

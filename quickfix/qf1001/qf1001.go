@@ -32,7 +32,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var demorganQ = pattern.MustParse(`(UnaryExpr "!" expr@(BinaryExpr _ _ _))`)
 
-func CheckDeMorgan(pass *analysis.Pass) (interface{}, error) {
+func CheckDeMorgan(pass *analysis.Pass) (any, error) {
 	// TODO(dh): support going in the other direction, e.g. turning `!a && !b && !c` into `!(a || b || c)`
 
 	// hasFloats reports whether any subexpression is of type float.

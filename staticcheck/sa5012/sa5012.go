@@ -277,7 +277,7 @@ func findIndirectSliceLenChecks(pass *analysis.Pass) {
 	}
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	findSliceLenChecks(pass)
 	findIndirectSliceLenChecks(pass)
 	flagSliceLens(pass)

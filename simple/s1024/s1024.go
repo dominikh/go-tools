@@ -38,11 +38,11 @@ var (
 	checkTimeUntilR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if _, ok := code.Match(pass, checkTimeUntilQ, node); ok {
 			if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
-				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]interface{}{"arg": sel.X}).(ast.Node)
+				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]any{"arg": sel.X}).(ast.Node)
 				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 					report.FilterGenerated(),
 					report.MinimumStdlibVersion("go1.8"),

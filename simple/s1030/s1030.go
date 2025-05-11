@@ -44,7 +44,7 @@ var (
 	checkBytesBufferConversionsRb = pattern.MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	if pass.Pkg.Path() == "bytes" || pass.Pkg.Path() == "bytes_test" {
 		// The bytes package can use itself however it wants
 		return nil, nil

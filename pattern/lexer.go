@@ -152,7 +152,7 @@ func (l *lexer) backup() {
 	l.pos -= l.width
 }
 
-func (l *lexer) errorf(format string, args ...interface{}) stateFn {
+func (l *lexer) errorf(format string, args ...any) stateFn {
 	// TODO(dh): emit position information in errors
 	l.items <- item{
 		itemError,

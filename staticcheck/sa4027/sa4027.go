@@ -37,7 +37,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var ineffectiveURLQueryAddQ = pattern.MustParse(`(CallExpr (SelectorExpr (CallExpr (SelectorExpr recv (Ident "Query")) []) (Ident meth)) _)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): We could make this check more complex and detect
 	// pointless modifications of net/url.Values in general, but that
 	// requires us to get the state machine correct, else we'll cause

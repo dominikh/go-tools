@@ -33,7 +33,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	var isFloat func(T types.Type) bool
 	isFloat = func(T types.Type) bool {
 		tset := typeutil.NewTypeSet(T)

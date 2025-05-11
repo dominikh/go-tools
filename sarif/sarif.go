@@ -67,9 +67,9 @@ type ReportingDescriptor struct {
 }
 
 type ReportingConfiguration struct {
-	Enabled    bool                   `json:"enabled"`
-	Level      string                 `json:"level,omitempty"`
-	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	Enabled    bool           `json:"enabled"`
+	Level      string         `json:"level,omitempty"`
+	Parameters map[string]any `json:"parameters,omitempty"`
 }
 
 type Result struct {

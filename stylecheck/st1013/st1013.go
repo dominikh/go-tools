@@ -39,7 +39,7 @@ readability of your code.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	whitelist := map[string]bool{}
 	for _, code := range config.For(pass).HTTPStatusCodeWhitelist {
 		whitelist[code] = true

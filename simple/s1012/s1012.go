@@ -38,7 +38,7 @@ var (
 	checkTimeSinceR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Since")) [arg])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if _, edits, ok := code.MatchAndEdit(pass, checkTimeSinceQ, checkTimeSinceR, node); ok {
 			report.Report(pass, node, "should use time.Since instead of time.Now().Sub",

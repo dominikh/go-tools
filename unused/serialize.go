@@ -23,7 +23,7 @@ type SerializedGraph struct {
 	nodesByPosition map[token.Position]NodeID
 }
 
-func trace(f string, args ...interface{}) {
+func trace(f string, args ...any) {
 	fmt.Fprintf(os.Stderr, f, args...)
 	fmt.Fprintln(os.Stderr)
 }

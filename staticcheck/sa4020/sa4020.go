@@ -27,7 +27,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
     type T struct{}
     func (T) Read(b []byte) (int, error) { return 0, nil }
 
-    var v interface{} = T{}
+    var v any = T{}
 
     switch v.(type) {
     case io.Reader:
@@ -45,7 +45,7 @@ Another example:
     func (T) Read(b []byte) (int, error) { return 0, nil }
     func (T) Close() error { return nil }
 
-    var v interface{} = T{}
+    var v any = T{}
 
     switch v.(type) {
     case io.Reader:
@@ -96,7 +96,7 @@ and therefore \'doSomething()\''s return value implements both.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// Check if T subsumes V in a type switch. T subsumes V if T is an interface and T's method set is a subset of V's method set.
 	subsumes := func(T, V types.Type) bool {
 		if typeparams.IsTypeParam(T) {

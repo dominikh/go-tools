@@ -74,7 +74,7 @@ var checkLoopAppendQ = pattern.MustParse(`
 		[(AssignStmt val@(Object _) ":=" (IndexExpr x idx))
 		(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	pure := pass.ResultOf[purity.Analyzer].(purity.Result)
 
 	fn := func(node ast.Node) {

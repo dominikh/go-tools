@@ -64,7 +64,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var checkRedundantSprintfQ = pattern.MustParse(`(CallExpr (Symbol "fmt.Sprintf") [format arg])`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, checkRedundantSprintfQ, node)
 		if !ok {

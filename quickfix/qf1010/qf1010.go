@@ -57,7 +57,7 @@ var byteSlicePrintingQ = pattern.MustParse(`
 
 var byteSlicePrintingR = pattern.MustParse(`(CallExpr (Ident "string") [arg])`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, byteSlicePrintingQ, node)
 		if !ok {

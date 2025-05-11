@@ -53,7 +53,7 @@ default:
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		swtch := node.(*ast.SwitchStmt)
 		if swtch.Tag != nil || len(swtch.Body.List) == 0 {

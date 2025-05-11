@@ -37,7 +37,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var allocationNilCheckQ = pattern.MustParse(`(IfStmt _ cond@(BinaryExpr lhs op@(Or "==" "!=") (Builtin "nil")) _ _)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 
 	var path []ast.Node

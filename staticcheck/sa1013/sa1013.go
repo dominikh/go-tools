@@ -35,7 +35,7 @@ var (
 	checkSeekerR = pattern.MustParse(`(CallExpr fun [arg2 arg1])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, edits, ok := code.MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
 			if !code.IsMethod(pass, m.State["fun"].(*ast.SelectorExpr), "Seek", knowledge.Signatures["(io.Seeker).Seek"]) {

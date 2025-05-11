@@ -33,7 +33,7 @@ x = 1`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	hasMultipleAssignments := func(root ast.Node, ident *ast.Ident) bool {
 		num := 0
 		ast.Inspect(root, func(node ast.Node) bool {

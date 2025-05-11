@@ -50,7 +50,7 @@ var knownNameExceptions = map[string]bool{
 	"kWh":          true,
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// A large part of this function is copied from
 	// github.com/golang/lint, Copyright (c) 2013 The Go Authors,
 	// licensed under the BSD 3-clause license.

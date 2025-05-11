@@ -36,7 +36,7 @@ the usual way of implementing \'TestMain\' is to end it with
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	var (
 		fnmain    ast.Node
 		callsExit bool

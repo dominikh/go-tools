@@ -37,7 +37,7 @@ instead of relying on the type assertion panicking.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		expr := node.(*ast.TypeAssertExpr)
 		if expr.Type == nil {

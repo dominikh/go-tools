@@ -44,13 +44,13 @@ func (arg *Argument) Invalid(msg string) {
 
 type Check func(call *Call)
 
-func Analyzer(rules map[string]Check) func(pass *analysis.Pass) (interface{}, error) {
-	return func(pass *analysis.Pass) (interface{}, error) {
+func Analyzer(rules map[string]Check) func(pass *analysis.Pass) (any, error) {
+	return func(pass *analysis.Pass) (any, error) {
 		return checkCalls(pass, rules)
 	}
 }
 
-func checkCalls(pass *analysis.Pass, rules map[string]Check) (interface{}, error) {
+func checkCalls(pass *analysis.Pass, rules map[string]Check) (any, error) {
 	cb := func(caller *ir.Function, site ir.CallInstruction, callee *ir.Function) {
 		obj, ok := callee.Object().(*types.Func)
 		if !ok {

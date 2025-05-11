@@ -206,7 +206,7 @@ func newGraph(
 	return &g
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	g := newGraph(
 		pass.Fset,
 		pass.Files,

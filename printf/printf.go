@@ -74,8 +74,8 @@ func (Literal) isArgument() {}
 
 // Parse parses f and returns a list of actions.
 // An action may either be a literal string, or a Verb.
-func Parse(f string) ([]interface{}, error) {
-	var out []interface{}
+func Parse(f string) ([]any, error) {
+	var out []any
 	for len(f) > 0 {
 		if f[0] == '%' {
 			v, n, err := ParseVerb(f)

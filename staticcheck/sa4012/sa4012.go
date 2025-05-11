@@ -26,7 +26,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	isNaN := func(v ir.Value) bool {
 		call, ok := v.(*ir.Call)
 		if !ok {

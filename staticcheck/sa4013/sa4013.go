@@ -31,7 +31,7 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var checkDoubleNegationQ = pattern.MustParse(`(UnaryExpr "!" single@(UnaryExpr "!" x))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if m, ok := code.Match(pass, checkDoubleNegationQ, node); ok {
 			report.Report(pass, node, "negating a boolean twice has no effect; is this a typo?", report.Fixes(

@@ -42,7 +42,7 @@ if strings.HasPrefix(str, prefix) {
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	sameNonDynamic := func(node1, node2 ast.Node) bool {
 		if reflect.TypeOf(node1) != reflect.TypeOf(node2) {
 			return false

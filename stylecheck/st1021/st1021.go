@@ -43,7 +43,7 @@ information on how to write good documentation.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	var genDecl *ast.GenDecl
 	fn := func(node ast.Node, push bool) bool {
 		if !push {

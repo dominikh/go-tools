@@ -39,7 +39,7 @@ var stringsReplaceAllQ = pattern.MustParse(`(Or
 	(CallExpr fn@(Symbol "bytes.SplitN") [_ _ lit@(IntegerLiteral "-1")])
 	(CallExpr fn@(Symbol "bytes.SplitAfterN") [_ _ lit@(IntegerLiteral "-1")]))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// XXX respect minimum Go version
 
 	// FIXME(dh): create proper suggested fix for renamed import

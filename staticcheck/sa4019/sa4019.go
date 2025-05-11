@@ -48,7 +48,7 @@ func buildTagsIdentical(s1, s2 []string) bool {
 	return true
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	for _, f := range pass.Files {
 		constraints := buildTags(f)
 		for i, constraint1 := range constraints {

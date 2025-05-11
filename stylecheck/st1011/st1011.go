@@ -35,7 +35,7 @@ variable of type \'time.Duration\' with any time unit, such as \'Msec\' or
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	suffixes := []string{
 		"Sec", "Secs", "Seconds",
 		"Msec", "Msecs",

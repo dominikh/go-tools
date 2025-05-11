@@ -39,7 +39,7 @@ var (
 	checkBytesCompareRn = pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
 )
 
-func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
+func CheckBytesCompare(pass *analysis.Pass) (any, error) {
 	if pass.Pkg.Path() == "bytes" || pass.Pkg.Path() == "bytes_test" {
 		// the bytes package is free to use bytes.Compare as it sees fit
 		return nil, nil

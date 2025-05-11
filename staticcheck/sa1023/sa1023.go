@@ -30,7 +30,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): this might be a good candidate for taint analysis.
 	// Taint the argument as MUST_NOT_MODIFY, then propagate that
 	// through functions like bytes.Split

@@ -54,7 +54,7 @@ var negativeZeroFloatQ = pattern.MustParse(`
 			conv@(Object (Or "float32" "float64"))
 			(UnaryExpr "-" lit@(BasicLit "INT" "0"))))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		m, ok := code.Match(pass, negativeZeroFloatQ, node)
 		if !ok {

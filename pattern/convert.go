@@ -54,7 +54,7 @@ var astTypes = map[string]reflect.Type{
 	"BasicLit":       reflect.TypeOf(ast.BasicLit{}),
 }
 
-func ASTToNode(node interface{}) Node {
+func ASTToNode(node any) Node {
 	switch node := node.(type) {
 	case *ast.File:
 		panic("cannot convert *ast.File to Node")
@@ -132,7 +132,7 @@ func ASTToNode(node interface{}) Node {
 	panic(fmt.Sprintf("internal error: unhandled type %T", node))
 }
 
-func NodeToAST(node Node, state State) interface{} {
+func NodeToAST(node Node, state State) any {
 	switch node := node.(type) {
 	case Binding:
 		v, ok := state[node.Name]
