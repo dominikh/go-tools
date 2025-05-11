@@ -28,7 +28,7 @@ func TestConcurrentReadsAndWrites(t *testing.T) {
 
 	const chunkWords = 8 << 10
 	buf := make([]byte, 2*chunkWords*8)
-	for i := uint64(0); i < 2*chunkWords; i++ {
+	for i := range uint64(2 * chunkWords) {
 		binary.LittleEndian.PutUint64(buf[i*8:], i)
 	}
 

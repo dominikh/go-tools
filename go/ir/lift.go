@@ -901,10 +901,8 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 	// Don't lift result values in functions that defer
 	// calls that may recover from panic.
 	if fn.hasDefer {
-		for _, nr := range fn.results {
-			if nr == alloc {
-				return false
-			}
+		if slices.Contains(fn.results, alloc) {
+			return false
 		}
 	}
 

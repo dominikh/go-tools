@@ -76,7 +76,7 @@ func validEncodingBinaryType(pass *analysis.Pass, node code.Positioner, typ type
 		return false
 	case *types.Struct:
 		n := typ.NumFields()
-		for i := 0; i < n; i++ {
+		for i := range n {
 			if !validEncodingBinaryType(pass, node, typ.Field(i).Type()) {
 				return false
 			}

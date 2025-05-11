@@ -14,6 +14,7 @@ import (
 	"go/types"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"honnef.co/go/tools/go/types/typeutil"
@@ -126,17 +127,8 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		}
 
 	case *Alloc:
-		if !instr.Heap {
-			found := false
-			for _, l := range s.fn.Locals {
-				if l == instr {
-					found = true
-					break
-				}
-			}
-			if !found {
-				s.errorf("local alloc %s = %s does not appear in Function.Locals", instr.Name(), instr)
-			}
+		if !instr.Heap && !slices.Contains(s.fn.Locals, instr) {
+			s.errorf("local alloc %s = %s does not appear in Function.Locals", instr.Name(), instr)
 		}
 
 	case *BinOp:
@@ -306,14 +298,7 @@ func (s *sanity) checkBlock(b *BasicBlock, index int) {
 	// Check predecessor and successor relations are dual,
 	// and that all blocks in CFG belong to same function.
 	for _, a := range b.Preds {
-		found := false
-		for _, bb := range a.Succs {
-			if bb == b {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(a.Succs, b) {
 			s.errorf("expected successor edge in predecessor %s; found only: %s", a, a.Succs)
 		}
 		if a.parent != s.fn {
@@ -321,14 +306,7 @@ func (s *sanity) checkBlock(b *BasicBlock, index int) {
 		}
 	}
 	for _, c := range b.Succs {
-		found := false
-		for _, bb := range c.Preds {
-			if bb == b {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(c.Preds, b) {
 			s.errorf("expected predecessor edge in successor %s; found only: %s", c, c.Preds)
 		}
 		if c.parent != s.fn {

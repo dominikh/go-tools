@@ -93,7 +93,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 	s := gcsizes.ForArch(build.Default.GOARCH)
 	n := typ.NumFields()
 	var fields []*types.Var
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fields = append(fields, typ.Field(i))
 	}
 	offsets := s.Offsetsof(fields)

@@ -87,28 +87,19 @@ func (sw *Switch) testString() string {
 	if sw.ConstCases != nil {
 		fmt.Fprintf(&buf, "switch %s {\n", sw.X.Name())
 		for _, c := range sw.ConstCases {
-			n := len(c.Body.Instrs) - 2
-			if n < 0 {
-				n = 0
-			}
+			n := max(len(c.Body.Instrs)-2, 0)
 			fmt.Fprintf(&buf, "case %s: %s\n", c.Value.Name(), c.Body.Instrs[n])
 		}
 	} else {
 		fmt.Fprintf(&buf, "switch %s.(type) {\n", sw.X.Name())
 		for _, c := range sw.TypeCases {
-			n := len(c.Body.Instrs) - 2
-			if n < 0 {
-				n = 0
-			}
+			n := max(len(c.Body.Instrs)-2, 0)
 			fmt.Fprintf(&buf, "case %s %s: %s\n",
 				c.Binding.Name(), c.Type, c.Body.Instrs[n])
 		}
 	}
 	if sw.Default != nil {
-		n := len(sw.Default.Instrs) - 2
-		if n < 0 {
-			n = 0
-		}
+		n := max(len(sw.Default.Instrs)-2, 0)
 		fmt.Fprintf(&buf, "default: %s\n", sw.Default.Instrs[n])
 	}
 	fmt.Fprintf(&buf, "}")

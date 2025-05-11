@@ -481,7 +481,7 @@ func emitTailCall(f *Function, call *Call, source ast.Node) {
 	case 1:
 		ret.Results = []Value{tuple}
 	default:
-		for i := 0; i < nr; i++ {
+		for i := range nr {
 			v := emitExtract(f, tuple, i, source)
 			// TODO(adonovan): in principle, this is required:
 			//   v = emitConv(f, o.Type, f.Signature.Results[i].Type)

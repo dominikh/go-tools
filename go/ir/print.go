@@ -347,7 +347,7 @@ func (v *CompositeValue) String() string {
 		fmt.Fprint(&b, " [none]")
 	} else {
 		// Some values provided
-		bits := []byte(fmt.Sprintf("%0*b", len(v.Values), &v.Bitmap))
+		bits := fmt.Appendf(nil, "%0*b", len(v.Values), &v.Bitmap)
 		for i := 0; i < len(bits)/2; i++ {
 			o := len(bits) - 1 - i
 			bits[i], bits[o] = bits[o], bits[i]

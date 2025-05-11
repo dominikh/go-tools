@@ -171,7 +171,7 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 		if !mset.complete {
 			mset.complete = true
 			n := tmset.Len()
-			for i := 0; i < n; i++ {
+			for i := range n {
 				prog.addMethod(mset, tmset.At(i))
 			}
 		}

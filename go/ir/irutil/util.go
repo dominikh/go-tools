@@ -2,6 +2,7 @@ package irutil
 
 import (
 	"go/types"
+	"slices"
 	"strings"
 
 	"honnef.co/go/tools/go/ir"
@@ -107,12 +108,7 @@ func IsCallTo(call *ir.CallCommon, name string) bool { return CallName(call) == 
 
 func IsCallToAny(call *ir.CallCommon, names ...string) bool {
 	q := CallName(call)
-	for _, name := range names {
-		if q == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(names, q)
 }
 
 func FilterDebug(instr []ir.Instruction) []ir.Instruction {

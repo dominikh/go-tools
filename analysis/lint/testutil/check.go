@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -103,9 +104,7 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 			for sf := range fixes {
 				sfs = append(sfs, sf)
 			}
-			sort.Slice(sfs, func(i, j int) bool {
-				return sfs[i] < sfs[j]
-			})
+			slices.Sort(sfs)
 			for _, sf := range sfs {
 				edits := fixes[sf]
 				found := false
@@ -305,7 +304,7 @@ func Check(t *testing.T, gopath string, files []string, diagnostics []runner.Dia
 func applyEdits(src []byte, edits []runner.TextEdit) []byte {
 	// This function isn't efficient, but it doesn't have to be.
 
-	edits = append([]runner.TextEdit(nil), edits...)
+	edits = slices.Clone(edits)
 	sort.Slice(edits, func(i, j int) bool {
 		if edits[i].Position.Offset < edits[j].Position.Offset {
 			return true
@@ -316,7 +315,7 @@ func applyEdits(src []byte, edits []runner.TextEdit) []byte {
 		return false
 	})
 
-	out := append([]byte(nil), src...)
+	out := bytes.Clone(src)
 	offset := 0
 	for _, edit := range edits {
 		start := edit.Position.Offset + offset

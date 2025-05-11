@@ -37,7 +37,7 @@ func (s *Sizes) Alignof(T types.Type) int64 {
 		max := int64(1)
 		n := t.NumFields()
 		var fields []*types.Var
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fields = append(fields, t.Field(i))
 		}
 		for _, f := range fields {
@@ -114,7 +114,7 @@ func (s *Sizes) Sizeof(T types.Type) int64 {
 		}
 
 		var fields []*types.Var
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fields = append(fields, t.Field(i))
 		}
 		offsets := s.Offsetsof(fields)

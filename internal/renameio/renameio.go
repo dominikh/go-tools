@@ -81,7 +81,7 @@ func ReadFile(filename string) ([]byte, error) {
 
 // tempFile creates a new temporary file with given permission bits.
 func tempFile(dir, prefix string, perm os.FileMode) (f *os.File, err error) {
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		name := filepath.Join(dir, prefix+strconv.Itoa(rand.Intn(1000000000))+patternSuffix)
 		f, err = os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
 		if os.IsExist(err) {

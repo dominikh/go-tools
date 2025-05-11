@@ -333,7 +333,7 @@ func PowerSet[S constraints.Integer](all S) []S {
 func MapSet[S constraints.Integer](set S, fn func(S) S) S {
 	bits := 64 - bits.LeadingZeros64(uint64(set))
 	var out S
-	for i := 0; i < bits; i++ {
+	for i := range bits {
 		if b := (set & (1 << i)); b != 0 {
 			out |= fn(b)
 		}
@@ -346,8 +346,8 @@ func MapCartesianProduct[S constraints.Integer](x, y S, fn func(S, S) S) S {
 	bitsY := 64 - bits.LeadingZeros64(uint64(y))
 
 	var out S
-	for i := 0; i < bitsX; i++ {
-		for j := 0; j < bitsY; j++ {
+	for i := range bitsX {
+		for j := range bitsY {
 			bx := x & (1 << i)
 			by := y & (1 << j)
 

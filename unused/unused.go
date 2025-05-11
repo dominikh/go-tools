@@ -8,6 +8,7 @@ import (
 	"go/types"
 	"io"
 	"reflect"
+	"slices"
 	"strings"
 
 	"honnef.co/go/tools/analysis/facts/directives"
@@ -597,26 +598,23 @@ func (g *graph) entry() {
 		if len(dir.Arguments) == 0 {
 			continue
 		}
-		for _, check := range strings.Split(dir.Arguments[0], ",") {
-			if check == "U1000" {
-				pos := g.fset.PositionFor(dir.Node.Pos(), false)
-				var key ignoredKey
-				switch dir.Command {
-				case "ignore":
-					key = ignoredKey{
-						pos.Filename,
-						pos.Line,
-					}
-				case "file-ignore":
-					key = ignoredKey{
-						pos.Filename,
-						-1,
-					}
+		if slices.Contains(strings.Split(dir.Arguments[0], ","), "U1000") {
+			pos := g.fset.PositionFor(dir.Node.Pos(), false)
+			var key ignoredKey
+			switch dir.Command {
+			case "ignore":
+				key = ignoredKey{
+					pos.Filename,
+					pos.Line,
 				}
-
-				ignores[key] = struct{}{}
-				break
+			case "file-ignore":
+				key = ignoredKey{
+					pos.Filename,
+					-1,
+				}
 			}
+
+			ignores[key] = struct{}{}
 		}
 	}
 
@@ -1477,7 +1475,7 @@ func isNoCopyType(typ types.Type) bool {
 	}
 	switch num := named.NumMethods(); num {
 	case 1, 2:
-		for i := 0; i < num; i++ {
+		for i := range num {
 			meth := named.Method(i)
 			if meth.Name() != "Lock" && meth.Name() != "Unlock" {
 				return false

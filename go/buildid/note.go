@@ -194,10 +194,7 @@ func readMacho(name string, f *os.File, data []byte) (buildid string, err error)
 	// especially given our past problems on OS X with the build ID moving.
 	// There shouldn't be much difference between reading 4kB and 32kB:
 	// the hard part is getting to the data, not transferring it.
-	n := sect.Size
-	if n > uint64(readSize) {
-		n = uint64(readSize)
-	}
+	n := min(sect.Size, uint64(readSize))
 	buf := make([]byte, n)
 	if _, err := f.ReadAt(buf, int64(sect.Offset)); err != nil {
 		return "", err

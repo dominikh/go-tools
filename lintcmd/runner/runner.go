@@ -118,6 +118,7 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"maps"
 	"os"
 	"reflect"
 	"runtime"
@@ -1070,12 +1071,8 @@ func (r *subrunner) runAnalyzers(pkgAct *packageAction, pkg *loader.Package) (an
 			unusedResult = a.Result.(unused.Result)
 		}
 
-		for key, fact := range a.ObjectFacts {
-			depObjFacts[key] = fact
-		}
-		for key, fact := range a.PackageFacts {
-			depPkgFacts[key] = fact
-		}
+		maps.Copy(depObjFacts, a.ObjectFacts)
+		maps.Copy(depPkgFacts, a.PackageFacts)
 	}
 
 	// OPT(dh): cull objects not reachable via the exported closure

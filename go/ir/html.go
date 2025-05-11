@@ -93,10 +93,7 @@ func fprintFunc(p funcPrinter, f *Function) {
 		// p.startBlock(b, reachable[b.Index])
 		p.startBlock(b, true)
 
-		end := len(b.Instrs) - 1
-		if end < 0 {
-			end = 0
-		}
+		end := max(len(b.Instrs)-1, 0)
 		for _, v := range b.Instrs[:end] {
 			if _, ok := v.(*DebugRef); !ok {
 				p.value(v, l[v.ID()])

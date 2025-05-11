@@ -58,7 +58,7 @@ func Open(dir string) (*Cache, error) {
 	if !info.IsDir() {
 		return nil, &os.PathError{Op: "open", Path: dir, Err: fmt.Errorf("not a directory")}
 	}
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		name := filepath.Join(dir, fmt.Sprintf("%02x", i))
 		if err := os.MkdirAll(name, 0777); err != nil {
 			return nil, err
@@ -311,14 +311,14 @@ func (c *Cache) Trim() {
 	// We subtract an additional mtimeInterval
 	// to account for the imprecision of our "last used" mtimes.
 	cutoff := now.Add(-trimLimit - mtimeInterval)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		subdir := filepath.Join(c.dir, fmt.Sprintf("%02x", i))
 		c.trimSubdir(subdir, cutoff)
 	}
 
 	// Ignore errors from here: if we don't write the complete timestamp, the
 	// cache will appear older than it is, and we'll trim it again next time.
-	renameio.WriteFile(filepath.Join(c.dir, "trim.txt"), []byte(fmt.Sprintf("%d", now.Unix())), 0666)
+	renameio.WriteFile(filepath.Join(c.dir, "trim.txt"), fmt.Appendf(nil, "%d", now.Unix()), 0666)
 }
 
 // trimSubdir trims a single cache subdirectory.
