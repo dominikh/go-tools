@@ -112,10 +112,10 @@ func run(pass *analysis.Pass) (any, error) {
 	for _, f := range pass.Files {
 		// Package names need slightly different handling than other names.
 		if !strings.HasSuffix(f.Name.Name, "_test") && strings.Contains(f.Name.Name, "_") {
-			report.Report(pass, f, "should not use underscores in package names", report.FilterGenerated())
+			report.Report(pass, f.Name, "should not use underscores in package names", report.FilterGenerated())
 		}
 		if strings.IndexFunc(f.Name.Name, unicode.IsUpper) != -1 {
-			report.Report(pass, f, fmt.Sprintf("should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name)), report.FilterGenerated())
+			report.Report(pass, f.Name, fmt.Sprintf("should not use MixedCaps in package name; %s should be %s", f.Name.Name, strings.ToLower(f.Name.Name)), report.FilterGenerated())
 		}
 	}
 
