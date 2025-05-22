@@ -44,7 +44,22 @@ var ineffectiveRandIntQ = pattern.MustParse(`
 				"math/rand.Intn"
 				"(*math/rand.Rand).Int31n"
 				"(*math/rand.Rand).Int63n"
-				"(*math/rand.Rand).Intn"))
+				"(*math/rand.Rand).Intn"
+
+				"math/rand/v2.Int32N"
+				"math/rand/v2.Int64N"
+				"math/rand/v2.IntN"
+				"math/rand/v2.N"
+				"math/rand/v2.Uint32N"
+				"math/rand/v2.Uint64N"
+				"math/rand/v2.UintN"
+
+				"(*math/rand/v2.Rand).Int32N"
+				"(*math/rand/v2.Rand).Int64N"
+				"(*math/rand/v2.Rand).IntN"
+				"(*math/rand/v2.Rand).Uint32N"
+				"(*math/rand/v2.Rand).Uint64N"
+				"(*math/rand/v2.Rand).UintN"))
 		[(IntegerLiteral "1")])`)
 
 func run(pass *analysis.Pass) (any, error) {
