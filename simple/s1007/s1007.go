@@ -3,24 +3,22 @@ package s1007
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 	"strings"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/knowledge"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1007",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Simplify regular expression by using raw string literal`,
@@ -39,35 +37,23 @@ can improve their readability.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
+// TODO(dominikh): support string concat, maybe support constants
+var query = pattern.MustParse(`(CallExpr (Symbol fn@(Or "regexp.MustCompile" "regexp.Compile")) [lit@(BasicLit "STRING" _)])`)
+
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		if !code.IsCallToAny(pass, call, "regexp.MustCompile", "regexp.Compile") {
-			return
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return
-		}
-		lit, ok := call.Args[knowledge.Arg("regexp.Compile.expr")].(*ast.BasicLit)
-		if !ok {
-			// TODO(dominikh): support string concat, maybe support constants
-			return
-		}
-		if lit.Kind != token.STRING {
-			// invalid function call
-			return
-		}
+outer:
+	for _, m := range code.Matches(pass, query) {
+		lit := m.State["lit"].(*ast.BasicLit)
+		val := lit.Value
 		if lit.Value[0] != '"' {
 			// already a raw string
-			return
+			continue
 		}
-		val := lit.Value
 		if !strings.Contains(val, `\\`) {
-			return
+			continue
 		}
 		if strings.Contains(val, "`") {
-			return
+			continue
 		}
 
 		bs := false
@@ -82,12 +68,11 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 			if bs {
 				// backslash followed by non-backslash -> escape sequence
-				return
+				continue outer
 			}
 		}
 
-		report.Report(pass, call, fmt.Sprintf("should use raw string (`...`) with regexp.%s to avoid having to escape twice", sel.Sel.Name), report.FilterGenerated())
+		report.Report(pass, lit, fmt.Sprintf("should use raw string (`...`) with %s to avoid having to escape twice", m.State["fn"]), report.FilterGenerated())
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
