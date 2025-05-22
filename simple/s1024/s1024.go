@@ -11,14 +11,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1024",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Replace \'x.Sub(time.Now())\' with \'time.Until(x)\'`,
@@ -39,21 +38,18 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		if _, ok := code.Match(pass, checkTimeUntilQ, node); ok {
-			if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
-				r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]any{"arg": sel.X}).(ast.Node)
-				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
-					report.FilterGenerated(),
-					report.MinimumStdlibVersion("go1.8"),
-					report.Fixes(edit.Fix("Replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
-			} else {
-				report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
-					report.MinimumStdlibVersion("go1.8"),
-					report.FilterGenerated())
-			}
+	for node := range code.Matches(pass, checkTimeUntilQ) {
+		if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
+			r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]any{"arg": sel.X}).(ast.Node)
+			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
+				report.FilterGenerated(),
+				report.MinimumStdlibVersion("go1.8"),
+				report.Fixes(edit.Fix("Replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
+		} else {
+			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
+				report.MinimumStdlibVersion("go1.8"),
+				report.FilterGenerated())
 		}
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

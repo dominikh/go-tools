@@ -12,14 +12,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4029",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: "Ineffective attempt at sorting slice",
@@ -42,16 +41,11 @@ var Analyzer = SCAnalyzer.Analyzer
 var ineffectiveSortQ = pattern.MustParse(`(AssignStmt target@(Ident _) "=" (CallExpr typ@(Symbol (Or "sort.Float64Slice" "sort.IntSlice" "sort.StringSlice")) [target]))`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, ineffectiveSortQ, node)
-		if !ok {
-			return
-		}
-
-		_, ok = types.Unalias(pass.TypesInfo.TypeOf(m.State["target"].(ast.Expr))).(*types.Slice)
+	for node, m := range code.Matches(pass, ineffectiveSortQ) {
+		_, ok := types.Unalias(pass.TypesInfo.TypeOf(m.State["target"].(ast.Expr))).(*types.Slice)
 		if !ok {
 			// Avoid flagging 'x = sort.StringSlice(x)' where TypeOf(x) == sort.StringSlice
-			return
+			continue
 		}
 
 		var alternative string
@@ -82,6 +76,5 @@ func run(pass *analysis.Pass) (any, error) {
 				alternative),
 			report.Fixes(edit.Fix(fmt.Sprintf("Replace with call to sort.%s", alternative), edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	code.Preorder(pass, fn, (*ast.AssignStmt)(nil))
 	return nil, nil
 }

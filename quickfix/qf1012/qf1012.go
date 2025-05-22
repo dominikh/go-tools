@@ -14,14 +14,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "QF1012",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Use \'fmt.Fprintf(x, ...)\' instead of \'x.Write(fmt.Sprintf(...))\'`,
@@ -104,6 +103,9 @@ func run(pass *analysis.Pass) (any, error) {
 			}))
 			report.Report(pass, node, msg, report.Fixes(fix))
 		}
+	}
+	if !code.CouldMatchAny(pass, checkWriteBytesSprintfQ, checkWriteStringSprintfQ) {
+		return nil, nil
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil

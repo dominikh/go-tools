@@ -13,7 +13,7 @@ type Pattern struct {
 	Root Node
 	// EntryNodes contains instances of ast.Node that could potentially
 	// initiate a successful match of the pattern.
-	EntryNodes map[reflect.Type]struct{}
+	EntryNodes []ast.Node
 
 	// SymbolsPattern is a pattern consisting or Any, Or, And, and IndexSymbol,
 	// that can be used to implement fast rejection of whole packages using
@@ -392,14 +392,18 @@ func (p *Parser) Parse(s string) (Pattern, error) {
 		bindings[idx] = name
 	}
 
-	relevant := map[reflect.Type]struct{}{}
-	collectEntryNodes(root, relevant)
 	_, isSymbol := root.(Symbol)
 	sym := collectSymbols(root, isSymbol)
 	rootSyms := collectRootCallSymbols(root)
+	relevantMap := map[reflect.Type]struct{}{}
+	collectEntryNodes(root, relevantMap)
+	relevantNodes := make([]ast.Node, 0, len(relevantMap))
+	for k := range relevantMap {
+		relevantNodes = append(relevantNodes, reflect.Zero(k).Interface().(ast.Node))
+	}
 	return Pattern{
 		Root:            root,
-		EntryNodes:      relevant,
+		EntryNodes:      relevantNodes,
 		SymbolsPattern:  sym,
 		RootCallSymbols: rootSyms,
 		Bindings:        bindings,

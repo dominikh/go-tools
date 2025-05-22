@@ -1,8 +1,6 @@
 package s1012
 
 import (
-	"go/ast"
-
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/facts/generated"
@@ -11,14 +9,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1012",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Replace \'time.Now().Sub(x)\' with \'time.Since(x)\'`,
@@ -39,13 +36,11 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		if _, edits, ok := code.MatchAndEdit(pass, checkTimeSinceQ, checkTimeSinceR, node); ok {
-			report.Report(pass, node, "should use time.Since instead of time.Now().Sub",
-				report.FilterGenerated(),
-				report.Fixes(edit.Fix("Replace with call to time.Since", edits...)))
-		}
+	for node, m := range code.Matches(pass, checkTimeSinceQ) {
+		edits := code.EditMatch(pass, node, m, checkTimeSinceR)
+		report.Report(pass, node, "should use time.Since instead of time.Now().Sub",
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("Replace with call to time.Since", edits...)))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

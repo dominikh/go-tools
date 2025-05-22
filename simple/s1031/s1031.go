@@ -1,7 +1,6 @@
 package s1031
 
 import (
-	"go/ast"
 	"go/types"
 
 	"honnef.co/go/tools/analysis/code"
@@ -12,14 +11,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1031",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Omit redundant nil check around loop`,
@@ -53,12 +51,8 @@ var checkNilCheckAroundRangeQ = pattern.MustParse(`
 		nil)`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkNilCheckAroundRangeQ, node)
-		if !ok {
-			return
-		}
-		ok = typeutil.All(m.State["x"].(types.Object).Type(), func(term *types.Term) bool {
+	for node, m := range code.Matches(pass, checkNilCheckAroundRangeQ) {
+		ok := typeutil.All(m.State["x"].(types.Object).Type(), func(term *types.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice, *types.Map:
 				return true
@@ -69,11 +63,9 @@ func run(pass *analysis.Pass) (any, error) {
 				return false
 			}
 		})
-		if !ok {
-			return
+		if ok {
+			report.Report(pass, node, "unnecessary nil check around range", report.ShortRange(), report.FilterGenerated())
 		}
-		report.Report(pass, node, "unnecessary nil check around range", report.ShortRange(), report.FilterGenerated())
 	}
-	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }

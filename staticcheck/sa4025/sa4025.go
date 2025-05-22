@@ -11,14 +11,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4025",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: "Integer division of literals that results in zero",
@@ -47,12 +46,7 @@ var Analyzer = SCAnalyzer.Analyzer
 var integerDivisionQ = pattern.MustParse(`(BinaryExpr (IntegerLiteral _) "/" (IntegerLiteral _))`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		_, ok := code.Match(pass, integerDivisionQ, node)
-		if !ok {
-			return
-		}
-
+	for node := range code.Matches(pass, integerDivisionQ) {
 		val := constant.ToInt(pass.TypesInfo.Types[node.(ast.Expr)].Value)
 		if v, ok := constant.Uint64Val(val); ok && v == 0 {
 			report.Report(pass, node, fmt.Sprintf("the integer division '%s' results in zero", report.Render(pass, node)))
@@ -71,7 +65,5 @@ func run(pass *analysis.Pass) (any, error) {
 		// The check also found a real bug in other code, but I don't
 		// think we can outright ban this kind of division.
 	}
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
-
 	return nil, nil
 }

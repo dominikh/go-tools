@@ -14,14 +14,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1001",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Replace for loop with call to copy`,
@@ -95,12 +94,7 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	}
 
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkLoopCopyQ, node)
-		if !ok {
-			return
-		}
-
+	for node, m := range code.Matches(pass, checkLoopCopyQ) {
 		src := m.State["src"].(ast.Expr)
 		dst := m.State["dst"].(ast.Expr)
 
@@ -110,32 +104,32 @@ func run(pass *analysis.Pass) (any, error) {
 			v = pass.TypesInfo.ObjectOf(value.(*ast.Ident))
 		}
 		if !isInvariant(k, v, dst) {
-			return
+			continue
 		}
 		if !isInvariant(k, v, src) {
 			// For example: 'for i := range foo()'
-			return
+			continue
 		}
 
 		Tsrc := pass.TypesInfo.TypeOf(src)
 		Tdst := pass.TypesInfo.TypeOf(dst)
 		TsrcElem, TsrcArray, TsrcPointer, ok := elType(Tsrc)
 		if !ok {
-			return
+			continue
 		}
 		if TsrcPointer {
 			Tsrc = Tsrc.Underlying().(*types.Pointer).Elem()
 		}
 		TdstElem, TdstArray, TdstPointer, ok := elType(Tdst)
 		if !ok {
-			return
+			continue
 		}
 		if TdstPointer {
 			Tdst = Tdst.Underlying().(*types.Pointer).Elem()
 		}
 
 		if !types.Identical(TsrcElem, TdstElem) {
-			return
+			continue
 		}
 
 		if TsrcArray && TdstArray && types.Identical(Tsrc, Tdst) {
@@ -192,6 +186,5 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 		}
 	}
-	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.RangeStmt)(nil))
 	return nil, nil
 }

@@ -10,14 +10,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4024",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Checking for impossible return value from a builtin function`,
@@ -51,16 +50,9 @@ var builtinLessThanZeroQ = pattern.MustParse(`
 `)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		matcher, ok := code.Match(pass, builtinLessThanZeroQ, node)
-		if !ok {
-			return
-		}
-
+	for node, matcher := range code.Matches(pass, builtinLessThanZeroQ) {
 		builtin := matcher.State["builtin"].(*ast.Ident)
 		report.Report(pass, node, fmt.Sprintf("builtin function %s does not return negative values", builtin.Name))
 	}
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
-
 	return nil, nil
 }

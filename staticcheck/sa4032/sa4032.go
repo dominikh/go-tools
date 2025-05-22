@@ -7,7 +7,6 @@ import (
 	"go/constant"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
@@ -19,7 +18,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4032",
 		Run:      CheckImpossibleGOOSGOARCH,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Comparing \'runtime.GOOS\' or \'runtime.GOARCH\' against impossible value`,
@@ -44,6 +43,10 @@ func CheckImpossibleGOOSGOARCH(pass *analysis.Pass) (any, error) {
 	// We can't use our IR for the control flow graph, because go/types constant folds constant comparisons, so
 	// 'runtime.GOOS == "windows"' will just become 'false'. We can't use the AST-based CFG builder from x/tools,
 	// because it doesn't model branch conditions.
+
+	if !code.CouldMatchAny(pass, goarchComparisonQ, goosComparisonQ) {
+		return nil, nil
+	}
 
 	for _, f := range pass.Files {
 		expr, ok := code.BuildConstraints(pass, f)

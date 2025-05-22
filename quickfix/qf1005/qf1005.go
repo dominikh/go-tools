@@ -14,14 +14,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "QF1005",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Expand call to \'math.Pow\'`,
@@ -38,19 +37,14 @@ var Analyzer = SCAnalyzer.Analyzer
 var mathPowQ = pattern.MustParse(`(CallExpr (Symbol "math.Pow") [x (IntegerLiteral n)])`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		matcher, ok := code.Match(pass, mathPowQ, node)
-		if !ok {
-			return
-		}
-
+	for node, matcher := range code.Matches(pass, mathPowQ) {
 		x := matcher.State["x"].(ast.Expr)
 		if code.MayHaveSideEffects(pass, x, nil) {
-			return
+			continue
 		}
 		n, ok := constant.Int64Val(constant.ToInt(matcher.State["n"].(types.TypeAndValue).Value))
 		if !ok {
-			return
+			continue
 		}
 
 		needConversion := false
@@ -62,7 +56,7 @@ func run(pass *analysis.Pass) (any, error) {
 			// determine if the constant expression would have type float64 if used on its own
 			if err := types.CheckExpr(pass.Fset, pass.Pkg, x.Pos(), x, &info); err != nil {
 				// This should not happen
-				return
+				continue
 			}
 			if T, ok := info.Types[x].Type.(*types.Basic); ok {
 				if T.Kind() != types.UntypedFloat && T.Kind() != types.Float64 {
@@ -98,11 +92,11 @@ func run(pass *analysis.Pass) (any, error) {
 
 			rc, ok := astutil.CopyExpr(r)
 			if !ok {
-				return
+				continue
 			}
 			replacement = astutil.SimplifyParentheses(rc)
 		default:
-			return
+			continue
 		}
 		if needConversion && n != 0 {
 			replacement = &ast.CallExpr{
@@ -113,6 +107,5 @@ func run(pass *analysis.Pass) (any, error) {
 		report.Report(pass, node, "could expand call to math.Pow",
 			report.Fixes(edit.Fix("Expand call to math.Pow", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

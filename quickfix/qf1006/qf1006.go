@@ -12,14 +12,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "QF1006",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Lift \'if\'+\'break\' into loop condition`,
@@ -45,12 +44,7 @@ var Analyzer = SCAnalyzer.Analyzer
 var checkForLoopIfBreak = pattern.MustParse(`(ForStmt nil nil nil if@(IfStmt nil cond (BranchStmt "BREAK" nil) nil):_)`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkForLoopIfBreak, node)
-		if !ok {
-			return
-		}
-
+	for node, m := range code.Matches(pass, checkForLoopIfBreak) {
 		pos := node.Pos() + token.Pos(len("for"))
 		r := astutil.NegateDeMorgan(m.State["cond"].(ast.Expr), false)
 
@@ -63,6 +57,5 @@ func run(pass *analysis.Pass) (any, error) {
 				edit.ReplaceWithString(edit.Range{pos, pos}, " "+report.Render(pass, r)),
 				edit.Delete(m.State["if"].(ast.Node)))))
 	}
-	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }

@@ -12,14 +12,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1018",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Use \"copy\" for sliding elements`,
@@ -62,23 +61,18 @@ func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): detect length that is an expression, not a variable name
 	// TODO(dh): support sliding to a different offset than the beginning of the slice
 
-	fn := func(node ast.Node) {
-		loop := node.(*ast.ForStmt)
-		m, edits, ok := code.MatchAndEdit(pass, checkLoopSlideQ, checkLoopSlideR, loop)
-		if !ok {
-			return
-		}
+	for node, m := range code.Matches(pass, checkLoopSlideQ) {
 		typ := pass.TypesInfo.TypeOf(m.State["slice"].(*ast.Ident))
 		// The pattern probably needs a core type, but All is fine, too. Either way we only accept slices.
 		if !typeutil.All(typ, typeutil.IsSlice) {
-			return
+			continue
 		}
 
-		report.Report(pass, loop, "should use copy() instead of loop for sliding slice elements",
+		edits := code.EditMatch(pass, node, m, checkLoopSlideR)
+		report.Report(pass, node, "should use copy() instead of loop for sliding slice elements",
 			report.ShortRange(),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("Use copy() instead of loop", edits...)))
 	}
-	code.Preorder(pass, fn, (*ast.ForStmt)(nil))
 	return nil, nil
 }

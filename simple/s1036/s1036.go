@@ -10,14 +10,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1036",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Unnecessary guard around map access`,
@@ -77,16 +76,13 @@ var checkUnnecessaryGuardQ = pattern.MustParse(`
 			(AssignStmt indexexpr "=" (IntegerLiteral "1"))))`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		if m, ok := code.Match(pass, checkUnnecessaryGuardQ, node); ok {
-			if code.MayHaveSideEffects(pass, m.State["indexexpr"].(ast.Expr), nil) {
-				return
-			}
-			report.Report(pass, node, "unnecessary guard around map access",
-				report.ShortRange(),
-				report.Fixes(edit.Fix("Simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
+	for node, m := range code.Matches(pass, checkUnnecessaryGuardQ) {
+		if code.MayHaveSideEffects(pass, m.State["indexexpr"].(ast.Expr), nil) {
+			continue
 		}
+		report.Report(pass, node, "unnecessary guard around map access",
+			report.ShortRange(),
+			report.Fixes(edit.Fix("Simplify map access", edit.ReplaceWithNode(pass.Fset, node, m.State["set"].(ast.Node)))))
 	}
-	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }

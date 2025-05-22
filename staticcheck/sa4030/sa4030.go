@@ -2,7 +2,6 @@ package sa4030
 
 import (
 	"fmt"
-	"go/ast"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
@@ -10,14 +9,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4030",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: "Ineffective attempt at generating random number",
@@ -63,17 +61,10 @@ var ineffectiveRandIntQ = pattern.MustParse(`
 		[(IntegerLiteral "1")])`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, ineffectiveRandIntQ, node)
-		if !ok {
-			return
-		}
-
+	for node, m := range code.Matches(pass, ineffectiveRandIntQ) {
 		report.Report(pass, node,
 			fmt.Sprintf("%s(n) generates a random value 0 <= x < n; that is, the generated values don't include n; %s therefore always returns 0",
 				m.State["name"], report.Render(pass, node)))
 	}
-
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

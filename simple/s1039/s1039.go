@@ -14,14 +14,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1039",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Unnecessary use of \'fmt.Sprint\'`,
@@ -49,23 +48,19 @@ func run(pass *analysis.Pass) (any, error) {
 	// type string, because some people use fmt.Sprint(s) as a pattern
 	// for copying strings, which may be useful when extracting a small
 	// substring from a large string.
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkSprintLiteralQ, node)
-		if !ok {
-			return
-		}
+
+	for node, m := range code.Matches(pass, checkSprintLiteralQ) {
 		callee := m.State["fn"].(*types.Func)
 		lit := m.State["lit"].(*ast.BasicLit)
 		if callee.Name() == "Sprintf" {
 			if strings.ContainsRune(lit.Value, '%') {
 				// This might be a format string
-				return
+				continue
 			}
 		}
 		report.Report(pass, node, fmt.Sprintf("unnecessary use of fmt.%s", callee.Name()),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix("Replace with string literal", edit.ReplaceWithNode(pass.Fset, node, lit))))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

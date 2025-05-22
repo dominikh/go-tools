@@ -11,14 +11,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA1013",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `\'io.Seeker.Seek\' is being called with the whence constant as the first argument, but it should be the second`,
@@ -36,15 +35,13 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		if m, edits, ok := code.MatchAndEdit(pass, checkSeekerQ, checkSeekerR, node); ok {
-			if !code.IsMethod(pass, m.State["fun"].(*ast.SelectorExpr), "Seek", knowledge.Signatures["(io.Seeker).Seek"]) {
-				return
-			}
-			report.Report(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
-				report.Fixes(edit.Fix("Swap arguments", edits...)))
+	for node, m := range code.Matches(pass, checkSeekerQ) {
+		if !code.IsMethod(pass, m.State["fun"].(*ast.SelectorExpr), "Seek", knowledge.Signatures["(io.Seeker).Seek"]) {
+			continue
 		}
+		edits := code.EditMatch(pass, node, m, checkSeekerR)
+		report.Report(pass, node, "the first argument of io.Seeker is the offset, but an io.Seek* constant is being used instead",
+			report.Fixes(edit.Fix("Swap arguments", edits...)))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

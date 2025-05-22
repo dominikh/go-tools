@@ -16,12 +16,16 @@ import (
 )
 
 func match(fset *token.FileSet, pat pattern.Pattern, f *ast.File) {
+	entryNodesMap := make(map[reflect.Type]struct{})
+	for _, node := range pat.EntryNodes {
+		entryNodesMap[reflect.TypeOf(node)] = struct{}{}
+	}
 	ast.Inspect(f, func(node ast.Node) bool {
 		if node == nil {
 			return true
 		}
 
-		if _, ok := pat.EntryNodes[reflect.TypeOf(node)]; ok {
+		if _, ok := entryNodesMap[reflect.TypeOf(node)]; ok {
 			m := &pattern.Matcher{}
 			if m.Match(pat, node) {
 				fmt.Printf("%s: ", fset.Position(node.Pos()))

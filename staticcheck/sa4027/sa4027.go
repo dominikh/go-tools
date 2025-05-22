@@ -9,14 +9,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4027",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `\'(*net/url.URL).Query\' returns a copy, modifying it doesn't change the URL`,
@@ -43,22 +42,16 @@ func run(pass *analysis.Pass) (any, error) {
 	// requires us to get the state machine correct, else we'll cause
 	// false positives.
 
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, ineffectiveURLQueryAddQ, node)
-		if !ok {
-			return
-		}
+	for node, m := range code.Matches(pass, ineffectiveURLQueryAddQ) {
 		if !code.IsOfPointerToTypeWithName(pass, m.State["recv"].(ast.Expr), "net/url.URL") {
-			return
+			continue
 		}
 		switch m.State["meth"].(string) {
 		case "Add", "Del", "Set":
 		default:
-			return
+			continue
 		}
 		report.Report(pass, node, "(*net/url.URL).Query returns a copy, modifying it doesn't change the URL")
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
-
 	return nil, nil
 }

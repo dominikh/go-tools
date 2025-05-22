@@ -97,6 +97,11 @@ func FuzzParse(f *testing.F) {
 		// Make sure we can turn it back into a string
 		_ = pat.Root.String()
 
+		entryNodesMap := make(map[reflect.Type]struct{})
+		for _, node := range pat.EntryNodes {
+			entryNodesMap[reflect.TypeOf(node)] = struct{}{}
+		}
+
 		// Don't check patterns with too many relevant nodes; it's too expensive
 		if len(pat.EntryNodes) < 20 {
 			// Make sure trying to match nodes doesn't panic
@@ -105,7 +110,7 @@ func FuzzParse(f *testing.F) {
 					rt := reflect.TypeOf(node)
 					// We'd prefer calling Match on all nodes, not just those the pattern deems relevant, to find more bugs.
 					// However, doing so has a 10x cost in execution time.
-					if _, ok := pat.EntryNodes[rt]; ok {
+					if _, ok := entryNodesMap[rt]; ok {
 						Match(pat, node)
 					}
 					return true

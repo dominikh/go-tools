@@ -1,8 +1,6 @@
 package sa4021
 
 import (
-	"go/ast"
-
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/lint"
@@ -10,14 +8,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4021",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `\"x = append(y)\" is equivalent to \"x = y\"`,
@@ -32,13 +29,8 @@ var Analyzer = SCAnalyzer.Analyzer
 var checkSingleArgAppendQ = pattern.MustParse(`(CallExpr (Builtin "append") [_])`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		_, ok := code.Match(pass, checkSingleArgAppendQ, node)
-		if !ok {
-			return
-		}
+	for node := range code.Matches(pass, checkSingleArgAppendQ) {
 		report.Report(pass, node, "x = append(y) is equivalent to x = y", report.FilterGenerated())
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

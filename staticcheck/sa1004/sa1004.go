@@ -13,14 +13,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA1004",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Suspiciously small untyped constant in \'time.Sleep\'`,
@@ -51,20 +50,16 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkTimeSleepConstantPatternQ, node)
-		if !ok {
-			return
-		}
+	for _, m := range code.Matches(pass, checkTimeSleepConstantPatternQ) {
 		n, ok := constant.Int64Val(m.State["value"].(types.TypeAndValue).Value)
 		if !ok {
-			return
+			continue
 		}
 		if n == 0 || n > 120 {
 			// time.Sleep(0) is a seldom used pattern in concurrency
 			// tests. >120 might be intentional. 120 was chosen
 			// because the user could've meant 2 minutes.
-			return
+			continue
 		}
 
 		lit := m.State["lit"].(ast.Node)
@@ -73,6 +68,5 @@ func run(pass *analysis.Pass) (any, error) {
 				edit.Fix("Explicitly use nanoseconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit})),
 				edit.Fix("Use seconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}))))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }

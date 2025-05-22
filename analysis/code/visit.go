@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
+	"go/types"
+	"iter"
 	"slices"
 
 	typeindexanalyzer "honnef.co/go/tools/internal/analysisinternal/typeindex"
@@ -15,6 +17,8 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
+
+var RequiredAnalyzers = []*analysis.Analyzer{inspect.Analyzer, typeindexanalyzer.Analyzer}
 
 func Preorder(pass *analysis.Pass, fn func(ast.Node), types ...ast.Node) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(types, fn)
@@ -29,6 +33,49 @@ func PreorderStack(pass *analysis.Pass, fn func(ast.Node, []ast.Node), types ...
 	})
 }
 
+func Matches(pass *analysis.Pass, q pattern.Pattern) iter.Seq2[ast.Node, *pattern.Matcher] {
+	if !CouldMatchAny(pass, q) {
+		return func(yield func(ast.Node, *pattern.Matcher) bool) {}
+	}
+
+	if len(q.RootCallSymbols) != 0 {
+		index := pass.ResultOf[typeindexanalyzer.Analyzer].(*typeindex.Index)
+		return func(yield func(ast.Node, *pattern.Matcher) bool) {
+			for _, isym := range q.RootCallSymbols {
+				var obj types.Object
+				if isym.Type == "" {
+					obj = index.Object(isym.Path, isym.Ident)
+				} else {
+					obj = index.Selection(isym.Path, isym.Type, isym.Ident)
+				}
+				for c := range index.Calls(obj) {
+					node := c.Node()
+					if m, ok := Match(pass, q, node); ok {
+						if !yield(node, m) {
+							return
+						}
+					}
+				}
+			}
+		}
+	} else {
+		ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+		return func(yield func(ast.Node, *pattern.Matcher) bool) {
+			fn := func(node ast.Node, push bool) bool {
+				if !push {
+					return true
+				}
+
+				if m, ok := Match(pass, q, node); ok {
+					return yield(node, m)
+				}
+				return true
+			}
+			ins.Nodes(q.EntryNodes, fn)
+		}
+	}
+}
+
 func Match(pass *analysis.Pass, q pattern.Pattern, node ast.Node) (*pattern.Matcher, bool) {
 	// Note that we ignore q.Relevant – callers of Match usually use
 	// AST inspectors that already filter on nodes we're interested
@@ -38,7 +85,7 @@ func Match(pass *analysis.Pass, q pattern.Pattern, node ast.Node) (*pattern.Matc
 	return m, ok
 }
 
-func CouldMatch(pass *analysis.Pass, q pattern.Pattern) bool {
+func CouldMatchAny(pass *analysis.Pass, qs ...pattern.Pattern) bool {
 	index := pass.ResultOf[typeindexanalyzer.Analyzer].(*typeindex.Index)
 	var do func(node pattern.Node) bool
 	do = func(node pattern.Node) bool {
@@ -64,7 +111,13 @@ func CouldMatch(pass *analysis.Pass, q pattern.Pattern) bool {
 			panic(fmt.Sprintf("internal error: unexpected type %T", node))
 		}
 	}
-	return do(q.SymbolsPattern)
+
+	for _, q := range qs {
+		if do(q.SymbolsPattern) {
+			return true
+		}
+	}
+	return false
 }
 
 func MatchAndEdit(pass *analysis.Pass, before, after pattern.Pattern, node ast.Node) (*pattern.Matcher, []analysis.TextEdit, bool) {
@@ -81,4 +134,16 @@ func MatchAndEdit(pass *analysis.Pass, before, after pattern.Pattern, node ast.N
 		NewText: buf.Bytes(),
 	}}
 	return m, edit, true
+}
+
+func EditMatch(pass *analysis.Pass, node ast.Node, m *pattern.Matcher, after pattern.Pattern) []analysis.TextEdit {
+	r := pattern.NodeToAST(after.Root, m.State)
+	buf := &bytes.Buffer{}
+	format.Node(buf, pass.Fset, r)
+	edit := []analysis.TextEdit{{
+		Pos:     node.Pos(),
+		End:     node.End(),
+		NewText: buf.Bytes(),
+	}}
+	return edit
 }

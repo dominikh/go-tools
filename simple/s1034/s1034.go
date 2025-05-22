@@ -13,14 +13,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1034",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title:   `Use result of type assertion to simplify cases`,
@@ -41,11 +40,7 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkSimplifyTypeSwitchQ, node)
-		if !ok {
-			return
-		}
+	for node, m := range code.Matches(pass, checkSimplifyTypeSwitchQ) {
 		stmt := node.(*ast.TypeSwitchStmt)
 		expr := m.State["expr"].(ast.Node)
 		ident := m.State["ident"].(*ast.Ident)
@@ -114,6 +109,5 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 		}
 	}
-	code.Preorder(pass, fn, (*ast.TypeSwitchStmt)(nil))
 	return nil, nil
 }

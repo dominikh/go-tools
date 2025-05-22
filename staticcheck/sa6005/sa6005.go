@@ -11,14 +11,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA6005",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Inefficient string comparison with \'strings.ToLower\' or \'strings.ToUpper\'`,
@@ -59,11 +58,7 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkToLowerToUpperComparisonQ, node)
-		if !ok {
-			return
-		}
+	for node, m := range code.Matches(pass, checkToLowerToUpperComparisonQ) {
 		rn := pattern.NodeToAST(checkToLowerToUpperComparisonR.Root, m.State).(ast.Expr)
 		if m.State["tok"].(token.Token) == token.NEQ {
 			rn = &ast.UnaryExpr{
@@ -76,7 +71,5 @@ func run(pass *analysis.Pass) (any, error) {
 			"should use strings.EqualFold instead",
 			report.Fixes(edit.Fix("Replace with strings.EqualFold", edit.ReplaceWithNode(pass.Fset, node, rn))))
 	}
-
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }

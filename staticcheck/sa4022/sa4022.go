@@ -1,22 +1,19 @@
 package sa4022
 
 import (
-	"go/ast"
-
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4022",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Comparing the address of a variable against nil`,
@@ -36,13 +33,8 @@ var CheckAddressIsNilQ = pattern.MustParse(
 		(Builtin "nil"))`)
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		_, ok := code.Match(pass, CheckAddressIsNilQ, node)
-		if !ok {
-			return
-		}
+	for node := range code.Matches(pass, CheckAddressIsNilQ) {
 		report.Report(pass, node, "the address of a variable cannot be nil")
 	}
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }
