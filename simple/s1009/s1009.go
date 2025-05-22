@@ -12,17 +12,16 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/types/typeutil"
-	"honnef.co/go/tools/knowledge"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1009",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Omit redundant nil check on slices, maps, and channels`,
@@ -37,6 +36,18 @@ check for nil before checking that their length is not zero.`,
 })
 
 var Analyzer = SCAnalyzer.Analyzer
+
+var query = pattern.MustParse(`
+	(BinaryExpr
+		(BinaryExpr
+			x
+			lhsOp@(Or "==" "!=")
+			nilly)
+		outerOp@(Or "&&" "||")
+		(BinaryExpr
+			(CallExpr (Builtin "len") [x])
+			rhsOp
+			k))`)
 
 // run checks for the following redundant nil-checks:
 //
@@ -64,116 +75,79 @@ func run(pass *analysis.Pass) (any, error) {
 		return true, c.Val().Kind() == constant.Int && c.Val().String() == "0"
 	}
 
-	fn := func(node ast.Node) {
-		// check that expr is "x || y" or "x && y"
-		expr := node.(*ast.BinaryExpr)
-		if expr.Op != token.LOR && expr.Op != token.LAND {
-			return
-		}
-		eqNil := expr.Op == token.LOR
+	for node, m := range code.Matches(pass, query) {
+		x := m.State["x"].(ast.Expr)
+		outerOp := m.State["outerOp"].(token.Token)
+		lhsOp := m.State["lhsOp"].(token.Token)
+		rhsOp := m.State["rhsOp"].(token.Token)
+		nilly := m.State["nilly"].(ast.Expr)
+		k := m.State["k"].(ast.Expr)
+		eqNil := outerOp == token.LOR
 
-		// check that x is "xx == nil" or "xx != nil"
-		x, ok := expr.X.(*ast.BinaryExpr)
-		if !ok {
-			return
-		}
-		if eqNil && x.Op != token.EQL {
-			return
-		}
-		if !eqNil && x.Op != token.NEQ {
-			return
-		}
-		var xx *ast.Ident
-		switch s := x.X.(type) {
-		case *ast.Ident:
-			xx = s
-		case *ast.SelectorExpr:
-			xx = s.Sel
-		default:
-			return
-		}
-		if !code.IsNil(pass, x.Y) {
-			return
+		if code.MayHaveSideEffects(pass, x, nil) {
+			continue
 		}
 
-		// check that y is "len(xx) == 0" or "len(xx) ... "
-		y, ok := expr.Y.(*ast.BinaryExpr)
-		if !ok {
-			return
+		if eqNil && lhsOp != token.EQL {
+			continue
 		}
-		yx, ok := y.X.(*ast.CallExpr)
-		if !ok {
-			return
+		if !eqNil && lhsOp != token.NEQ {
+			continue
 		}
-		if !code.IsCallTo(pass, yx, "len") {
-			return
+		if !code.IsNil(pass, nilly) {
+			continue
 		}
-		var yxArg *ast.Ident
-		switch s := yx.Args[knowledge.Arg("len.v")].(type) {
-		case *ast.Ident:
-			yxArg = s
-		case *ast.SelectorExpr:
-			yxArg = s.Sel
-		default:
-			return
-		}
-		if yxArg.Name != xx.Name {
-			return
-		}
-
-		isConst, isZero := isConstZero(y.Y)
+		isConst, isZero := isConstZero(k)
 		if !isConst {
-			return
+			continue
 		}
 
 		if eqNil {
-			switch y.Op {
+			switch rhsOp {
 			case token.EQL:
 				// avoid false positive for "xx == nil || len(xx) == <non-zero>"
 				if !isZero {
-					return
+					continue
 				}
 			case token.LEQ:
 				// ok
 			case token.LSS:
 				// avoid false positive for "xx == nil || len(xx) < 0"
 				if isZero {
-					return
+					continue
 				}
 			default:
-				return
+				continue
 			}
-		}
-
-		if !eqNil {
-			switch y.Op {
+		} else {
+			switch rhsOp {
 			case token.EQL:
 				// avoid false positive for "xx != nil && len(xx) == 0"
 				if isZero {
-					return
+					continue
 				}
 			case token.GEQ:
 				// avoid false positive for "xx != nil && len(xx) >= 0"
 				if isZero {
-					return
+					continue
 				}
 			case token.NEQ:
 				// avoid false positive for "xx != nil && len(xx) != <non-zero>"
 				if !isZero {
-					return
+					continue
 				}
 			case token.GTR:
 				// ok
 			default:
-				return
+				continue
 			}
 		}
 
 		// finally check that xx type is one of array, slice, map or chan
 		// this is to prevent false positive in case if xx is a pointer to an array
-		typ := pass.TypesInfo.TypeOf(xx)
+		typ := pass.TypesInfo.TypeOf(x)
 		var nilType string
-		ok = typeutil.All(typ, func(term *types.Term) bool {
+		ok := typeutil.All(typ, func(term *types.Term) bool {
 			switch term.Type().Underlying().(type) {
 			case *types.Slice:
 				nilType = "nil slices"
@@ -194,11 +168,13 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 		})
 		if !ok {
-			return
+			continue
 		}
 
-		report.Report(pass, expr, fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType), report.FilterGenerated())
+		report.Report(pass, node,
+			fmt.Sprintf("should omit nil check; len() for %s is defined as zero", nilType),
+			report.FilterGenerated())
 	}
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+
 	return nil, nil
 }

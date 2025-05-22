@@ -1,5 +1,7 @@
 package pkg
 
+func gen() []int { return make([]int, 1) }
+
 func fn() {
 	var pa *[5]int
 	var s []int
@@ -60,6 +62,9 @@ func fn() {
 	if s != nil && len(s) <= 5 { // nil check is not redundant here
 	}
 	if s != nil && len(s) != len(ch) { // nil check is not redundant here
+	}
+
+	if gen() != nil && len(gen()) != 0 { // nil check is not redundant, gen() isn't pure
 	}
 }
 
