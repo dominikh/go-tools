@@ -20,6 +20,10 @@ type Pattern struct {
 	// typeindex.
 	SymbolsPattern Node
 
+	// If non-empty, all possible candidate nodes for this pattern can be found
+	// by finding all call expressions for this list of symbols.
+	RootCallSymbols []IndexSymbol
+
 	// Mapping from binding index to binding name
 	Bindings []string
 }
@@ -142,6 +146,62 @@ func collectSymbols(node Node, inSymbol bool) Node {
 			return out
 		}
 	}
+}
+
+func collectRootCallSymbols(node Node) []IndexSymbol {
+	root, ok := node.(CallExpr)
+	if !ok {
+		return nil
+	}
+
+	var names []String
+	var handleSymName func(name Node) bool
+	handleSymName = func(name Node) bool {
+		switch name := name.(type) {
+		case String:
+			names = append(names, name)
+		case Or:
+			for _, node := range name.Nodes {
+				if name, ok := node.(String); ok {
+					names = append(names, name)
+				} else {
+					return false
+				}
+			}
+		case Binding:
+			return handleSymName(name.Node)
+		default:
+			return false
+		}
+		return true
+	}
+	var handleRootFun func(node Node) bool
+	handleRootFun = func(node Node) bool {
+		switch fun := node.(type) {
+		case Binding:
+			return handleRootFun(fun.Node)
+		case Symbol:
+			return handleSymName(fun.Name)
+		case Or:
+			for _, node := range fun.Nodes {
+				if sym, ok := node.(Symbol); !ok || !handleSymName(sym.Name) {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+	if !handleRootFun(root.Fun) {
+		return nil
+	}
+
+	out := make([]IndexSymbol, len(names))
+	for i, name := range names {
+		out[i] = symbolToIndexSymbol(string(name))
+	}
+	return out
 }
 
 func collectEntryNodes(node Node, m map[reflect.Type]struct{}) {
@@ -336,11 +396,13 @@ func (p *Parser) Parse(s string) (Pattern, error) {
 	collectEntryNodes(root, relevant)
 	_, isSymbol := root.(Symbol)
 	sym := collectSymbols(root, isSymbol)
+	rootSyms := collectRootCallSymbols(root)
 	return Pattern{
-		Root:           root,
-		EntryNodes:     relevant,
-		SymbolsPattern: sym,
-		Bindings:       bindings,
+		Root:            root,
+		EntryNodes:      relevant,
+		SymbolsPattern:  sym,
+		RootCallSymbols: rootSyms,
+		Bindings:        bindings,
 	}, nil
 }
 
