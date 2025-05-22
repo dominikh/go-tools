@@ -9,16 +9,16 @@ import (
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1035",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Redundant call to \'net/http.CanonicalHeaderKey\' in method call on \'net/http.Header\'`,
@@ -32,25 +32,23 @@ and \'Set\', already canonicalize the given header name.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
+var query = pattern.MustParse(`
+	(CallExpr
+		(Symbol
+			callName@(Or
+				"(net/http.Header).Add"
+				"(net/http.Header).Del"
+				"(net/http.Header).Get"
+				"(net/http.Header).Set"))
+		arg@(CallExpr (Symbol "net/http.CanonicalHeaderKey") _):_)`)
+
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		callName := code.CallName(pass, call)
-		switch callName {
-		case "(net/http.Header).Add", "(net/http.Header).Del", "(net/http.Header).Get", "(net/http.Header).Set":
-		default:
-			return
-		}
-
-		if !code.IsCallTo(pass, call.Args[0], "net/http.CanonicalHeaderKey") {
-			return
-		}
-
-		report.Report(pass, call,
-			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", callName),
+	for _, m := range code.Matches(pass, query) {
+		arg := m.State["arg"].(*ast.CallExpr)
+		report.Report(pass, m.State["arg"].(ast.Expr),
+			fmt.Sprintf("calling net/http.CanonicalHeaderKey on the 'key' argument of %s is redundant", m.State["callName"].(string)),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("Remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, call.Args[0], call.Args[0].(*ast.CallExpr).Args[0]))))
+			report.Fixes(edit.Fix("Remove call to CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, arg, arg.Args[0]))))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
