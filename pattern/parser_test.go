@@ -98,14 +98,14 @@ func FuzzParse(f *testing.F) {
 		_ = pat.Root.String()
 
 		// Don't check patterns with too many relevant nodes; it's too expensive
-		if len(pat.Relevant) < 20 {
+		if len(pat.EntryNodes) < 20 {
 			// Make sure trying to match nodes doesn't panic
 			for _, f := range files {
 				ast.Inspect(f, func(node ast.Node) bool {
 					rt := reflect.TypeOf(node)
 					// We'd prefer calling Match on all nodes, not just those the pattern deems relevant, to find more bugs.
 					// However, doing so has a 10x cost in execution time.
-					if _, ok := pat.Relevant[rt]; ok {
+					if _, ok := pat.EntryNodes[rt]; ok {
 						Match(pat, node)
 					}
 					return true
@@ -143,5 +143,100 @@ func _() { _ = Alias(0) }
 	// Check that we can match on the name of the alias's target
 	if ok := m.Match(p2, node); !ok {
 		t.Errorf("%s did not match", p2.Root)
+	}
+}
+
+func TestCollectSymbols(t *testing.T) {
+	for _, tt := range []struct {
+		in  string
+		out string
+	}{
+		{
+			`(Or (Symbol "foo") (Symbol "bar"))`,
+			`(Or (IndexSymbol "" "" "foo") (IndexSymbol "" "" "bar"))`,
+		},
+		{
+			`(CallExpr (Symbol "foo") [(Symbol "bar") (Symbol "baz")])`,
+			`(And (IndexSymbol "" "" "foo") (IndexSymbol "" "" "bar") (IndexSymbol "" "" "baz"))`,
+		},
+		{
+			`(Symbol (Or "foo" "bar"))`,
+			`(Or (IndexSymbol "" "" "foo") (IndexSymbol "" "" "bar"))`,
+		},
+		{
+			// (Or) never matches anything, so we do need the "foo" symbol for a
+			// successful match
+			`(Or (Symbol "foo") (Or))`,
+			`(IndexSymbol "" "" "foo")`,
+		},
+		{
+			// This tests (And ...)
+			`(BasicLit (Symbol "foo") (Ident "bar"))`,
+			`(IndexSymbol "" "" "foo")`,
+		},
+		{
+			`(Or (Symbol "foo") (Ident _))`,
+			`_`,
+		},
+		{
+			`(Or (Symbol "foo") (EmptyStmt))`,
+			`_`,
+		},
+		{
+			`(Or (Symbol "foo") nil)`,
+			`_`,
+		},
+		{
+			`(Symbol "example.com/foo.Get")`,
+			`(IndexSymbol "example.com/foo" "" "Get")`,
+		},
+		{
+			`(Symbol "(*example.com/foo.Client).Get")`,
+			`(IndexSymbol "example.com/foo" "Client" "Get")`,
+		},
+
+		// Don't crash on malformed symbols
+		{
+			`(Symbol "")`,
+			`(IndexSymbol "" "" "")`,
+		},
+		{
+			`(Symbol "foo.")`,
+			`(IndexSymbol "foo" "" "")`,
+		},
+		{
+			`(Symbol "(foo")`,
+			`(IndexSymbol "" "" "")`,
+		},
+		{
+			`(Symbol "(foo)")`,
+			`(IndexSymbol "" "" "")`,
+		},
+		{
+			`(Symbol "(foo.Bar)")`,
+			`(IndexSymbol "" "" "")`,
+		},
+		{
+			`(Symbol "(foo.Bar).")`,
+			`(IndexSymbol "foo" "Bar" "")`,
+		},
+		{
+			`(Symbol "(foo.Bar.")`,
+			`(IndexSymbol "" "" "")`,
+		},
+		{
+			`(Symbol "(foo).Bar")`,
+			`(IndexSymbol "" "" "")`,
+		},
+	} {
+		p := &Parser{AllowTypeInfo: true}
+		pat, err := p.Parse(tt.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := pat.SymbolsPattern.String()
+		if s != tt.out {
+			t.Fatalf("Symbol requirements for %s: got %s, want %s", tt.in, s, tt.out)
+		}
 	}
 }

@@ -6,13 +6,19 @@ import (
 	"go/ast"
 	"go/token"
 	"reflect"
+	"strings"
 )
 
 type Pattern struct {
 	Root Node
-	// Relevant contains instances of ast.Node that could potentially
+	// EntryNodes contains instances of ast.Node that could potentially
 	// initiate a successful match of the pattern.
-	Relevant map[reflect.Type]struct{}
+	EntryNodes map[reflect.Type]struct{}
+
+	// SymbolsPattern is a pattern consisting or Any, Or, And, and IndexSymbol,
+	// that can be used to implement fast rejection of whole packages using
+	// typeindex.
+	SymbolsPattern Node
 
 	// Mapping from binding index to binding name
 	Bindings []string
@@ -27,16 +33,127 @@ func MustParse(s string) Pattern {
 	return pat
 }
 
-func roots(node Node, m map[reflect.Type]struct{}) {
+func symbolToIndexSymbol(name string) IndexSymbol {
+	if len(name) == 0 {
+		return IndexSymbol{}
+	}
+	if name[0] == '(' {
+		end := strings.IndexAny(name, ")")
+		// Ensure there's a ), and also that there are at least two more
+		// characters after it, for a dot and an identifier.
+		if end == -1 || end > len(name)-2 {
+			return IndexSymbol{}
+		}
+		pathAndType := strings.TrimPrefix(name[1:end], "*")
+		dot := strings.LastIndex(pathAndType, ".")
+		if dot == -1 {
+			return IndexSymbol{}
+		}
+		path := pathAndType[:dot]
+		typ := pathAndType[dot+1:]
+		ident := name[end+2:]
+		return IndexSymbol{path, typ, ident}
+	} else {
+		dot := strings.LastIndex(name, ".")
+		if dot == -1 {
+			return IndexSymbol{"", "", name}
+		}
+		path := name[:dot]
+		ident := name[dot+1:]
+		return IndexSymbol{path, "", ident}
+	}
+}
+
+func collectSymbols(node Node, inSymbol bool) Node {
+	and := func(c Node, out *And) {
+		switch cc := c.(type) {
+		case And:
+			out.Nodes = append(out.Nodes, cc.Nodes...)
+		case Any:
+		case nil:
+		default:
+			out.Nodes = append(out.Nodes, c)
+		}
+	}
+
+	switch node := node.(type) {
+	case Or:
+		s := Or{}
+		for _, el := range node.Nodes {
+			c := collectSymbols(el, inSymbol)
+			switch cc := c.(type) {
+			case Or:
+				s.Nodes = append(s.Nodes, cc.Nodes...)
+			case Any:
+				return Any{}
+			case nil:
+			default:
+				s.Nodes = append(s.Nodes, c)
+			}
+		}
+		switch len(s.Nodes) {
+		case 0:
+			return nil
+		case 1:
+			return s.Nodes[0]
+		default:
+			return s
+		}
+	case Not, Token, nil:
+		return Any{}
+	case Symbol:
+		return collectSymbols(node.Name, true)
+	case String:
+		if !inSymbol {
+			return Any{}
+		}
+		// In logically correct patterns, all Strings that are children of
+		// Symbols describe the names of symbols.
+		return symbolToIndexSymbol(string(node))
+	case Binding:
+		return collectSymbols(node.Node, inSymbol)
+	case Any:
+		return Any{}
+	case List:
+		var out And
+		and(collectSymbols(node.Head, inSymbol), &out)
+		and(collectSymbols(node.Tail, inSymbol), &out)
+		switch len(out.Nodes) {
+		case 0:
+			return Any{}
+		case 1:
+			return out.Nodes[0]
+		default:
+			return out
+		}
+	default:
+		var out And
+		rv := reflect.ValueOf(node)
+		for i := range rv.NumField() {
+			c := collectSymbols(rv.Field(i).Interface().(Node), inSymbol)
+			and(c, &out)
+		}
+		switch len(out.Nodes) {
+		case 0:
+			return Any{}
+		case 1:
+			return out.Nodes[0]
+		default:
+			return out
+		}
+	}
+}
+
+func collectEntryNodes(node Node, m map[reflect.Type]struct{}) {
 	switch node := node.(type) {
 	case Or:
 		for _, el := range node.Nodes {
-			roots(el, m)
+			collectEntryNodes(el, m)
 		}
 	case Not:
-		roots(node.Node, m)
+		collectEntryNodes(node.Node, m)
 	case Binding:
-		roots(node.Node, m)
+		collectEntryNodes(node.Node, m)
 	case Nil, nil:
 		// this branch is reached via bindings
 		for _, T := range allTypes {
@@ -216,11 +333,14 @@ func (p *Parser) Parse(s string) (Pattern, error) {
 	}
 
 	relevant := map[reflect.Type]struct{}{}
-	roots(root, relevant)
+	collectEntryNodes(root, relevant)
+	_, isSymbol := root.(Symbol)
+	sym := collectSymbols(root, isSymbol)
 	return Pattern{
-		Root:     root,
-		Relevant: relevant,
-		Bindings: bindings,
+		Root:           root,
+		EntryNodes:     relevant,
+		SymbolsPattern: sym,
+		Bindings:       bindings,
 	}, nil
 }
 

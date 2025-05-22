@@ -21,7 +21,7 @@ func match(fset *token.FileSet, pat pattern.Pattern, f *ast.File) {
 			return true
 		}
 
-		if _, ok := pat.Relevant[reflect.TypeOf(node)]; ok {
+		if _, ok := pat.EntryNodes[reflect.TypeOf(node)]; ok {
 			m := &pattern.Matcher{}
 			if m.Match(pat, node) {
 				fmt.Printf("%s: ", fset.Position(node.Pos()))

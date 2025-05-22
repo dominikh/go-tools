@@ -2,9 +2,13 @@ package code
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/format"
+	"slices"
 
+	typeindexanalyzer "honnef.co/go/tools/internal/analysisinternal/typeindex"
+	"honnef.co/go/tools/internal/typesinternal/typeindex"
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
@@ -32,6 +36,35 @@ func Match(pass *analysis.Pass, q pattern.Pattern, node ast.Node) (*pattern.Matc
 	m := &pattern.Matcher{TypesInfo: pass.TypesInfo}
 	ok := m.Match(q, node)
 	return m, ok
+}
+
+func CouldMatch(pass *analysis.Pass, q pattern.Pattern) bool {
+	index := pass.ResultOf[typeindexanalyzer.Analyzer].(*typeindex.Index)
+	var do func(node pattern.Node) bool
+	do = func(node pattern.Node) bool {
+		switch node := node.(type) {
+		case pattern.Any:
+			return true
+		case pattern.Or:
+			return slices.ContainsFunc(node.Nodes, do)
+		case pattern.And:
+			for _, child := range node.Nodes {
+				if !do(child) {
+					return false
+				}
+			}
+			return true
+		case pattern.IndexSymbol:
+			if node.Type == "" {
+				return index.Object(node.Path, node.Ident) != nil
+			} else {
+				return index.Selection(node.Path, node.Type, node.Ident) != nil
+			}
+		default:
+			panic(fmt.Sprintf("internal error: unexpected type %T", node))
+		}
+	}
+	return do(q.SymbolsPattern)
 }
 
 func MatchAndEdit(pass *analysis.Pass, before, after pattern.Pattern, node ast.Node) (*pattern.Matcher, []analysis.TextEdit, bool) {
