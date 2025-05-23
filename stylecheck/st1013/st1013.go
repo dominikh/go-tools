@@ -12,16 +12,16 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/config"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "ST1013",
 		Run:      run,
-		Requires: []*analysis.Analyzer{generated.Analyzer, config.Analyzer, inspect.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer, config.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Should use constants for HTTP error codes, not magic numbers`,
@@ -39,16 +39,24 @@ readability of your code.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
+var query = pattern.MustParse(`
+	(CallExpr
+		(Symbol
+			name@(Or
+			"net/http.Error"
+			"net/http.Redirect"
+			"net/http.StatusText"
+			"net/http.RedirectHandler"))
+		args)`)
+
 func run(pass *analysis.Pass) (any, error) {
 	whitelist := map[string]bool{}
 	for _, code := range config.For(pass).HTTPStatusCodeWhitelist {
 		whitelist[code] = true
 	}
-	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-
+	for _, m := range code.Matches(pass, query) {
 		var arg int
-		switch code.CallName(pass, call) {
+		switch m.State["name"].(string) {
 		case "net/http.Error":
 			arg = 2
 		case "net/http.Redirect":
@@ -58,33 +66,33 @@ func run(pass *analysis.Pass) (any, error) {
 		case "net/http.RedirectHandler":
 			arg = 1
 		default:
-			return
+			continue
 		}
-		if arg >= len(call.Args) {
-			return
+		args := m.State["args"].([]ast.Expr)
+		if arg >= len(args) {
+			continue
 		}
-		tv, ok := code.IntegerLiteral(pass, call.Args[arg])
+		tv, ok := code.IntegerLiteral(pass, args[arg])
 		if !ok {
-			return
+			continue
 		}
 		n, ok := constant.Int64Val(tv.Value)
 		if !ok {
-			return
+			continue
 		}
 		if whitelist[strconv.FormatInt(n, 10)] {
-			return
+			continue
 		}
 
 		s, ok := httpStatusCodes[n]
 		if !ok {
-			return
+			continue
 		}
-		lit := call.Args[arg]
+		lit := args[arg]
 		report.Report(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix(fmt.Sprintf("Use http.%s instead of %d", s, n), edit.ReplaceWithString(lit, "http."+s))))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
 
