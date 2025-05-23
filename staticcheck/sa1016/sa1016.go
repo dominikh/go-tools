@@ -8,16 +8,16 @@ import (
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA1016",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Trapping a signal that cannot be trapped`,
@@ -33,6 +33,15 @@ kernel. It is therefore pointless to try and handle these signals.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
+var query = pattern.MustParse(`
+	(CallExpr
+		(Symbol
+			(Or
+				"os/signal.Ignore"
+				"os/signal.Notify"
+				"os/signal.Reset"))
+		_)`)
+
 func run(pass *analysis.Pass) (any, error) {
 	isSignal := func(pass *analysis.Pass, expr ast.Expr, name string) bool {
 		if expr, ok := expr.(*ast.SelectorExpr); ok {
@@ -42,13 +51,8 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	}
 
-	fn := func(node ast.Node) {
+	for node := range code.Matches(pass, query) {
 		call := node.(*ast.CallExpr)
-		if !code.IsCallToAny(pass, call,
-			"os/signal.Ignore", "os/signal.Notify", "os/signal.Reset") {
-			return
-		}
-
 		hasSigterm := false
 		for _, arg := range call.Args {
 			if conv, ok := arg.(*ast.CallExpr); ok && isSignal(pass, conv.Fun, "os.Signal") {
@@ -107,6 +111,5 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 		}
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
