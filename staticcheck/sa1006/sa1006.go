@@ -9,17 +9,16 @@ import (
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/knowledge"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA1006",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `\'Printf\' with dynamic first argument and no further arguments`,
@@ -50,40 +49,50 @@ and pass the string as an argument.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		name := code.CallName(pass, call)
-		var arg int
+var query1 = pattern.MustParse(`
+	(CallExpr
+		(Symbol
+			name@(Or
+				"fmt.Errorf"
+				"fmt.Printf"
+				"fmt.Sprintf"
+				"log.Fatalf"
+				"log.Panicf"
+				"log.Printf"
+				"(*log.Logger).Printf"
+				"(*testing.common).Logf"
+				"(*testing.common).Errorf"
+				"(*testing.common).Fatalf"
+				"(*testing.common).Skipf"
+				"(testing.TB).Logf"
+				"(testing.TB).Errorf"
+				"(testing.TB).Fatalf"
+				"(testing.TB).Skipf"))
+		format:[])
+`)
 
-		switch name {
-		case "fmt.Errorf", "fmt.Printf", "fmt.Sprintf",
-			"log.Fatalf", "log.Panicf", "log.Printf", "(*log.Logger).Printf",
-			"(*testing.common).Logf", "(*testing.common).Errorf",
-			"(*testing.common).Fatalf", "(*testing.common).Skipf",
-			"(testing.TB).Logf", "(testing.TB).Errorf",
-			"(testing.TB).Fatalf", "(testing.TB).Skipf":
-			arg = knowledge.Arg("fmt.Printf.format")
-		case "fmt.Fprintf":
-			arg = knowledge.Arg("fmt.Fprintf.format")
-		default:
-			return
+var query2 = pattern.MustParse(`(CallExpr (Symbol "fmt.Fprintf") _:format:[])`)
+
+func run(pass *analysis.Pass) (any, error) {
+	for node, m := range code.Matches(pass, query1, query2) {
+		call := node.(*ast.CallExpr)
+		name, ok := m.State["name"].(string)
+		if !ok {
+			name = "fmt.Fprintf"
 		}
-		if len(call.Args) != arg+1 {
-			// This filters out calls of method expressions like (*log.Logger).Printf(nil, s)
-			return
-		}
-		switch call.Args[arg].(type) {
+
+		arg := m.State["format"].(ast.Expr)
+		switch arg.(type) {
 		case *ast.CallExpr, *ast.Ident:
 		default:
-			return
+			continue
 		}
 
-		if _, ok := pass.TypesInfo.TypeOf(call.Args[arg]).(*types.Tuple); ok {
+		if _, ok := pass.TypesInfo.TypeOf(arg).(*types.Tuple); ok {
 			// the called function returns multiple values and got
 			// splatted into the call. for all we know, it is
 			// returning good arguments.
-			return
+			continue
 		}
 
 		var alt string
@@ -102,6 +111,5 @@ func run(pass *analysis.Pass) (any, error) {
 			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
 			report.Fixes(edit.Fix(fmt.Sprintf("Use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
