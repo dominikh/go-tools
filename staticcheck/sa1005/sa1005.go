@@ -7,17 +7,16 @@ import (
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/knowledge"
+	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA1005",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Invalid first argument to \'exec.Command\'`,
@@ -47,22 +46,20 @@ Windows, will have a \'/bin/sh\' program:
 
 var Analyzer = SCAnalyzer.Analyzer
 
+var query = pattern.MustParse(`(CallExpr (Symbol "os/exec.Command") arg1:_)`)
+
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node) {
-		call := node.(*ast.CallExpr)
-		if !code.IsCallTo(pass, call, "os/exec.Command") {
-			return
-		}
-		val, ok := code.ExprToString(pass, call.Args[knowledge.Arg("os/exec.Command.name")])
+	for _, m := range code.Matches(pass, query) {
+		arg1 := m.State["arg1"].(ast.Expr)
+		val, ok := code.ExprToString(pass, arg1)
 		if !ok {
-			return
+			continue
 		}
 		if !strings.Contains(val, " ") || strings.Contains(val, `\`) || strings.Contains(val, "/") {
-			return
+			continue
 		}
-		report.Report(pass, call.Args[knowledge.Arg("os/exec.Command.name")],
+		report.Report(pass, arg1,
 			"first argument to exec.Command looks like a shell command, but a program name or path are expected")
 	}
-	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
 }
