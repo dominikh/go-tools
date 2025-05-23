@@ -33,45 +33,45 @@ func PreorderStack(pass *analysis.Pass, fn func(ast.Node, []ast.Node), types ...
 	})
 }
 
-func Matches(pass *analysis.Pass, q pattern.Pattern) iter.Seq2[ast.Node, *pattern.Matcher] {
-	if !CouldMatchAny(pass, q) {
-		return func(yield func(ast.Node, *pattern.Matcher) bool) {}
-	}
+func Matches(pass *analysis.Pass, qs ...pattern.Pattern) iter.Seq2[ast.Node, *pattern.Matcher] {
+	return func(yield func(ast.Node, *pattern.Matcher) bool) {
+		for _, q := range qs {
+			if !CouldMatchAny(pass, q) {
+				continue
+			}
 
-	if len(q.RootCallSymbols) != 0 {
-		index := pass.ResultOf[typeindexanalyzer.Analyzer].(*typeindex.Index)
-		return func(yield func(ast.Node, *pattern.Matcher) bool) {
-			for _, isym := range q.RootCallSymbols {
-				var obj types.Object
-				if isym.Type == "" {
-					obj = index.Object(isym.Path, isym.Ident)
-				} else {
-					obj = index.Selection(isym.Path, isym.Type, isym.Ident)
-				}
-				for c := range index.Calls(obj) {
-					node := c.Node()
-					if m, ok := Match(pass, q, node); ok {
-						if !yield(node, m) {
-							return
+			if len(q.RootCallSymbols) != 0 {
+				index := pass.ResultOf[typeindexanalyzer.Analyzer].(*typeindex.Index)
+				for _, isym := range q.RootCallSymbols {
+					var obj types.Object
+					if isym.Type == "" {
+						obj = index.Object(isym.Path, isym.Ident)
+					} else {
+						obj = index.Selection(isym.Path, isym.Type, isym.Ident)
+					}
+					for c := range index.Calls(obj) {
+						node := c.Node()
+						if m, ok := Match(pass, q, node); ok {
+							if !yield(node, m) {
+								return
+							}
 						}
 					}
 				}
-			}
-		}
-	} else {
-		ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-		return func(yield func(ast.Node, *pattern.Matcher) bool) {
-			fn := func(node ast.Node, push bool) bool {
-				if !push {
+			} else {
+				ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+				fn := func(node ast.Node, push bool) bool {
+					if !push {
+						return true
+					}
+
+					if m, ok := Match(pass, q, node); ok {
+						return yield(node, m)
+					}
 					return true
 				}
-
-				if m, ok := Match(pass, q, node); ok {
-					return yield(node, m)
-				}
-				return true
+				ins.Nodes(q.EntryNodes, fn)
 			}
-			ins.Nodes(q.EntryNodes, fn)
 		}
 	}
 }
