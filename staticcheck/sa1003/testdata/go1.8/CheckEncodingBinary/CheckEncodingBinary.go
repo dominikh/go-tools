@@ -2,10 +2,10 @@ package pkg
 
 import (
 	"encoding/binary"
-	"io/ioutil"
+	"io"
 )
 
 func fn() {
 	var x bool
-	binary.Write(ioutil.Discard, binary.LittleEndian, x)
+	binary.Write(io.Discard, binary.LittleEndian, x)
 }
