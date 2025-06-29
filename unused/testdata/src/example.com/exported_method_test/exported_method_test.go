@@ -3,7 +3,6 @@ package pkg
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 )
 
@@ -21,7 +20,7 @@ func (rs *countReadSeeker) Read(buf []byte) (int, error) { //@ used_test("Read",
 func TestFoo(t *testing.T) { //@ used_test("TestFoo", true), used_test("t", true)
 	r := bytes.NewReader([]byte("Hello, world!")) //@ used_test("r", true)
 	cr := &countReadSeeker{ReadSeeker: r}         //@ used_test("cr", true)
-	ioutil.ReadAll(cr)
+	io.ReadAll(cr)
 	if cr.N != 13 {
 		t.Errorf("got %d, want 13", cr.N)
 	}
