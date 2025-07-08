@@ -40,7 +40,7 @@ func checkJSON(call *callcheck.Call) {
 	arg := call.Args[0]
 	T := arg.Value.Value.Type()
 	if err := fakejson.Marshal(T); err != nil {
-		typ := types.TypeString(err.Type, types.RelativeTo(arg.Value.Value.Parent().Pkg.Pkg))
+		typ := types.TypeString(err.Type, types.RelativeTo(call.Parent.Pkg.Pkg))
 		if err.Path == "x" {
 			arg.Invalid(fmt.Sprintf("trying to marshal unsupported type %s", typ))
 		} else {
@@ -55,14 +55,14 @@ func checkXML(call *callcheck.Call) {
 	if err := fakexml.Marshal(T); err != nil {
 		switch err := err.(type) {
 		case *fakexml.UnsupportedTypeError:
-			typ := types.TypeString(err.Type, types.RelativeTo(arg.Value.Value.Parent().Pkg.Pkg))
+			typ := types.TypeString(err.Type, types.RelativeTo(call.Parent.Pkg.Pkg))
 			if err.Path == "x" {
 				arg.Invalid(fmt.Sprintf("trying to marshal unsupported type %s", typ))
 			} else {
 				arg.Invalid(fmt.Sprintf("trying to marshal unsupported type %s, via %s", typ, err.Path))
 			}
 		case *fakexml.CyclicTypeError:
-			typ := types.TypeString(err.Type, types.RelativeTo(arg.Value.Value.Parent().Pkg.Pkg))
+			typ := types.TypeString(err.Type, types.RelativeTo(call.Parent.Pkg.Pkg))
 			if err.Path == "x" {
 				arg.Invalid(fmt.Sprintf("trying to marshal cyclic type %s", typ))
 			} else {

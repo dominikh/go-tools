@@ -315,3 +315,10 @@ func cyclicPointer() {
 	var s S1
 	xml.Marshal(s) //@ diag(`cyclic type P, via x.Foo.Bar`)
 }
+
+func functionAsArgument(arg T1) {
+	// https://staticcheck.io/issues/1660
+
+	json.Marshal(functionAsArgument) //@ diag(`unsupported type func(arg T1)`)
+	xml.Marshal(functionAsArgument)  //@ diag(`unsupported type func(arg T1)`)
+}
