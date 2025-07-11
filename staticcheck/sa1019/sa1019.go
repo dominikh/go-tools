@@ -55,7 +55,7 @@ func run(pass *analysis.Pass) (any, error) {
 		return !strings.Contains(path, ".")
 	}
 
-	handleDeprecation := func(depr *deprecated.IsDeprecated, node ast.Node, deprecatedObjName string, pkgPath string, tfn types.Object) {
+	handleDeprecation := func(depr *deprecated.IsDeprecated, node ast.Node, deprecatedObjName string, pkgPath string, tfn types.Object, nodeRender func() string) {
 		std, ok := knowledge.StdlibDeprecations[deprecatedObjName]
 		if !ok && isStdlibPath(pkgPath) {
 			// Deprecated object in the standard library, but we don't know the details of the deprecation.
@@ -110,32 +110,20 @@ func run(pass *analysis.Pass) (any, error) {
 						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), formatGoVersion(std.AlternativeAvailableSince), depr.Msg))
 			}
 		} else {
-			report.Report(pass, node, fmt.Sprintf("%s is deprecated: %s", report.Render(pass, node), depr.Msg))
+			report.Report(pass, node, fmt.Sprintf("%s is deprecated: %s", nodeRender(), depr.Msg))
 		}
 	}
 
 	var tfn types.Object
 	stack := 0
-	fn := func(node ast.Node, push bool) bool {
-		if !push {
-			stack--
-			return false
-		}
-		stack++
-		if stack == 1 {
-			tfn = nil
-		}
-		if fn, ok := node.(*ast.FuncDecl); ok {
-			tfn = pass.TypesInfo.ObjectOf(fn.Name)
-		}
 
-		// FIXME(dh): this misses dot-imported objects
-		sel, ok := node.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-
-		obj := pass.TypesInfo.ObjectOf(sel.Sel)
+	checkIdentObj := func(
+		node ast.Node,
+		id *ast.Ident,
+		obj types.Object,
+		nameFunc func() string,
+		nodeRender func() string,
+	) bool {
 		if obj_, ok := obj.(*types.Func); ok {
 			obj = obj_.Origin()
 		}
@@ -166,7 +154,60 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		if depr, ok := deprs.Objects[obj]; ok {
-			handleDeprecation(depr, sel, code.SelectorName(pass, sel), obj.Pkg().Path(), tfn)
+			handleDeprecation(depr, node, nameFunc(), obj.Pkg().Path(), tfn, nodeRender)
+		}
+		return true
+	}
+
+	fn := func(node ast.Node, push bool) bool {
+		if !push {
+			stack--
+			return false
+		}
+		stack++
+		if stack == 1 {
+			tfn = nil
+		}
+		if fn, ok := node.(*ast.FuncDecl); ok {
+			tfn = pass.TypesInfo.ObjectOf(fn.Name)
+		}
+
+		switch v := node.(type) {
+		// FIXME(dh): this misses dot-imported objects
+		case *ast.SelectorExpr:
+			sel := v
+			obj := pass.TypesInfo.ObjectOf(sel.Sel)
+			return checkIdentObj(sel, sel.Sel, obj, func() string {
+				return code.SelectorName(pass, sel)
+			}, func() string {
+				return report.Render(pass, sel)
+			})
+
+		case *ast.CompositeLit:
+			for _, elt := range v.Elts {
+				kv, ok := elt.(*ast.KeyValueExpr)
+				if !ok {
+					return true
+				}
+				key, ok := kv.Key.(*ast.Ident)
+				// ast.KeyValueExpr also represents key value pairs in maps, where the `Key` can be a *ast.BasicLit
+				if !ok {
+					return true
+				}
+				obj := pass.TypesInfo.ObjectOf(key)
+				checkIdentObj(key, key, obj, func() string {
+					return key.Name
+				}, func() string {
+					if se, ok := v.Type.(*ast.SelectorExpr); ok {
+						if xI, ok := se.X.(*ast.Ident); ok {
+							return fmt.Sprintf("%s.%s.%s", xI.Name, se.Sel.Name, key.Name)
+						} else {
+							return fmt.Sprintf("%s.%s", se.Sel.Name, key.Name)
+						}
+					}
+					return key.Name
+				})
+			}
 		}
 		return true
 	}
@@ -203,7 +244,9 @@ func run(pass *analysis.Pass) (any, error) {
 				return
 			}
 
-			handleDeprecation(depr, spec.Path, path, path, nil)
+			handleDeprecation(depr, spec.Path, path, path, nil, func() string {
+				return report.Render(pass, node)
+			})
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes(nil, fn)
