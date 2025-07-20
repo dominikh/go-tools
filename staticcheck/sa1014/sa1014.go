@@ -19,6 +19,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Non-pointer value passed to \'Unmarshal\' or \'Decode\'`,
+		Text:     `Functions such as \'json.Unmarshal\' and \'json.(*Decoder).Decode\' require a pointer to the value that should be populated. Passing a non-pointer value results in the function returning an error at runtime, as it cannot modify the target value.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,
