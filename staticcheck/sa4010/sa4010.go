@@ -16,7 +16,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `The result of \'append\' will never be observed anywhere`,
+		Title: `The result of \'append\' will never be observed anywhere`,
+		Text: `Calls to \'append\' produce a new slice value. When the result of
+\'append\' is assigned to a variable that is never subsequently read, the
+append operation may have an unintended effect.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,
