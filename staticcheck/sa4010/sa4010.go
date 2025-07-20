@@ -17,6 +17,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `The result of \'append\' will never be observed anywhere`,
+		Text:     `Calls to \'append\' produce a new slice value that must be used. When the result of \'append\' is assigned to a variable that is never subsequently read, or is immediately overwritten, the append operation has no effect.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,
