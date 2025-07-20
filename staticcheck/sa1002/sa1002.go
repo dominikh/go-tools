@@ -21,6 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Invalid format in \'time.Parse\'`,
+		Text:     `\'time.Parse\' requires a layout string that uses Go's reference time: \'Mon Jan 2 15:04:05 MST 2006\' (Unix date format). The layout must represent this date and time exactly. See https://pkg.go.dev/time#pkg-constants for layout examples.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,
