@@ -21,7 +21,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `A nil \'context.Context\' is being passed to a function, consider using \'context.TODO\' instead`,
+		Title: `A nil \'context.Context\' is being passed to a function, consider using \'context.TODO\' instead`,
+		Text: `The context package prohibits the use of a \'nil\' context.
+If no parent context is available, a new context should be used,
+e.g. \'context.TODO\' or \'context.Background\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
