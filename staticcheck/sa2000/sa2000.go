@@ -19,7 +19,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
+		Title: `\'(*sync.WaitGroup).Add\' called inside the goroutine, leading to a race condition`,
+		Text: `\'(*sync.WaitGroup).Add\' must be called before starting the goroutine
+it is meant to wait for. Calling \'Add\' inside the goroutine creates a race
+condition between the call to \'Add\' and the call to \'Wait\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
