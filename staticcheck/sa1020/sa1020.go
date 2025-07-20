@@ -20,7 +20,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(checkListenAddressRules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Using an invalid host:port pair with a \'net.Listen\'-related function`,
+		Title: `Using an invalid host:port pair with a \'net.Listen\'-related function`,
+		Text: `Functions such as \'net.Listen\', \'net.ListenTCP\', and similar,
+expect a valid network address in the form of host:port. The host, the port,
+or both, can be omitted, e.g. \'localhost:8080\', \':8080\' or \':\' are valid
+host:port pairs.
+See https://pkg.go.dev/net#Listen for the full documentation.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,
