@@ -20,7 +20,19 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Deferred \'Lock\' right after locking, likely meant to defer \'Unlock\' instead`,
+		Title: `Deferred \'Lock\' right after locking, likely meant to defer \'Unlock\' instead`,
+		Text: `Deferring a call to \'Lock\' immediately after locking is almost always
+a typo. For example:
+
+    mu.Lock()
+    defer mu.Lock()
+
+While this does not strictly guarantee a deadlock depending on how the
+surrounding code is structured, it is highly likely to be a mistake.
+The intended code was likely this:
+
+    mu.Lock()
+    defer mu.Unlock()`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
