@@ -63,7 +63,7 @@ func fn(a int, s []int, f1 float64, f2 Float, fs Floats, is Ints, t1 T1, t2 T2) 
 	if t1 == t1 {
 		println()
 	}
-	if t2 == t2 { //@ diag(`identical expressions`)
+	if t2 == t2 {
 		println()
 	}
 }

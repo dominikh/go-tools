@@ -50,11 +50,11 @@ func run(pass *analysis.Pass) (any, error) {
 				return isFloat(typ.Elem())
 			case *types.Struct:
 				for i := 0; i < typ.NumFields(); i++ {
-					if !isFloat(typ.Field(i).Type()) {
-						return false
+					if isFloat(typ.Field(i).Type()) {
+						return true
 					}
 				}
-				return true
+				return false
 			default:
 				return false
 			}
