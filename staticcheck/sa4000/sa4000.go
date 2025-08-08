@@ -15,6 +15,8 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/edge"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
@@ -68,29 +70,64 @@ func run(pass *analysis.Pass) (any, error) {
 	//
 	// We special case functions from the math/rand package. Someone ran
 	// into the following false positive: "rand.Intn(2) - rand.Intn(2), which I wrote to generate values {-1, 0, 1} with {0.25, 0.5, 0.25} probability."
-	fn := func(node ast.Node) {
+
+	skipComparableCheck := func(c inspector.Cursor) bool {
+		op, ok := c.Node().(*ast.BinaryExpr)
+		if !ok {
+			return false
+		}
+		if clit, ok := op.X.(*ast.CompositeLit); !ok || len(clit.Elts) != 0 {
+			return false
+		}
+		if clit, ok := op.Y.(*ast.CompositeLit); !ok || len(clit.Elts) != 0 {
+			return false
+		}
+
+		// TODO(dh): we should probably skip ParenExprs, but users should
+		// probably not use unnecessary ParenExprs.
+		vspec, ok := c.Parent().Node().(*ast.ValueSpec)
+		if !ok {
+			return false
+		}
+		e, i := c.ParentEdge()
+		if e != edge.ValueSpec_Values {
+			return false
+		}
+		if vspec.Names[i].Name == "_" {
+			// `var _ = T{} == T{}` is permitted, as a compile-time
+			// check that T implements comparable.
+			return true
+		}
+		return false
+	}
+
+	for c := range code.Cursor(pass).Preorder((*ast.BinaryExpr)(nil)) {
+		node := c.Node()
 		op := node.(*ast.BinaryExpr)
 		switch op.Op {
 		case token.EQL, token.NEQ:
+			if skipComparableCheck(c) {
+				continue
+			}
 		case token.SUB, token.QUO, token.AND, token.REM, token.OR, token.XOR, token.AND_NOT,
 			token.LAND, token.LOR, token.LSS, token.GTR, token.LEQ, token.GEQ:
 		default:
 			// For some ops, such as + and *, it can make sense to
 			// have identical operands
-			return
+			continue
 		}
 
 		if isFloat(pass.TypesInfo.TypeOf(op.X)) {
 			// 'float <op> float' makes sense for several operators.
 			// We've tried keeping an exact list of operators to allow, but floats keep surprising us. Let's just give up instead.
-			return
+			continue
 		}
 
 		if reflect.TypeOf(op.X) != reflect.TypeOf(op.Y) {
-			return
+			continue
 		}
 		if report.Render(pass, op.X) != report.Render(pass, op.Y) {
-			return
+			continue
 		}
 		l1, ok1 := op.X.(*ast.BasicLit)
 		l2, ok2 := op.Y.(*ast.BasicLit)
@@ -105,7 +142,7 @@ func run(pass *analysis.Pass) (any, error) {
 			// for them to catch typos such as 1 == 1 where the user
 			// meant to type i == 1. The odds of a false negative for
 			// 0 == 0 are slim.
-			return
+			continue
 		}
 
 		if expr, ok := op.X.(*ast.CallExpr); ok {
@@ -169,12 +206,12 @@ func run(pass *analysis.Pass) (any, error) {
 				"(*math/rand/v2.Rand).Float32",
 				"(*math/rand/v2.Rand).Float64",
 				"(*math/rand/v2.Rand).NormFloat64":
-				return
+				continue
 			}
 		}
 
 		report.Report(pass, op, fmt.Sprintf("identical expressions on the left and right side of the '%s' operator", op.Op))
 	}
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
+
 	return nil, nil
 }

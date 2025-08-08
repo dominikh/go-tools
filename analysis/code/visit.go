@@ -20,6 +20,10 @@ import (
 
 var RequiredAnalyzers = []*analysis.Analyzer{inspect.Analyzer, typeindexanalyzer.Analyzer}
 
+func Cursor(pass *analysis.Pass) inspector.Cursor {
+	return pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Root()
+}
+
 func Preorder(pass *analysis.Pass, fn func(ast.Node), types ...ast.Node) {
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder(types, fn)
 }

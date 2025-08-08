@@ -99,3 +99,11 @@ func fn2() {
 	// not flagged; the return value is an interface and might be a float.
 	_ = rand.NewSource(0) == rand.NewSource(0)
 }
+
+type T struct{ X int }
+
+// Not flagged, used as a compile-time assertion that T is comparable
+var _ = T{} == T{}
+
+// Flagged, the presence of initializers is dubious
+var _ = T{1} == T{1} //@ diag(`identical expressions`)
