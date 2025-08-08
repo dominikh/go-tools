@@ -62,8 +62,8 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 
 	// TODO(dh): this check ignores the existence of side-effects and
-	// happily flags fn() == fn() – so far, we've had nobody complain
-	// about a false positive, and it's caught several bugs in real
+	// happily flags fn() == fn() – so far, we've had only two complains
+	// about false positives, and it's caught several bugs in real
 	// code.
 	//
 	// We special case functions from the math/rand package. Someone ran
@@ -134,7 +134,41 @@ func run(pass *analysis.Pass) (any, error) {
 				"(*math/rand.Rand).ExpFloat64",
 				"(*math/rand.Rand).Float32",
 				"(*math/rand.Rand).Float64",
-				"(*math/rand.Rand).NormFloat64":
+				"(*math/rand.Rand).NormFloat64",
+				"math/rand/v2.Int",
+				"math/rand/v2.Int32",
+				"math/rand/v2.Int32N",
+				"math/rand/v2.Int64",
+				"math/rand/v2.Int64N",
+				"math/rand/v2.IntN",
+				"math/rand/v2.N",
+				"math/rand/v2.Uint",
+				"math/rand/v2.Uint32",
+				"math/rand/v2.Uint32N",
+				"math/rand/v2.Uint64",
+				"math/rand/v2.Uint64N",
+				"math/rand/v2.UintN",
+				"math/rand/v2.ExpFloat64",
+				"math/rand/v2.Float32",
+				"math/rand/v2.Float64",
+				"math/rand/v2.NormFloat64",
+				"(*math/rand/v2.Rand).Int",
+				"(*math/rand/v2.Rand).Int32",
+				"(*math/rand/v2.Rand).Int32N",
+				"(*math/rand/v2.Rand).Int64",
+				"(*math/rand/v2.Rand).Int64N",
+				"(*math/rand/v2.Rand).IntN",
+				"(*math/rand/v2.Rand).N",
+				"(*math/rand/v2.Rand).Uint",
+				"(*math/rand/v2.Rand).Uint32",
+				"(*math/rand/v2.Rand).Uint32N",
+				"(*math/rand/v2.Rand).Uint64",
+				"(*math/rand/v2.Rand).Uint64N",
+				"(*math/rand/v2.Rand).UintN",
+				"(*math/rand/v2.Rand).ExpFloat64",
+				"(*math/rand/v2.Rand).Float32",
+				"(*math/rand/v2.Rand).Float64",
+				"(*math/rand/v2.Rand).NormFloat64":
 				return
 			}
 		}
