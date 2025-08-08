@@ -53,20 +53,22 @@ default:
 var Analyzer = SCAnalyzer.Analyzer
 
 func run(pass *analysis.Pass) (any, error) {
-	fn := func(node ast.Node, stack []ast.Node) {
-		if _, ok := stack[len(stack)-2].(*ast.IfStmt); ok {
+nodeLoop:
+	for c := range code.Cursor(pass).Preorder((*ast.IfStmt)(nil)) {
+		node := c.Node()
+		if _, ok := c.Parent().Node().(*ast.IfStmt); ok {
 			// this if statement is part of an if-else chain
-			return
+			continue
 		}
 		ifstmt := node.(*ast.IfStmt)
 
 		m := map[ast.Expr][]*ast.BinaryExpr{}
 		for item := ifstmt; item != nil; {
 			if item.Init != nil {
-				return
+				continue nodeLoop
 			}
 			if item.Body == nil {
-				return
+				continue nodeLoop
 			}
 
 			skip := false
@@ -78,12 +80,12 @@ func run(pass *analysis.Pass) (any, error) {
 				return true
 			})
 			if skip {
-				return
+				continue nodeLoop
 			}
 
 			var pairs []*ast.BinaryExpr
 			if !findSwitchPairs(pass, item.Cond, &pairs) {
-				return
+				continue nodeLoop
 			}
 			m[item.Cond] = pairs
 			switch els := item.Else.(type) {
@@ -105,19 +107,19 @@ func run(pass *analysis.Pass) (any, error) {
 				x = pair[0].X
 			} else {
 				if !astutil.Equal(x, pair[0].X) {
-					return
+					continue nodeLoop
 				}
 			}
 		}
 		if x == nil {
 			// shouldn't happen
-			return
+			continue nodeLoop
 		}
 
 		// We require at least two 'if' to make this suggestion, to
 		// avoid clutter in the editor.
 		if len(m) < 2 {
-			return
+			continue nodeLoop
 		}
 
 		// Note that we insert the switch statement as the first text edit instead of the last one so that gopls has an
@@ -174,7 +176,6 @@ func run(pass *analysis.Pass) (any, error) {
 			report.Fixes(edit.Fix("Replace with tagged switch", edits...)),
 			report.ShortRange())
 	}
-	code.PreorderStack(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }
 

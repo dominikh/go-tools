@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
@@ -49,7 +50,8 @@ func run(pass *analysis.Pass) (any, error) {
 		// The bytes package can use itself however it wants
 		return nil, nil
 	}
-	fn := func(node ast.Node, stack []ast.Node) {
+	fn := func(c inspector.Cursor) {
+		node := c.Node()
 		m, ok := code.Match(pass, checkBytesBufferConversionsQ, node)
 		if !ok {
 			return
@@ -59,7 +61,7 @@ func run(pass *analysis.Pass) (any, error) {
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
 		if types.Unalias(typ) == types.Universe.Lookup("string").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
-			if _, ok := stack[len(stack)-2].(*ast.IndexExpr); ok {
+			if _, ok := c.Parent().Node().(*ast.IndexExpr); ok {
 				// Don't flag m[string(buf.Bytes())] – thanks to a
 				// compiler optimization, this is actually faster than
 				// m[buf.String()]
@@ -78,6 +80,8 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 	}
-	code.PreorderStack(pass, fn, (*ast.CallExpr)(nil))
+	for c := range code.Cursor(pass).Preorder((*ast.CallExpr)(nil)) {
+		fn(c)
+	}
 	return nil, nil
 }

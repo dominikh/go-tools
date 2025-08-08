@@ -54,34 +54,35 @@ func CheckDeMorgan(pass *analysis.Pass) (any, error) {
 		return found
 	}
 
-	fn := func(node ast.Node, stack []ast.Node) {
+	for c := range code.Cursor(pass).Preorder((*ast.UnaryExpr)(nil)) {
+		node := c.Node()
 		matcher, ok := code.Match(pass, demorganQ, node)
 		if !ok {
-			return
+			continue
 		}
 
 		expr := matcher.State["expr"].(ast.Expr)
 
 		// be extremely conservative when it comes to floats
 		if hasFloats(expr) {
-			return
+			continue
 		}
 
 		n := astutil.NegateDeMorgan(expr, false)
 		nr := astutil.NegateDeMorgan(expr, true)
 		nc, ok := astutil.CopyExpr(n)
 		if !ok {
-			return
+			continue
 		}
 		ns := astutil.SimplifyParentheses(nc)
 		nrc, ok := astutil.CopyExpr(nr)
 		if !ok {
-			return
+			continue
 		}
 		nrs := astutil.SimplifyParentheses(nrc)
 
 		var bn, bnr, bns, bnrs string
-		switch parent := stack[len(stack)-2]; parent.(type) {
+		switch c.Parent().Node().(type) {
 		case *ast.BinaryExpr, *ast.IfStmt, *ast.ForStmt, *ast.SwitchStmt:
 			// Always add parentheses for if, for and switch. If
 			// they're unnecessary, go/printer will strip them when
@@ -117,8 +118,6 @@ func CheckDeMorgan(pass *analysis.Pass) (any, error) {
 
 		report.Report(pass, node, "could apply De Morgan's law", report.Fixes(fixes...))
 	}
-
-	code.PreorderStack(pass, fn, (*ast.UnaryExpr)(nil))
 
 	return nil, nil
 }
