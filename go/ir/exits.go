@@ -19,6 +19,13 @@ func (b *builder) buildExits(fn *Function) {
 				fn.NoReturn = AlwaysUnwinds
 				return
 			}
+		case "github.com/rs/zerolog":
+			switch obj.(*types.Func).FullName() {
+			case "(*github.com/rs/zerolog.Logger).Fatal":
+				fn.NoReturn = AlwaysExits
+			case "(*github.com/rs/zerolog.Logger).Panic":
+				fn.NoReturn = AlwaysUnwinds
+			}
 		case "go.uber.org/zap":
 			switch obj.(*types.Func).FullName() {
 			case "(*go.uber.org/zap.Logger).Fatal",
