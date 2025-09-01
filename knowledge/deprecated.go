@@ -223,6 +223,16 @@ var StdlibDeprecations = map[string]Deprecation{
 	"crypto/cipher.NewCFBDecrypter": {"go1.24", "go1.2"},
 	"crypto/cipher.NewCFBEncrypter": {"go1.24", "go1.2"},
 	"crypto/cipher.NewOFB":          {"go1.24", "go1.2"},
+
+	"go/ast.FilterFuncDuplicates":       {"go1.25", "go1.0"},
+	"go/ast.FilterImportDuplicates":     {"go1.25", "go1.0"},
+	"go/ast.FilterUnassociatedComments": {"go1.25", "go1.0"},
+	"go/ast.FilterPackage":              {"go1.25", "go1.0"},
+	"go/ast.MergePackageFiles":          {"go1.25", "go1.0"},
+	"go/ast.PackageExports":             {"go1.25", "go1.0"},
+	"go/ast.MergeMode":                  {"go1.25", "go1.0"},
+	// Go 1.11 because that's around the time x/tools/go/packages was released.
+	"go/parser.ParseDir": {"go1.25", "go1.11"},
 }
 
-// Last imported from GOROOT/api/go1.24.txt at fadfe2fc80f6b37e99b3e7aa068112ff539717c9.
+// Last imported from GOROOT/api/go1.25.txt at 6e676ab2b809d46623acb5988248d95d1eb7939c.
