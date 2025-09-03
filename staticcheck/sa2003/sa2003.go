@@ -21,6 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Deferred \'Lock\' right after locking, likely meant to defer \'Unlock\' instead`,
+		Text:     `Deferring \'Lock\' immediately after locking will cause a deadlock. Use \'Unlock\' instead.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
