@@ -85,7 +85,6 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 
-		var edits []analysis.TextEdit
 		for _, sel := range sels {
 		fieldLoop:
 			for base, fields := pass.TypesInfo.TypeOf(sel.X), sel.Fields; len(fields) >= 2; base, fields = pass.TypesInfo.ObjectOf(fields[0]).Type(), fields[1:] {
@@ -138,17 +137,9 @@ func run(pass *analysis.Pass) (any, error) {
 				}
 
 				e := edit.Delete(edit.Range{hop1.Pos(), hop2.Pos()})
-				edits = append(edits, e)
 				report.Report(pass, hop1, fmt.Sprintf("could remove embedded field %q from selector", hop1.Name),
 					report.Fixes(edit.Fix(fmt.Sprintf("Remove embedded field %q from selector", hop1.Name), e)))
 			}
-		}
-
-		// Offer to simplify all selector expressions at once
-		if len(edits) > 1 {
-			// Hack to prevent gopls from applying the Unnecessary tag to the diagnostic. It applies the tag when all edits are deletions.
-			edits = append(edits, edit.ReplaceWithString(edit.Range{node.Pos(), node.Pos()}, ""))
-			report.Report(pass, node, "could simplify selectors", report.Fixes(edit.Fix("Remove all embedded fields from selector", edits...)))
 		}
 	}
 	code.Preorder(pass, fn, (*ast.SelectorExpr)(nil))
