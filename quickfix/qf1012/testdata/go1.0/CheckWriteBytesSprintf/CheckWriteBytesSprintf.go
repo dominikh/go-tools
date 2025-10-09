@@ -34,3 +34,8 @@ func fn2() {
 	sw.WriteString(fmt.Sprintf("%T", 0))
 	sw.WriteString(fmt.Sprintln("abc", "de"))
 }
+
+func fn3() {
+	var buf bytes.Buffer
+	buf.WriteString(fmt.Sprint("abc", "de")) //@ diag(`Use fmt.Fprint`)
+}
