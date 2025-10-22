@@ -9,6 +9,7 @@ import (
 	"math"
 
 	"honnef.co/go/tools/analysis/code"
+	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/types/typeutil"
@@ -21,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4003",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `Comparing unsigned values against negative values is pointless`,
@@ -125,31 +126,31 @@ func run(pass *analysis.Pass) (any, error) {
 
 		if (expr.Op == token.GTR || expr.Op == token.GEQ) && (isobj(expr.Y, maxMathConst) || isLiteral(expr.Y, maxLiteral)) ||
 			(expr.Op == token.LSS || expr.Op == token.LEQ) && (isobj(expr.X, maxMathConst) || isLiteral(expr.X, maxLiteral)) {
-			report.Report(pass, expr, fmt.Sprintf("no value of type %s is greater than %s", basic, maxMathConst))
+			report.Report(pass, expr, fmt.Sprintf("no value of type %s is greater than %s", basic, maxMathConst), report.FilterGenerated())
 		}
 
 		if expr.Op == token.LEQ && (isobj(expr.Y, maxMathConst) || isLiteral(expr.Y, maxLiteral)) ||
 			expr.Op == token.GEQ && (isobj(expr.X, maxMathConst) || isLiteral(expr.X, maxLiteral)) {
-			report.Report(pass, expr, fmt.Sprintf("every value of type %s is <= %s", basic, maxMathConst))
+			report.Report(pass, expr, fmt.Sprintf("every value of type %s is <= %s", basic, maxMathConst), report.FilterGenerated())
 		}
 
 		if (basic.Info() & types.IsUnsigned) != 0 {
 			if (expr.Op == token.LSS && isZeroLiteral(expr.Y)) ||
 				(expr.Op == token.GTR && isZeroLiteral(expr.X)) {
-				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than 0", basic))
+				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than 0", basic), report.FilterGenerated())
 			}
 			if expr.Op == token.GEQ && isZeroLiteral(expr.Y) ||
 				expr.Op == token.LEQ && isZeroLiteral(expr.X) {
-				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= 0", basic))
+				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= 0", basic), report.FilterGenerated())
 			}
 		} else {
 			if (expr.Op == token.LSS || expr.Op == token.LEQ) && (isobj(expr.Y, minMathConst) || isLiteral(expr.Y, minLiteral)) ||
 				(expr.Op == token.GTR || expr.Op == token.GEQ) && (isobj(expr.X, minMathConst) || isLiteral(expr.X, minLiteral)) {
-				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than %s", basic, minMathConst))
+				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than %s", basic, minMathConst), report.FilterGenerated())
 			}
 			if expr.Op == token.GEQ && (isobj(expr.Y, minMathConst) || isLiteral(expr.Y, minLiteral)) ||
 				expr.Op == token.LEQ && (isobj(expr.X, minMathConst) || isLiteral(expr.X, minLiteral)) {
-				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= %s", basic, minMathConst))
+				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= %s", basic, minMathConst), report.FilterGenerated())
 			}
 		}
 
