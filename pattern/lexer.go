@@ -3,10 +3,24 @@ package pattern
 import (
 	"fmt"
 	"go/token"
+	"iter"
 	"unicode"
 	"unicode/utf8"
 )
 
+// lex returns the sequence of tokens in the input.
+func lex(f *token.File, input string) iter.Seq[item] {
+	return func(yield func(item) bool) {
+		lex := &lexer{
+			f:     f,
+			input: input,
+			yield: yield,
+		}
+		lex.run()
+	}
+}
+
+// lexer holds the state of a single [lex] iteration.
 type lexer struct {
 	f *token.File
 
@@ -14,7 +28,8 @@ type lexer struct {
 	start int
 	pos   int
 	width int
-	items chan item
+
+	yield func(item) bool
 }
 
 type itemType int
@@ -79,40 +94,55 @@ func (l *lexer) run() {
 	for state := lexStart; state != nil; {
 		state = state(l)
 	}
-	close(l.items)
 }
 
-func (l *lexer) emitValue(t itemType, value string) {
-	l.items <- item{t, value, l.start}
+func (l *lexer) emitValue(t itemType, value string) bool {
+	ok := l.yield(item{t, value, l.start})
 	l.start = l.pos
+	return ok
 }
 
-func (l *lexer) emit(t itemType) {
-	l.items <- item{t, l.input[l.start:l.pos], l.start}
+func (l *lexer) emit(t itemType) bool {
+	ok := l.yield(item{t, l.input[l.start:l.pos], l.start})
 	l.start = l.pos
+	return ok
 }
 
 func lexStart(l *lexer) stateFn {
 	switch r := l.next(); {
 	case r == eof:
-		l.emit(itemEOF)
+		_ = l.emit(itemEOF)
 		return nil
 	case unicode.IsSpace(r):
 		l.ignore()
 	case r == '(':
-		l.emit(itemLeftParen)
+		if !l.emit(itemLeftParen) {
+			return nil
+		}
 	case r == ')':
-		l.emit(itemRightParen)
+		if !l.emit(itemRightParen) {
+			return nil
+		}
 	case r == '[':
-		l.emit(itemLeftBracket)
+		if !l.emit(itemLeftBracket) {
+			return nil
+		}
 	case r == ']':
-		l.emit(itemRightBracket)
+		if !l.emit(itemRightBracket) {
+			return nil
+		}
 	case r == '@':
-		l.emit(itemAt)
+		if !l.emit(itemAt) {
+			return nil
+		}
 	case r == ':':
-		l.emit(itemColon)
+		if !l.emit(itemColon) {
+			return nil
+		}
 	case r == '_':
-		l.emit(itemBlank)
+		if !l.emit(itemBlank) {
+			return nil
+		}
 	case r == '"':
 		l.backup()
 		return lexString
@@ -154,11 +184,11 @@ func (l *lexer) backup() {
 
 func (l *lexer) errorf(format string, args ...any) stateFn {
 	// TODO(dh): emit position information in errors
-	l.items <- item{
+	_ = l.yield(item{
 		itemError,
 		fmt.Sprintf(format, args...),
 		l.start,
-	}
+	})
 	return nil
 }
 
@@ -179,7 +209,9 @@ func lexString(l *lexer) stateFn {
 			return l.errorf("unterminated string")
 		case '"':
 			if !escape {
-				l.emitValue(itemString, string(runes))
+				if !l.emitValue(itemString, string(runes)) {
+					return nil
+				}
 				return lexStart
 			} else {
 				runes = append(runes, '"')
@@ -203,7 +235,9 @@ func lexType(l *lexer) stateFn {
 	for {
 		if !isAlphaNumeric(l.next()) {
 			l.backup()
-			l.emit(itemTypeName)
+			if !l.emit(itemTypeName) {
+				return nil
+			}
 			return lexStart
 		}
 	}
@@ -214,7 +248,9 @@ func lexVariable(l *lexer) stateFn {
 	for {
 		if !isAlphaNumeric(l.next()) {
 			l.backup()
-			l.emit(itemVariable)
+			if !l.emit(itemVariable) {
+				return nil
+			}
 			return lexStart
 		}
 	}

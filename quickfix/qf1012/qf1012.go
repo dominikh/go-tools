@@ -66,7 +66,7 @@ func run(pass *analysis.Pass) (any, error) {
 			// is a named non-interface type, since the pointer
 			// has a larger method set (https://staticcheck.dev/issues/1097).
 			// We assume the receiver expression is addressable
-			// since otherwise thre code wouldn't compile.
+			// since otherwise the code wouldn't compile.
 			if _, ok := types.Unalias(recvT).(*types.Named); ok && !types.IsInterface(recvT) {
 				recvT = types.NewPointer(recvT)
 				recv = &ast.UnaryExpr{Op: token.AND, X: recv}
