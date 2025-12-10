@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"iter"
 	"reflect"
 	"strings"
 )
@@ -339,10 +340,10 @@ type Parser struct {
 	// Allow nodes that rely on type information
 	AllowTypeInfo bool
 
-	lex   *lexer
-	cur   item
-	last  *item
-	items chan item
+	f        *token.File
+	cur      item
+	last     *item
+	nextItem func() (item, bool)
 
 	bindings map[string]int
 }
@@ -360,26 +361,27 @@ func (p *Parser) bindingIndex(name string) int {
 }
 
 func (p *Parser) Parse(s string) (Pattern, error) {
+	f := token.NewFileSet().AddFile("<input>", -1, len(s))
+
+	// Run the lexer iterator as a coroutine.
+	// The parser will call 'next' to consume each item.
+	// After the parser returns, we must call 'stop' to
+	// terminate the coroutine.
+	next, stop := iter.Pull(lex(f, s))
+	defer stop()
+
 	p.cur = item{}
 	p.last = nil
-	p.items = nil
+	p.f = f
+	p.nextItem = next
 
-	fset := token.NewFileSet()
-	p.lex = &lexer{
-		f:     fset.AddFile("<input>", -1, len(s)),
-		input: s,
-		items: make(chan item),
-	}
-	go p.lex.run()
-	p.items = p.lex.items
+	// Parse.
 	root, err := p.node()
 	if err != nil {
-		// drain lexer if parsing failed
-		for range p.lex.items {
-		}
 		return Pattern{}, err
 	}
-	if item := <-p.lex.items; item.typ != itemEOF {
+	// Consume final EOF token.
+	if item, ok := next(); !ok || item.typ != itemEOF {
 		return Pattern{}, fmt.Errorf("unexpected token %s after end of pattern", item.typ)
 	}
 
@@ -417,7 +419,7 @@ func (p *Parser) next() item {
 		return n
 	}
 	var ok bool
-	p.cur, ok = <-p.items
+	p.cur, ok = p.nextItem()
 	if !ok {
 		p.cur = item{typ: eof}
 	}
@@ -455,7 +457,7 @@ func (p *Parser) unexpectedToken(valid string) error {
 		got = "'" + p.cur.typ.String() + "'"
 	}
 
-	pos := p.lex.f.Position(token.Pos(p.cur.pos))
+	pos := p.f.Position(token.Pos(p.cur.pos))
 	return fmt.Errorf("%s: expected %s, found %s", pos, valid, got)
 }
 
