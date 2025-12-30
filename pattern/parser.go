@@ -363,10 +363,6 @@ func (p *Parser) bindingIndex(name string) int {
 }
 
 func (p *Parser) Parse(s string) (Pattern, error) {
-	t0 := time.Now()
-	defer func() {
-		log.Printf("pattern.Parse(%d, %32q) = %v", len(s), s, time.Since(t0))
-	}()
 	f := token.NewFileSet().AddFile("<input>", -1, len(s))
 
 	// Run the lexer iterator as a coroutine.
