@@ -498,6 +498,25 @@ func emitTailCall(f *Function, call *Call, source ast.Node) {
 	f.currentBlock = nil
 }
 
+func emitCall(fn *Function, call *Call, source ast.Node) Value {
+	res := fn.emit(call, source)
+
+	callee := call.Call.StaticCallee()
+	if callee != nil &&
+		callee.object != nil &&
+		fn.Prog.noReturn != nil &&
+		fn.Prog.noReturn(callee.object) {
+		// Call doesn't return normally. Either it doesn't return at all
+		// (infinitely blocked or exitting the process), or it unwinds the stack
+		// (panic, runtime.Goexit). In case it unwinds, jump to the exit block.
+		fn.emit(new(Jump), source)
+		addEdge(fn.currentBlock, fn.Exit)
+		fn.currentBlock = fn.newBasicBlock("unreachable")
+	}
+
+	return res
+}
+
 // emitImplicitSelections emits to f code to apply the sequence of
 // implicit field selections specified by indices to base value v, and
 // returns the selected value.

@@ -294,3 +294,7 @@ func (prog *Program) AllPackages() []*Package {
 func (prog *Program) ImportedPackage(path string) *Package {
 	return prog.imported[path]
 }
+
+func (prog *Program) SetNoReturn(fn func(*types.Func) bool) {
+	prog.noReturn = fn
+}

@@ -201,7 +201,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		var c Call
 		b.setCall(fn, e, &c.Call)
 		c.typ = typ
-		return fn.emit(&c, e)
+		return emitCall(fn, &c, e)
 
 	case *ast.IndexExpr:
 		mapt := typeutil.CoreType(fn.Pkg.typeOf(e.X)).Underlying().(*types.Map)
@@ -657,7 +657,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		var v Call
 		b.setCall(fn, e, &v.Call)
 		v.setType(tv.Type)
-		return fn.emit(&v, e)
+		return emitCall(fn, &v, e)
 
 	case *ast.UnaryExpr:
 		switch e.Op {
@@ -3086,16 +3086,6 @@ func (b *builder) buildFunction(fn *Function) {
 		panic(n)
 	}
 
-	if fn.Package().Pkg.Path() == "syscall" && fn.Name() == "Exit" {
-		// syscall.Exit is a stub and the way os.Exit terminates the
-		// process. Note that there are other functions in the runtime
-		// that also terminate or unwind that we cannot analyze.
-		// However, they aren't stubs, so buildExits ends up getting
-		// called on them, so that's where we handle those special
-		// cases.
-		fn.NoReturn = AlwaysExits
-	}
-
 	if body == nil {
 		// External function.
 		if fn.Params == nil {
@@ -3143,8 +3133,6 @@ func (b *builder) buildFunction(fn *Function) {
 	}
 	optimizeBlocks(fn)
 	buildFakeExits(fn)
-	b.buildExits(fn)
-	b.addUnreachables(fn)
 	fn.finishBody()
 	b.blocksets = fn.blocksets
 	fn.functionBody = nil
