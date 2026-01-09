@@ -11,12 +11,14 @@ import (
 	stdversion "go/version"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"runtime/pprof"
 	"runtime/trace"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -341,21 +343,13 @@ func (cmd *Command) Run() {
 	os.Exit(cmd.Execute())
 }
 
-func (cmd *Command) analyzersAsSlice() []*lint.Analyzer {
-	cs := make([]*lint.Analyzer, 0, len(cmd.analyzers))
-	for _, a := range cmd.analyzers {
-		cs = append(cs, a)
-	}
-	return cs
-}
-
 func (cmd *Command) printDebugVersion() int {
 	version.Verbose(cmd.version, cmd.machineVersion)
 	return 0
 }
 
 func (cmd *Command) listChecks() int {
-	cs := cmd.analyzersAsSlice()
+	cs := slices.Collect(maps.Values(cmd.analyzers))
 	sort.Slice(cs, func(i, j int) bool {
 		return cs[i].Analyzer.Name < cs[j].Analyzer.Name
 	})
@@ -419,7 +413,7 @@ func (cmd *Command) merge() int {
 	}
 
 	relevantDiagnostics := mergeRuns(runs)
-	cs := cmd.analyzersAsSlice()
+	cs := slices.Collect(maps.Values(cmd.analyzers))
 	return cmd.printDiagnostics(cs, relevantDiagnostics)
 }
 
@@ -484,7 +478,7 @@ func (cmd *Command) lint() int {
 	}
 
 	var runs []run
-	cs := cmd.analyzersAsSlice()
+	cs := slices.Collect(maps.Values(cmd.analyzers))
 	opts := options{
 		analyzers: cs,
 		patterns:  cmd.flags.fs.Args(),
