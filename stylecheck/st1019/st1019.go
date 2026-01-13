@@ -67,6 +67,11 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		for path, value := range imports {
+			if path[1:len(path)-1] == "unsafe" {
+				// Don't flag unsafe. Cgo generated code imports
+				// unsafe as _cgo_unsafe, in addition to the user's import.
+				continue
+			}
 			// If there's more than one import per path, we flag that
 			if len(value) > 1 {
 				s := fmt.Sprintf("package %s is being imported more than once", path)
