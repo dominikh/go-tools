@@ -3,7 +3,6 @@ package pkg
 import (
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"log"
 )
 
@@ -40,21 +39,21 @@ func fn() {
 	var x13 []byte
 	var x14 *[]byte
 	var x15 T6
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x1)) //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x2))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x3)) //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x4))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x5)) //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x6))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x7))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x8))  //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x9))  //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x10)) //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x11))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x13))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x14)) //@ diag(`cannot be used with binary.Write`)
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, x15))
-	log.Println(binary.Write(ioutil.Discard, binary.LittleEndian, &x15))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x1)) //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x2))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x3)) //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x4))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x5)) //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x6))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x7))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x8))  //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x9))  //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x10)) //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x11))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, &x13))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, &x14)) //@ diag(`cannot be used with binary.Write`)
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, x15))
+	log.Println(binary.Write(io.Discard, binary.LittleEndian, &x15))
 	log.Println(binary.Write(fn2())) //@ diag(`cannot be used with binary.Write`)
 	log.Println(binary.Write(fn3()))
 }
