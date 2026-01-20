@@ -193,8 +193,10 @@ func parseConfigs(dir string) ([]Config, error) {
 
 	// TODO(dh): consider stopping at the GOPATH/module boundary
 	for dir != "" {
-		f, err := os.Open(filepath.Join(dir, ConfigName))
-		if os.IsNotExist(err) {
+		path := filepath.Join(dir, ConfigName)
+		fi, err := os.Stat(path)
+		if os.IsNotExist(err) || (err == nil && !fi.Mode().IsRegular()) {
+			// walk up
 			ndir := filepath.Dir(dir)
 			if ndir == dir {
 				break
@@ -205,6 +207,15 @@ func parseConfigs(dir string) ([]Config, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// There is a small TOCTOU window here, but we're fine with reporting an
+		// error if the source tree is modified concurrently in weird ways while
+		// running Staticcheck.
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+
 		var cfg Config
 		_, err = toml.NewDecoder(f).Decode(&cfg)
 		f.Close()
