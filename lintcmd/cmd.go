@@ -685,6 +685,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 	shouldExit := filterAnalyzerNames(analyzerNames, fail)
 	shouldExit["staticcheck"] = true
 	shouldExit["compile"] = true
+	shouldExit["config"] = true
 
 	var (
 		numErrors   int
