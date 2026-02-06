@@ -58,10 +58,7 @@ var (
 	checkWriteStringConcatQ = pattern.MustParse(`
 	(CallExpr
 		(SelectorExpr recv (Ident "WriteString"))
-		(BinaryExpr
-			left@(BasicLit "STRING" _)
-			"+"
-			right@(Ident _)))`)
+		concat@(BinaryExpr _ "+" (BasicLit "STRING" _)))`)
 )
 
 func run(pass *analysis.Pass) (any, error) {
@@ -128,26 +125,23 @@ func run(pass *analysis.Pass) (any, error) {
 			report.Report(pass, node, msg, report.Fixes(fix))
 		} else if m, ok := code.Match(pass, checkWriteStringConcatQ, node); ok {
 			_, recv, recvT := getRecv(m)
+			// TODO(IlyasYOY): add support for []bytes, similar to the block above.
 			if !types.Implements(recvT, knowledge.Interfaces["io.StringWriter"]) {
 				return
 			}
 
-			leftStr := m.State["left"].(*ast.BasicLit)
-			rightStr := m.State["right"].(*ast.BasicLit)
+			concat := m.State["concat"].(ast.Expr)
+			concatLits := unwrapRight(concat)
 
-			editStmts := make([]ast.Stmt, 0, 2)
-			editStmts = append(editStmts, &ast.ExprStmt{
-				X: &ast.CallExpr{
-					Fun:  &ast.SelectorExpr{X: recv, Sel: ast.NewIdent("WriteString")},
-					Args: []ast.Expr{leftStr},
-				},
-			})
-			editStmts = append(editStmts, &ast.ExprStmt{
-				X: &ast.CallExpr{
-					Fun:  &ast.SelectorExpr{X: recv, Sel: ast.NewIdent("WriteString")},
-					Args: []ast.Expr{rightStr},
-				},
-			})
+			editStmts := make([]ast.Stmt, 0, len(concatLits))
+			for _, lit := range concatLits {
+				editStmts = append(editStmts, &ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun:  &ast.SelectorExpr{X: recv, Sel: ast.NewIdent("WriteString")},
+						Args: []ast.Expr{lit},
+					},
+				})
+			}
 
 			const msg = "Replace WriteString(x + y) with WriteString(x); WriteString(y)"
 			fix := edit.Fix(msg, edit.ReplaceWithStatements(pass.Fset, node, editStmts...))
@@ -159,4 +153,32 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
+}
+
+func unwrapRight(rightExpr ast.Expr) []*ast.BasicLit {
+	rightExpr = ast.Unparen(rightExpr)
+
+	if bin, ok := rightExpr.(*ast.BinaryExpr); ok {
+		if bin.Op != token.ADD {
+			return nil
+		}
+
+		xs := unwrapRight(bin.X)
+		ys := unwrapRight(bin.Y)
+
+		all := make([]*ast.BasicLit, 0, len(xs)+len(ys))
+		all = append(all, xs...)
+		all = append(all, ys...)
+
+		return all
+	}
+
+	// TODO(IlyasYOY): handle case for any expression returning string.
+	if lit, ok := rightExpr.(*ast.BasicLit); ok {
+		if lit.Kind == token.STRING {
+			return []*ast.BasicLit{lit}
+		}
+	}
+
+	return nil
 }

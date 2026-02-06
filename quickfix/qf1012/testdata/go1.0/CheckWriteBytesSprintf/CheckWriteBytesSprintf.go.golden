@@ -44,4 +44,21 @@ func fn4() {
 	var buf bytes.Buffer
 	buf.WriteString("abc")
 	buf.WriteString("de") //@ diag(`Replace WriteString(x + y) with WriteString(x); WriteString(y)`)
+
+	buf.WriteString("(abc")
+	buf.WriteString("de)") //@ diag(`Replace WriteString(x + y) with WriteString(x); WriteString(y)`)
+
+	buf.WriteString("(abc")
+	buf.WriteString("(de))") //@ diag(`Replace WriteString(x + y) with WriteString(x); WriteString(y)`)
+
+	buf.WriteString("(abc)")
+	buf.WriteString("de") //@ diag(`Replace WriteString(x + y) with WriteString(x); WriteString(y)`)
+
+	buf.WriteString("zxc")
+	buf.WriteString("vb")
+	buf.WriteString("n") //@ diag(`Replace WriteString(x + y) with WriteString(x); WriteString(y)`)
+
+	buf.WriteString(`zxc`)
+	buf.WriteString("vb")
+	buf.WriteString(`n`) //@ diag(`Replace WriteString(x + y) with WriteString(x); WriteString(y)`)
 }
