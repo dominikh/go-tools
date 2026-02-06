@@ -131,7 +131,7 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 
 			concat := m.State["concat"].(ast.Expr)
-			concatLits := unwrapRight(concat)
+			concatLits := unwrapStringConcat(concat)
 
 			editStmts := make([]ast.Stmt, 0, len(concatLits))
 			for _, lit := range concatLits {
@@ -155,7 +155,7 @@ func run(pass *analysis.Pass) (any, error) {
 	return nil, nil
 }
 
-func unwrapRight(rightExpr ast.Expr) []*ast.BasicLit {
+func unwrapStringConcat(rightExpr ast.Expr) []*ast.BasicLit {
 	rightExpr = ast.Unparen(rightExpr)
 
 	if bin, ok := rightExpr.(*ast.BinaryExpr); ok {
@@ -163,8 +163,8 @@ func unwrapRight(rightExpr ast.Expr) []*ast.BasicLit {
 			return nil
 		}
 
-		xs := unwrapRight(bin.X)
-		ys := unwrapRight(bin.Y)
+		xs := unwrapStringConcat(bin.X)
+		ys := unwrapStringConcat(bin.Y)
 
 		all := make([]*ast.BasicLit, 0, len(xs)+len(ys))
 		all = append(all, xs...)
