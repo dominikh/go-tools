@@ -288,7 +288,12 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 		}
 
 	case "new":
-		return emitNew(fn, deref(typ), source, "new")
+		alloc := emitNew(fn, deref(typ), source, "new")
+		if !fn.Pkg.info.Types[args[0]].IsType() {
+			v := b.expr(fn, args[0])
+			emitStore(fn, alloc, v, source)
+		}
+		return alloc
 
 	case "len", "cap":
 		// Special case: len or cap of an array or *array is based on the type, not the value which may be nil. We must
