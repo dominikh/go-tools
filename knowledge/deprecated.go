@@ -233,6 +233,19 @@ var StdlibDeprecations = map[string]Deprecation{
 	"go/ast.MergeMode":                  {"go1.25", "go1.0"},
 	// Go 1.11 because that's around the time x/tools/go/packages was released.
 	"go/parser.ParseDir": {"go1.25", "go1.11"},
+
+	// Go 1.25 is the first version to provide all of the alternatives mentioned
+	// by the deprecation note.
+	"(crypto/ecdsa.PublicKey).X":  {"go1.26", "go1.25"},
+	"(crypto/ecdsa.PublicKey).Y":  {"go1.26", "go1.25"},
+	"(crypto/ecdsa.PrivateKey).D": {"go1.26", "go1.25"},
+
+	"crypto/rsa.DecryptPKCS1v15":           {"go1.26", DeprecatedNeverUse},
+	"crypto/rsa.DecryptPKCS1v15SessionKey": {"go1.26", DeprecatedNeverUse},
+	"crypto/rsa.PKCS1v15DecryptOptions":    {"go1.26", DeprecatedNeverUse},
+	"crypto/rsa.EncryptPKCS1v15":           {"go1.26", DeprecatedNeverUse},
+
+	"(net/http/httputil.ReverseProxy).Director": {"go1.26", "go1.20"},
 }
 
-// Last imported from GOROOT/api/go1.25.txt at 6e676ab2b809d46623acb5988248d95d1eb7939c.
+// Last imported from GOROOT/api/go1.26.txt at d3ddc4854429185e6e06ca1f7628bb790404abb5.
