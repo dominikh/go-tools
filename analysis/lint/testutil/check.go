@@ -124,11 +124,11 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 						}
 						if want != string(formatted) {
 							d := myers.ComputeEdits(want, string(formatted))
-							diff := ""
+							var diff strings.Builder
 							for _, op := range d {
-								diff += op.String()
+								diff.WriteString(op.String())
 							}
-							t.Errorf("suggested fixes failed for %s[%s]:\n%s", file, sf, diff)
+							t.Errorf("suggested fixes failed for %s[%s]:\n%s", file, sf, diff.String())
 						}
 						break
 					}
@@ -160,11 +160,11 @@ func CheckSuggestedFixes(t *testing.T, diagnostics []runner.Diagnostic) {
 			}
 			if want != string(formatted) {
 				d := myers.ComputeEdits(want, string(formatted))
-				diff := ""
+				var diff strings.Builder
 				for _, op := range d {
-					diff += op.String()
+					diff.WriteString(op.String())
 				}
-				t.Errorf("suggested fixes failed for %s:\n%s", file, diff)
+				t.Errorf("suggested fixes failed for %s:\n%s", file, diff.String())
 			}
 		}
 	}

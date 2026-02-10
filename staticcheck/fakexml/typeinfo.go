@@ -276,13 +276,6 @@ func lookupXMLName(typ fakereflect.TypeAndCanAddr) (xmlname *fieldInfo) {
 	return nil
 }
 
-func min(a, b int) int {
-	if a <= b {
-		return a
-	}
-	return b
-}
-
 // addFieldInfo adds finfo to tinfo.fields if there are no
 // conflicts, or if conflicts arise from previous fields that were
 // obtained from deeper embedded structures than finfo. In the latter

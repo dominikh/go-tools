@@ -86,14 +86,14 @@ func run(pass *analysis.Pass) (any, error) {
 				case '.', ':', '!', '\n':
 					report.Report(pass, call, "error strings should not end with punctuation or newlines")
 				}
-				idx := strings.IndexByte(s, ' ')
-				if idx == -1 {
+				before, _, ok0 := strings.Cut(s, " ")
+				if !ok0 {
 					// single word error message, probably not a real
 					// error but something used in tests or during
 					// debugging
 					continue
 				}
-				word := s[:idx]
+				word := before
 				first, n := utf8.DecodeRuneInString(word)
 				if !unicode.IsUpper(first) {
 					continue

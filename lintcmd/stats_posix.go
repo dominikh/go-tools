@@ -1,5 +1,4 @@
 //go:build aix || android || linux || solaris
-// +build aix android linux solaris
 
 package lintcmd
 

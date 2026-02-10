@@ -47,8 +47,7 @@ func implements(V types.Type, T *types.Interface, msV *types.MethodSet) ([]*type
 
 	if ityp, _ := V.Underlying().(*types.Interface); ityp != nil {
 		// TODO(dh): is this code reachable?
-		for i := 0; i < T.NumMethods(); i++ {
-			m := T.Method(i)
+		for m := range T.Methods() {
 			_, obj := lookupMethod(ityp, m.Pkg(), m.Name())
 			switch {
 			case obj == nil:
@@ -63,8 +62,7 @@ func implements(V types.Type, T *types.Interface, msV *types.MethodSet) ([]*type
 	// A concrete type implements T if it implements all methods of T.
 	var sels []*types.Selection
 	var c methodsChecker
-	for i := 0; i < T.NumMethods(); i++ {
-		m := T.Method(i)
+	for m := range T.Methods() {
 		sel := msV.Lookup(m.Pkg(), m.Name())
 		if sel == nil {
 			return nil, false

@@ -57,16 +57,16 @@ func parseBuildConfig(line string) (name string, envs []string, flags []string, 
 	if strings.Index(line, ":") == len(line)-1 {
 		name = line[:len(line)-1]
 	} else {
-		idx := strings.Index(line, ": ")
-		if idx == -1 {
+		before, after, ok := strings.Cut(line, ": ")
+		if !ok {
 			return name, envs, flags, errors.New("missing build name")
 		}
-		name = line[:idx]
+		name = before
 
 		var buf []rune
 		var inQuote bool
 		args := &envs
-		for _, r := range strings.TrimSpace(line[idx+2:]) {
+		for _, r := range strings.TrimSpace(after) {
 			switch r {
 			case ' ':
 				if inQuote {

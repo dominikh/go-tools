@@ -20,5 +20,5 @@ var Analyzer = &analysis.Analyzer{
 		return m, nil
 	},
 	RunDespiteErrors: true,
-	ResultType:       reflect.TypeOf(map[*token.File]*ast.File{}),
+	ResultType:       reflect.TypeFor[map[*token.File]*ast.File](),
 }

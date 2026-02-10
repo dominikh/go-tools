@@ -70,7 +70,7 @@ func run(pass *analysis.Pass) (any, error) {
 
 func buildTags(f *ast.File) [][]string {
 	var out [][]string
-	for _, line := range strings.Split(astutil.Preamble(f), "\n") {
+	for line := range strings.SplitSeq(astutil.Preamble(f), "\n") {
 		if !strings.HasPrefix(line, "+build ") {
 			continue
 		}

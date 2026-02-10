@@ -3,6 +3,7 @@ package sa5010
 import (
 	"fmt"
 	"go/types"
+	"strings"
 
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
@@ -75,8 +76,7 @@ func run(pass *analysis.Pass) (any, error) {
 				}
 
 				ms := msc.MethodSet(left)
-				for i := range righti.NumMethods() {
-					mr := righti.Method(i)
+				for mr := range righti.Methods() {
 					sel := ms.Lookup(mr.Pkg(), mr.Name())
 					if sel == nil {
 						continue
@@ -97,15 +97,16 @@ func run(pass *analysis.Pass) (any, error) {
 				}
 
 				if len(wrong) != 0 {
-					s := fmt.Sprintf("impossible type assertion; %s and %s contradict each other:",
+					var s strings.Builder
+					s.WriteString(fmt.Sprintf("impossible type assertion; %s and %s contradict each other:",
 						types.TypeString(left, types.RelativeTo(pass.Pkg)),
-						types.TypeString(right, types.RelativeTo(pass.Pkg)))
+						types.TypeString(right, types.RelativeTo(pass.Pkg))))
 					for _, e := range wrong {
-						s += fmt.Sprintf("\n\twrong type for %s method", e.l.Name())
-						s += fmt.Sprintf("\n\t\thave %s", e.l.Type())
-						s += fmt.Sprintf("\n\t\twant %s", e.r.Type())
+						s.WriteString(fmt.Sprintf("\n\twrong type for %s method", e.l.Name()))
+						s.WriteString(fmt.Sprintf("\n\t\thave %s", e.l.Type()))
+						s.WriteString(fmt.Sprintf("\n\t\twant %s", e.r.Type()))
 					}
-					report.Report(pass, assert, s)
+					report.Report(pass, assert, s.String())
 				}
 			}
 		}

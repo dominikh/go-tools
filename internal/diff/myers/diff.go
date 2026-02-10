@@ -68,11 +68,11 @@ func (op *operation) String() string {
 	case Equal:
 		prefix = " "
 	}
-	out := ""
+	var out strings.Builder
 	for _, line := range op.Content {
-		out += fmt.Sprintf("%s%s", prefix, line)
+		out.WriteString(fmt.Sprintf("%s%s", prefix, line))
 	}
-	return out
+	return out.String()
 }
 
 // operations returns the list of operations to convert a into b, consolidating

@@ -16,5 +16,5 @@ var Analyzer = &analysis.Analyzer{
 	Doc:              "extracts linter directives",
 	Run:              directives,
 	RunDespiteErrors: true,
-	ResultType:       reflect.TypeOf([]lint.Directive{}),
+	ResultType:       reflect.TypeFor[[]lint.Directive](),
 }

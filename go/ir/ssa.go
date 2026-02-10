@@ -430,8 +430,7 @@ func (m *instanceWrapperMap) At(key *types.TypeList) *Function {
 	}
 
 	var hash uint32
-	for i := 0; i < key.Len(); i++ {
-		t := key.At(i)
+	for t := range key.Types() {
 		hash += m.h.Hash(t)
 	}
 
@@ -453,8 +452,7 @@ func (m *instanceWrapperMap) Set(key *types.TypeList, val *Function) {
 	}
 
 	var hash uint32
-	for i := 0; i < key.Len(); i++ {
-		t := key.At(i)
+	for t := range key.Types() {
 		hash += m.h.Hash(t)
 	}
 	for i, e := range m.entries[hash] {

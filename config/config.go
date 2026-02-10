@@ -72,7 +72,7 @@ var Analyzer = &analysis.Analyzer{
 		return &cfg, nil
 	},
 	RunDespiteErrors: true,
-	ResultType:       reflect.TypeOf((*Config)(nil)),
+	ResultType:       reflect.TypeFor[*Config](),
 }
 
 func For(pass *analysis.Pass) *Config {

@@ -313,8 +313,7 @@ func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *type
 			c.Call.Args = append(c.Call.Args, changeType(arg, fn.Signature.Params().At(i).Type()))
 		}
 	}
-	for i := 0; i < targs.Len(); i++ {
-		arg := targs.At(i)
+	for arg := range targs.Types() {
 		c.Call.TypeArgs = append(c.Call.TypeArgs, arg)
 	}
 	results := w.emit(&c, nil)

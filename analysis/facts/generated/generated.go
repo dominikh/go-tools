@@ -93,5 +93,5 @@ var Analyzer = &analysis.Analyzer{
 		return m, nil
 	},
 	RunDespiteErrors: true,
-	ResultType:       reflect.TypeOf(map[string]Generator{}),
+	ResultType:       reflect.TypeFor[map[string]Generator](),
 }

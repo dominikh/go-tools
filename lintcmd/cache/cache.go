@@ -124,8 +124,8 @@ func init() { initEnv() }
 func initEnv() {
 	verify = false
 	debugHash = false
-	debug := strings.Split(os.Getenv("GODEBUG"), ",")
-	for _, f := range debug {
+	debug := strings.SplitSeq(os.Getenv("GODEBUG"), ",")
+	for f := range debug {
 		if f == "gocacheverify=1" {
 			verify = true
 		}

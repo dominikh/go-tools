@@ -45,7 +45,7 @@ type Tool struct {
 type Invocation struct {
 	CommandLine         string           `json:"commandLine,omitempty"`
 	Arguments           []string         `json:"arguments,omitempty"`
-	WorkingDirectory    ArtifactLocation `json:"workingDirectory,omitempty"`
+	WorkingDirectory    ArtifactLocation `json:"workingDirectory,omitzero"`
 	ExecutionSuccessful bool             `json:"executionSuccessful"`
 }
 

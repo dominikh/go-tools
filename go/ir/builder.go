@@ -3162,8 +3162,8 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	fn.sourceFn = fn.parent.sourceFn
 	fn.startBody()
 	params := fn.Signature.Params()
-	for i := 0; i < params.Len(); i++ {
-		fn.addParamVar(params.At(i), nil)
+	for v := range params.Variables() {
+		fn.addParamVar(v, nil)
 	}
 	fn.addResultVar(fn.Signature.Results().At(0), nil)
 	fn.exitBlock()

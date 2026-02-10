@@ -27,7 +27,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:        purity,
 	Requires:   []*analysis.Analyzer{buildir.Analyzer},
 	FactTypes:  []analysis.Fact{(*IsPure)(nil)},
-	ResultType: reflect.TypeOf(Result{}),
+	ResultType: reflect.TypeFor[Result](),
 }
 
 var pureStdlib = map[string]struct{}{
@@ -154,8 +154,8 @@ func purity(pass *analysis.Pass) (any, error) {
 			case *types.Basic:
 				return true
 			case *types.Struct:
-				for i := 0; i < u.NumFields(); i++ {
-					if !isBasic(u.Field(i).Type()) {
+				for field := range u.Fields() {
+					if !isBasic(field.Type()) {
 						return false
 					}
 				}

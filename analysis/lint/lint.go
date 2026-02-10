@@ -127,13 +127,13 @@ func (doc *Documentation) format(markdown bool, metadata bool) string {
 	if doc.Before != "" {
 		fmt.Fprintln(b, "Before:")
 		fmt.Fprintln(b, "")
-		for _, line := range strings.Split(doc.Before, "\n") {
+		for line := range strings.SplitSeq(doc.Before, "\n") {
 			fmt.Fprint(b, "    ", line, "\n")
 		}
 		fmt.Fprintln(b, "")
 		fmt.Fprintln(b, "After:")
 		fmt.Fprintln(b, "")
-		for _, line := range strings.Split(doc.After, "\n") {
+		for line := range strings.SplitSeq(doc.After, "\n") {
 			fmt.Fprint(b, "    ", line, "\n")
 		}
 		fmt.Fprintln(b, "")
