@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-	"sort"
 	"strings"
-	"unicode"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/staticcheck/fakereflect"
 	"honnef.co/go/tools/staticcheck/fakexml"
 
@@ -92,7 +89,10 @@ func run(pass *analysis.Pass) (any, error) {
 }
 
 func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
-	if pass.Pkg.Path() == "encoding/json" || pass.Pkg.Path() == "encoding/json_test" {
+	if pass.Pkg.Path() == "encoding/json" ||
+		pass.Pkg.Path() == "encoding/json_test" ||
+		pass.Pkg.Path() == "encoding/json/v2" ||
+		pass.Pkg.Path() == "encoding/json/v2_test" {
 		// don't flag malformed JSON tags in the encoding/json
 		// package; it knows what it is doing, and it is testing
 		// itself.
@@ -101,57 +101,8 @@ func checkJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 	//lint:ignore SA9003 TODO(dh): should we flag empty tags?
 	if len(tag) == 0 {
 	}
-	if i := strings.Index(tag, ",format:"); i >= 0 {
-		tag = tag[:i]
-	}
-	fields := strings.Split(tag, ",")
-	for _, r := range fields[0] {
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("!#$%&()*+-./:<=>?@[]^_{|}~ ", r) {
-			report.Report(pass, field.Tag, fmt.Sprintf("invalid JSON field name %q", fields[0]))
-		}
-	}
-	options := make(map[string]int)
-	for _, s := range fields[1:] {
-		switch s {
-		case "":
-			// allow stuff like "-,"
-		case "string":
-			// only for string, floating point, integer and bool
-			options[s]++
-			tset := typeutil.NewTypeSet(pass.TypesInfo.TypeOf(field.Type))
-			if len(tset.Terms) == 0 {
-				// TODO(dh): improve message, call out the use of type parameters
-				report.Report(pass, field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
-				continue
-			}
-			for _, term := range tset.Terms {
-				T := typeutil.Dereference(term.Type().Underlying())
-				for _, term2 := range typeutil.NewTypeSet(T).Terms {
-					basic, ok := term2.Type().Underlying().(*types.Basic)
-					if !ok || (basic.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString)) == 0 {
-						// TODO(dh): improve message, show how we arrived at the type
-						report.Report(pass, field.Tag, "the JSON string option only applies to fields of type string, floating point, integer or bool, or pointers to those")
-					}
-				}
-			}
-		case "omitzero", "omitempty", "nocase", "inline", "unknown":
-			options[s]++
-		default:
-			report.Report(pass, field.Tag, fmt.Sprintf("unknown JSON option %q", s))
-		}
-	}
-	var duplicates []string
-	for option, n := range options {
-		if n > 1 {
-			duplicates = append(duplicates, option)
-		}
-	}
-	if len(duplicates) > 0 {
-		sort.Strings(duplicates)
-		for _, option := range duplicates {
-			report.Report(pass, field.Tag, fmt.Sprintf("duplicate JSON option %q", option))
-		}
-	}
+
+	validateJSONTag(pass, field, tag)
 }
 
 func checkXMLTag(pass *analysis.Pass, field *ast.Field, tag string) {

@@ -7,20 +7,26 @@ import (
 )
 
 type T1 struct {
-	B int        `foo:"" foo:""` //@ diag(`duplicate struct tag`)
-	C int        `foo:"" bar:""`
-	D int        `json:"-"`
-	E int        `json:"\\"`                   //@ diag(`invalid JSON field name`)
-	F int        `json:",omitempty,omitempty"` //@ diag(`duplicate JSON option "omitempty"`)
-	G int        `json:",omitempty,string"`
-	H int        `json:",string,omitempty,string"` //@ diag(`duplicate JSON option "string"`)
-	I int        `json:",foreign"`                 //@ diag(`unknown JSON option "foreign"`)
-	J int        `json:",string"`
-	K *int       `json:",string"`
-	L **int      `json:",string"` //@ diag(`the JSON string option`)
-	M complex128 `json:",string"` //@ diag(`the JSON string option`)
-	N int        `json:"some-name"`
-	O int        `json:"some-name,omitzero,omitempty,nocase,inline,unknown,format:'something,with,commas'"`
+	B  int                    `foo:"" foo:""` //@ diag(`duplicate struct tag`)
+	C  int                    `foo:"" bar:""`
+	D  int                    `json:"-"`
+	E  int                    `json:"\\"`                   //@ diag("malformed `json` tag")
+	F  int                    `json:",omitempty,omitempty"` //@ diag("duplicate appearance of `omitempty` tag option")
+	G  int                    `json:",omitempty,string"`
+	H  int                    `json:",string,omitempty,string"` //@ diag("duplicate appearance of `string` tag option")
+	I  int                    `json:",foreign"`                 //@ diag("invalid appearance of unknown `foreign` tag option")
+	J  int                    `json:",string"`
+	K  *int                   `json:",string"`
+	L  **int                  `json:",string"` //@ diag("invalid appearance of `string` tag option")
+	M  complex128             `json:",string"` //@ diag("invalid appearance of `string` tag option")
+	N  int                    `json:"some-name"`
+	O  int                    `json:"some-name,omitzero,omitempty,format:'something,with,commas'"`
+	P  string                 `json:"-,omitempty"` //@ diag(`should encoding/json ignore this field or name it`)
+	Q  string                 `json:"'-',omitempty"`
+	R  map[string]interface{} `json:"unknown"`
+	S  map[string]interface{} `json:"inline"`
+	T2 `json:",omitzero"`
+	T3 `json:"bar,omitzero"`
 }
 
 type T2 struct {
@@ -38,7 +44,7 @@ type T2 struct {
 
 type T3 struct {
 	A int `json:",omitempty" xml:",attr"`
-	B int `json:",foreign" xml:",attr"` //@ diag(`unknown JSON option "foreign"`)
+	B int `json:",foreign" xml:",attr"` //@ diag("invalid appearance of unknown `foreign` tag option")
 }
 
 type T4 struct {
