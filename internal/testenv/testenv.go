@@ -84,8 +84,10 @@ func hasTool(tool string) error {
 				return
 			}
 			GOROOT := strings.TrimSpace(string(out))
-			if GOROOT != runtime.GOROOT() {
-				checkGoGoroot.err = fmt.Errorf("'go env GOROOT' does not match runtime.GOROOT:\n\tgo env: %s\n\tGOROOT: %s", GOROOT, runtime.GOROOT())
+			//lint:ignore SA1019 runtime.GOROOT is deprecated, specifically to allow copying binaries. What should we do
+			//  about this?
+			if runtimeGOROOT := runtime.GOROOT(); GOROOT != runtimeGOROOT {
+				checkGoGoroot.err = fmt.Errorf("'go env GOROOT' does not match runtime.GOROOT:\n\tgo env: %s\n\tGOROOT: %s", GOROOT, runtimeGOROOT)
 			}
 		})
 		if checkGoGoroot.err != nil {

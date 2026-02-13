@@ -38,6 +38,8 @@ func FuzzParse(f *testing.F) {
 	// pattern when checking against the whole standard library.
 	//
 	// We pick the runtime package in the hopes that it contains the most diverse, and weird, code.
+	//
+	//lint:ignore SA1019 runtime.GOROOT is deprecated, we'll have to update this eventually
 	filepath.Walk(runtime.GOROOT()+"/src/runtime", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// XXX error handling
