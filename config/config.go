@@ -174,6 +174,7 @@ var DefaultConfig = Config{
 		"XSS", "SIP", "RTP", "AMQP", "DB", "TS",
 	},
 	DotImportWhitelist: []string{
+		"simd/archsimd",
 		"github.com/mmcloughlin/avo/build",
 		"github.com/mmcloughlin/avo/operand",
 		"github.com/mmcloughlin/avo/reg",
