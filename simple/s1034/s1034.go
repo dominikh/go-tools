@@ -24,6 +24,28 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Doc: &lint.RawDocumentation{
 		Title:   `Use result of type assertion to simplify cases`,
 		Since:   "2019.2",
+		Text: `
+When using the type of a variable in a switch statement, the type of the variable is inferred from the case condition.
+
+The following
+
+    switch o.(type) {
+	case string:
+		a = o.(string)
+	case int:
+		b = o.(int)
+	}
+
+can be simplified as
+
+    switch o.(type) {
+	case string:
+		a = o
+	case int:
+		b = o
+	}
+
+as the type of o has been established within the context of the case statement.`,
 		MergeIf: lint.MergeIfAny,
 	},
 })
