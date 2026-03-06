@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/tools/go/packages"
 	"honnef.co/go/tools/go/loader"
-	"honnef.co/go/tools/lintcmd/cache"
 	"honnef.co/go/tools/unused"
 )
 
@@ -35,14 +34,10 @@ func main() {
 
 	// XXX set cache key for this tool
 
-	c, err := cache.Default()
-	if err != nil {
-		log.Fatal(err)
-	}
 	cfg := &packages.Config{
 		Tests: true,
 	}
-	specs, err := loader.Graph(c, cfg, flag.Args()...)
+	specs, err := loader.Graph(cfg, flag.Args()...)
 	if err != nil {
 		log.Fatal(err)
 	}

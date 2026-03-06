@@ -67,7 +67,7 @@ func Run(t *testing.T, a *lint.Analyzer) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.SetSalt(salt)
+	cache.SetSalt(salt)
 
 	tags := build.Default.ReleaseTags
 	maxVersion := tags[len(tags)-1]
