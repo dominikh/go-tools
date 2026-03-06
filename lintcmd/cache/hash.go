@@ -19,6 +19,11 @@ var debugHash = false // set when GODEBUG=gocachehash=1
 // HashSize is the number of bytes in a hash.
 const HashSize = 32
 
+// hashSalt is an optional salt prepended to every hash created by NewHash.
+// When set (via SetSalt), it is typically the build ID of the current binary,
+// so that cache entries are invalidated when the binary changes.
+var hashSalt []byte
+
 // A Hash provides access to the canonical hash function used to index the cache.
 // The current implementation uses salted SHA256, but clients must not assume this.
 type Hash struct {
@@ -47,14 +52,22 @@ func Subkey(parent ActionID, desc string) ActionID {
 	return out
 }
 
+// SetSalt sets an optional salt that is prepended to every hash created by
+// NewHash. This is typically the build ID of the current binary, ensuring that
+// cache entries are invalidated when the binary changes. If not called,
+// NewHash operates without a salt.
+func SetSalt(b []byte) {
+	hashSalt = b
+}
+
 // NewHash returns a new Hash.
 // The caller is expected to Write data to it and then call Sum.
-func (c *Cache) NewHash(name string) *Hash {
+func NewHash(name string) *Hash {
 	h := &Hash{h: sha256.New(), name: name}
 	if debugHash {
 		fmt.Fprintf(os.Stderr, "HASH[%s]\n", h.name)
 	}
-	h.Write(c.salt)
+	h.Write(hashSalt)
 	if verify {
 		h.buf = new(bytes.Buffer)
 	}

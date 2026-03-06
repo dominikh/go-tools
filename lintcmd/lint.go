@@ -29,7 +29,7 @@ import (
 // A linter lints Go source code.
 type linter struct {
 	analyzers map[string]*lint.Analyzer
-	cache     *cache.Cache
+	cache     cache.Cache
 	opts      options
 }
 
@@ -66,7 +66,7 @@ func newLinter(opts options) (*linter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not compute salt for cache: %s", err)
 	}
-	c.SetSalt(salt)
+	cache.SetSalt(salt)
 
 	analyzers := make(map[string]*lint.Analyzer, len(opts.analyzers))
 	for _, a := range opts.analyzers {

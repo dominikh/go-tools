@@ -555,7 +555,7 @@ func (cmd *Command) lint() int {
 		}
 	}
 
-	l.cache.Trim()
+	l.cache.Close()
 
 	if cmd.flags.formatter != "binary" {
 		diags := mergeRuns(runs)
