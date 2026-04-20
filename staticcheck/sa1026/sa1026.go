@@ -31,7 +31,9 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var rules = map[string]callcheck.Check{
 	"encoding/json.Marshal":           checkJSON,
+	"encoding/json.MarshalIndent":     checkJSON,
 	"encoding/xml.Marshal":            checkXML,
+	"encoding/xml.MarshalIndent":      checkXML,
 	"(*encoding/json.Encoder).Encode": checkJSON,
 	"(*encoding/xml.Encoder).Encode":  checkXML,
 }
