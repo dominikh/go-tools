@@ -28,6 +28,7 @@ var Args = map[string]int{
 	"fmt.Sprintf.a[0]":                       1,
 	"fmt.Sprintf.format":                     0,
 	"json.Marshal.v":                         0,
+	"json.MarshalIndent.v":                   0,
 	"json.Unmarshal.v":                       1,
 	"len.v":                                  0,
 	"make.size[0]":                           1,
@@ -60,6 +61,7 @@ var Args = map[string]int{
 	"time.Parse.layout":                      0,
 	"time.Sleep.d":                           0,
 	"xml.Marshal.v":                          0,
+	"xml.MarshalIndent.v":                    0,
 	"xml.Unmarshal.v":                        1,
 }
 

@@ -50,7 +50,9 @@ var rules = map[string]callcheck.Check{
 	//
 	// Also, should we flag gob?
 	"encoding/json.Marshal":           check(knowledge.Arg("json.Marshal.v"), "MarshalJSON", "MarshalText"),
+	"encoding/json.MarshalIndent":     check(knowledge.Arg("json.MarshalIndent.v"), "MarshalJSON", "MarshalText"),
 	"encoding/xml.Marshal":            check(knowledge.Arg("xml.Marshal.v"), "MarshalXML", "MarshalText"),
+	"encoding/xml.MarshalIndent":      check(knowledge.Arg("xml.MarshalIndent.v"), "MarshalXML", "MarshalText"),
 	"(*encoding/json.Encoder).Encode": check(knowledge.Arg("(*encoding/json.Encoder).Encode.v"), "MarshalJSON", "MarshalText"),
 	"(*encoding/xml.Encoder).Encode":  check(knowledge.Arg("(*encoding/xml.Encoder).Encode.v"), "MarshalXML", "MarshalText"),
 
