@@ -322,3 +322,8 @@ func functionAsArgument(arg T1) {
 	json.Marshal(functionAsArgument) //@ diag(`unsupported type func(arg T1)`)
 	xml.Marshal(functionAsArgument)  //@ diag(`unsupported type func(arg T1)`)
 }
+
+func indent() {
+	json.MarshalIndent(functionAsArgument, "", "  ") //@ diag(`unsupported type func(arg T1)`)
+	xml.MarshalIndent(functionAsArgument, "", "  ")  //@ diag(`unsupported type func(arg T1)`)
+}
