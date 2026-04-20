@@ -53,7 +53,8 @@ func fn() {
 	// don't flag structs with no fields
 	json.Marshal(T1{})
 	// no exported fields
-	json.Marshal(T2{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	json.Marshal(T2{})                 //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
+	json.MarshalIndent(T2{}, "", "  ") //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	// pointer vs non-pointer makes no difference
 	json.Marshal(&T2{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T2' doesn't have any exported fields, nor custom marshaling`)
 	// exported field
@@ -94,7 +95,8 @@ func fn() {
 	json.Marshal(T23{})
 
 	// MarshalJSON does not apply to XML
-	xml.Marshal(T7{}) //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
+	xml.Marshal(T7{})                 //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
+	xml.MarshalIndent(T7{}, "", "  ") //@ diag(`struct type 'example.com/CheckNoopMarshal.T7' doesn't have any exported fields, nor custom marshaling`)
 	// MarshalXML
 	xml.Marshal(T8{})
 
