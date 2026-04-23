@@ -13,9 +13,10 @@ jobs:
         godebug: ["gotypesalias=0", "gotypesalias=1"]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 1
+        persist-credentials: false
     - uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go }}
