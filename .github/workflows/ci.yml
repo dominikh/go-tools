@@ -13,18 +13,18 @@ jobs:
         godebug: ["gotypesalias=0", "gotypesalias=1"]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 1
         persist-credentials: false
-    - uses: actions/setup-go@v6
+    - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
       with:
         go-version: ${{ matrix.go }}
     - run: "go test ./..."
       env:
         GODEBUG: ${{ matrix.godebug }}
     - run: "go vet ./..."
-    - uses: dominikh/staticcheck-action@v1
+    - uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
       with:
         version: "2026.1"
         min-go-version: "module"
@@ -32,7 +32,7 @@ jobs:
         cache-key: ${{ matrix.go }}
         output-format: binary
         output-file: "./staticcheck.bin"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: "staticcheck-${{ github.sha }}-${{ matrix.go }}-${{ matrix.os }}-${{ matrix.godebug }}.bin"
         path: "./staticcheck.bin"
@@ -43,17 +43,17 @@ jobs:
     needs: ci
     runs-on: "ubuntu-latest"
     steps:
-    - uses: actions/setup-go@v6
+    - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
       with:
         go-version: "stable"
     # this downloads all artifacts of the current workflow into the current working directory, creating one directory per artifact
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
     - id: glob
       run: |
         # We replace newlines with %0A, which GitHub apparently magically turns back into newlines
         out=$(ls -1 ./staticcheck-*.bin/*.bin)
         echo "::set-output name=files::${out//$'\n'/%0A}"
-    - uses: dominikh/staticcheck-action@v1
+    - uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
       with:
         install-go: false
         merge-files: ${{ steps.glob.outputs.files }}
