@@ -49,12 +49,10 @@ func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		expr := node.(*ast.BinaryExpr)
 		tx := pass.TypesInfo.TypeOf(expr.X)
-		basic, ok := tx.Underlying().(*types.Basic)
-		if !ok {
-			return
-		}
+		tset := typeutil.NewTypeSet(tx)
 
-		// We only check for the math constants and integer literals, not for all constant expressions. This is to avoid
+		// We only check for the math constants and integer literals, not for
+		// all constant expressions. This is to avoid
 		// false positives when constant values differ under different build tags.
 		var (
 			maxMathConst string
@@ -62,6 +60,54 @@ func run(pass *analysis.Pass) (any, error) {
 			maxLiteral   constant.Value
 			minLiteral   constant.Value
 		)
+
+		allUnsigned := tset.All(func(t *types.Term) bool {
+			if basic, ok := t.Type().Underlying().(*types.Basic); ok {
+				return basic.Info()&types.IsUnsigned != 0
+			}
+			return false
+		})
+
+		if allUnsigned {
+			isZeroLiteral := func(expr ast.Expr) bool {
+				return code.IsIntegerLiteral(pass, expr, constant.MakeInt64(0))
+			}
+			if (expr.Op == token.LSS && isZeroLiteral(expr.Y)) ||
+				(expr.Op == token.GTR && isZeroLiteral(expr.X)) {
+				report.Report(
+					pass,
+					expr,
+					fmt.Sprintf("no value of type %s is less than 0", tx),
+					report.FilterGenerated(),
+				)
+			}
+			if expr.Op == token.GEQ && isZeroLiteral(expr.Y) ||
+				expr.Op == token.LEQ && isZeroLiteral(expr.X) {
+				report.Report(
+					pass,
+					expr,
+					fmt.Sprintf("every value of type %s is >= 0", tx),
+					report.FilterGenerated(),
+				)
+			}
+		}
+
+		core := tset.CoreType()
+		if core == nil {
+			// All remaining checks are only relevant when the type set
+			// contains a single underlying type.
+			//
+			// If we had a 'var x uint8 | uint16',
+			// then the type checker wouldn't permit a check such as
+			// 'if x <= math.MaxUint16', because the constant cannot be converted to all
+			// types in the type set.
+			return
+		}
+
+		basic, ok := core.(*types.Basic)
+		if !ok {
+			return
+		}
 
 		switch basic.Kind() {
 		case types.Uint8:
@@ -81,7 +127,8 @@ func run(pass *analysis.Pass) (any, error) {
 			minLiteral = constant.MakeUint64(0)
 			maxLiteral = constant.MakeUint64(math.MaxUint64)
 		case types.Uint:
-			// TODO(dh): we could chose 32 bit vs 64 bit depending on the file's build tags
+			// TODO(dh): we could chose 32 bit vs 64 bit depending on the
+			// file's build tags
 			maxMathConst = "math.MaxUint64"
 			minLiteral = constant.MakeUint64(0)
 			maxLiteral = constant.MakeUint64(math.MaxUint64)
@@ -107,7 +154,8 @@ func run(pass *analysis.Pass) (any, error) {
 			minLiteral = constant.MakeInt64(math.MinInt64)
 			maxLiteral = constant.MakeInt64(math.MaxInt64)
 		case types.Int:
-			// TODO(dh): we could chose 32 bit vs 64 bit depending on the file's build tags
+			// TODO(dh): we could chose 32 bit vs 64 bit depending on the
+			// file's build tags
 			minMathConst = "math.MinInt64"
 			maxMathConst = "math.MaxInt64"
 			minLiteral = constant.MakeInt64(math.MinInt64)
@@ -120,37 +168,53 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 			return code.IsIntegerLiteral(pass, expr, c)
 		}
-		isZeroLiteral := func(expr ast.Expr) bool {
-			return code.IsIntegerLiteral(pass, expr, constant.MakeInt64(0))
+
+		x, y, op := expr.X, expr.Y, expr.Op
+		switch op {
+		case token.GEQ, token.GTR:
+		case token.LEQ:
+			x, y = y, x
+			op = token.GEQ
+		case token.LSS:
+			x, y = y, x
+			op = token.GTR
+		default:
+			return
 		}
 
-		if (expr.Op == token.GTR || expr.Op == token.GEQ) && (isobj(expr.Y, maxMathConst) || isLiteral(expr.Y, maxLiteral)) ||
-			(expr.Op == token.LSS || expr.Op == token.LEQ) && (isobj(expr.X, maxMathConst) || isLiteral(expr.X, maxLiteral)) {
-			report.Report(pass, expr, fmt.Sprintf("no value of type %s is greater than %s", basic, maxMathConst), report.FilterGenerated())
+		if isobj(y, maxMathConst) || isLiteral(y, maxLiteral) {
+			report.Report(
+				pass,
+				expr,
+				fmt.Sprintf("no value of type %s is greater than %s", tx, maxMathConst),
+				report.FilterGenerated(),
+			)
+		}
+		if op == token.GEQ && (isobj(x, maxMathConst) || isLiteral(x, maxLiteral)) {
+			report.Report(
+				pass,
+				expr,
+				fmt.Sprintf("every value of type %s is <= %s", tx, maxMathConst),
+				report.FilterGenerated(),
+			)
 		}
 
-		if expr.Op == token.LEQ && (isobj(expr.Y, maxMathConst) || isLiteral(expr.Y, maxLiteral)) ||
-			expr.Op == token.GEQ && (isobj(expr.X, maxMathConst) || isLiteral(expr.X, maxLiteral)) {
-			report.Report(pass, expr, fmt.Sprintf("every value of type %s is <= %s", basic, maxMathConst), report.FilterGenerated())
-		}
-
-		if (basic.Info() & types.IsUnsigned) != 0 {
-			if (expr.Op == token.LSS && isZeroLiteral(expr.Y)) ||
-				(expr.Op == token.GTR && isZeroLiteral(expr.X)) {
-				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than 0", basic), report.FilterGenerated())
+		if !allUnsigned {
+			if isobj(x, minMathConst) || isLiteral(x, minLiteral) {
+				report.Report(
+					pass,
+					expr,
+					fmt.Sprintf("no value of type %s is less than %s", tx, minMathConst),
+					report.FilterGenerated(),
+				)
 			}
-			if expr.Op == token.GEQ && isZeroLiteral(expr.Y) ||
-				expr.Op == token.LEQ && isZeroLiteral(expr.X) {
-				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= 0", basic), report.FilterGenerated())
-			}
-		} else {
-			if (expr.Op == token.LSS || expr.Op == token.LEQ) && (isobj(expr.Y, minMathConst) || isLiteral(expr.Y, minLiteral)) ||
-				(expr.Op == token.GTR || expr.Op == token.GEQ) && (isobj(expr.X, minMathConst) || isLiteral(expr.X, minLiteral)) {
-				report.Report(pass, expr, fmt.Sprintf("no value of type %s is less than %s", basic, minMathConst), report.FilterGenerated())
-			}
-			if expr.Op == token.GEQ && (isobj(expr.Y, minMathConst) || isLiteral(expr.Y, minLiteral)) ||
-				expr.Op == token.LEQ && (isobj(expr.X, minMathConst) || isLiteral(expr.X, minLiteral)) {
-				report.Report(pass, expr, fmt.Sprintf("every value of type %s is >= %s", basic, minMathConst), report.FilterGenerated())
+			if op == token.GEQ && (isobj(y, minMathConst) || isLiteral(y, minLiteral)) {
+				report.Report(
+					pass,
+					expr,
+					fmt.Sprintf("every value of type %s is >= %s", tx, minMathConst),
+					report.FilterGenerated(),
+				)
 			}
 		}
 
