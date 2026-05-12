@@ -1833,6 +1833,32 @@ func (v *Function) Referrers() *[]Instruction {
 	return nil
 }
 
+// Returns returns an iterator over all blocks containing return statements.
+func (v *Function) Returns() iter.Seq[*BasicBlock] {
+	return func(yield func(*BasicBlock) bool) {
+		for _, b := range v.Blocks {
+			if _, ok := b.Control().(*Return); ok {
+				if !yield(b) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Exits returns an iterator over all blocks that have no successors.
+func (v *Function) Exits() iter.Seq[*BasicBlock] {
+	return func(yield func(*BasicBlock) bool) {
+		for _, b := range v.Blocks {
+			if len(b.Succs) == 0 {
+				if !yield(b) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // Nodes returns an iterator over the basic block indices.
 func (v *Function) Nodes() iter.Seq[int] {
 	return func(yield func(int) bool) {
