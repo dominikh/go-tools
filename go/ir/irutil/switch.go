@@ -129,20 +129,10 @@ func Switches(fn *ir.Function) []Switch {
 	return switches
 }
 
-func isSameX(x1 ir.Value, x2 ir.Value) bool {
-	if x1 == x2 {
-		return true
-	}
-	if x2, ok := x2.(*ir.Sigma); ok {
-		return isSameX(x1, x2.X)
-	}
-	return false
-}
-
 func valueSwitch(sw *Switch, k *ir.Const, seen map[*ir.BasicBlock]bool) {
 	b := sw.Start
 	x := sw.X
-	for isSameX(sw.X, x) {
+	for sw.X == x {
 		if seen[b] {
 			break
 		}
@@ -159,13 +149,13 @@ func valueSwitch(sw *Switch, k *ir.Const, seen map[*ir.BasicBlock]bool) {
 			switch instr.(type) {
 			case *ir.If, *ir.BinOp:
 				n++
-			case *ir.Sigma, *ir.Phi, *ir.DebugRef:
+			case *ir.Phi, *ir.DebugRef:
 			default:
 				n += 1000
 			}
 		}
 		if n != 2 {
-			// Block b contains not just 'if x == k' and σ/ϕ nodes,
+			// Block b contains not just 'if x == k' and ϕ nodes,
 			// so it may have side effects that
 			// make it unsafe to elide.
 			break
@@ -183,7 +173,7 @@ func valueSwitch(sw *Switch, k *ir.Const, seen map[*ir.BasicBlock]bool) {
 func typeSwitch(sw *Switch, y ir.Value, T types.Type, seen map[*ir.BasicBlock]bool) {
 	b := sw.Start
 	x := sw.X
-	for isSameX(sw.X, x) {
+	for sw.X == x {
 		if seen[b] {
 			break
 		}
@@ -201,7 +191,7 @@ func typeSwitch(sw *Switch, y ir.Value, T types.Type, seen map[*ir.BasicBlock]bo
 			switch instr.(type) {
 			case *ir.TypeAssert, *ir.Extract, *ir.If:
 				n++
-			case *ir.Sigma, *ir.Phi:
+			case *ir.Phi:
 			default:
 				n += 1000
 			}

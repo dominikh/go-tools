@@ -13,7 +13,6 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-	"os"
 	"reflect"
 	"sort"
 	"testing"
@@ -263,16 +262,16 @@ b0: # entry
 	t1 = Const <bool> {true}
 	t2 = Const <int> {42}
 	t3 = Load <bool> init$guard
-	If t3 → b1 b2
+	If t3 → b2 b1
 
-b1: ← b0 b2 # exit
-	Return
-
-b2: ← b0 # init.start
+b1: ← b0 # init.start
 	Store {bool} init$guard t1
-	t7 = Call <()> errors.init
+	t6 = Call <()> errors.init
 	Store {int} i t2
-	Jump → b1
+	Jump → b2
+
+b2: ← b0 b1 # init.done
+	Return
 
 `},
 	}
@@ -487,9 +486,8 @@ func h(error)
 			}
 		}
 	}
-	if expected := 4; phis != expected {
-		g.WriteTo(os.Stderr)
-		t.Errorf("expected %d Phi nodes (for the range index, slice length and slice), got %d", expected, phis)
+	if phis != 1 {
+		t.Errorf("expected one Phi node (for the range index), got %d", phis)
 	}
 }
 

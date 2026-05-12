@@ -55,7 +55,7 @@ func main() {
 	fmt.Println(v1)        //@ ir(v1,"Const")
 	f := func(param int) { //@ ir(f,"MakeClosure"), ir(param,"Parameter")
 		if y := 1; y > 0 { //@ ir(y,"Const")
-			print(v1, param) //@ ir(v1,"Load") /*load*/, ir(param,"Sigma")
+			print(v1, param) //@ ir(v1,"Load") /*load*/, ir(param,"Parameter")
 		}
 		param = 2      //@ ir(param,"Const")
 		println(param) //@ ir(param,"Const")
@@ -70,9 +70,9 @@ func main() {
 	m := make(map[string]int) //@ ir(m,"MakeMap")
 
 	// Local value spec with multi-valued RHS:
-	var v3, v4 = m[""] //@ ir(v3,"Extract"), ir(v4,"Extract"), ir(m,"MakeMap")
-	print(v3)          //@ ir(v3,"Extract")
-	print(v4)          //@ ir(v4,"Extract")
+	v3, v4 := m[""] //@ ir(v3,"Extract"), ir(v4,"Extract"), ir(m,"MakeMap")
+	print(v3)       //@ ir(v3,"Extract")
+	print(v4)       //@ ir(v4,"Extract")
 
 	v3++    //@ ir(v3,"BinOp") // assign with op
 	v3 += 2 //@ ir(v3,"BinOp") // assign with op

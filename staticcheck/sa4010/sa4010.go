@@ -57,7 +57,6 @@ func run(pass *analysis.Pass) (any, error) {
 	// This graph must only consist of the following instructions:
 	//
 	// - phi
-	// - sigma
 	// - slice
 	// - const nil
 	// - MakeSlice
@@ -93,8 +92,6 @@ func run(pass *analysis.Pass) (any, error) {
 				}
 			}
 			return true
-		case *ir.Sigma:
-			return validateArgument(v.X, seen)
 		case *ir.Slice:
 			return validateArgument(v.X, seen)
 		case *ir.Const:
@@ -123,7 +120,6 @@ func run(pass *analysis.Pass) (any, error) {
 			seen[ref] = struct{}{}
 			switch ref.(type) {
 			case *ir.Phi:
-			case *ir.Sigma:
 			case *ir.Slice:
 			case *ir.Const:
 			case *ir.MakeSlice:
@@ -165,8 +161,6 @@ func run(pass *analysis.Pass) (any, error) {
 						}
 						switch ref := ref.(type) {
 						case *ir.Phi:
-							walkRefs(*ref.Referrers())
-						case *ir.Sigma:
 							walkRefs(*ref.Referrers())
 						case ir.Value:
 							if !isAppend(ref) {

@@ -95,8 +95,6 @@ func run(pass *analysis.Pass) (any, error) {
 					values = append(values, v)
 				}
 				return neverNil(v.X, false)
-			case *ir.Sigma:
-				return neverNil(v.X, true)
 			case *ir.Phi:
 				for _, e := range v.Edges {
 					if !neverNil(e, true) {

@@ -90,12 +90,6 @@ func (v *Alloc) String() string {
 	return fmt.Sprintf("%sAlloc <%s>", storage, relType(v.Type(), from))
 }
 
-func (v *Sigma) String() string {
-	from := v.Parent().pkg()
-	s := fmt.Sprintf("Sigma <%s> [b%d] %s", relType(v.Type(), from), v.From.Index, v.X.Name())
-	return s
-}
-
 func (v *Phi) String() string {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "Phi <%s>", v.Type())
@@ -304,12 +298,7 @@ func (s *Jump) String() string {
 }
 
 func (s *Unreachable) String() string {
-	// Be robust against malformed CFG.
-	block := -1
-	if s.block != nil && len(s.block.Succs) == 1 {
-		block = s.block.Succs[0].Index
-	}
-	return fmt.Sprintf("Unreachable → b%d", block)
+	return "Unreachable"
 }
 
 func (s *If) String() string {
@@ -375,12 +364,7 @@ func (s *Go) String() string {
 }
 
 func (s *Panic) String() string {
-	// Be robust against malformed CFG.
-	block := -1
-	if s.block != nil && len(s.block.Succs) == 1 {
-		block = s.block.Succs[0].Index
-	}
-	return fmt.Sprintf("Panic %s → b%d", relName(s.X, s), block)
+	return fmt.Sprintf("Panic %s", relName(s.X, s))
 }
 
 func (s *Return) String() string {

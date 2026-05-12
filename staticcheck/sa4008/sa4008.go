@@ -82,23 +82,9 @@ func run(pass *analysis.Pass) (any, error) {
 			if v == nil || isAddr {
 				return true
 			}
-			switch v := v.(type) {
+			switch v.(type) {
 			case *ir.Phi:
-				ops := v.Operands(nil)
-				if len(ops) != 2 {
-					return true
-				}
-				_, ok := (*ops[0]).(*ir.Const)
-				if !ok {
-					return true
-				}
-				sigma, ok := (*ops[1]).(*ir.Sigma)
-				if !ok {
-					return true
-				}
-				if sigma.X != v {
-					return true
-				}
+				return true
 			case *ir.Load:
 				return true
 			}

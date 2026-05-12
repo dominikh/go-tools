@@ -7,7 +7,7 @@ package ir
 // This file defines the lifting pass which tries to "lift" Alloc
 // cells (new/local variables) into SSA registers, replacing loads
 // with the dominating stored value, eliminating loads and stores, and
-// inserting φ- and σ-nodes as needed.
+// inserting φ-nodes as needed.
 
 // Cited papers and resources:
 //
@@ -78,16 +78,8 @@ func (df domFrontier) add(u, v *BasicBlock) {
 // the DF -> IDF step.
 func (df domFrontier) build(fn *Function) {
 	for _, b := range fn.Blocks {
-		preds := b.Preds[0:len(b.Preds):len(b.Preds)]
-		if b == fn.Exit {
-			for i, v := range fn.fakeExits.values {
-				if v {
-					preds = append(preds, fn.Blocks[i])
-				}
-			}
-		}
-		if len(preds) >= 2 {
-			for _, p := range preds {
+		if len(b.Preds) >= 2 {
+			for _, p := range b.Preds {
 				runner := p
 				for runner != b.dom.idom {
 					df.add(runner, b)
@@ -102,36 +94,6 @@ func buildDomFrontier(fn *Function) domFrontier {
 	df := make(domFrontier, len(fn.Blocks))
 	df.build(fn)
 	return df
-}
-
-type postDomFrontier BlockMap[[]*BasicBlock]
-
-func (rdf postDomFrontier) add(u, v *BasicBlock) {
-	rdf[u.Index] = append(rdf[u.Index], v)
-}
-
-func (rdf postDomFrontier) build(fn *Function) {
-	for _, b := range fn.Blocks {
-		succs := b.Succs[0:len(b.Succs):len(b.Succs)]
-		if fn.fakeExits.Has(b) {
-			succs = append(succs, fn.Exit)
-		}
-		if len(succs) >= 2 {
-			for _, s := range succs {
-				runner := s
-				for runner != b.pdom.idom {
-					rdf.add(runner, b)
-					runner = runner.pdom.idom
-				}
-			}
-		}
-	}
-}
-
-func buildPostDomFrontier(fn *Function) postDomFrontier {
-	rdf := make(postDomFrontier, len(fn.Blocks))
-	rdf.build(fn)
-	return rdf
 }
 
 func removeInstr(refs []Instruction, instr Instruction) []Instruction {
@@ -162,8 +124,8 @@ func numberNodesPerBlock(f *Function) {
 }
 
 // lift replaces local and new Allocs accessed only with
-// load/store by IR registers, inserting φ- and σ-nodes where necessary.
-// The result is a program in pruned SSI form.
+// load/store by IR registers, inserting φ-nodes where necessary.
+// The result is a program in pruned SSA form.
 //
 // Preconditions:
 // - fn has no dead blocks (blockopt has run).
@@ -189,10 +151,8 @@ func lift(fn *Function) bool {
 	//
 	// But we will start with the simplest correct code.
 	var df domFrontier
-	var rdf postDomFrontier
 	var closure *closure
 	var newPhis BlockMap[[]newPhi]
-	var newSigmas BlockMap[[]newSigma]
 
 	// During this pass we will replace some BasicBlock.Instrs
 	// (allocs, loads and stores) with nil, keeping a count in
@@ -234,12 +194,10 @@ func lift(fn *Function) bool {
 
 				if numAllocs == 0 {
 					df = buildDomFrontier(fn)
-					rdf = buildPostDomFrontier(fn)
 					if len(fn.Blocks) > 2 {
 						closure = transitiveClosure(fn)
 					}
 					newPhis = make(BlockMap[[]newPhi], len(fn.Blocks))
-					newSigmas = make(BlockMap[[]newSigma], len(fn.Blocks))
 
 					if debugLifting {
 						title := false
@@ -302,7 +260,7 @@ func lift(fn *Function) bool {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				if instr, ok := instr.(*Alloc); ok && instr.index >= 0 {
-					liftAlloc(closure, df, rdf, instr, newPhis, newSigmas)
+					liftAlloc(closure, df, instr, newPhis)
 				}
 			}
 		}
@@ -315,12 +273,12 @@ func lift(fn *Function) bool {
 		renaming := make([]Value, numAllocs)
 
 		// Renaming.
-		rename(fn.Blocks[0], renaming, newPhis, newSigmas)
+		rename(fn.Blocks[0], renaming, newPhis)
 
-		simplifyPhisAndSigmas(newPhis, newSigmas)
+		simplifyPhis(newPhis)
 
-		// Eliminate dead φ- and σ-nodes.
-		markLiveNodes(fn.Blocks, newPhis, newSigmas)
+		// Eliminate dead φ-nodes.
+		markLiveNodes(fn.Blocks, newPhis)
 
 		// Eliminate ssa:deferstack() call.
 		if eliminateDeferStack {
@@ -341,23 +299,6 @@ func lift(fn *Function) bool {
 		if numAllocs > 0 {
 			nps := newPhis[b.Index]
 			head = make([]Instruction, 0, len(nps))
-			for _, pred := range b.Preds {
-				nss := newSigmas[pred.Index]
-				idx := pred.succIndex(b)
-				for _, newSigma := range nss {
-					if sigma := newSigma.sigmas[idx]; sigma != nil && sigma.live {
-						head = append(head, sigma)
-
-						// we didn't populate referrers before, as most
-						// sigma nodes will be killed
-						if refs := sigma.X.Referrers(); refs != nil {
-							*refs = append(*refs, sigma)
-						}
-					} else if sigma != nil {
-						sigma.block = nil
-					}
-				}
-			}
 			for _, np := range nps {
 				if np.phi.live {
 					head = append(head, np.phi)
@@ -387,7 +328,7 @@ func lift(fn *Function) bool {
 		// that seems to only be the case ~1% of the time, which
 		// doesn't seem worth the extra branch.
 
-		// Remove dead instructions, add phis and sigmas
+		// Remove dead instructions, add phis
 		ns := len(b.Instrs) + j - b.gaps - rundefersToKill
 		if ns <= cap(b.Instrs) {
 			// b.Instrs has enough capacity to store all instructions
@@ -457,21 +398,17 @@ func lift(fn *Function) bool {
 
 func hasDirectReferrer(instr Instruction) bool {
 	for _, instr := range *instr.Referrers() {
-		switch instr.(type) {
-		case *Phi, *Sigma:
-			// ignore
-		default:
+		if _, ok := instr.(*Phi); !ok {
 			return true
 		}
 	}
 	return false
 }
 
-func markLiveNodes(blocks []*BasicBlock, newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
-	// Phis and sigmas may become dead due to optimization passes. We may also insert more nodes than strictly
-	// necessary, e.g. sigma nodes for constants, which will never be used.
+func markLiveNodes(blocks []*BasicBlock, newPhis BlockMap[[]newPhi]) {
+	// Phis may become dead due to optimization passes.
 
-	// Phi and sigma nodes are considered live if a non-phi, non-sigma
+	// Phi nodes are considered live if a non-phi
 	// node uses them. Once we find a node that is live, we mark all
 	// of its operands as used, too.
 	for _, npList := range newPhis {
@@ -479,15 +416,6 @@ func markLiveNodes(blocks []*BasicBlock, newPhis BlockMap[[]newPhi], newSigmas B
 			phi := np.phi
 			if !phi.live && hasDirectReferrer(phi) {
 				markLivePhi(phi)
-			}
-		}
-	}
-	for _, npList := range newSigmas {
-		for _, np := range npList {
-			for _, sigma := range np.sigmas {
-				if sigma != nil && !sigma.live && hasDirectReferrer(sigma) {
-					markLiveSigma(sigma)
-				}
 			}
 		}
 	}
@@ -503,38 +431,18 @@ func markLiveNodes(blocks []*BasicBlock, newPhis BlockMap[[]newPhi], newSigmas B
 func markLivePhi(phi *Phi) {
 	phi.live = true
 	for _, rand := range phi.Edges {
-		switch rand := rand.(type) {
-		case *Phi:
+		if rand, ok := rand.(*Phi); ok {
 			if !rand.live {
 				markLivePhi(rand)
 			}
-		case *Sigma:
-			if !rand.live {
-				markLiveSigma(rand)
-			}
 		}
 	}
 }
 
-func markLiveSigma(sigma *Sigma) {
-	sigma.live = true
-	switch rand := sigma.X.(type) {
-	case *Phi:
-		if !rand.live {
-			markLivePhi(rand)
-		}
-	case *Sigma:
-		if !rand.live {
-			markLiveSigma(rand)
-		}
-	}
-}
-
-// simplifyPhisAndSigmas removes duplicate phi and sigma nodes,
-// and replaces trivial phis with non-phi alternatives. Phi
+// simplifyPhis replaces trivial phis with non-phi alternatives. Phi
 // nodes where all edges are identical, or consist of only the phi
 // itself and one other value, may be replaced with the value.
-func simplifyPhisAndSigmas(newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
+func simplifyPhis(newPhis BlockMap[[]newPhi]) {
 	// find all phis that are trivial and can be replaced with a
 	// non-phi value. run until we reach a fixpoint, because replacing
 	// a phi may make other phis trivial.
@@ -543,7 +451,7 @@ func simplifyPhisAndSigmas(newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newS
 		for _, npList := range newPhis {
 			for _, np := range npList {
 				if np.phi.live {
-					// we're reusing 'live' to mean 'dead' in the context of simplifyPhisAndSigmas
+					// we're reusing 'live' to mean 'dead' in the context of simplifyPhis
 					continue
 				}
 				if r, ok := isUselessPhi(np.phi); ok {
@@ -553,53 +461,6 @@ func simplifyPhisAndSigmas(newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newS
 					replaceAll(np.phi, r)
 					np.phi.live = true
 					changed = true
-				}
-			}
-		}
-
-		// Replace duplicate sigma nodes with a single node. These nodes exist when multiple allocs get replaced with the
-		// same dominating store.
-		for _, sigmaList := range newSigmas {
-			primarySigmas := map[struct {
-				succ int
-				v    Value
-			}]*Sigma{}
-			for _, sigmas := range sigmaList {
-				for succ, sigma := range sigmas.sigmas {
-					if sigma == nil {
-						continue
-					}
-					if sigma.live {
-						// we're reusing 'live' to mean 'dead' in the context of simplifyPhisAndSigmas
-						continue
-					}
-					key := struct {
-						succ int
-						v    Value
-					}{succ, sigma.X}
-					if alt, ok := primarySigmas[key]; ok {
-						replaceAll(sigma, alt)
-						sigma.live = true
-						changed = true
-					} else {
-						primarySigmas[key] = sigma
-					}
-				}
-			}
-		}
-	}
-
-	for _, npList := range newPhis {
-		for _, np := range npList {
-			np.phi.live = false
-		}
-	}
-
-	for _, sigmaList := range newSigmas {
-		for _, sigmas := range sigmaList {
-			for _, sigma := range sigmas.sigmas {
-				if sigma != nil {
-					sigma.live = false
 				}
 			}
 		}
@@ -792,11 +653,6 @@ type newPhi struct {
 	alloc *Alloc
 }
 
-type newSigma struct {
-	alloc  *Alloc
-	sigmas []*Sigma
-}
-
 type liftInstructions struct {
 	insertInstructions map[Instruction][]Instruction
 	renameAllocs       []struct {
@@ -895,7 +751,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 			}
 		case *Load:
 		case *DebugRef:
-		case *Phi, *Sigma:
+		case *Phi:
 			inHead = true
 			hasUnliftable = true
 		default:
@@ -952,7 +808,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 		instrLoop:
 			for i, instr := range fn.Blocks[i].Instrs {
 				switch instr.(type) {
-				case *Phi, *Sigma:
+				case *Phi:
 				default:
 					first = i
 					break instrLoop
@@ -1128,15 +984,13 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 	return true
 }
 
-// liftAlloc lifts alloc into registers and populates newPhis and newSigmas with all the φ- and σ-nodes it may require.
-func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *Alloc, newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
+// liftAlloc lifts alloc into registers and populates newPhis with all the φ-nodes it may require.
+func liftAlloc(closure *closure, df domFrontier, alloc *Alloc, newPhis BlockMap[[]newPhi]) {
 	fn := alloc.Parent()
 
 	defblocks := fn.blockset(0)
-	useblocks := fn.blockset(1)
 	Aphi := fn.blockset(2)
-	Asigma := fn.blockset(3)
-	W := fn.blockset(4)
+	W := fn.blockset(3)
 
 	// Compute defblocks, the set of blocks containing a
 	// definition of the alloc cell.
@@ -1144,11 +998,6 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 		switch instr := instr.(type) {
 		case *Store:
 			defblocks.Add(instr.Block())
-		case *Load:
-			useblocks.Add(instr.Block())
-			for _, ref := range *instr.Referrers() {
-				useblocks.Add(ref.Block())
-			}
 		}
 	}
 	// The Alloc itself counts as a (zero) definition of the cell.
@@ -1199,22 +1048,6 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 
 						// Create φ-node.
 						// It will be prepended to v.Instrs later, if needed.
-						if len(y.Preds) == 0 {
-							// The exit block may be unreachable if the function doesn't
-							// return, e.g. due to an infinite loop. In that case we
-							// should not replace loads in the exit block with ϕ node that
-							// have no edges. Such loads exist when the function has named
-							// return parameters, as the exit block loads them to turn
-							// them into a Return instruction. By not replacing the loads
-							// with ϕ nodes, they will later be replaced by zero
-							// constants. This is arguably more correct, and more
-							// importantly, it doesn't break code that assumes that phis
-							// have at least one edge.
-							//
-							// For one instance of breakage see
-							// https://staticcheck.dev/issues/1533
-							continue
-						}
 						phi := &Phi{
 							Edges: make([]Value, len(y.Preds)),
 						}
@@ -1227,59 +1060,9 @@ func liftAlloc(closure *closure, df domFrontier, rdf postDomFrontier, alloc *All
 						}
 						newPhis[y.Index] = append(newPhis[y.Index], newPhi{phi, alloc})
 
-						for _, p := range y.Preds {
-							useblocks.Add(p)
-						}
 						change = true
 						if defblocks.Add(y) {
 							W.Add(y)
-						}
-					}
-				}
-			}
-		}
-
-		{
-			W.Set(useblocks)
-			for i := W.Take(); i != -1; i = W.Take() {
-				n := fn.Blocks[i]
-				for _, y := range rdf[n.Index] {
-					if Asigma.Add(y) {
-						sigmas := make([]*Sigma, 0, len(y.Succs))
-						anyLive := false
-						for _, succ := range y.Succs {
-							live := false
-							for _, ref := range *alloc.Referrers() {
-								if closure == nil || closure.has(succ, ref.Block()) {
-									live = true
-									anyLive = true
-									break
-								}
-							}
-							if live {
-								sigma := &Sigma{
-									From: y,
-									X:    alloc,
-								}
-								sigma.comment = alloc.comment
-								sigma.source = alloc.source
-								sigma.setType(deref(alloc.Type()))
-								sigma.block = succ
-								sigmas = append(sigmas, sigma)
-							} else {
-								sigmas = append(sigmas, nil)
-							}
-						}
-
-						if anyLive {
-							newSigmas[y.Index] = append(newSigmas[y.Index], newSigma{alloc, sigmas})
-							for _, s := range y.Succs {
-								defblocks.Add(s)
-							}
-							change = true
-							if useblocks.Add(y) {
-								W.Add(y)
-							}
 						}
 					}
 				}
@@ -1409,8 +1192,6 @@ func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 			return info == CopyInfoNotNil
 		case Member, *Builtin:
 			return info == CopyInfoNotNil
-		case *Sigma:
-			return hasInfo(v.X, info)
 		default:
 			return false
 		}
@@ -1550,7 +1331,7 @@ func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 	}
 }
 
-// rename implements the Cytron et al-based SSI renaming algorithm, a
+// rename implements the Cytron et al-based SSA renaming algorithm, a
 // preorder traversal of the dominator tree replacing all loads of
 // Alloc cells with the value stored to that cell by the dominating
 // store instruction.
@@ -1558,7 +1339,7 @@ func splitOnNewInformation(u *BasicBlock, renaming *StackMap) {
 // renaming is a map from *Alloc (keyed by index number) to its
 // dominating stored value; newPhis[x] is the set of new φ-nodes to be
 // prepended to block x.
-func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
+func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi]) {
 	// Each φ-node becomes the new name for its associated Alloc.
 	for _, np := range newPhis[u.Index] {
 		phi := np.phi
@@ -1602,24 +1383,13 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigm
 
 		case *Load:
 			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
-				// In theory, we wouldn't be able to replace loads directly, because a loaded value could be used in
-				// different branches, in which case it should be replaced with different sigma nodes. But we can't
-				// simply defer replacement, either, because then later stores might incorrectly affect this load.
-				//
-				// To avoid doing renaming on _all_ values (instead of just loads and stores like we're doing), we make
-				// sure during code generation that each load is only used in one block. For example, in constant switch
-				// statements, where the tag is only evaluated once, we store it in a temporary and load it for each
-				// comparison, so that we have individual loads to replace.
-				//
-				// Because we only rename stores and loads, the end result will not contain sigma nodes for all
-				// constants. Some constants may be used directly, e.g. in comparisons such as 'x == 5'. We may still
-				// end up inserting dead sigma nodes in branches, but these will never get used in renaming and will be
-				// cleaned up when we remove dead phis and sigmas.
 				newval := renamed(u.Parent(), renaming, alloc)
 				if debugLifting {
 					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
 						instr.Name(), instr, newval)
 				}
+				// Replace all references to the loaded value by the dominating
+				// stored value.
 				replaceAll(instr, newval)
 				u.Instrs[i] = nil
 				u.gaps++
@@ -1648,18 +1418,8 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigm
 		}
 	}
 
-	// update all outgoing sigma nodes with the dominating store
-	for _, sigmas := range newSigmas[u.Index] {
-		for _, sigma := range sigmas.sigmas {
-			if sigma == nil {
-				continue
-			}
-			sigma.X = renamed(u.Parent(), renaming, sigmas.alloc)
-		}
-	}
-
 	// For each φ-node in a CFG successor, rename the edge.
-	for succi, v := range u.Succs {
+	for _, v := range u.Succs {
 		phis := newPhis[v.Index]
 		if len(phis) == 0 {
 			continue
@@ -1668,17 +1428,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigm
 		for _, np := range phis {
 			phi := np.phi
 			alloc := np.alloc
-			// if there's a sigma node, use it, else use the dominating value
-			var newval Value
-			for _, sigmas := range newSigmas[u.Index] {
-				if sigmas.alloc == alloc && sigmas.sigmas[succi] != nil {
-					newval = sigmas.sigmas[succi]
-					break
-				}
-			}
-			if newval == nil {
-				newval = renamed(u.Parent(), renaming, alloc)
-			}
+			newval := renamed(u.Parent(), renaming, alloc)
 			if debugLifting {
 				fmt.Fprintf(os.Stderr, "\tsetphi %s edge %s -> %s (#%d) (alloc=%s) := %s\n",
 					phi.Name(), u, v, i, alloc.Name(), newval.Name())
@@ -1695,18 +1445,8 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi], newSigm
 	r := make([]Value, len(renaming))
 	for _, v := range u.dom.children {
 		copy(r, renaming)
-
-		// on entry to a block, the incoming sigma nodes become the new values for their alloc
-		if idx := u.succIndex(v); idx != -1 {
-			for _, sigma := range newSigmas[u.Index] {
-				if sigma.sigmas[idx] != nil {
-					r[sigma.alloc.index] = sigma.sigmas[idx]
-				}
-			}
-		}
-		rename(v, r, newPhis, newSigmas)
+		rename(v, r, newPhis)
 	}
-
 }
 
 func simplifyConstantCompositeValues(fn *Function) bool {

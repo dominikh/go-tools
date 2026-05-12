@@ -9,8 +9,6 @@
 package irutil
 
 import (
-	"bytes"
-	"fmt"
 	"go/parser"
 	"path/filepath"
 	"strings"
@@ -65,7 +63,7 @@ func TestSwitches(t *testing.T) {
 				t.Errorf("in %s, found %d switches, want %d", fn, len(switches), len(wantSwitches))
 			}
 			for i, sw := range switches {
-				got := sw.testString()
+				got := sw.String()
 				if i >= len(wantSwitches) {
 					continue
 				}
@@ -76,31 +74,4 @@ func TestSwitches(t *testing.T) {
 			}
 		}
 	}
-}
-
-func (sw *Switch) testString() string {
-	// same as the actual String method, but use the second to last
-	// instruction instead, to skip over all the phi and sigma nodes
-	// that SSI produces.
-	var buf bytes.Buffer
-	if sw.ConstCases != nil {
-		fmt.Fprintf(&buf, "switch %s {\n", sw.X.Name())
-		for _, c := range sw.ConstCases {
-			n := max(len(c.Body.Instrs)-2, 0)
-			fmt.Fprintf(&buf, "case %s: %s\n", c.Value.Name(), c.Body.Instrs[n])
-		}
-	} else {
-		fmt.Fprintf(&buf, "switch %s.(type) {\n", sw.X.Name())
-		for _, c := range sw.TypeCases {
-			n := max(len(c.Body.Instrs)-2, 0)
-			fmt.Fprintf(&buf, "case %s %s: %s\n",
-				c.Binding.Name(), c.Type, c.Body.Instrs[n])
-		}
-	}
-	if sw.Default != nil {
-		n := max(len(sw.Default.Instrs)-2, 0)
-		fmt.Fprintf(&buf, "default: %s\n", sw.Default.Instrs[n])
-	}
-	fmt.Fprintf(&buf, "}")
-	return buf.String()
 }

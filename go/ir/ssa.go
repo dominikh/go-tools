@@ -5,7 +5,7 @@
 package ir
 
 // This package defines a high-level intermediate representation for
-// Go programs using static single-information (SSI) form.
+// Go programs using static single-assignment (SSA) form.
 
 import (
 	"fmt"
@@ -368,7 +368,6 @@ type Function struct {
 	FreeVars  []*FreeVar    // free variables whose values must be supplied by closure
 	Locals    []*Alloc      // frame-allocated variables of this function
 	Blocks    []*BasicBlock // basic blocks of the function; nil => external
-	Exit      *BasicBlock   // The function's exit block
 	AnonFuncs []*Function   // anonymous functions (from FuncLit, RangeStmt) directly beneath this one
 	referrers []Instruction // referring instructions (iff Parent() != nil)
 
@@ -477,8 +476,7 @@ type functionBody struct {
 	consts          map[constKey]constValue
 	aggregateConsts typeutil.Map[[]*AggregateConst]
 
-	fakeExits BlockSet
-	blocksets [5]BlockSet
+	blocksets [4]BlockSet
 	hasDefer  bool
 
 	// a contiguous block of instructions that will be used by blocks,
@@ -513,7 +511,6 @@ type BasicBlock struct {
 	Preds, Succs []*BasicBlock  // predecessors and successors
 	succs2       [2]*BasicBlock // initial space for Succs
 	dom          domInfo        // dominator tree info
-	pdom         domInfo        // post-dominator tree info
 	post         int
 	gaps         int // number of nil Instrs (transient)
 	rundefers    int // number of rundefers (transient)
@@ -702,31 +699,6 @@ type Alloc struct {
 	index int // dense numbering; for lifting
 }
 
-var _ Instruction = (*Sigma)(nil)
-var _ Value = (*Sigma)(nil)
-
-// The Sigma instruction represents an SSI σ-node, which splits values
-// at branches in the control flow.
-//
-// Conceptually, σ-nodes exist at the end of blocks that branch and
-// constitute parallel assignments to one value per destination block.
-// However, such a representation would be awkward to work with, so
-// instead we place σ-nodes at the beginning of branch targets. The
-// From field denotes to which incoming edge the node applies.
-//
-// Within a block, all σ-nodes must appear before all non-σ nodes.
-//
-// Example printed form:
-//
-//	t2 = Sigma <int> [#0] t1 (x)
-type Sigma struct {
-	register
-	From *BasicBlock
-	X    Value
-
-	live bool // used during lifting
-}
-
 type CopyInfo uint64
 
 const (
@@ -747,7 +719,7 @@ type Copy struct {
 
 // The Phi instruction represents an SSA φ-node, which combines values
 // that differ across incoming control-flow edges and yields a new
-// value.  Within a block, all φ-nodes must appear before all non-φ, non-σ
+// value.  Within a block, all φ-nodes must appear before all non-φ
 // nodes.
 //
 // Pos() returns the position of the && or || for short-circuit
@@ -1347,15 +1319,12 @@ type Jump struct {
 // continue after the preceding function call because it terminates
 // the process.
 //
-// The instruction acts as a control instruction, jumping to the exit
-// block. However, this jump will never execute.
-//
 // An Unreachable instruction must be the last instruction of its
-// containing BasicBlock.
+// containing BasicBlock, which must have no successors.
 //
 // Example printed form:
 //
-//	Unreachable → b1
+//	Unreachable
 type Unreachable struct {
 	anInstruction
 }
@@ -1437,7 +1406,7 @@ type RunDefers struct {
 // The Panic instruction initiates a panic with value X.
 //
 // A Panic instruction must be the last instruction of its containing
-// BasicBlock, which must have one successor, the exit block.
+// BasicBlock, which must have no successors.
 //
 // NB: 'go panic(x)' and 'defer panic(x)' do not use this instruction;
 // they are treated as calls to a built-in function.
@@ -2096,10 +2065,6 @@ func (v *Next) Operands(rands []*Value) []*Value {
 
 func (s *Panic) Operands(rands []*Value) []*Value {
 	return append(rands, &s.X)
-}
-
-func (v *Sigma) Operands(rands []*Value) []*Value {
-	return append(rands, &v.X)
 }
 
 func (v *Phi) Operands(rands []*Value) []*Value {

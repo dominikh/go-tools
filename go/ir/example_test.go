@@ -103,15 +103,15 @@ func Example_buildPackage() {
 	// b0: # entry
 	// 	t1 = Const <bool> {true}
 	// 	t2 = Load <bool> init$guard
-	// 	If t2 → b1 b2
+	// 	If t2 → b2 b1
 	//
-	// b1: ← b0 b2 # exit
-	// 	Return
-	//
-	// b2: ← b0 # init.start
+	// b1: ← b0 # init.start
 	// 	Store {bool} init$guard t1
-	// 	t6 = Call <()> fmt.init
-	// 	Jump → b1
+	// 	t5 = Call <()> fmt.init
+	// 	Jump → b2
+	//
+	// b2: ← b0 b1 # init.done
+	// 	Return
 	//
 	// # Name: hello.main
 	// # Package: hello
@@ -126,9 +126,6 @@ func Example_buildPackage() {
 	// 	Store {any} t4 t5
 	// 	t7 = Slice <[]any> t3 <nil> <nil> <nil>
 	// 	t8 = Call <(n int, err error)> fmt.Println t7
-	// 	Jump → b1
-	//
-	// b1: ← b0 # exit
 	// 	Return
 }
 

@@ -67,3 +67,11 @@ func (t T) Fn3() {
 	}
 	t.Fn1()
 }
+
+func fn7(xarg int) {
+	if xarg < 10 {
+		fn7(xarg + 1)
+	} else {
+		panic("bailout")
+	}
+}

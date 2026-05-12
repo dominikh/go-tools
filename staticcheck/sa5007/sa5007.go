@@ -47,16 +47,11 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 
 			block := site.Block()
-			for _, b := range fn.Blocks {
+			for b := range fn.Exits() {
 				if block.Dominates(b) {
 					continue
 				}
-				if len(b.Instrs) == 0 {
-					continue
-				}
-				if _, ok := b.Control().(*ir.Return); ok {
-					return
-				}
+				return
 			}
 			report.Report(pass, site, "infinite recursive call")
 		})

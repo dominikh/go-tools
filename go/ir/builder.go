@@ -82,7 +82,7 @@ func jDone() *Const {
 // builder holds state associated with the package currently being built.
 // Its methods contain all the logic for AST-to-IR conversion.
 type builder struct {
-	blocksets [5]BlockSet
+	blocksets [4]BlockSet
 }
 
 // cond emits to fn code to evaluate boolean condition e and jump
@@ -314,7 +314,6 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 		fn.emit(&Panic{
 			X: emitConv(fn, b.expr(fn, args[0]), tEface, source),
 		}, source)
-		addEdge(fn.currentBlock, fn.Exit)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 		return emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil)) // any non-nil Value will do
 	}
@@ -1499,19 +1498,11 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 		b.stmt(fn, s.Init)
 	}
 	kTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil))
+	var tag Value = kTrue
 
-	var tagv Value = kTrue
-	var tagSource ast.Node = s
 	if s.Tag != nil {
-		tagv = b.expr(fn, s.Tag)
-		tagSource = s.Tag
+		tag = b.expr(fn, s.Tag)
 	}
-	// lifting only considers loads and stores, but we want different
-	// sigma nodes for the different comparisons. use a temporary and
-	// load it in every branch.
-	tag := emitLocal(fn, tagv.Type(), tagSource, "switch.value")
-	tag.comment = "switch.tag"
-	emitStore(fn, tag, tagv, tagSource)
 
 	done := fn.newBasicBlock("switch.done")
 	if label != nil {
@@ -1550,7 +1541,7 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 		var nextCond *BasicBlock
 		for _, cond := range cc.List {
 			nextCond = fn.newBasicBlock("switch.next")
-			if tagv == kTrue {
+			if tag == kTrue {
 				// emit a proper if/else chain instead of a comparison
 				// of a value against true.
 				//
@@ -1563,7 +1554,7 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 				// invalid.
 				b.cond(fn, cond, body, nextCond)
 			} else {
-				cond := emitCompare(fn, token.EQL, emitLoad(fn, tag, cond), b.expr(fn, cond), cond)
+				cond := emitCompare(fn, token.EQL, tag, b.expr(fn, cond), cond)
 				emitIf(fn, cond, body, nextCond, cond.Source())
 			}
 
@@ -1612,8 +1603,6 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	default:
 		panic("unreachable")
 	}
-	tagPtr := emitLocal(fn, tag.Type(), tag.Source(), "")
-	emitStore(fn, tagPtr, tag, tag.Source())
 
 	// +1 in case there's no explicit default case
 	heads := make([]*BasicBlock, 0, len(s.Body.List)+1)
@@ -1626,7 +1615,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 
 	// set up type switch and constant switch, populate their conditions
 	tswtch := &TypeSwitch{
-		Tag:   emitLoad(fn, tagPtr, tag.Source()),
+		Tag:   tag,
 		Conds: make([]types.Type, 0, len(s.Body.List)+1),
 	}
 	cswtch := &ConstantSwitch{
@@ -1673,9 +1662,6 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	fn.currentBlock = entry
 	fn.emit(tswtch, s)
 	cswtch.Conds = append(cswtch.Conds, emitConst(fn, intConst(int64(-1), nil)))
-	// in theory we should add a local and stores/loads for tswtch, to
-	// generate sigma nodes in the branches. however, there isn't any
-	// useful information we could possibly attach to it.
 	cswtch.Tag = emitExtract(fn, tswtch, 0, s)
 	fn.emit(cswtch, s)
 
@@ -1758,7 +1744,6 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 		instr.setType(types.NewTuple(varIndex, varOk))
 		fn.emit(instr, s)
 		fn.emit(new(Unreachable), s)
-		addEdge(fn.currentBlock, fn.Exit)
 		return true
 	}
 
@@ -2183,14 +2168,8 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 	// 	jump loop
 	// done:                                   (target of break)
 
-	// We store in an Alloc and load it on each iteration so that lifting produces the necessary σ nodes
-	xAlloc := newVariable(fn, x.Type(), source)
-	xAlloc.store(x)
-
 	// Determine number of iterations.
-	//
-	// We store the length in an Alloc and load it on each iteration so that lifting produces the necessary σ nodes
-	length := newVariable(fn, tInt, source)
+	var length Value
 	if arr, ok := typeutil.CoreType(deref(x.Type())).(*types.Array); ok {
 		// For array or *array, the number of iterations is known statically thanks to the type. We avoid a data
 		// dependence upon x, permitting later dead-code elimination if x is pure, static unrolling, etc. Ranging over a
@@ -2199,14 +2178,14 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 		// We use the core type of x, even though the length of type parameters isn't constant as per the language
 		// specification. Just because len(x) isn't constant doesn't mean we can't emit IR that takes advantage of a
 		// known length.
-		length.store(emitConst(fn, intConst(arr.Len(), nil)))
+		length = emitConst(fn, intConst(arr.Len(), nil))
 	} else {
 		// length = len(x).
 		var c Call
 		c.Call.Value = makeLen(x.Type())
 		c.Call.Args = []Value{x}
 		c.setType(tInt)
-		length.store(fn.emit(&c, source))
+		length = fn.emit(&c, source)
 	}
 
 	index := emitLocal(fn, tInt, source, "rangeindex")
@@ -2226,12 +2205,11 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 
 	body := fn.newBasicBlock("rangeindex.body")
 	done = fn.newBasicBlock("rangeindex.done")
-	emitIf(fn, emitCompare(fn, token.LSS, incr, length.load(), source), body, done, source)
+	emitIf(fn, emitCompare(fn, token.LSS, incr, length, source), body, done, source)
 	fn.currentBlock = body
 
 	k = emitLoad(fn, index, source)
 	if tv != nil {
-		x := xAlloc.load()
 		switch t := typeutil.CoreType(x.Type()).Underlying().(type) {
 		case *types.Array:
 			instr := &Index{
@@ -2296,8 +2274,7 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, source ast
 		newVar("k", tk),
 		newVar("v", tv),
 	)))
-	it := newVariable(fn, rng.typ, source)
-	it.store(fn.emit(rng, source))
+	it := fn.emit(rng, source)
 
 	loop = fn.newBasicBlock("rangeiter.loop")
 	emitJump(fn, loop, source)
@@ -2306,25 +2283,23 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, source ast
 	// Go doesn't currently allow ranging over string|[]byte, so isString is decidable.
 	_, isString := typeutil.CoreType(x.Type()).Underlying().(*types.Basic)
 
-	okvInstr := &Next{
-		Iter:     it.load(),
+	okv := &Next{
+		Iter:     it,
 		IsString: isString,
 	}
-	okvInstr.setType(rng.typ.(*typeutil.Iterator).Elem())
-	fn.emit(okvInstr, source)
-	okv := newVariable(fn, okvInstr.Type(), source)
-	okv.store(okvInstr)
+	okv.setType(rng.typ.(*typeutil.Iterator).Elem())
+	fn.emit(okv, source)
 
 	body := fn.newBasicBlock("rangeiter.body")
 	done = fn.newBasicBlock("rangeiter.done")
-	emitIf(fn, emitExtract(fn, okv.load(), 0, source), body, done, source)
+	emitIf(fn, emitExtract(fn, okv, 0, source), body, done, source)
 	fn.currentBlock = body
 
 	if tk != tInvalid {
-		k = emitExtract(fn, okv.load(), 1, source)
+		k = emitExtract(fn, okv, 1, source)
 	}
 	if tv != tInvalid {
-		v = emitExtract(fn, okv.load(), 2, source)
+		v = emitExtract(fn, okv, 2, source)
 	}
 	return
 }
@@ -2350,16 +2325,14 @@ func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, source ast.Nod
 	emitJump(fn, loop, source)
 	fn.currentBlock = loop
 
-	recv := emitRecv(fn, x, true, types.NewTuple(newVar("k", typeutil.CoreType(x.Type()).Underlying().(*types.Chan).Elem()), varOk), source)
-	retv := newVariable(fn, recv.Type(), source)
-	retv.store(recv)
+	retv := emitRecv(fn, x, true, types.NewTuple(newVar("k", typeutil.CoreType(x.Type()).Underlying().(*types.Chan).Elem()), varOk), source)
 
 	body := fn.newBasicBlock("rangechan.body")
 	done = fn.newBasicBlock("rangechan.done")
-	emitIf(fn, emitExtract(fn, retv.load(), 1, source), body, done, source)
+	emitIf(fn, emitExtract(fn, retv, 1, source), body, done, source)
 	fn.currentBlock = body
 	if tk != nil {
-		k = emitExtract(fn, retv.load(), 0, source)
+		k = emitExtract(fn, retv, 0, source)
 	}
 	return
 }
@@ -2413,32 +2386,6 @@ func (b *builder) rangeInt(fn *Function, x Value, tk types.Type, source ast.Node
 	}
 
 	return
-}
-
-type variable struct {
-	alloc  *Alloc
-	fn     *Function
-	source ast.Node
-}
-
-func newVariable(fn *Function, typ types.Type, source ast.Node) *variable {
-	alloc := &Alloc{}
-	alloc.setType(types.NewPointer(typ))
-	fn.emit(alloc, source)
-	fn.Locals = append(fn.Locals, alloc)
-	return &variable{
-		alloc:  alloc,
-		fn:     fn,
-		source: source,
-	}
-}
-
-func (v *variable) store(sv Value) {
-	emitStore(v.fn, v.alloc, sv, v.source)
-}
-
-func (v *variable) load() Value {
-	return emitLoad(v.fn, v.alloc, v.source)
 }
 
 // rangeStmt emits to fn code for the range statement s, optionally
@@ -2762,7 +2709,6 @@ func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit,
 		},
 		nil,
 	)
-	addEdge(fn.currentBlock, fn.Exit)
 
 	fn.currentBlock = bodies[1]
 	storeVar(fn, jump, emitConst(fn, jDone()), nil)
@@ -2795,14 +2741,16 @@ func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit,
 
 			storeVar(fn, fn.jump, id, e.source)
 			vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
-			emitReturn(fn, []Value{vFalse}, e.source)
+			fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 
 		case e.block == nil && e.label == nil: // return from fn?
 			// case EXIT(id): { return ... }
-
-			// The results have already been stored to variables in fn.results, so
-			// emitReturn doesn't have to do it again.
-			emitReturn(fn, nil, e.source)
+			fn.emit(new(RunDefers), e.source)
+			results := make([]Value, len(fn.results))
+			for i, r := range fn.results {
+				results[i] = emitLoad(fn, r, e.source)
+			}
+			fn.emit(&Return{Results: results}, e.source)
 
 		case e.block != nil:
 			// case EXIT(id): goto block
@@ -2995,7 +2943,7 @@ func (b *builder) branchStmt(fn *Function, s *ast.BranchStmt) {
 		id := emitConst(fn, id_)
 		storeVar(fn, fn.jump, id, s)
 		vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, s))
-		emitReturn(fn, []Value{vFalse}, s)
+		fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 	}
 	fn.currentBlock = fn.newBasicBlock("unreachable")
 }
@@ -3047,21 +2995,21 @@ func (b *builder) returnStmt(fn *Function, s *ast.ReturnStmt) {
 		id := emitConst(fn, id_)
 		storeVar(fn, fn.jump, id, e.source)
 		vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
-		emitReturn(fn, []Value{vFalse}, e.source)
+		fn.emit(&Return{Results: []Value{vFalse}}, e.source)
+		fn.currentBlock = fn.newBasicBlock("unreachable")
 		return
 	}
 
-	// The results have already been stored to variables in fn.results, so
-	// emitReturn doesn't have to do it again.
-	emitReturn(fn, nil, s)
-}
-
-func emitReturn(fn *Function, results []Value, source ast.Node) {
-	for i, r := range results {
-		emitStore(fn, fn.results[i], r, source)
+	// Run function calls deferred in this
+	// function when explicitly returning from it.
+	fn.emit(new(RunDefers), s)
+	// Reload (potentially) named result variables to form the result tuple.
+	results = results[:0]
+	for _, nr := range fn.results {
+		results = append(results, emitLoad(fn, nr, s))
 	}
 
-	emitJump(fn, fn.Exit, source)
+	fn.emit(&Return{Results: results}, s)
 	fn.currentBlock = fn.newBasicBlock("unreachable")
 }
 
@@ -3119,7 +3067,6 @@ func (b *builder) buildFunction(fn *Function) {
 	fn.startBody()
 	fn.createSyntacticParams(recvField, functype)
 	fn.createDeferStack()
-	fn.exitBlock()
 	b.stmt(fn, body)
 	if cb := fn.currentBlock; cb != nil && (cb == fn.Blocks[0] || cb.Preds != nil) {
 		// Control fell off the end of the function's body block.
@@ -3129,12 +3076,10 @@ func (b *builder) buildFunction(fn *Function) {
 		// if this no-arg return is ill-typed for
 		// fn.Signature.Results, this block must be
 		// unreachable.  The sanity checker checks this.
-		// fn.emit(new(RunDefers))
-		// fn.emit(new(Return))
-		emitJump(fn, fn.Exit, nil)
+		fn.emit(new(RunDefers), nil)
+		fn.emit(new(Return), nil)
 	}
 	optimizeBlocks(fn)
-	buildFakeExits(fn)
 	fn.finishBody()
 	b.blocksets = fn.blocksets
 	fn.functionBody = nil
@@ -3163,7 +3108,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 		fn.addParamVar(v, nil)
 	}
 	fn.addResultVar(fn.Signature.Results().At(0), nil)
-	fn.exitBlock()
 
 	// Initial targets
 	ycont := fn.newBasicBlock("yield-continue")
@@ -3190,7 +3134,8 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	fn.currentBlock = ycont
 	storeVar(fn, fn.jump, emitConst(fn, jReady()), s.Body)
 	vTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil))
-	emitReturn(fn, []Value{vTrue}, nil)
+	// A yield function's own deferstack is always empty, so rundefers is not needed.
+	fn.emit(&Return{Results: []Value{vTrue}}, nil)
 
 	// Emit header:
 	//
@@ -3210,7 +3155,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 		},
 		nil,
 	)
-	addEdge(fn.currentBlock, fn.Exit)
 
 	fn.currentBlock = yloop
 	storeVar(fn, fn.jump, emitConst(fn, jBusy()), s.Body)
@@ -3282,7 +3226,7 @@ func (b *builder) buildYieldFunc(fn *Function) {
 			id := emitConst(fn, id_)
 			storeVar(fn, fn.jump, id, e.source)
 			vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
-			emitReturn(fn, []Value{vFalse}, e.source)
+			fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 		}
 
 		if e.to != fn { // e needs to be handled by the parent too.
@@ -3298,6 +3242,13 @@ func (b *builder) buildYieldFunc(fn *Function) {
 func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 	id := decl.Name
 	fn := pkg.values[pkg.info.Defs[id]].(*Function)
+
+	defer func() {
+		if err := recover(); err != nil {
+			panic(fmt.Sprintf("panic while building %s: %v", fn, err))
+		}
+	}()
+
 	if decl.Recv == nil && id.Name == "init" {
 		var v Call
 		v.Call.Value = fn
@@ -3347,14 +3298,13 @@ func (p *Package) build() {
 	}
 	init := p.init
 	init.startBody()
-	init.exitBlock()
 
 	var done *BasicBlock
 
 	// Make init() skip if package is already initialized.
 	initguard := p.Var("init$guard")
 	doinit := init.newBasicBlock("init.start")
-	done = init.Exit
+	done = init.newBasicBlock("init.done")
 	emitIf(init, emitLoad(init, initguard, nil), done, doinit, nil)
 	init.currentBlock = doinit
 	emitStore(init, initguard, emitConst(init, NewConst(constant.MakeBool(true), tBool, nil)), nil)
@@ -3421,6 +3371,8 @@ func (p *Package) build() {
 
 	// Finish up init().
 	emitJump(init, done, nil)
+	init.currentBlock = done
+	init.emit(new(Return), nil)
 	init.finishBody()
 
 	// We no longer need ASTs or go/types deductions.

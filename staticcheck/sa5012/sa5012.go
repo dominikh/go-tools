@@ -12,6 +12,7 @@ import (
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/internal/iterutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
 	"golang.org/x/tools/go/analysis"
@@ -140,7 +141,7 @@ func findSliceLenChecks(pass *analysis.Pass) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, b := range fn.Blocks {
 			// all paths go through this block
-			if !b.Dominates(fn.Exit) {
+			if !iterutil.All(fn.Returns(), b.Dominates) {
 				continue
 			}
 
@@ -220,7 +221,7 @@ func findIndirectSliceLenChecks(pass *analysis.Pass) {
 
 		for _, b := range fn.Blocks {
 			// all paths go through this block
-			if !b.Dominates(fn.Exit) {
+			if !iterutil.All(fn.Returns(), b.Dominates) {
 				continue
 			}
 

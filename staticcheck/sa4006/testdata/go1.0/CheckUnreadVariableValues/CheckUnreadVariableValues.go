@@ -120,19 +120,6 @@ func fn9() {
 
 func work(int) (bool, error) { return false, nil }
 
-func resolveWeakTypes(types []int) {
-	for i := range types {
-		runEnd := findRunLimit(i)
-
-		if true {
-			_ = runEnd
-		}
-		i = runEnd //@ diag(`this value of i is never used`)
-	}
-}
-
-func findRunLimit(int) int { return 0 }
-
 func fn10() {
 	slice := []string(nil)
 	if true {

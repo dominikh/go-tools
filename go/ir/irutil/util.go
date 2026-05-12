@@ -132,7 +132,7 @@ func IsExample(fn *ir.Function) bool {
 	return strings.HasSuffix(f.Name(), "_test.go")
 }
 
-// Flatten recursively returns the underlying value of an ir.Sigma or
+// Flatten recursively returns the underlying value of an
 // ir.Phi node. If all edges in an ir.Phi node are the same (after
 // flattening), the flattened edge will get returned. If flattening is
 // not possible, nil is returned.
@@ -151,8 +151,6 @@ func Flatten(v ir.Value) ir.Value {
 		seen[v] = struct{}{}
 
 		switch v := v.(type) {
-		case *ir.Sigma:
-			dfs(v.X)
 		case *ir.Phi:
 			for _, e := range v.Edges {
 				dfs(e)

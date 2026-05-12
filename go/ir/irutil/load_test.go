@@ -87,9 +87,6 @@ b0: # entry
 	t4 = HeapAlloc <*Buffer> # complit
 	t5 = CompositeValue <Buffer> [100] t3 t1 t2
 	Store {bytes.Buffer} t4 t5
-	Jump → b1
-
-b1: ← b0 # exit
 	Return t4
 
 `[1:]

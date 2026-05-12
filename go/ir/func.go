@@ -35,21 +35,6 @@ func (b *BasicBlock) Control() Instruction {
 	return b.Instrs[len(b.Instrs)-1]
 }
 
-// SigmaFor returns the sigma node for v coming from pred.
-func (b *BasicBlock) SigmaFor(v Value, pred *BasicBlock) *Sigma {
-	for _, instr := range b.Instrs {
-		sigma, ok := instr.(*Sigma)
-		if !ok {
-			// no more sigmas
-			return nil
-		}
-		if sigma.From == pred && sigma.X == v {
-			return sigma
-		}
-	}
-	return nil
-}
-
 // Parent returns the function that contains block b.
 func (b *BasicBlock) Parent() *Function { return b.parent }
 
@@ -78,16 +63,6 @@ func (b *BasicBlock) predIndex(c *BasicBlock) int {
 		}
 	}
 	panic(fmt.Sprintf("no edge %s -> %s", c, b))
-}
-
-// succIndex returns the i such that b.Succs[i] == c or -1 if there is none.
-func (b *BasicBlock) succIndex(c *BasicBlock) int {
-	for i, succ := range b.Succs {
-		if succ == c {
-			return i
-		}
-	}
-	return -1
 }
 
 // hasPhi returns true if b.Instrs contains φ-nodes.
@@ -328,24 +303,6 @@ func (f *Function) blockset(i int) *BlockSet {
 	return bs
 }
 
-func (f *Function) exitBlock() {
-	old := f.currentBlock
-
-	f.Exit = f.newBasicBlock("exit")
-	f.currentBlock = f.Exit
-
-	results := make([]Value, len(f.results))
-	// Run function calls deferred in this
-	// function when explicitly returning from it.
-	f.emit(new(RunDefers), nil)
-	for i, r := range f.results {
-		results[i] = emitLoad(f, r, nil)
-	}
-
-	f.emit(&Return{Results: results}, nil)
-	f.currentBlock = old
-}
-
 // createSyntacticParams populates f.Params and generates code (spills
 // and named result locals) for all the parameters declared in the
 // syntax.  In addition it populates the f.objects mapping.
@@ -506,69 +463,6 @@ func (f *Function) emitConsts() {
 	entry.Instrs = instrs
 }
 
-// buildFakeExits ensures that every block in the function is
-// reachable in reverse from the Exit block. This is required to build
-// a full post-dominator tree, and to ensure the exit block's
-// inclusion in the dominator tree.
-func buildFakeExits(fn *Function) {
-	// Find back-edges via forward DFS
-	fn.fakeExits = BlockSet{values: make([]bool, len(fn.Blocks))}
-	seen := fn.blockset(0)
-	backEdges := fn.blockset(1)
-
-	var dfs func(b *BasicBlock)
-	dfs = func(b *BasicBlock) {
-		if !seen.Add(b) {
-			backEdges.Add(b)
-			return
-		}
-		for _, pred := range b.Succs {
-			dfs(pred)
-		}
-	}
-	dfs(fn.Blocks[0])
-buildLoop:
-	for {
-		seen := fn.blockset(2)
-		var dfs func(b *BasicBlock)
-		dfs = func(b *BasicBlock) {
-			if !seen.Add(b) {
-				return
-			}
-			for _, pred := range b.Preds {
-				dfs(pred)
-			}
-			if b == fn.Exit {
-				for _, b := range fn.Blocks {
-					if fn.fakeExits.Has(b) {
-						dfs(b)
-					}
-				}
-			}
-		}
-		dfs(fn.Exit)
-
-		for _, b := range fn.Blocks {
-			if !seen.Has(b) && backEdges.Has(b) {
-				// Block b is not reachable from the exit block. Add a
-				// fake jump from b to exit, then try again. Note that we
-				// only add one fake edge at a time, as it may make
-				// multiple blocks reachable.
-				//
-				// We only consider those blocks that have back edges.
-				// Any unreachable block that doesn't have a back edge
-				// must flow into a loop, which by definition has a
-				// back edge. Thus, by looking for loops, we should
-				// need fewer fake edges overall.
-				fn.fakeExits.Add(b)
-				continue buildLoop
-			}
-		}
-
-		break
-	}
-}
-
 // finishBody() finalizes the function after IR code generation of its body.
 func (f *Function) finishBody() {
 	f.currentBlock = nil
@@ -589,10 +483,8 @@ func (f *Function) finishBody() {
 	f.Locals = f.Locals[:j]
 
 	optimizeBlocks(f)
-	buildFakeExits(f)
 	buildReferrers(f)
 	buildDomTree(f)
-	buildPostDomTree(f)
 
 	if f.Prog.mode&NaiveForm == 0 {
 		for lift(f) {
@@ -632,7 +524,13 @@ func (f *Function) finishBody() {
 
 func isUselessPhi(phi *Phi) (Value, bool) {
 	var v0 Value
+	if len(phi.Edges) == 0 {
+		panic("φ with no edges")
+	}
 	for _, e := range phi.Edges {
+		if e == nil {
+			panic(fmt.Sprintf("φ has nil edge: %v", phi))
+		}
 		if e == phi {
 			continue
 		}
@@ -649,6 +547,9 @@ func isUselessPhi(phi *Phi) (Value, bool) {
 			}
 			return nil, false
 		}
+	}
+	if v0 == nil {
+		panic("trying to replace φ with nil")
 	}
 	return v0, true
 }

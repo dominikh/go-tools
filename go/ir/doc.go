@@ -4,18 +4,15 @@
 
 // Package ir defines a representation of the elements of Go programs
 // (packages, types, functions, variables and constants) using a
-// static single-information (SSI) form intermediate representation
+// static single-assignment (SSA) form intermediate representation
 // (IR) for the bodies of functions.
 //
 // THIS INTERFACE IS EXPERIMENTAL AND IS LIKELY TO CHANGE.
 //
-// For an introduction to SSA form, upon which SSI builds, see
+// For an introduction to SSA form see
 // https://en.wikipedia.org/wiki/Static_single_assignment_form.
 // This page provides a broader reading list:
 // https://www.dcs.gla.ac.uk/~jsinger/ssa.html.
-//
-// For an introduction to SSI form, see The static single information
-// form by C. Scott Ananian.
 //
 // The level of abstraction of the IR form is intentionally close to
 // the source language to facilitate construction of source analysis
@@ -91,7 +88,6 @@
 //	*RunDefers                            ✔
 //	*Select               ✔               ✔
 //	*Send                 ✔               ✔
-//	*Sigma                ✔               ✔
 //	*Slice                ✔               ✔
 //	*SliceToArrayPointer  ✔               ✔
 //	*SliceToArray         ✔               ✔

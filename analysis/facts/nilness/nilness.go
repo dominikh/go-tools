@@ -661,7 +661,7 @@ start:
 					// we finished execution the select.
 					s.setOuter(v.States[0].Chan, NeverNil)
 				}
-			case *ir.DebugRef, *ir.Jump, *ir.BlankStore, *ir.Phi, *ir.Sigma,
+			case *ir.DebugRef, *ir.Jump, *ir.BlankStore, *ir.Phi,
 				*ir.Panic, *ir.Return, *ir.RunDefers, *ir.Unreachable, *ir.ConstantSwitch,
 				*ir.UnOp, *ir.BinOp, *ir.CompositeValue, *ir.ArrayConst, *ir.Range, *ir.Next,
 				*ir.Const, *ir.AggregateConst, *ir.GenericConst, *ir.Parameter:
@@ -674,18 +674,11 @@ start:
 	}
 
 	processPhis := func(b *ir.BasicBlock, i int, s state) state {
-	loop:
 		for _, instr := range b.Instrs {
-			switch instr := instr.(type) {
-			case *ir.Sigma:
-				// Sigma nodes are slated for removal. Furthermore, dense DFA
-				// subsumes the information gained by Sigma nodes, so we can
-				// just copy v.X's state.
-				s.set(instr, s.get(instr.X))
-			case *ir.Phi:
+			if instr, ok := instr.(*ir.Phi); ok {
 				s.set(instr, s.get(instr.Edges[i]))
-			default:
-				break loop
+			} else {
+				break
 			}
 		}
 		return s

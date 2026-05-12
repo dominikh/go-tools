@@ -491,9 +491,6 @@ func emitTailCall(f *Function, call *Call, source ast.Node) {
 		}
 	}
 
-	f.Exit = f.newBasicBlock("exit")
-	emitJump(f, f.Exit, source)
-	f.currentBlock = f.Exit
 	f.emit(&ret, source)
 	f.currentBlock = nil
 }
@@ -508,9 +505,11 @@ func emitCall(fn *Function, call *Call, source ast.Node) Value {
 		fn.Prog.noReturn(callee.object) {
 		// Call doesn't return normally. Either it doesn't return at all
 		// (infinitely blocked or exitting the process), or it unwinds the stack
-		// (panic, runtime.Goexit). In case it unwinds, jump to the exit block.
-		fn.emit(new(Jump), source)
-		addEdge(fn.currentBlock, fn.Exit)
+		// (panic, runtime.Goexit). Model this as a panic.
+		vNoReturn := emitConst(fn, NewConst(constant.MakeString("noreturn"), tString, source))
+		fn.emit(&Panic{
+			X: emitConv(fn, vNoReturn, tEface, source),
+		}, source)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 	}
 

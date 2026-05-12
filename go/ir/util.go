@@ -127,12 +127,10 @@ func (m *StackMap) Set(k Value, v Value) {
 	m.m[len(m.m)-1][k] = v
 }
 
-// Unwrap recursively unwraps Sigma and Copy nodes.
+// Unwrap recursively unwraps Copy nodes.
 func Unwrap(v Value) Value {
 	for {
 		switch vv := v.(type) {
-		case *Sigma:
-			v = vv.X
 		case *Copy:
 			v = vv.X
 		default:

@@ -94,13 +94,6 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	switch instr := instr.(type) {
 	case *If, *Jump, *Return, *Panic, *Unreachable, *ConstantSwitch:
 		s.errorf("control flow instruction not at end of block")
-	case *Sigma:
-		if idx > 0 {
-			prev := s.block.Instrs[idx-1]
-			if _, ok := prev.(*Sigma); !ok {
-				s.errorf("Sigma instruction follows a non-Sigma: %T", prev)
-			}
-		}
 	case *Phi:
 		if idx == 0 {
 			// It suffices to apply this check to just the first phi node.
@@ -110,9 +103,9 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		} else {
 			prev := s.block.Instrs[idx-1]
 			switch prev.(type) {
-			case *Phi, *Sigma:
+			case *Phi:
 			default:
-				s.errorf("Phi instruction follows a non-Phi, non-Sigma: %T", prev)
+				s.errorf("Phi instruction follows a non-Phi: %T", prev)
 			}
 		}
 		if ne, np := len(instr.Edges), len(s.block.Preds); ne != np {
@@ -255,14 +248,14 @@ func (s *sanity) checkFinalInstr(instr Instruction) {
 		}
 
 	case *Panic:
-		if nsuccs := len(s.block.Succs); nsuccs != 1 {
-			s.errorf("Panic-terminated block has %d successors; expected one", nsuccs)
+		if nsuccs := len(s.block.Succs); nsuccs != 0 {
+			s.errorf("Panic-terminated block has %d successors; expected none", nsuccs)
 			return
 		}
 
 	case *Unreachable:
-		if nsuccs := len(s.block.Succs); nsuccs != 1 {
-			s.errorf("Unreachable-terminated block has %d successors; expected one", nsuccs)
+		if nsuccs := len(s.block.Succs); nsuccs != 0 {
+			s.errorf("Unreachable-terminated block has %d successors; expected none", nsuccs)
 			return
 		}
 

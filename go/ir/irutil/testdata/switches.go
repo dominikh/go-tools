@@ -22,10 +22,10 @@ func SwitchWithNonConstantCase(x int) {
 	// case t1: Call <()> print t2
 	// case t3: Call <()> print t5
 	// case t4: Call <()> print t5
-	// default: BinOp <bool> {==} t30 t31
+	// default: Call <int> four
 	// }
 
-	// switch t36 {
+	// switch t12 {
 	// case t7: Call <()> print t8
 	// case t9: Call <()> print t10
 	// default: Call <()> print t11
@@ -52,16 +52,16 @@ func ImplicitSwitches(x, y int) {
 	// switch t13 {
 	// case t1: Call <()> print t4
 	// case t2: Call <()> print t4
-	// default: BinOp <bool> {<} t28 t3
+	// default: BinOp <bool> {<} t13 t3
 	// }
 	if x == 1 || 2 == x || x < 5 {
 		print(12)
 	}
 
-	// switch t25 {
+	// switch t13 {
 	// case t5: Call <()> print t7
 	// case t6: Call <()> print t7
-	// default: BinOp <bool> {==} t50 t51
+	// default: BinOp <bool> {==} t13 t14
 	// }
 	if x == 3 || 4 == x || x == y {
 		print(34)
@@ -115,10 +115,10 @@ end:
 }
 
 func SwitchInAForLoop(x, y int) {
-	// switch t13 {
+	// switch t7 {
 	// case t2: Call <()> print t3
 	// case t4: Call <()> print t5
-	// default: BinOp <bool> {==} t31 t30
+	// default: BinOp <bool> {==} t7 t8
 	// }
 loop:
 	for {
@@ -141,10 +141,10 @@ loop:
 // As before, the default case points back to the block containing the
 // switch, but that's ok.
 func SwitchInAForLoopUsingGoto(x int) {
-	// switch t10 {
+	// switch t6 {
 	// case t2: Call <()> print t4
 	// case t3: Call <()> print t5
-	// default: BinOp <bool> {==} t10 t2
+	// default: Call <()> print t1
 	// }
 loop:
 	print("head")
@@ -164,9 +164,9 @@ end:
 }
 
 func UnstructuredSwitchInAForLoop(x int) {
-	// switch t9 {
+	// switch t5 {
 	// case t1: Call <()> print t2
-	// case t3: BinOp <bool> {==} t9 t1
+	// case t3: BinOp <bool> {==} t5 t1
 	// default: Call <()> print t4
 	// }
 	for {
@@ -245,8 +245,8 @@ func ZeroInitializedVarsAreConstants(x int) {
 // NB, potentially fragile reliance on register number.
 func AdHocTypeSwitch(x interface{}) {
 	// switch t2.(type) {
-	// case t4 int: Call <()> println t8
-	// case t13 string: Call <()> println t16
+	// case t4 int: Call <()> println t4
+	// case t11 string: Call <()> println t11
 	// default: Call <()> print t1
 	// }
 	if i, ok := x.(int); ok {

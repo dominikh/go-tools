@@ -76,14 +76,6 @@ func run(pass *analysis.Pass) (any, error) {
 			for _, ref := range *refs {
 				switch ref := ref.(type) {
 				case *ir.DebugRef:
-				case *ir.Sigma:
-					if seen == nil {
-						seen = map[ir.Value]struct{}{}
-					}
-					seen[v] = struct{}{}
-					if hasUse(ref, seen) {
-						return true
-					}
 				case *ir.Phi:
 					if seen == nil {
 						seen = map[ir.Value]struct{}{}

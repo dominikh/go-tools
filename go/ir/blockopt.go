@@ -38,12 +38,6 @@ func deleteUnreachableBlocks(f *Function) {
 		b.gaps = white
 	}
 	markReachable(f.Blocks[0])
-	// In SSI form, we need the exit to be reachable for correct
-	// post-dominance information. In original form, however, we
-	// cannot unconditionally mark it reachable because we won't
-	// be adding fake edges, and this breaks the calculation of
-	// dominance information.
-	markReachable(f.Exit)
 	for i, b := range f.Blocks {
 		if b.gaps == white {
 			for _, c := range b.Succs {
@@ -67,7 +61,7 @@ func jumpThreading(f *Function, b *BasicBlock) bool {
 	if b.Index == 0 {
 		return false // don't apply to entry block
 	}
-	if b.Instrs == nil {
+	if len(b.Instrs) == 0 {
 		return false
 	}
 	for _, pred := range b.Preds {
@@ -118,9 +112,6 @@ func jumpThreading(f *Function, b *BasicBlock) bool {
 // The result is true if the optimization was applied.
 func fuseBlocks(f *Function, a *BasicBlock) bool {
 	if len(a.Succs) != 1 {
-		return false
-	}
-	if a.Succs[0] == f.Exit {
 		return false
 	}
 	b := a.Succs[0]

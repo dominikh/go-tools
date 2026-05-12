@@ -326,9 +326,6 @@ func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *type
 		}
 	}
 
-	w.Exit = w.newBasicBlock("exit")
-	emitJump(w, w.Exit, nil)
-	w.currentBlock = w.Exit
 	w.emit(&ret, nil)
 	w.currentBlock = nil
 
