@@ -63,6 +63,48 @@ type domInfo struct {
 	pre, post int32         // pre- and post-order numbering within domtree
 }
 
+// ltState holds the working state for Lengauer-Tarjan algorithm
+// (during which domInfo.pre is repurposed for CFG DFS preorder number).
+type ltState struct {
+	// Each slice is indexed by b.Index.
+	sdom     []*BasicBlock // b's semidominator
+	parent   []*BasicBlock // b's parent in DFS traversal of CFG
+	ancestor []*BasicBlock // b's ancestor with least sdom
+}
+
+// dfs implements the depth-first search part of the LT algorithm.
+func (lt *ltState) dfs(v *BasicBlock, i int32, preorder []*BasicBlock) int32 {
+	preorder[i] = v
+	v.dom.pre = i // For now: DFS preorder of spanning tree of CFG
+	i++
+	lt.sdom[v.Index] = v
+	lt.link(nil, v)
+	for _, w := range v.Succs {
+		if lt.sdom[w.Index] == nil {
+			lt.parent[w.Index] = v
+			i = lt.dfs(w, i, preorder)
+		}
+	}
+	return i
+}
+
+// eval implements the EVAL part of the LT algorithm.
+func (lt *ltState) eval(v *BasicBlock) *BasicBlock {
+	// TODO(adonovan): opt: do path compression per simple LT.
+	u := v
+	for ; lt.ancestor[v.Index] != nil; v = lt.ancestor[v.Index] {
+		if lt.sdom[v.Index].dom.pre < lt.sdom[u.Index].dom.pre {
+			u = v
+		}
+	}
+	return u
+}
+
+// link implements the LINK part of the LT algorithm.
+func (lt *ltState) link(v, w *BasicBlock) {
+	lt.ancestor[w.Index] = v
+}
+
 // buildDomTree computes the dominator tree of f using the LT algorithm.
 // Precondition: all blocks are reachable (e.g. optimizeBlocks has been run).
 func buildDomTree(fn *Function) {
@@ -74,77 +116,77 @@ func buildDomTree(fn *Function) {
 		b.dom = domInfo{}
 	}
 
-	idoms := make([]*BasicBlock, len(fn.Blocks))
-
-	order := make([]*BasicBlock, 0, len(fn.Blocks))
-	seen := fn.blockset(0)
-	var dfs func(b *BasicBlock)
-	dfs = func(b *BasicBlock) {
-		if !seen.Add(b) {
-			return
-		}
-		for _, succ := range b.Succs {
-			dfs(succ)
-		}
-		order = append(order, b)
-		b.post = len(order) - 1
-	}
-	dfs(fn.Blocks[0])
-
-	for i := 0; i < len(order)/2; i++ {
-		o := len(order) - i - 1
-		order[i], order[o] = order[o], order[i]
+	n := len(fn.Blocks)
+	// Allocate space for 5 contiguous [n]*BasicBlock arrays:
+	// sdom, parent, ancestor, preorder, buckets.
+	space := make([]*BasicBlock, 5*n)
+	lt := ltState{
+		sdom:     space[0:n],
+		parent:   space[n : 2*n],
+		ancestor: space[2*n : 3*n],
 	}
 
-	idoms[fn.Blocks[0].Index] = fn.Blocks[0]
-	changed := true
-	for changed {
-		changed = false
-		// iterate over all nodes in reverse postorder, except for the
-		// entry node
-		for _, b := range order[1:] {
-			var newIdom *BasicBlock
-			for _, p := range b.Preds {
-				if idoms[p.Index] == nil {
-					continue
-				}
-				if newIdom == nil {
-					newIdom = p
-				} else {
-					finger1 := p
-					finger2 := newIdom
-					for finger1 != finger2 {
-						for finger1.post < finger2.post {
-							finger1 = idoms[finger1.Index]
-						}
-						for finger2.post < finger1.post {
-							finger2 = idoms[finger2.Index]
-						}
-					}
-					newIdom = finger1
-				}
-			}
+	// Step 1.  Number vertices by depth-first preorder.
+	preorder := space[3*n : 4*n]
+	root := fn.Blocks[0]
+	lt.dfs(root, 0, preorder)
 
-			if idoms[b.Index] != newIdom {
-				idoms[b.Index] = newIdom
-				changed = true
+	buckets := space[4*n : 5*n]
+	copy(buckets, preorder)
+
+	// In reverse preorder...
+	for i := int32(n) - 1; i > 0; i-- {
+		w := preorder[i]
+
+		// Step 3. Implicitly define the immediate dominator of each node.
+		for v := buckets[i]; v != w; v = buckets[v.dom.pre] {
+			u := lt.eval(v)
+			if lt.sdom[u.Index].dom.pre < i {
+				v.dom.idom = u
+			} else {
+				v.dom.idom = w
 			}
 		}
+
+		// Step 2. Compute the semidominators of all nodes.
+		lt.sdom[w.Index] = lt.parent[w.Index]
+		for _, v := range w.Preds {
+			u := lt.eval(v)
+			if lt.sdom[u.Index].dom.pre < lt.sdom[w.Index].dom.pre {
+				lt.sdom[w.Index] = lt.sdom[u.Index]
+			}
+		}
+
+		lt.link(lt.parent[w.Index], w)
+
+		if lt.parent[w.Index] == lt.sdom[w.Index] {
+			w.dom.idom = lt.parent[w.Index]
+		} else {
+			buckets[i] = buckets[lt.sdom[w.Index].dom.pre]
+			buckets[lt.sdom[w.Index].dom.pre] = w
+		}
 	}
 
-	for i, b := range idoms {
-		fn.Blocks[i].dom.idom = b
-		if b == nil {
-			// malformed CFG
-			continue
-		}
-		if i == b.Index {
-			continue
-		}
-		b.dom.children = append(b.dom.children, fn.Blocks[i])
+	// The final 'Step 3' is now outside the loop.
+	for v := buckets[0]; v != root; v = buckets[v.dom.pre] {
+		v.dom.idom = root
 	}
 
-	numberDomTree(fn.Blocks[0], 0, 0)
+	// Step 4. Explicitly define the immediate dominator of each
+	// node, in preorder.
+	for _, w := range preorder[1:] {
+		if w == root {
+			w.dom.idom = nil
+		} else {
+			if w.dom.idom != lt.sdom[w.Index] {
+				w.dom.idom = w.dom.idom.dom.idom
+			}
+			// Calculate Children relation as inverse of Idom.
+			w.dom.idom.dom.children = append(w.dom.idom.dom.children, w)
+		}
+	}
+
+	numberDomTree(root, 0, 0)
 
 	// printDomTreeDot(os.Stderr, fn) // debugging
 	// printDomTreeText(os.Stderr, root, 0) // debugging

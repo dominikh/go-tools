@@ -511,9 +511,8 @@ type BasicBlock struct {
 	Preds, Succs []*BasicBlock  // predecessors and successors
 	succs2       [2]*BasicBlock // initial space for Succs
 	dom          domInfo        // dominator tree info
-	post         int
-	gaps         int // number of nil Instrs (transient)
-	rundefers    int // number of rundefers (transient)
+	gaps         int            // number of nil Instrs (transient)
+	rundefers    int            // number of rundefers (transient)
 }
 
 // Pure values ----------------------------------------
