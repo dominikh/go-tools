@@ -499,10 +499,6 @@ func (f *Function) finishBody() {
 	// because it expects constants to have been deduplicated.
 	f.emitConsts()
 
-	if f.Prog.mode&SplitAfterNewInformation != 0 {
-		splitOnNewInformation(f.Blocks[0], &StackMap{})
-	}
-
 	// clear remaining builder state
 	f.results = nil    // (used by lifting)
 	f.deferstack = nil // (used by lifting)

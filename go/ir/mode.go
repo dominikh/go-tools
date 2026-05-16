@@ -20,14 +20,13 @@ import (
 type BuilderMode uint
 
 const (
-	PrintPackages            BuilderMode = 1 << iota // Print package inventory to stdout
-	PrintFunctions                                   // Print function IR code to stdout
-	PrintSource                                      // Print source code when printing function IR
-	LogSource                                        // Log source locations as IR builder progresses
-	SanityCheckFunctions                             // Perform sanity checking of function bodies
-	NaiveForm                                        // Build naïve IR form: don't replace local loads/stores with registers
-	GlobalDebug                                      // Enable debug info for all packages
-	SplitAfterNewInformation                         // Split live range after we learn something new about a value
+	PrintPackages        BuilderMode = 1 << iota // Print package inventory to stdout
+	PrintFunctions                               // Print function IR code to stdout
+	PrintSource                                  // Print source code when printing function IR
+	LogSource                                    // Log source locations as IR builder progresses
+	SanityCheckFunctions                         // Perform sanity checking of function bodies
+	NaiveForm                                    // Build naïve IR form: don't replace local loads/stores with registers
+	GlobalDebug                                  // Enable debug info for all packages
 )
 
 const BuilderModeDoc = `Options controlling the IR builder.
@@ -39,7 +38,6 @@ F	print [F]unction IR code.
 A	print [A]ST nodes responsible for IR instructions
 S	log [S]ource locations as IR builder progresses.
 N	build [N]aive IR form: don't replace local loads/stores with registers.
-I	Split live range after a value is used as slice or array index
 `
 
 func (m BuilderMode) String() string {
@@ -65,9 +63,6 @@ func (m BuilderMode) String() string {
 	if m&NaiveForm != 0 {
 		buf.WriteByte('N')
 	}
-	if m&SplitAfterNewInformation != 0 {
-		buf.WriteByte('I')
-	}
 	return buf.String()
 }
 
@@ -90,8 +85,6 @@ func (m *BuilderMode) Set(s string) error {
 			mode |= SanityCheckFunctions
 		case 'N':
 			mode |= NaiveForm
-		case 'I':
-			mode |= SplitAfterNewInformation
 		default:
 			return fmt.Errorf("unknown BuilderMode option: %q", c)
 		}

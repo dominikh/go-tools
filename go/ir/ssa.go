@@ -698,24 +698,6 @@ type Alloc struct {
 	index int // dense numbering; for lifting
 }
 
-type CopyInfo uint64
-
-const (
-	CopyInfoUnspecified CopyInfo = 0
-	CopyInfoNotNil      CopyInfo = 1 << iota
-	CopyInfoNotZeroLength
-	CopyInfoNotNegative
-	CopyInfoSingleConcreteType
-	CopyInfoClosed
-)
-
-type Copy struct {
-	register
-	X    Value
-	Why  Instruction
-	Info CopyInfo
-}
-
 // The Phi instruction represents an SSA φ-node, which combines values
 // that differ across incoming control-flow edges and yields a new
 // value.  Within a block, all φ-nodes must appear before all non-φ
@@ -1970,10 +1952,6 @@ func (v *SliceToArray) Operands(rands []*Value) []*Value {
 }
 
 func (s *DebugRef) Operands(rands []*Value) []*Value {
-	return append(rands, &s.X)
-}
-
-func (s *Copy) Operands(rands []*Value) []*Value {
 	return append(rands, &s.X)
 }
 
