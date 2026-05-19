@@ -22,11 +22,13 @@ func debugf(f string, args ...any) {
 	}
 }
 
-// Join defines the [∨] operation for a [join-semilattice]. It must implement a commutative and associative binary operation
-// that returns the least upper bound of two states from S.
+// Join defines the [∨] operation for a [join-semilattice]. It must implement a
+// commutative and associative binary operation that returns the least upper
+// bound of two states from S.
 //
-// Code that calls Join functions is expected to handle the [⊥ and ⊤ elements], as well as implement idempotency. That is,
-// the following properties will be enforced:
+// Code that calls Join functions is expected to handle the [⊥ and ⊤ elements],
+// as well as implement idempotency. That is, the following properties will be
+// enforced:
 //
 //   - x ∨ ⊥ = x
 //   - x ∨ ⊤ = ⊤
@@ -46,16 +48,19 @@ type Mapping[S comparable] struct {
 	Decision Decision
 }
 
-// Decision describes how a mapping from an [ir.Value] to an abstract state came to be.
-// Decisions are provided by transfer functions when they create mappings.
+// Decision describes how a mapping from an [ir.Value] to an abstract state
+// came to be. Decisions are provided by transfer functions when they create
+// mappings.
 type Decision struct {
-	// The relevant values that the transfer function used to make the decision.
+	// The relevant values that the transfer function used to make the
+	// decision.
 	Inputs []ir.Value
 	// A human-readable description of the decision.
 	Description string
-	// Whether this is the source of an abstract state. For example, in a taint analysis, the call to a function that
-	// produces a tainted value would be the source of the taint state, and any instructions that operate on
-	// and propagate tainted values would not be sources.
+	// Whether this is the source of an abstract state. For example, in a taint
+	// analysis, the call to a function that produces a tainted value would be
+	// the source of the taint state, and any instructions that operate on and
+	// propagate tainted values would not be sources.
 	Source bool
 }
 
@@ -77,19 +82,22 @@ func Ms[S comparable](ms ...Mapping[S]) []Mapping[S] {
 	return ms
 }
 
-// Framework describes a monotone data-flow framework ⟨S, ∨, Transfer⟩ using a bounded join-semilattice ⟨S, ∨⟩ and a
-// monotonic transfer function.
+// Framework describes a monotone data-flow framework ⟨S, ∨, Transfer⟩ using a
+// bounded join-semilattice ⟨S, ∨⟩ and a monotonic transfer function.
 //
-// Transfer implements the transfer function. Given an instruction, it should return zero or more mappings from IR
-// values to abstract values, i.e. values from the semilattice. Transfer must be monotonic. ϕ instructions are handled
+// Transfer implements the transfer function. Given an instruction, it should
+// return zero or more mappings from IR values to abstract values, i.e. values
+// from the semilattice. Transfer must be monotonic. ϕ instructions are handled
 // automatically and do not cause Transfer to be called.
 //
-// The set S is defined implicitly by the values returned by Join and Transfer and needn't be finite. In addition, it
-// contains the elements ⊥ and ⊤ (Bottom and Top) with Join(x, ⊥) = x and Join(x, ⊤) = ⊤. The provided Join function is
-// wrapped to handle these elements automatically. All IR values start in the ⊥ state.
+// The set S is defined implicitly by the values returned by Join and Transfer
+// and needn't be finite. In addition, it contains the elements ⊥ and ⊤ (Bottom
+// and Top) with Join(x, ⊥) = x and Join(x, ⊤) = ⊤. The provided Join function
+// is wrapped to handle these elements automatically. All IR values start in
+// the ⊥ state.
 //
-// Abstract states are associated with IR values. As such, the analysis is sparse and favours the partitioned variable
-// lattice (PVL) property.
+// Abstract states are associated with IR values. As such, the analysis is
+// sparse and favours the partitioned variable lattice (PVL) property.
 type Framework[S comparable] struct {
 	Join     Join[S]
 	Transfer func(*Instance[S], ir.Instruction) []Mapping[S]
@@ -109,20 +117,23 @@ func (fw *Framework[S]) Start() *Instance[S] {
 	}
 }
 
-// Forward runs an intraprocedural forward data flow analysis, using an iterative fixed-point algorithm, given the
-// functions specified in the framework. It combines [Framework.Start] and [Instance.Forward].
+// Forward runs an intraprocedural forward data flow analysis, using an
+// iterative fixed-point algorithm, given the functions specified in the
+// framework. It combines [Framework.Start] and [Instance.Forward].
 func (fw *Framework[S]) Forward(fn *ir.Function) *Instance[S] {
 	ins := fw.Start()
 	ins.Forward(fn)
 	return ins
 }
 
-// Dot returns a directed graph in [Graphviz] format that represents the finite join-semilattice ⟨S, ≤⟩.
-// Vertices represent elements in S and edges represent the ≤ relation between elements.
-// We map from ⟨S, ∨⟩ to ⟨S, ≤⟩ by computing x ∨ y for all elements in [S]², where x ≤ y iff x ∨ y == y.
+// Dot returns a directed graph in [Graphviz] format that represents the finite
+// join-semilattice ⟨S, ≤⟩. Vertices represent elements in S and edges
+// represent the ≤ relation between elements. We map from ⟨S, ∨⟩ to ⟨S, ≤⟩ by
+// computing x ∨ y for all elements in [S]², where x ≤ y iff x ∨ y == y.
 //
-// The resulting graph can be filtered through [tred] to compute the transitive reduction of the graph, the
-// visualisation of which corresponds to the Hasse diagram of the semilattice.
+// The resulting graph can be filtered through [tred] to compute the transitive
+// reduction of the graph, the visualisation of which corresponds to the Hasse
+// diagram of the semilattice.
 //
 // The set of states should not include the ⊥ and ⊤ elements.
 //
@@ -157,16 +168,19 @@ func Dot[S comparable](fn Join[S], states []S, bottom, top S) string {
 	return sb.String()
 }
 
-// Instance is an instance of a data-flow analysis. It is created by [Framework.Forward].
+// Instance is an instance of a data-flow analysis. It is created by
+// [Framework.Forward].
 type Instance[S comparable] struct {
 	Framework *Framework[S]
-	// Mapping is the result of the analysis. Consider using Instance.Value instead of accessing Mapping
-	// directly, as it correctly returns ⊥ for missing values.
+	// Mapping is the result of the analysis. Consider using Instance.Value
+	// instead of accessing Mapping directly, as it correctly returns ⊥ for
+	// missing values.
 	Mapping map[ir.Value]Mapping[S]
 }
 
-// Set maps v to the abstract value d. It does not apply any checks. This should only be used before calling [Instance.Forward], to set
-// initial states of values.
+// Set maps v to the abstract value d. It does not apply any checks. This
+// should only be used before calling [Instance.Forward], to set initial states
+// of values.
 func (ins *Instance[S]) Set(v ir.Value, d S) {
 	ins.Mapping[v] = Mapping[S]{Value: v, State: d}
 }
@@ -265,8 +279,9 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 	}
 }
 
-// Propagate is a helper for creating a [Mapping] that propagates the abstract state of src to dst.
-// The desc parameter is used as the value of Decision.Description.
+// Propagate is a helper for creating a [Mapping] that propagates the abstract
+// state of src to dst. The desc parameter is used as the value of
+// Decision.Description.
 func (ins *Instance[S]) Propagate(dst, src ir.Value, desc string) Mapping[S] {
 	return M(dst, ins.Value(src), Decision{Inputs: []ir.Value{src}, Description: desc})
 }
@@ -294,8 +309,8 @@ func printMapping[S any](fn *ir.Function, m map[ir.Value]S) {
 	}
 }
 
-// BinaryTable returns a binary operator based on the provided mapping.
-// For missing pairs of values, the default value will be returned.
+// BinaryTable returns a binary operator based on the provided mapping. For
+// missing pairs of values, the default value will be returned.
 func BinaryTable[S comparable](default_ S, m map[[2]S]S) func(S, S) S {
 	return func(a, b S) S {
 		if d, ok := m[[2]S{a, b}]; ok {
@@ -308,8 +323,8 @@ func BinaryTable[S comparable](default_ S, m map[[2]S]S) func(S, S) S {
 	}
 }
 
-// JoinTable returns a [Join] function based on the provided mapping.
-// For missing pairs of values, the default value will be returned.
+// JoinTable returns a [Join] function based on the provided mapping. For
+// missing pairs of values, the default value will be returned.
 func JoinTable[S comparable](top S, m map[[2]S]S) Join[S] {
 	return func(a, b S) S {
 		if d, ok := m[[2]S{a, b}]; ok {
