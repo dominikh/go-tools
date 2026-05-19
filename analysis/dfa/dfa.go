@@ -34,7 +34,7 @@ func debugf(f string, args ...any) {
 //   - x ∨ ⊤ = ⊤
 //   - x ∨ x = x
 //
-// Simple table-based join functions can be created using [JoinTable].
+// Simple table-based join functions can be created using [BinaryTable].
 //
 // [∨]: https://en.wikipedia.org/wiki/Join_and_meet
 // [join-semilattice]: https://en.wikipedia.org/wiki/Semilattice
@@ -329,20 +329,6 @@ func BinaryTable[S comparable](default_ S, m map[[2]S]S) func(S, S) S {
 			return d
 		} else {
 			return default_
-		}
-	}
-}
-
-// JoinTable returns a [Join] function based on the provided mapping. For
-// missing pairs of values, the default value will be returned.
-func JoinTable[S comparable](top S, m map[[2]S]S) Join[S] {
-	return func(a, b S) S {
-		if d, ok := m[[2]S{a, b}]; ok {
-			return d
-		} else if d, ok := m[[2]S{b, a}]; ok {
-			return d
-		} else {
-			return top
 		}
 	}
 }
