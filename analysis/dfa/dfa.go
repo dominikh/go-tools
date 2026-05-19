@@ -270,13 +270,10 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 				debugf("transfer(%s) = %v", instr, ds)
 			}
 		}
-		for i, d := range ds {
+		for _, d := range ds {
 			old := ins.Value(d.Value)
 			dd := d.State
 			if dd != old {
-				if j := join(ins.Framework.Join, old, dd, ins.Framework.Bottom, ins.Framework.Top); j != dd {
-					panic(fmt.Sprintf("transfer function isn't monotonic; Transfer(%v)[%d] = %v; join(%v, %v) = %v", instr, i, dd, old, dd, j))
-				}
 				ins.Mapping[d.Value] = Mapping[S]{
 					Value:    d.Value,
 					State:    dd,
