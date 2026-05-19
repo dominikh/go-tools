@@ -250,7 +250,16 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 				d = join(ins.Framework.Join, a, b, ins.Framework.Bottom, ins.Framework.Top)
 				debugf("join(%v, %v) = %v", a, b, d)
 			}
-			ds = []Mapping[S]{{Value: phi, State: d, Decision: Decision{Inputs: phi.Edges, Description: "this variable merges the results of multiple branches"}}}
+			ds = []Mapping[S]{
+				{
+					Value: phi,
+					State: d,
+					Decision: Decision{
+						Inputs:      phi.Edges,
+						Description: "this variable merges the results of multiple branches",
+					},
+				},
+			}
 		} else {
 			ds = ins.Framework.Transfer(ins, instr)
 		}
@@ -268,7 +277,11 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 				if j := join(ins.Framework.Join, old, dd, ins.Framework.Bottom, ins.Framework.Top); j != dd {
 					panic(fmt.Sprintf("transfer function isn't monotonic; Transfer(%v)[%d] = %v; join(%v, %v) = %v", instr, i, dd, old, dd, j))
 				}
-				ins.Mapping[d.Value] = Mapping[S]{Value: d.Value, State: dd, Decision: d.Decision}
+				ins.Mapping[d.Value] = Mapping[S]{
+					Value:    d.Value,
+					State:    dd,
+					Decision: d.Decision,
+				}
 
 				for _, ref := range *instr.Referrers() {
 					worklist[ref] = struct{}{}
