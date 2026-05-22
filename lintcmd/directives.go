@@ -39,13 +39,13 @@ func parseDirectives(dirs []runner.SerializedDirective) ([]ignore, []diagnostic)
 			ig = &lineIgnore{
 				File:   pos.Filename,
 				Line:   pos.Line,
-				Checks: checks,
+				Checks: makeCaseFoldedStrings(checks),
 				Pos:    dir.DirectivePosition,
 			}
 		case "file-ignore":
 			ig = &fileIgnore{
 				File:   pos.Filename,
-				Checks: checks,
+				Checks: makeCaseFoldedStrings(checks),
 			}
 		}
 		ignores = append(ignores, ig)

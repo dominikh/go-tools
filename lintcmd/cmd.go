@@ -39,10 +39,45 @@ type buildConfig struct {
 	Flags []string
 }
 
+type caseFoldedString struct {
+	s string
+}
+
+func makeCaseFoldedString(s string) caseFoldedString {
+	return caseFoldedString{strings.ToLower(s)}
+}
+
+func makeCaseFoldedStrings(ss []string) []caseFoldedString {
+	out := make([]caseFoldedString, len(ss))
+	for i, s := range ss {
+		out[i] = makeCaseFoldedString(s)
+	}
+	return out
+}
+
+func (cs caseFoldedString) String() string {
+	return cs.s
+}
+
+func (cs caseFoldedString) Index(idx int) byte {
+	return cs.s[idx]
+}
+
+func (cs caseFoldedString) Slice(start, end int) caseFoldedString {
+	if end == -1 {
+		end = len(cs.s)
+	}
+	return caseFoldedString{cs.s[start:end]}
+}
+
+func (cs caseFoldedString) Length() int {
+	return len(cs.s)
+}
+
 // Command represents a linter command line tool.
 type Command struct {
 	name           string
-	analyzers      map[string]*lint.Analyzer
+	analyzers      map[caseFoldedString]*lint.Analyzer
 	version        string
 	machineVersion string
 
@@ -79,7 +114,7 @@ type Command struct {
 func NewCommand(name string) *Command {
 	cmd := &Command{
 		name:           name,
-		analyzers:      map[string]*lint.Analyzer{},
+		analyzers:      map[caseFoldedString]*lint.Analyzer{},
 		version:        "devel",
 		machineVersion: "devel",
 	}
@@ -110,7 +145,7 @@ func (cmd *Command) FlagSet() *flag.FlagSet {
 // To add analysis.Analyzer analyzers without providing structured documentation, use AddBareAnalyzers.
 func (cmd *Command) AddAnalyzers(as ...*lint.Analyzer) {
 	for _, a := range as {
-		cmd.analyzers[a.Analyzer.Name] = a
+		cmd.analyzers[makeCaseFoldedString(a.Analyzer.Name)] = a
 	}
 }
 
@@ -129,7 +164,7 @@ func (cmd *Command) AddBareAnalyzers(as ...*analysis.Analyzer) {
 			Severity: lint.SeverityWarning,
 		}
 
-		cmd.analyzers[a.Name] = &lint.Analyzer{
+		cmd.analyzers[makeCaseFoldedString(a.Name)] = &lint.Analyzer{
 			Doc:      doc,
 			Analyzer: a,
 		}
@@ -370,13 +405,13 @@ func (cmd *Command) printVersion() int {
 
 func (cmd *Command) explain() int {
 	explain := cmd.flags.explain
-	check, ok := cmd.analyzers[explain]
+	check, ok := cmd.analyzers[makeCaseFoldedString(explain)]
 	if !ok {
 		fmt.Fprintln(os.Stderr, "Couldn't find check", explain)
 		return 1
 	}
 	if check.Analyzer.Doc == "" {
-		fmt.Fprintln(os.Stderr, explain, "has no documentation")
+		fmt.Fprintln(os.Stderr, check.Analyzer.Name, "has no documentation")
 		return 1
 	}
 	fmt.Println(check.Doc.Compile())
@@ -677,15 +712,15 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 		return 2
 	}
 
-	fail := cmd.flags.fail
-	analyzerNames := make([]string, len(cs))
+	fail := makeCaseFoldedStrings(cmd.flags.fail)
+	analyzerNames := make([]caseFoldedString, len(cs))
 	for i, a := range cs {
-		analyzerNames[i] = a.Analyzer.Name
+		analyzerNames[i] = makeCaseFoldedString(a.Analyzer.Name)
 	}
 	shouldExit := filterAnalyzerNames(analyzerNames, fail)
-	shouldExit["staticcheck"] = true
-	shouldExit["compile"] = true
-	shouldExit["config"] = true
+	shouldExit[makeCaseFoldedString("staticcheck")] = true
+	shouldExit[makeCaseFoldedString("compile")] = true
+	shouldExit[makeCaseFoldedString("config")] = true
 
 	var (
 		numErrors   int
@@ -701,7 +736,7 @@ func (cmd *Command) printDiagnostics(cs []*lint.Analyzer, diagnostics []diagnost
 			numIgnored++
 			continue
 		}
-		if shouldExit[diag.Category] {
+		if shouldExit[makeCaseFoldedString(diag.Category)] {
 			numErrors++
 		} else {
 			diag.Severity = severityWarning
