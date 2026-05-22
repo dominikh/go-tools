@@ -345,14 +345,6 @@ func (li *lineIgnore) match(p diagnostic) bool {
 	return false
 }
 
-func (li *lineIgnore) String() string {
-	matched := "not matched"
-	if li.Matched {
-		matched = "matched"
-	}
-	return fmt.Sprintf("%s:%d %s (%s)", li.File, li.Line, strings.Join(li.Checks, ", "), matched)
-}
-
 type fileIgnore struct {
 	File   string
 	Checks []string
