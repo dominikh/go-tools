@@ -1195,41 +1195,104 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 			v := &CompositeValue{
 				Values: make([]Value, t.NumFields()),
 			}
-			for i := 0; i < t.NumFields(); i++ {
+			for i := range t.NumFields() {
 				v.Values[i] = zeroConst(t.Field(i).Type(), e)
 			}
 			v.setType(typ)
 
+			type chainElement struct {
+				children []chainElement
+				cv       *CompositeValue
+			}
+
+			chain := chainElement{
+				cv: v,
+			}
+
 			for i, e := range e.Elts {
-				fieldIndex := i
 				if kv, ok := e.(*ast.KeyValueExpr); ok {
 					fname := kv.Key.(*ast.Ident).Name
-					for i, n := 0, t.NumFields(); i < n; i++ {
-						sf := t.Field(i)
-						if sf.Name() == fname {
-							fieldIndex = i
-							e = kv.Value
-							break
+					obj, index, indirect := types.LookupFieldOrMethod(t, true, fn.pkg(), fname)
+					assert(!indirect)
+					assert(obj != nil)
+					assert(len(index) > 0)
+
+					var parent *chainElement
+					chain := &chain
+					chainCoreType := t
+
+					// Ensure that the entire chain of embedded fields has
+					// corresponding CompositeValues
+					for _, idx := range index[:len(index)-1] {
+						if idx >= len(chain.children) {
+							n := make([]chainElement, idx+1)
+							copy(n, chain.children)
+							chain.children = n
+						}
+
+						parent = chain
+						chain = &chain.children[idx]
+						treeType := chainCoreType.Field(idx).Type()
+						chainCoreType = typeutil.CoreType(treeType).(*types.Struct)
+						if chain.cv == nil {
+							ncv := &CompositeValue{
+								Values: make([]Value, chainCoreType.NumFields()),
+							}
+							for i := range chainCoreType.NumFields() {
+								ncv.Values[i] = zeroConst(chainCoreType.Field(i).Type(), kv)
+							}
+							ncv.setType(treeType)
+							chain.cv = ncv
+							ce := &compositeElement{
+								cv:  parent.cv,
+								idx: idx,
+								t:   ncv.Type(),
+							}
+							parent.cv.Bitmap.SetBit(&parent.cv.Bitmap, idx, 1)
+							parent.cv.NumSet++
+							sb.store(ce, chain.cv, kv)
 						}
 					}
+
+					ce := &compositeElement{
+						cv:   chain.cv,
+						idx:  index[len(index)-1],
+						t:    chainCoreType.Field(index[len(index)-1]).Type(),
+						expr: kv.Value,
+					}
+					// We use b.assign for its handling of implicit & (which,
+					// albeit not needed for structs now, may be needed in the
+					// future), but no store buffer because 1) it's not needed 2)
+					// implicit conversions have to be emitted before we emit the
+					// CompositeValue.
+					b.assign(fn, ce, kv.Value, isZero, nil, kv)
+					chain.cv.Bitmap.SetBit(&chain.cv.Bitmap, index[len(index)-1], 1)
+					chain.cv.NumSet++
+				} else {
+					ce := &compositeElement{
+						cv:   v,
+						idx:  i,
+						t:    t.Field(i).Type(),
+						expr: e,
+					}
+					b.assign(fn, ce, e, isZero, nil, e)
+					v.Bitmap.SetBit(&v.Bitmap, i, 1)
+					v.NumSet++
+				}
+			}
+
+			var dfs func(t chainElement)
+			dfs = func(t chainElement) {
+				for _, tt := range t.children {
+					dfs(tt)
 				}
 
-				ce := &compositeElement{
-					cv:   v,
-					idx:  fieldIndex,
-					t:    t.Field(fieldIndex).Type(),
-					expr: e,
+				// XXX better e
+				if t.cv != nil {
+					fn.emit(t.cv, e)
 				}
-				// We use b.assign for its handling of implicit & (which,
-				// albeit not needed for structs now, may be needed in the
-				// future), but no store buffer because 1) it's not needed 2)
-				// implicit conversions have to be emitted before we emit the
-				// CompositeValue.
-				b.assign(fn, ce, e, isZero, nil, e)
-				v.Bitmap.SetBit(&v.Bitmap, fieldIndex, 1)
-				v.NumSet++
 			}
-			fn.emit(v, e)
+			dfs(chain)
 			sb.store(lvalue, v, e)
 		}
 
