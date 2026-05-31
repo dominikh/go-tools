@@ -171,13 +171,12 @@ type I8[T io.Reader] interface { //@ used("I8", true), used("T", true)
 }
 
 type S8_1 struct{} //@ used("S8_1", true)
-// This should be considered as used obviously. It's known incompleteness that we want to improve.
-// This test case just verifies that it doesn't crash.
-func (s *S8_1) m8() []io.Reader { //@ quiet("s"), used("m8", false)
+func (s *S8_1) m8() []io.Reader { //@ used("s", true), used("m8", true)
 	return nil
 }
 
 type S8 struct{}           //@ used("S8", true)
+
 type I9[T any] interface { //@ used("I9", true), used("T", true)
 	make() *T //@ used("make", true)
 }
