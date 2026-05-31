@@ -27,11 +27,9 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Text:  `In many cases, assigning to the blank identifier is unnecessary.`,
 		Before: `
 for _ = range s {}
-x, _ = someMap[key]
 _ = <-ch`,
 		After: `
 for range s{}
-x = someMap[key]
 <-ch`,
 		Since:   "2017.1",
 		MergeIf: lint.MergeIfAny,
@@ -45,9 +43,7 @@ var (
 		(AssignStmt
 			[_ (Ident "_")]
 			_
-			(Or
-				(IndexExpr _ _)
-				(UnaryExpr "<-" _))) `)
+			(UnaryExpr "<-" _)) `)
 	checkUnnecessaryBlankQ2 = pattern.MustParse(`
 		(AssignStmt
 			(Ident "_") _ recv@(UnaryExpr "<-" _))`)
@@ -55,6 +51,10 @@ var (
 
 func run(pass *analysis.Pass) (any, error) {
 	fn1 := func(node ast.Node) {
+		// We don't check for 'x, _ = m[k]', which might be used to indicate
+		// that one knows that there might be no entry and that one doesn't
+		// care.
+
 		if _, ok := code.Match(pass, checkUnnecessaryBlankQ1, node); ok {
 			r := *node.(*ast.AssignStmt)
 			r.Lhs = r.Lhs[0:1]
