@@ -748,6 +748,20 @@ func (g *graph) read(node ast.Node, by types.Object) {
 					g.read(kv.Value, by)
 				}
 			}
+			if g.opts.FieldWritesAreUses && !unkeyed {
+				for _, elt := range node.Elts {
+					kv := elt.(*ast.KeyValueExpr)
+					fname := kv.Key.(*ast.Ident).Name
+					_, index, _ := types.LookupFieldOrMethod(typ, true, g.pkg, fname)
+
+					cur := typ
+					for _, step := range index[:len(index)-1] {
+						field := cur.Field(step)
+						g.use(field, by)
+						cur = typeutil.CoreType(field.Type()).(*types.Struct)
+					}
+				}
+			}
 		} else {
 			for _, elt := range node.Elts {
 				g.read(elt, by)
