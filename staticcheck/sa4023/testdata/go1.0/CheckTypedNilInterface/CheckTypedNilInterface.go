@@ -7,11 +7,11 @@ import (
 
 type T struct{ x *int }
 
-func fn1() *int             { return nil }
-func fn2() (int, *int, int) { return 0, nil, 0 }
+func fn1() *int             { println("not trivial"); return nil }
+func fn2() (int, *int, int) { println("not trivial"); return 0, nil, 0 }
 
-func fn3() (int, error) { return 0, nil }
-func fn4() error        { return nil }
+func fn3() (int, error) { println("not trivial"); return 0, nil }
+func fn4() error        { println("not trivial"); return nil }
 
 func gen1() interface{} {
 	// don't flag, returning a concrete value
@@ -65,6 +65,7 @@ func gen8(x *int) interface{} {
 
 func gen9() interface{} {
 	// flag
+	println("not trivial")
 	var x *int
 	return x
 }
@@ -185,10 +186,11 @@ func test() {
 	}
 	_ = gen5() == nil //@ diag(`never true`)
 	_ = gen6(false) == nil
-	_ = gen7() == nil    //@ diag(`never true`)
-	_ = gen8(nil) == nil //@ diag(`never true`)
-	_ = gen9() == nil    //@ diag(`never true`)
-	_ = gen10() == nil   //@ diag(`never true`)
+	_ = gen7() == nil         //@ diag(`never true`)
+	_ = gen8(nil) == nil      //@ diag(`never true`)
+	_ = gen9() == nil         //@ diag(`never true`)
+	_ = gen10() == nil        //@ diag(`never true`)
+	_ = errors.New("") == nil //@ diag(`never true`)
 	_ = gen11() == nil
 	_ = gen12(true) == nil //@ diag(`never true`)
 	_ = gen13() == nil     //@ diag(`never true`)

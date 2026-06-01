@@ -7,7 +7,6 @@ import (
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/nilness"
-	"honnef.co/go/tools/analysis/facts/typedness"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ir"
@@ -23,7 +22,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA4023",
 		Run:      run,
-		Requires: []*analysis.Analyzer{buildir.Analyzer, typedness.Analysis, nilness.Analysis},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, nilness.Analysis},
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Impossible comparison of interface value with untyped nil`,
@@ -102,8 +101,7 @@ func run(pass *analysis.Pass) (any, error) {
 	// known typed nils, or typed unknown nilness are being returned.
 
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR)
-	typedness := pass.ResultOf[typedness.Analysis].(*typedness.Result)
-	nilness := pass.ResultOf[nilness.Analysis].(*nilness.Result)
+	nilnessRes := pass.ResultOf[nilness.Analysis].(*nilness.Result)
 	for _, fn := range irpkg.SrcFuncs {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
@@ -111,17 +109,16 @@ func run(pass *analysis.Pass) (any, error) {
 				if !ok || !(binop.Op == token.EQL || binop.Op == token.NEQ) {
 					continue
 				}
-				if _, ok := binop.X.Type().Underlying().(*types.Interface); !ok || typeparams.IsTypeParam(binop.X.Type()) {
+				if !types.IsInterface(binop.X.Type()) || typeparams.IsTypeParam(binop.X.Type()) {
 					// TODO support swapped X and Y
 					continue
 				}
 
 				k, ok := binop.Y.(*ir.Const)
 				if !ok || !k.IsNil() {
-					// if binop.X is an interface, then binop.Y can
-					// only be a Const if its untyped. A typed nil
-					// constant would first be passed to
-					// MakeInterface.
+					// if binop.X is an interface, then binop.Y can only be a
+					// Const if its untyped. A typed nil constant would first
+					// be passed to MakeInterface.
 					continue
 				}
 
@@ -159,8 +156,9 @@ func run(pass *analysis.Pass) (any, error) {
 
 					terms, err := typeparams.NormalTerms(x.X.Type())
 					if len(terms) == 0 || err != nil {
-						// Type is a type parameter with no type terms (or we couldn't determine the terms). Such a type
-						// _can_ be nil when put in an interface value.
+						// Type is a type parameter with no type terms (or we
+						// couldn't determine the terms). Such a type _can_ be
+						// nil when put in an interface value.
 						continue
 					}
 
@@ -168,8 +166,11 @@ func run(pass *analysis.Pass) (any, error) {
 						report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
 							report.Related(x.X, "the lhs of the comparison gets its value from here and has a concrete type"))
 					} else {
-						// we can't generate related information for this, so make the diagnostic itself slightly more useful
-						report.Report(pass, binop, fmt.Sprintf("this comparison is %s true; the lhs of the comparison has been assigned a concretely typed value", qualifier))
+						// we can't generate related information for this, so
+						// make the diagnostic itself slightly more useful
+						report.Report(pass, binop,
+							fmt.Sprintf("this comparison is %s true; the lhs of the comparison has been assigned a concretely typed value",
+								qualifier))
 					}
 					continue
 				}
@@ -177,11 +178,13 @@ func run(pass *analysis.Pass) (any, error) {
 					continue
 				}
 
-				isNil, onlyGlobal := nilness.MayReturnNil(obj, idx)
-				if typedness.MustReturnTyped(obj, idx) && isNil && !onlyGlobal && !code.IsInTest(pass, binop) {
-					// Don't flag these comparisons in tests. Tests
-					// may be explicitly enforcing the invariant that
-					// a value isn't nil.
+				nillity := nilnessRes.Nilness(obj, idx)
+				if nillity.Outer == nilness.NeverNil &&
+					!code.IsInTest(pass, binop) &&
+					!irutil.IsTrivial(irpkg.Pkg.Prog.FuncValue(obj)) {
+					// Don't flag these comparisons in tests. Tests may be
+					// explicitly enforcing the invariant that a value isn't
+					// nil.
 
 					var qualifier string
 					switch binop.Op {
@@ -194,8 +197,11 @@ func run(pass *analysis.Pass) (any, error) {
 					}
 					report.Report(pass, binop, fmt.Sprintf("this comparison is %s true", qualifier),
 						// TODO support swapped X and Y
-						report.Related(binop.X, fmt.Sprintf("the lhs of the comparison is the %s return value of this function call", report.Ordinal(idx+1))),
-						report.Related(obj, fmt.Sprintf("%s never returns a nil interface value", typeutil.FuncName(obj))))
+						report.Related(binop.X,
+							fmt.Sprintf("the lhs of the comparison is the %s return value of this function call",
+								report.Ordinal(idx+1))),
+						report.Related(obj,
+							fmt.Sprintf("%s never returns a nil interface value", typeutil.FuncName(obj))))
 				}
 			}
 		}

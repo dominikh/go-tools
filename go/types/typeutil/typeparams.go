@@ -100,7 +100,12 @@ func Any(typ types.Type, fn func(*types.Term) bool) bool {
 	return NewTypeSet(typ).Any(fn)
 }
 
-func IsSlice(term *types.Term) bool {
-	_, ok := term.Type().Underlying().(*types.Slice)
+func IsType[T types.Type](term *types.Term) bool {
+	_, ok := term.Type().Underlying().(T)
 	return ok
+}
+
+//go:fix inline
+func IsSlice(term *types.Term) bool {
+	return IsType[*types.Slice](term)
 }

@@ -10,6 +10,7 @@ type Nil interface {
 }
 
 func MakeNil() Nil {
+	println("not trivial")
 	var n *NilStruct
 	return n
 }

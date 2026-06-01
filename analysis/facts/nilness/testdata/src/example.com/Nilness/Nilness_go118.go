@@ -31,7 +31,7 @@ func generic2[T [4]byte | string](s T) T {
 // understand that the switch's non-default branches are exhaustive over the type set and
 // for the fact to be computed, we have to return something non-nil from the unreachable
 // default branch.
-func generic3[T []byte | string](s T) T { // want generic3:`never returns nil: \[never\]`
+func generic3[T []byte | string](s T) T { // want generic3:`nilness: \[\{[^ ]+ NeverNil\}\]`
 	switch v := any(s).(type) {
 	case string:
 		return T(v)
