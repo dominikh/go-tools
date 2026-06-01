@@ -13,6 +13,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"iter"
 	"math/big"
 	"sync"
 
@@ -1830,6 +1831,31 @@ func (v *Function) Referrers() *[]Instruction {
 		return &v.referrers
 	}
 	return nil
+}
+
+// Nodes returns an iterator over the basic block indices.
+func (v *Function) Nodes() iter.Seq[int] {
+	return func(yield func(int) bool) {
+		for i := range v.Blocks {
+			if !yield(i) {
+				return
+			}
+		}
+	}
+}
+
+// NumNodes returns the number of basic blocks in the graph.
+func (v *Function) NumNodes() int { return len(v.Blocks) }
+
+// Out returns an iterator over the successor block indices of a given node.
+func (v *Function) Out(node int) iter.Seq[int] {
+	return func(yield func(int) bool) {
+		for _, succ := range v.Blocks[node].Succs {
+			if !yield(succ.Index) {
+				return
+			}
+		}
+	}
 }
 
 func (v *Parameter) Object() types.Object { return v.object }
