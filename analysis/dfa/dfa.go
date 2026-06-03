@@ -7,11 +7,12 @@ import (
 	"log"
 	"math/bits"
 	"slices"
-	"strings"
 	"sync"
 
-	"golang.org/x/exp/constraints"
+	"honnef.co/go/tools/analysis/dfa/dense"
 	"honnef.co/go/tools/go/ir"
+
+	"golang.org/x/exp/constraints"
 )
 
 const debugging = false
@@ -22,29 +23,10 @@ func debugf(f string, args ...any) {
 	}
 }
 
-// Join defines the [∨] operation for a [join-semilattice]. It must implement a
-// commutative and associative binary operation that returns the least upper
-// bound of two states from S.
-//
-// Code that calls Join functions is expected to handle the [⊥ and ⊤ elements],
-// as well as implement idempotency. That is, the following properties will be
-// enforced:
-//
-//   - x ∨ ⊥ = x
-//   - x ∨ ⊤ = ⊤
-//   - x ∨ x = x
-//
-// Simple table-based join functions can be created using [BinaryTable].
-//
-// [∨]: https://en.wikipedia.org/wiki/Join_and_meet
-// [join-semilattice]: https://en.wikipedia.org/wiki/Semilattice
-// [⊥ and ⊤ elements]: https://en.wikipedia.org/wiki/Greatest_element_and_least_element#Top_and_bottom
-type Join[S comparable] func(S, S) S
-
 // Mapping maps a single [ir.Value] to an abstract state.
-type Mapping[S comparable] struct {
+type Mapping[Elem any] struct {
 	Value    ir.Value
-	State    S
+	State    Elem
 	Decision Decision
 }
 
@@ -64,13 +46,13 @@ type Decision struct {
 	Source bool
 }
 
-func (m Mapping[S]) String() string {
+func (m Mapping[Elem]) String() string {
 	return fmt.Sprintf("%s = %v", m.Value.Name(), m.State)
 }
 
 // M is a helper for constructing instances of [Mapping].
-func M[S comparable](v ir.Value, s S, d Decision) Mapping[S] {
-	return Mapping[S]{Value: v, State: s, Decision: d}
+func M[Elem any](v ir.Value, s Elem, d Decision) Mapping[Elem] {
+	return Mapping[Elem]{Value: v, State: s, Decision: d}
 }
 
 // Ms is a helper for constructing slices of mappings.
@@ -78,50 +60,18 @@ func M[S comparable](v ir.Value, s S, d Decision) Mapping[S] {
 // Example:
 //
 //	Ms(M(v1, d1, ...), M(v2, d2, ...))
-func Ms[S comparable](ms ...Mapping[S]) []Mapping[S] {
+func Ms[Elem comparable](ms ...Mapping[Elem]) []Mapping[Elem] {
 	return ms
 }
 
-// Framework describes a monotone data-flow framework ⟨S, ∨, Transfer⟩ using a
-// bounded join-semilattice ⟨S, ∨⟩ and a monotonic transfer function.
-//
-// Transfer implements the transfer function. Given an instruction, it should
-// return zero or more mappings from IR values to abstract values, i.e. values
-// from the semilattice. Transfer must be monotonic. ϕ instructions are handled
-// automatically and do not cause Transfer to be called.
-//
-// The set S is defined implicitly by the values returned by Join and Transfer
-// and needn't be finite. In addition, it contains the elements ⊥ and ⊤ (Bottom
-// and Top) with Join(x, ⊥) = x and Join(x, ⊤) = ⊤. The provided Join function
-// is wrapped to handle these elements automatically. All IR values start in
-// the ⊥ state.
-//
-// Abstract states are associated with IR values. As such, the analysis is
-// sparse and favours the partitioned variable lattice (PVL) property.
-type Framework[S comparable] struct {
-	Join     Join[S]
-	Transfer func(*Instance[S], ir.Instruction) []Mapping[S]
-	Bottom   S
-	Top      S
-}
-
-// Start returns a new instance of the framework. See also [Framework.Forward].
-func (fw *Framework[S]) Start() *Instance[S] {
-	if fw.Bottom == fw.Top {
-		panic("framework's ⊥ and ⊤ are identical; did you forget to specify them?")
+func Forward[L dense.Semilattice[Elem], Elem any](
+	fn *ir.Function,
+	transfer func(*Instance[L, Elem], ir.Instruction) []Mapping[Elem],
+) *Instance[L, Elem] {
+	ins := &Instance[L, Elem]{
+		Transfer: transfer,
+		Mapping:  map[ir.Value]Mapping[Elem]{},
 	}
-
-	return &Instance[S]{
-		Framework: fw,
-		Mapping:   map[ir.Value]Mapping[S]{},
-	}
-}
-
-// Forward runs an intraprocedural forward data flow analysis, using an
-// iterative fixed-point algorithm, given the functions specified in the
-// framework. It combines [Framework.Start] and [Instance.Forward].
-func (fw *Framework[S]) Forward(fn *ir.Function) *Instance[S] {
-	ins := fw.Start()
 	ins.Forward(fn)
 	return ins
 }
@@ -135,90 +85,50 @@ func (fw *Framework[S]) Forward(fn *ir.Function) *Instance[S] {
 // reduction of the graph, the visualisation of which corresponds to the Hasse
 // diagram of the semilattice.
 //
-// The set of states should not include the ⊥ and ⊤ elements.
-//
 // [Graphviz]: https://graphviz.org/
 // [tred]: https://graphviz.org/docs/cli/tred/
-func Dot[S comparable](fn Join[S], states []S, bottom, top S) string {
-	var sb strings.Builder
-	sb.WriteString("digraph{\n")
-	sb.WriteString("rankdir=\"BT\"\n")
-
-	for i, v := range states {
-		if vs, ok := any(v).(fmt.Stringer); ok {
-			fmt.Fprintf(&sb, "n%d [label=%q]\n", i, vs)
-		} else {
-			fmt.Fprintf(&sb, "n%d [label=%q]\n", i, fmt.Sprintf("%v", v))
-		}
-	}
-
-	for dx, x := range states {
-		for dy, y := range states {
-			if dx == dy {
-				continue
-			}
-
-			if join(fn, x, y, bottom, top) == y {
-				fmt.Fprintf(&sb, "n%d -> n%d\n", dx, dy)
-			}
-		}
-	}
-
-	sb.WriteString("}")
-	return sb.String()
+func Dot[L dense.Semilattice[Elem], Elem any](states []Elem) string {
+	return dense.Dot[L, Elem](states)
 }
 
 // Instance is an instance of a data-flow analysis. It is created by
 // [Framework.Forward].
-type Instance[S comparable] struct {
-	Framework *Framework[S]
+type Instance[L dense.Semilattice[Elem], Elem any] struct {
+	l L
+
+	Transfer func(*Instance[L, Elem], ir.Instruction) []Mapping[Elem]
 	// Mapping is the result of the analysis. Consider using Instance.Value
 	// instead of accessing Mapping directly, as it correctly returns ⊥ for
 	// missing values.
-	Mapping map[ir.Value]Mapping[S]
+	Mapping map[ir.Value]Mapping[Elem]
 }
 
 // Set maps v to the abstract value d. It does not apply any checks. This
 // should only be used before calling [Instance.Forward], to set initial states
 // of values.
-func (ins *Instance[S]) Set(v ir.Value, d S) {
-	ins.Mapping[v] = Mapping[S]{Value: v, State: d}
+func (ins *Instance[L, Elem]) Set(v ir.Value, d Elem) {
+	ins.Mapping[v] = Mapping[Elem]{Value: v, State: d}
 }
 
 // Value returns the abstract value for v. If none was set, it returns ⊥.
-func (ins *Instance[S]) Value(v ir.Value) S {
+func (ins *Instance[L, Elem]) Value(v ir.Value) Elem {
 	m, ok := ins.Mapping[v]
 	if ok {
 		return m.State
 	} else {
-		return ins.Framework.Bottom
+		return ins.l.Ident()
 	}
 }
 
 // Decision returns the decision of the mapping for v, if any.
-func (ins *Instance[S]) Decision(v ir.Value) Decision {
+func (ins *Instance[L, Elem]) Decision(v ir.Value) Decision {
 	return ins.Mapping[v].Decision
 }
 
 var dfsDebugMu sync.Mutex
 
-func join[S comparable](fn Join[S], a, b, bottom, top S) S {
-	switch {
-	case a == top || b == top:
-		return top
-	case a == bottom:
-		return b
-	case b == bottom:
-		return a
-	case a == b:
-		return a
-	default:
-		return fn(a, b)
-	}
-}
-
 // Forward runs a forward data-flow analysis on fn.
-func (ins *Instance[S]) Forward(fn *ir.Function) {
+func (ins *Instance[L, Elem]) Forward(fn *ir.Function) {
 	if debugging {
 		dfsDebugMu.Lock()
 		defer dfsDebugMu.Unlock()
@@ -226,7 +136,7 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 
 	debugf("Analyzing %s\n", fn)
 	if ins.Mapping == nil {
-		ins.Mapping = map[ir.Value]Mapping[S]{}
+		ins.Mapping = map[ir.Value]Mapping[Elem]{}
 	}
 
 	worklist := map[ir.Instruction]struct{}{}
@@ -242,15 +152,15 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 		}
 		delete(worklist, instr)
 
-		var ds []Mapping[S]
+		var ds []Mapping[Elem]
 		if phi, ok := instr.(*ir.Phi); ok {
-			d := ins.Framework.Bottom
+			d := ins.l.Ident()
 			for _, edge := range phi.Edges {
 				a, b := d, ins.Value(edge)
-				d = join(ins.Framework.Join, a, b, ins.Framework.Bottom, ins.Framework.Top)
+				d = ins.l.Merge(a, b)
 				debugf("join(%v, %v) = %v", a, b, d)
 			}
-			ds = []Mapping[S]{
+			ds = []Mapping[Elem]{
 				{
 					Value: phi,
 					State: d,
@@ -261,7 +171,7 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 				},
 			}
 		} else {
-			ds = ins.Framework.Transfer(ins, instr)
+			ds = ins.Transfer(ins, instr)
 		}
 		if len(ds) > 0 {
 			if v, ok := instr.(ir.Value); ok {
@@ -273,8 +183,8 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 		for _, d := range ds {
 			old := ins.Value(d.Value)
 			dd := d.State
-			if dd != old {
-				ins.Mapping[d.Value] = Mapping[S]{
+			if !ins.l.Equals(dd, old) {
+				ins.Mapping[d.Value] = Mapping[Elem]{
 					Value:    d.Value,
 					State:    dd,
 					Decision: d.Decision,
@@ -292,15 +202,15 @@ func (ins *Instance[S]) Forward(fn *ir.Function) {
 // Propagate is a helper for creating a [Mapping] that propagates the abstract
 // state of src to dst. The desc parameter is used as the value of
 // Decision.Description.
-func (ins *Instance[S]) Propagate(dst, src ir.Value, desc string) Mapping[S] {
+func (ins *Instance[L, Elem]) Propagate(dst, src ir.Value, desc string) Mapping[Elem] {
 	return M(dst, ins.Value(src), Decision{Inputs: []ir.Value{src}, Description: desc})
 }
 
-func (ins *Instance[S]) Transform(dst ir.Value, s S, src ir.Value, desc string) Mapping[S] {
+func (ins *Instance[L, Elem]) Transform(dst ir.Value, s Elem, src ir.Value, desc string) Mapping[Elem] {
 	return M(dst, s, Decision{Inputs: []ir.Value{src}, Description: desc})
 }
 
-func printMapping[S any](fn *ir.Function, m map[ir.Value]S) {
+func printMapping[Elem any](fn *ir.Function, m map[ir.Value]Elem) {
 	if !debugging {
 		return
 	}
@@ -321,11 +231,11 @@ func printMapping[S any](fn *ir.Function, m map[ir.Value]S) {
 
 // BinaryTable returns a binary operator based on the provided mapping. For
 // missing pairs of values, the default value will be returned.
-func BinaryTable[S comparable](default_ S, m map[[2]S]S) func(S, S) S {
-	return func(a, b S) S {
-		if d, ok := m[[2]S{a, b}]; ok {
+func BinaryTable[Elem comparable](default_ Elem, m map[[2]Elem]Elem) func(Elem, Elem) Elem {
+	return func(a, b Elem) Elem {
+		if d, ok := m[[2]Elem{a, b}]; ok {
 			return d
-		} else if d, ok := m[[2]S{b, a}]; ok {
+		} else if d, ok := m[[2]Elem{b, a}]; ok {
 			return d
 		} else {
 			return default_
@@ -333,17 +243,17 @@ func BinaryTable[S comparable](default_ S, m map[[2]S]S) func(S, S) S {
 	}
 }
 
-func PowerSet[S constraints.Integer](all S) []S {
-	out := make([]S, all+1)
+func PowerSet[Elem constraints.Integer](all Elem) []Elem {
+	out := make([]Elem, all+1)
 	for i := range out {
-		out[i] = S(i)
+		out[i] = Elem(i)
 	}
 	return out
 }
 
-func MapSet[S constraints.Integer](set S, fn func(S) S) S {
+func MapSet[Elem constraints.Integer](set Elem, fn func(Elem) Elem) Elem {
 	bits := 64 - bits.LeadingZeros64(uint64(set))
-	var out S
+	var out Elem
 	for i := range bits {
 		if b := (set & (1 << i)); b != 0 {
 			out |= fn(b)
@@ -352,11 +262,11 @@ func MapSet[S constraints.Integer](set S, fn func(S) S) S {
 	return out
 }
 
-func MapCartesianProduct[S constraints.Integer](x, y S, fn func(S, S) S) S {
+func MapCartesianProduct[Elem constraints.Integer](x, y Elem, fn func(Elem, Elem) Elem) Elem {
 	bitsX := 64 - bits.LeadingZeros64(uint64(x))
 	bitsY := 64 - bits.LeadingZeros64(uint64(y))
 
-	var out S
+	var out Elem
 	for i := range bitsX {
 		for j := range bitsY {
 			bx := x & (1 << i)
