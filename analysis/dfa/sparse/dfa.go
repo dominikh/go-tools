@@ -1,5 +1,6 @@
-// Package dfa provides types and functions for implementing data-flow analyses.
-package dfa
+// Package sparse provides types and functions for implementing sparse
+// data-flow analyses.
+package sparse
 
 import (
 	"cmp"
@@ -9,7 +10,7 @@ import (
 	"slices"
 	"sync"
 
-	"honnef.co/go/tools/analysis/dfa/dense"
+	"honnef.co/go/tools/analysis/dfa"
 	"honnef.co/go/tools/go/ir"
 
 	"golang.org/x/exp/constraints"
@@ -64,7 +65,7 @@ func Ms[Elem comparable](ms ...Mapping[Elem]) []Mapping[Elem] {
 	return ms
 }
 
-func Forward[L dense.Semilattice[Elem], Elem any](
+func Forward[L dfa.Semilattice[Elem], Elem any](
 	fn *ir.Function,
 	transfer func(*Instance[L, Elem], ir.Instruction) []Mapping[Elem],
 ) *Instance[L, Elem] {
@@ -76,24 +77,9 @@ func Forward[L dense.Semilattice[Elem], Elem any](
 	return ins
 }
 
-// Dot returns a directed graph in [Graphviz] format that represents the finite
-// join-semilattice ⟨S, ≤⟩. Vertices represent elements in S and edges
-// represent the ≤ relation between elements. We map from ⟨S, ∨⟩ to ⟨S, ≤⟩ by
-// computing x ∨ y for all elements in [S]², where x ≤ y iff x ∨ y == y.
-//
-// The resulting graph can be filtered through [tred] to compute the transitive
-// reduction of the graph, the visualisation of which corresponds to the Hasse
-// diagram of the semilattice.
-//
-// [Graphviz]: https://graphviz.org/
-// [tred]: https://graphviz.org/docs/cli/tred/
-func Dot[L dense.Semilattice[Elem], Elem any](states []Elem) string {
-	return dense.Dot[L, Elem](states)
-}
-
 // Instance is an instance of a data-flow analysis. It is created by
 // [Framework.Forward].
-type Instance[L dense.Semilattice[Elem], Elem any] struct {
+type Instance[L dfa.Semilattice[Elem], Elem any] struct {
 	l L
 
 	Transfer func(*Instance[L, Elem], ir.Instruction) []Mapping[Elem]

@@ -1,4 +1,4 @@
-package dense
+package dfa
 
 import (
 	"fmt"

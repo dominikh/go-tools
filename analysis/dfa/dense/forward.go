@@ -9,6 +9,7 @@ import (
 	"log"
 	"slices"
 
+	"honnef.co/go/tools/analysis/dfa"
 	"honnef.co/go/tools/internal/xtools-internal/graph"
 )
 
@@ -19,7 +20,7 @@ import (
 // the analysis state on entry to edge.Pred. The transfer function must return
 // the outgoing analysis state of the edge (which may be fact, if the edge has
 // no effect on the  analysis state).
-func Forward[L Semilattice[Fact], Fact any, NodeID comparable](g graph.Graph[NodeID], entry map[NodeID]Fact, transfer func(from, to NodeID, fact Fact) Fact) *Analysis[Fact, NodeID] {
+func Forward[L dfa.Semilattice[Fact], Fact any, NodeID comparable](g graph.Graph[NodeID], entry map[NodeID]Fact, transfer func(from, to NodeID, fact Fact) Fact) *Analysis[Fact, NodeID] {
 	cg, nodeMap := graph.Compact(g)
 
 	nNodes := cg.NumNodes()
@@ -93,7 +94,7 @@ func Forward[L Semilattice[Fact], Fact any, NodeID comparable](g graph.Graph[Nod
 }
 
 // fwdBuilder is the state used during [Forward] analysis.
-type fwdBuilder[L Semilattice[Fact], Fact any, NodeID comparable] struct {
+type fwdBuilder[L dfa.Semilattice[Fact], Fact any, NodeID comparable] struct {
 	l L // Lattice
 
 	cfg     graph.Graph[int]     // Control flow graph (compact)
