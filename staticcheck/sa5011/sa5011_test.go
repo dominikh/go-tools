@@ -4,10 +4,8 @@ package sa5011
 
 import (
 	"testing"
-
-	"honnef.co/go/tools/analysis/lint/testutil"
 )
 
 func TestTestdata(t *testing.T) {
-	testutil.Run(t, SCAnalyzer)
+	t.Skip("check has been disabled")
 }

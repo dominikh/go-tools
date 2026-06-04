@@ -21,13 +21,17 @@ package {{.dir}}
 import (
 	"honnef.co/go/tools/analysis/lint"
 {{- range $check := .checks}}
+	{{- if not (index $.disabled $check) }}
 	"honnef.co/go/tools/{{$.dir}}/{{$check}}"
+	{{- end }}
 {{- end}}
 )
 
 var Analyzers = []*lint.Analyzer{
 {{- range $check := .checks}}
+	{{- if not (index $.disabled $check) }}
 	{{$check}}.SCAnalyzer,
+	{{- end }}
 {{- end}}
 }
 {{end}}
@@ -40,14 +44,25 @@ package {{.check}}
 import (
 	"testing"
 
+	{{ if not (index .disabled .check) }}
 	"honnef.co/go/tools/analysis/lint/testutil"
+	{{- end }}
 )
 
 func TestTestdata(t *testing.T) {
-	testutil.Run(t, SCAnalyzer)
+	{{- if index .disabled .check }}
+		t.Skip("check has been disabled")
+	{{- else }}
+		testutil.Run(t, SCAnalyzer)
+	{{- end }}
 }
 {{end}}
 `
+
+var disabledChecks = map[string]bool{
+	// SA5011 relied on SSI and no longer works correctly.
+	"sa5011": true,
+}
 
 func main() {
 	log.SetFlags(0)
@@ -80,7 +95,12 @@ func main() {
 
 	buf := bytes.NewBuffer(nil)
 
-	if err := t.ExecuteTemplate(buf, "analyzers", map[string]any{"checks": dirs, "dir": dir}); err != nil {
+	if err := t.ExecuteTemplate(buf, "analyzers",
+		map[string]any{
+			"checks":   dirs,
+			"dir":      dir,
+			"disabled": disabledChecks,
+		}); err != nil {
 		log.Fatalln("couldn't generate analysis.go:", err)
 	}
 
@@ -95,7 +115,11 @@ func main() {
 	for _, dir := range dirs {
 		buf.Reset()
 		dst := filepath.Join(dir, dir+"_test.go")
-		if err := t.ExecuteTemplate(buf, "tests", map[string]any{"check": dir}); err != nil {
+		if err := t.ExecuteTemplate(buf, "tests",
+			map[string]any{
+				"check":    dir,
+				"disabled": disabledChecks,
+			}); err != nil {
 			log.Fatalf("couldn't generate %s: %s", dst, err)
 		}
 

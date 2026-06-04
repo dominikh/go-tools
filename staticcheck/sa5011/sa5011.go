@@ -92,6 +92,10 @@ popular package.`,
 var Analyzer = SCAnalyzer.Analyzer
 
 func run(pass *analysis.Pass) (any, error) {
+	if true { // branch to shut up go vet's unreachable code detection.
+		panic("SA5011 is broken and should not be used")
+	}
+
 	// This is an extremely trivial check that doesn't try to reason
 	// about control flow. That is, phis and sigmas do not propagate
 	// any information. As such, we can flag this:
