@@ -73,3 +73,21 @@ func TestMapLattice_Merge(t *testing.T) {
 		t.Errorf("Merge(a, b) = %v, want %v", got, want)
 	}
 }
+
+func TestDenseMapLattice_Equal(t *testing.T) {
+	l := dfa.DenseMapLattice[nodeSet, nodeSetUnion]{}
+
+	a := []nodeSet{
+		0: set(),
+		1: set(1),
+	}
+	b := []nodeSet{
+		0: set(),
+		1: set(1),
+		2: set(),
+	}
+
+	if !l.Equals(a, b) {
+		t.Errorf("Equal(a, b) = false, want true")
+	}
+}
