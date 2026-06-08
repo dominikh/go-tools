@@ -9,8 +9,8 @@ import (
 	"iter"
 	"slices"
 
-	typeindexanalyzer "honnef.co/go/tools/internal/analysisinternal/typeindex"
-	"honnef.co/go/tools/internal/typesinternal/typeindex"
+	typeindexanalyzer "honnef.co/go/tools/internal/xtools-internal/analysis/typeindex"
+	"honnef.co/go/tools/internal/xtools-internal/typesinternal/typeindex"
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"

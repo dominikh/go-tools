@@ -8,8 +8,8 @@ import (
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	typeindexanalyzer "honnef.co/go/tools/internal/analysisinternal/typeindex"
-	"honnef.co/go/tools/internal/typesinternal/typeindex"
+	typeindexanalyzer "honnef.co/go/tools/internal/xtools-internal/analysis/typeindex"
+	"honnef.co/go/tools/internal/xtools-internal/typesinternal/typeindex"
 
 	"golang.org/x/tools/go/analysis"
 )
