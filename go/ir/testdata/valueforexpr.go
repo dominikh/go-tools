@@ -1,6 +1,3 @@
-//go:build ignore
-// +build ignore
-
 package main
 
 // This file is the input to TestValueForExpr in source_test.go, which
@@ -16,6 +13,7 @@ func f(spilled, unspilled int) {
 
 	f := func() (int, int) { return 0, 0 }
 
+	/*@Call*/
 	(print( /*@BinOp*/ (i + 1)))
 	_, _ = /*@Call*/ (f())
 	ch := /*@MakeChan*/ (make(chan int))
@@ -69,7 +67,7 @@ func f(spilled, unspilled int) {
 	var n N
 	/*@Const*/ (n) = /*@Const*/ (n)
 	/*@ChangeType*/ (n) = /*@Alloc*/ (&n)
-	/*@Load*/ (n) = /*@Load*/ (n)
+	/*@Load*/ (n) = /*@Load*/ n
 	/*@Load*/ (n) = /*@Load*/ (*n)
 	/*@Load*/ (n) = /*@Load*/ (**n)
 }

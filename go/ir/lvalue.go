@@ -24,7 +24,7 @@ type lvalue interface {
 
 // An address is an lvalue represented by a true pointer.
 type address struct {
-	addr Value
+	addr Value    // must have a pointer core type.
 	expr ast.Expr // source syntax of the value (not address) [debug mode]
 }
 

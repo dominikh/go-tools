@@ -2,49 +2,218 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//lint:file-ignore SA1019 go/ssa's test suite is built around the deprecated go/loader. We'll leave fixing that to upstream.
-
 // Incomplete source tree on Android.
 
 //go:build !android
 
 package ir_test
 
-// This file runs the IR builder in sanity-checking mode on all
+// This file runs the SSA builder in sanity-checking mode on all
 // packages beneath $GOROOT and prints some summary information.
 //
 // Run with "go test -cpu=8 to" set GOMAXPROCS.
 
 import (
+	"go/ast"
+	"go/token"
+	"go/types"
+	"runtime"
 	"testing"
+	"time"
 
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
+	"honnef.co/go/tools/internal/xtools-internal/testenv"
 
 	"golang.org/x/tools/go/packages"
 )
 
+func bytesAllocated() uint64 {
+	runtime.GC()
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	return stats.Alloc
+}
+
+// TestStdlib loads the entire standard library and its tools and all
+// their dependencies.
+//
+// (As of go1.23, std is transitively closed, so adding the -deps flag
+// doesn't increase its result set. The cmd pseudomodule of course
+// depends on a good chunk of std, but the std+cmd set is also
+// transitively closed, so long as -pgo=off.)
+//
+// Apart from a small number of internal packages that are not
+// returned by the 'std' query, the set is essentially transitively
+// closed, so marginal per-dependency costs are invisible.
 func TestStdlib(t *testing.T) {
+	testLoad(t, 500, "std", "cmd")
+}
+
+// TestNetHTTP builds a single SSA package but not its dependencies.
+// It may help reveal costs related to dependencies (e.g. unnecessary building).
+func TestNetHTTP(t *testing.T) {
+	testLoad(t, 120, "net/http")
+}
+
+// TestCycles loads two standard libraries that depend on the same
+// generic instantiations.
+// internal/trace/testtrace and net/http both depend on
+// slices.Contains[[]string string] and slices.Index[[]string string]
+// This can under some schedules create a cycle of dependencies
+// where both need to wait on the other to finish building.
+func TestCycles(t *testing.T) {
+	testenv.NeedsGo1Point(t, 23) // internal/trace/testtrace was added in 1.23.
+	testLoad(t, 120, "net/http", "internal/trace/testtrace")
+}
+
+func testLoad(t *testing.T, minPkgs int, patterns ...string) {
+	// Note: most of the commentary below applies to TestStdlib.
+
 	if testing.Short() {
-		t.Skip("skipping in short mode; too slow (golang.org/issue/14113)")
+		t.Skip("skipping in short mode; too slow (https://golang.org/issue/14113)") // ~5s
+	}
+	testenv.NeedsTool(t, "go")
+
+	// Load, parse and type-check the program.
+	t0 := time.Now()
+	alloc0 := bytesAllocated()
+
+	cfg := &packages.Config{Mode: packages.LoadSyntax}
+	pkgs, err := packages.Load(cfg, patterns...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packages.PrintErrors(pkgs) > 0 {
+		t.Fatal("there were errors loading the packages")
 	}
 
-	cfg := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedTypesSizes,
+	t1 := time.Now()
+	alloc1 := bytesAllocated()
+
+	// Create SSA packages.
+	var mode ir.BuilderMode
+	// Comment out these lines during benchmarking.  Approx SSA build costs are noted.
+	mode |= ir.SanityCheckFunctions // + 2% space, + 4% time
+	mode |= ir.GlobalDebug          // +30% space, +18% time
+	mode |= ir.InstantiateGenerics  // + 0% space, + 2% time (unlikely to reproduce outside of stdlib)
+	prog, _ := irutil.Packages(pkgs, mode)
+
+	t2 := time.Now()
+
+	// Build SSA.
+	prog.Build()
+
+	t3 := time.Now()
+	alloc3 := bytesAllocated()
+
+	// Sanity check to ensure we haven't dropped large numbers of packages.
+	numPkgs := len(prog.AllPackages())
+	if numPkgs < minPkgs {
+		t.Errorf("Loaded only %d packages, want at least %d", numPkgs, minPkgs)
 	}
-	pkgs, err := packages.Load(cfg, "std")
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
+
+	// Keep pkgs reachable until after we've measured memory usage.
+	if len(pkgs) == 0 {
+		panic("unreachable")
 	}
-	for _, pkg := range pkgs {
-		if len(pkg.Errors) != 0 {
-			t.Fatalf("Load failed: %v", pkg.Errors[0])
+
+	srcFuncs := srcFunctions(prog, pkgs)
+	allFuncs := irutil.AllFunctions(prog)
+
+	// The assertion below is not valid if the program contains
+	// variants of the same package, such as the test variants
+	// (e.g. package p as compiled for test executable x) obtained
+	// when cfg.Tests=true. Profile-guided optimization may
+	// lead to similar variation for non-test executables.
+	//
+	// Ideally, the test would assert that all functions within
+	// each executable (more generally: within any singly rooted
+	// transitively closed subgraph of the import graph) have
+	// distinct names, but that isn't so easy to compute efficiently.
+	// Disabling for now.
+	if false {
+		// Check that all non-synthetic functions have distinct names.
+		// Synthetic wrappers for exported methods should be distinct too,
+		// except for unexported ones (explained at (*Function).RelString).
+		byName := make(map[string]*ir.Function)
+		for fn := range allFuncs {
+			if fn.Synthetic == "" || ast.IsExported(fn.Name()) {
+				str := fn.String()
+				prev := byName[str]
+				byName[str] = fn
+				if prev != nil {
+					t.Errorf("%s: duplicate function named %s",
+						prog.Fset.Position(fn.Pos()), str)
+					t.Errorf("%s:   (previously defined here)",
+						prog.Fset.Position(prev.Pos()))
+				}
+			}
 		}
 	}
 
-	var mode ir.BuilderMode
-	mode |= ir.SanityCheckFunctions
-	mode |= ir.GlobalDebug
-	prog, _ := irutil.Packages(pkgs, mode)
-	prog.Build()
+	// Dump some statistics.
+	var numInstrs int
+	for fn := range allFuncs {
+		for _, b := range fn.Blocks {
+			numInstrs += len(b.Instrs)
+		}
+	}
+
+	// determine line count
+	var lineCount int
+	prog.Fset.Iterate(func(f *token.File) bool {
+		lineCount += f.LineCount()
+		return true
+	})
+
+	// NB: when benchmarking, don't forget to clear the debug +
+	// sanity builder flags for better performance.
+
+	t.Log("GOMAXPROCS:           ", runtime.GOMAXPROCS(0))
+	t.Log("#Source lines:        ", lineCount)
+	t.Log("Load/parse/typecheck: ", t1.Sub(t0))
+	t.Log("SSA create:           ", t2.Sub(t1))
+	t.Log("SSA build:            ", t3.Sub(t2))
+
+	// SSA stats:
+	t.Log("#Packages:            ", numPkgs)
+	t.Log("#SrcFunctions:        ", len(srcFuncs))
+	t.Log("#AllFunctions:        ", len(allFuncs))
+	t.Log("#Instructions:        ", numInstrs)
+	t.Log("#MB AST+types:        ", int64(alloc1-alloc0)/1e6)
+	t.Log("#MB SSA:              ", int64(alloc3-alloc1)/1e6)
+}
+
+// srcFunctions gathers all ir.Functions corresponding to syntax.
+// (Includes generics but excludes instances and all wrappers.)
+//
+// This is essentially identical to the SrcFunctions logic in
+// go/analysis/passes/buildssa.
+func srcFunctions(prog *ir.Program, pkgs []*packages.Package) (res []*ir.Function) {
+	var addSrcFunc func(fn *ir.Function)
+	addSrcFunc = func(fn *ir.Function) {
+		res = append(res, fn)
+		for _, anon := range fn.AnonFuncs {
+			addSrcFunc(anon)
+		}
+	}
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			for _, decl := range file.Decls {
+				if decl, ok := decl.(*ast.FuncDecl); ok {
+					obj := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
+					if obj == nil {
+						panic("nil *types.Func: " + decl.Name.Name)
+					}
+					fn := prog.FuncValue(obj)
+					if fn == nil {
+						panic("nil *ir.Function: " + obj.String())
+					}
+					addSrcFunc(fn)
+				}
+			}
+		}
+	}
+	return res
 }

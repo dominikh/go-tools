@@ -218,11 +218,11 @@ func lift(fn *Function) bool {
 				usesDefer = true
 				if eliminateDeferStack {
 					// Clear _DeferStack and remove references to loads
-					if instr._DeferStack != nil {
-						if refs := instr._DeferStack.Referrers(); refs != nil {
+					if instr.DeferStack != nil {
+						if refs := instr.DeferStack.Referrers(); refs != nil {
 							*refs = removeInstr(*refs, instr)
 						}
-						instr._DeferStack = nil
+						instr.DeferStack = nil
 					}
 				}
 			case *RunDefers:
@@ -714,7 +714,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 
 	// Don't lift result values in functions that defer
 	// calls that may recover from panic.
-	if fn.hasDefer {
+	if fn.Recover != nil {
 		if slices.Contains(fn.results, alloc) {
 			return false
 		}

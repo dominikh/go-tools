@@ -14,6 +14,7 @@ import (
 	"go/types"
 	"strconv"
 
+	"golang.org/x/exp/typeparams"
 	"honnef.co/go/tools/internal/xtools-internal/typesinternal"
 )
 
@@ -89,8 +90,19 @@ func zeroConst(t types.Type, source ast.Node) Constant {
 func (c *Const) RelString(from *types.Package) string {
 	var p string
 	if c.Value == nil {
-		p, _ = typesinternal.ZeroString(c.typ, types.RelativeTo(from))
-		p = "const " + p
+		switch c.typ.(type) {
+		case *types.Array, *types.Struct:
+			p = "{}"
+		case *types.Alias:
+			switch c.typ.Underlying().(type) {
+			case *types.Array, *types.Struct:
+				p = "{}"
+			default:
+				p, _ = typesinternal.ZeroString(types.Unalias(c.typ), types.RelativeTo(from))
+			}
+		default:
+			p, _ = typesinternal.ZeroString(c.typ, types.RelativeTo(from))
+		}
 	} else if c.Value.Kind() == constant.String {
 		v := constant.StringVal(c.Value)
 		const max = 20
@@ -156,8 +168,28 @@ func (v *AggregateConst) Parent() *Function { return nil }
 
 // IsNil returns true if this constant represents a typed or untyped nil value.
 func (c *Const) IsNil() bool {
-	return c.Value == nil
+	return c.Value == nil && nillable(c.typ)
 }
+
+// nillable reports whether *new(T) == nil is legal for type T.
+func nillable(t types.Type) bool {
+	if typeparams.IsTypeParam(t) {
+		return underIs(t, func(u types.Type) bool {
+			// empty type set (u==nil) => any underlying types => not nillable
+			return u != nil && nillable(u)
+		})
+	}
+	switch t.Underlying().(type) {
+	case *types.Pointer, *types.Slice, *types.Chan, *types.Map, *types.Signature:
+		return true
+	case *types.Interface:
+		return true // basic interface.
+	default:
+		return false
+	}
+}
+
+// TODO(adonovan): move everything below into honnef.co/go/tools/go/ir/interp.
 
 // Int64 returns the numeric value of this constant truncated to fit
 // a signed 64-bit integer.
@@ -194,43 +226,16 @@ func (c *Const) Uint64() uint64 {
 // Float64 returns the numeric value of this constant truncated to fit
 // a float64.
 func (c *Const) Float64() float64 {
-	f, _ := constant.Float64Val(c.Value)
+	x := constant.ToFloat(c.Value) // (c.Value == nil) => x.Kind() == Unknown
+	f, _ := constant.Float64Val(x)
 	return f
 }
 
 // Complex128 returns the complex value of this constant truncated to
 // fit a complex128.
 func (c *Const) Complex128() complex128 {
-	re, _ := constant.Float64Val(constant.Real(c.Value))
-	im, _ := constant.Float64Val(constant.Imag(c.Value))
+	x := constant.ToComplex(c.Value) // (c.Value == nil) => x.Kind() == Unknown
+	re, _ := constant.Float64Val(constant.Real(x))
+	im, _ := constant.Float64Val(constant.Imag(x))
 	return complex(re, im)
-}
-
-func (c *Const) equal(o Constant) bool {
-	// TODO(dh): don't use == for types, this will miss identical pointer types, among others
-	oc, ok := o.(*Const)
-	if !ok {
-		return false
-	}
-	return c.typ == oc.typ && c.Value == oc.Value && c.source == oc.source
-}
-
-func (c *AggregateConst) equal(o Constant) bool {
-	oc, ok := o.(*AggregateConst)
-	if !ok {
-		return false
-	}
-	// TODO(dh): don't use == for types, this will miss identical pointer types, among others
-	if c.typ != oc.typ {
-		return false
-	}
-	if c.source != oc.source {
-		return false
-	}
-	for i, v := range c.Values {
-		if !v.(Constant).equal(oc.Values[i].(Constant)) {
-			return false
-		}
-	}
-	return true
 }

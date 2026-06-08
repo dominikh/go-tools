@@ -38,6 +38,9 @@ func deleteUnreachableBlocks(f *Function) {
 		b.gaps = white
 	}
 	markReachable(f.Blocks[0])
+	if f.Recover != nil {
+		markReachable(f.Recover)
+	}
 	for i, b := range f.Blocks {
 		if b.gaps == white {
 			for _, c := range b.Succs {
@@ -156,11 +159,6 @@ func fuseBlocks(f *Function, a *BasicBlock) bool {
 // completed function: dead block elimination, block fusion, jump
 // threading.
 func optimizeBlocks(f *Function) {
-	if debugBlockOpt {
-		f.WriteTo(os.Stderr)
-		mustSanityCheck(f, nil)
-	}
-
 	deleteUnreachableBlocks(f)
 
 	// Loop until no further progress.

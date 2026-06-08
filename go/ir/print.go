@@ -30,10 +30,12 @@ func relName(v Value, i Node) string {
 	}
 	var from *types.Package
 	if i != nil {
-		from = i.Parent().pkg()
+		from = i.Parent().relPkg()
 	}
 	switch v := v.(type) {
 	case Member: // *Function or *Global
+		return v.RelString(from)
+	case *Const:
 		return v.RelString(from)
 	}
 	return v.Name()
@@ -66,12 +68,12 @@ func relString(m Member, from *types.Package) string {
 // It never appears in disassembly, which uses Value.Name().
 
 func (v *Parameter) String() string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("parameter %s : %s", v.Object().Name(), relType(v.Type(), from))
 }
 
 func (v *FreeVar) String() string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("freevar %s : %s", v.Name(), relType(v.Type(), from))
 }
 
@@ -86,7 +88,7 @@ func (v *Alloc) String() string {
 	if v.Heap {
 		op = "new"
 	}
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("%s %s (%s)", op, relType(deref(v.Type()), from), v.Comment())
 }
 
@@ -164,7 +166,7 @@ func (v *Load) String() string {
 }
 
 func printConv(prefix string, v, x Value) string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("%s %s <- %s (%s)",
 		prefix,
 		relType(v.Type(), from),
@@ -180,13 +182,13 @@ func (v *SliceToArray) String() string        { return printConv("SliceToArray",
 func (v *MakeInterface) String() string       { return printConv("make", v, v.X) }
 
 func (v *MultiConvert) String() string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 
 	var b strings.Builder
 	b.WriteString(printConv("multiconvert", v, v.X))
 	b.WriteString(" [")
-	for i, s := range v.from.Terms {
-		for j, d := range v.to.Terms {
+	for i, s := range termListOf(v.from) {
+		for j, d := range termListOf(v.to) {
 			if i != 0 || j != 0 {
 				b.WriteString(" | ")
 			}
@@ -214,7 +216,7 @@ func (v *MakeClosure) String() string {
 }
 
 func (v *MakeSlice) String() string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("make %s %s %s",
 		relType(v.Type(), from),
 		relName(v.Len, v),
@@ -246,24 +248,13 @@ func (v *MakeMap) String() string {
 	if v.Reserve != nil {
 		res = relName(v.Reserve, v)
 	}
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("make %s %s", relType(v.Type(), from), res)
 }
 
 func (v *MakeChan) String() string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("make %s %s", relType(v.Type(), from), relName(v.Size, v))
-}
-
-// fieldOf returns the index'th field of the (core type of) a struct type;
-// otherwise returns nil.
-func fieldOf(typ types.Type, index int) *types.Var {
-	if st, ok := typeutil.CoreType(typ).(*types.Struct); ok {
-		if 0 <= index && index < st.NumFields() {
-			return st.Field(index)
-		}
-	}
-	return nil
 }
 
 func (v *FieldAddr) String() string {
@@ -309,7 +300,7 @@ func (v *Next) String() string {
 }
 
 func (v *TypeAssert) String() string {
-	from := v.Parent().pkg()
+	from := v.Parent().relPkg()
 	return fmt.Sprintf("typeassert%s %s.(%s)", commaOk(v.CommaOk), relName(v.X, v), relType(v.AssertedType, from))
 }
 
@@ -387,7 +378,7 @@ func (v *CompositeValue) String() string {
 			}
 		}
 	default:
-		panic(fmt.Sprintf("internal error: unexpected type %T", typ))
+		panic(fmt.Sprintf("internal error: unexpected type %T (%v)", typ, typ))
 	}
 	for i, vv := range v.Values {
 		if !first {
@@ -404,7 +395,7 @@ func (s *TypeSwitch) String() string {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "switch %s.(type)", relName(s.Tag, s))
 	for _, cond := range s.Conds {
-		fmt.Fprintf(&b, " %s", relType(cond, s.block.parent.pkg()))
+		fmt.Fprintf(&b, " %s", relType(cond, s.block.parent.relPkg()))
 	}
 	return b.String()
 }
@@ -445,8 +436,8 @@ func (recv *Recv) String() string {
 
 func (s *Defer) String() string {
 	prefix := "defer "
-	if s._DeferStack != nil {
-		prefix += "[" + relName(s._DeferStack, s) + "] "
+	if s.DeferStack != nil {
+		prefix += "[" + relName(s.DeferStack, s) + "] "
 	}
 	c := printCall(&s.Call, prefix, s)
 	return c

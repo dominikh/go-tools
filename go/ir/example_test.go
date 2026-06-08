@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:build !android && !ios && (unix || aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris || plan9 || windows)
+
 package ir_test
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
 	"go/importer"
@@ -14,7 +15,6 @@ import (
 	"go/types"
 	"log"
 	"os"
-	"strings"
 
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
@@ -35,9 +35,10 @@ func main() {
 `
 
 // This program demonstrates how to run the IR builder on a single
-// package of one or more already-parsed files.  Its dependencies are
-// loaded from compiler export data.  This is what you'd typically use
-// for a compiler; it does not depend on golang.org/x/tools/go/loader.
+// package of one or more already-parsed files. Its dependencies are
+// loaded from compiler export data. This is what you'd typically use
+// for a compiler; it does not depend on the obsolete
+// [golang.org/x/tools/go/loader].
 //
 // It shows the printed representation of packages, functions, and
 // instructions.  Within the function listing, the name of each
@@ -51,6 +52,11 @@ func main() {
 // Build and run the irdump.go program if you want a standalone tool
 // with similar functionality. It is located at
 // honnef.co/go/tools/internal/cmd/irdump.
+//
+// Use irutil.BuildPackage only if you have parsed--but not
+// type-checked--syntax trees. Typically, clients already have typed
+// syntax, perhaps obtained from golang.org/x/tools/go/packages.
+// In that case, see the other examples for simpler approaches.
 func Example_buildPackage() {
 	// Parse the source files.
 	fset := token.NewFileSet()
@@ -77,19 +83,11 @@ func Example_buildPackage() {
 	hello.WriteTo(os.Stdout)
 
 	// Print out the package-level functions.
-	// Replace interface{} with any so the tests work for Go 1.17 and Go 1.18.
-	{
-		var buf bytes.Buffer
-		ir.WriteFunction(&buf, hello.Func("init"))
-		fmt.Print(strings.ReplaceAll(buf.String(), "interface{}", "any"))
-	}
-	{
-		var buf bytes.Buffer
-		ir.WriteFunction(&buf, hello.Func("main"))
-		fmt.Print(strings.ReplaceAll(buf.String(), "interface{}", "any"))
-	}
+	hello.Func("init").WriteTo(os.Stdout)
+	hello.Func("main").WriteTo(os.Stdout)
 
 	// Output:
+	//
 	// package hello:
 	//   func  init       func()
 	//   var   init$guard bool
@@ -112,7 +110,7 @@ func Example_buildPackage() {
 	//
 	// # Name: hello.main
 	// # Package: hello
-	// # Location: hello.go:8:1
+	// # Location: hello.go:8:6
 	// func main():
 	// 0:                                                                entry P:0 S:0
 	//         t1 = new [1]any (varargs)                                       *[1]any
@@ -125,11 +123,11 @@ func Example_buildPackage() {
 }
 
 // This example builds IR code for a set of packages using the
-// x/tools/go/packages API. This is what you would typically use for a
+// [golang.org/x/tools/go/packages] API. This is what you would typically use for a
 // analysis capable of operating on a single package.
 func Example_loadPackages() {
 	// Load, parse, and type-check the initial packages.
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
+	cfg := &packages.Config{Mode: packages.LoadSyntax}
 	initial, err := packages.Load(cfg, "fmt", "net/http")
 	if err != nil {
 		log.Fatal(err)
@@ -155,7 +153,7 @@ func Example_loadPackages() {
 }
 
 // This example builds IR code for a set of packages plus all their dependencies,
-// using the x/tools/go/packages API.
+// using the [golang.org/x/tools/go/packages] API.
 // This is what you'd typically use for a whole-program analysis.
 func Example_loadWholeProgram() {
 	// Load, parse, and type-check the whole program.
@@ -166,7 +164,7 @@ func Example_loadWholeProgram() {
 	}
 
 	// Create IR packages for well-typed packages and their dependencies.
-	prog, pkgs := irutil.AllPackages(initial, ir.PrintPackages)
+	prog, pkgs := irutil.AllPackages(initial, ir.PrintPackages|ir.InstantiateGenerics)
 	_ = pkgs
 
 	// Build IR code for the whole program.

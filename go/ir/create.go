@@ -12,35 +12,35 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"go/version"
 	"os"
 	"sync"
 
-	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/internal/xtools-internal/versions"
 )
-
-// measured on the standard library and rounded up to powers of two,
-// on average there are 8 blocks and 16 instructions per block in a
-// function.
-const avgBlocks = 8
-const avgInstructionsPerBlock = 16
 
 // NewProgram returns a new IR Program.
 //
 // mode controls diagnostics and checking during IR construction.
+//
+// To construct an SSA program:
+//
+//   - Call NewProgram to create an empty Program.
+//   - Call CreatePackage providing typed syntax for each package
+//     you want to build, and call it with types but not
+//     syntax for each of those package's direct dependencies.
+//   - Call [Package.Build] on each syntax package you wish to build,
+//     or [Program.Build] to build all of them.
+//
+// See the Example tests for simple examples.
 func NewProgram(fset *token.FileSet, mode BuilderMode) *Program {
-	prog := &Program{
+	return &Program{
 		Fset:     fset,
 		imported: make(map[string]*Package),
 		packages: make(map[*types.Package]*Package),
 		mode:     mode,
+		canon:    newCanonizer(),
+		ctxt:     types.NewContext(),
 	}
-
-	h := typeutil.MakeHasher() // protected by methodsMu, in effect
-	prog.methodSets.SetHasher(h)
-	prog.canon.SetHasher(h)
-
-	return prog
 }
 
 // memberFromObject populates package pkg with a member for the
@@ -71,7 +71,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 			Value:  NewConst(obj.Val(), obj.Type(), syntax),
 			pkg:    pkg,
 		}
-		pkg.values[obj] = c.Value
+		pkg.values[obj] = c
 		if name != "_" {
 			pkg.Members[name] = c
 		}
@@ -83,6 +83,7 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 			object: obj,
 			typ:    types.NewPointer(obj.Type()), // address
 		}
+		g.source = syntax
 		pkg.values[obj] = g
 		if name != "_" {
 			pkg.Members[name] = g
@@ -94,29 +95,9 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 			pkg.ninit++
 			name = fmt.Sprintf("init#%d", pkg.ninit)
 		}
-		fn := &Function{
-			name:      name,
-			object:    obj,
-			Signature: sig,
-			Pkg:       pkg,
-			Prog:      pkg.Prog,
-			goversion: goversion,
-		}
-
-		fn.source = syntax
-		if syntax == nil {
-			fn.Synthetic = SyntheticLoadedFromExportData
-		} else {
-			// Note: we initialize fn.Blocks in
-			// (*builder).buildFunction and not here because Blocks
-			// being nil is used to indicate that building of the
-			// function hasn't started yet.
-
-			fn.functionBody = &functionBody{
-				scratchInstructions: make([]Instruction, avgBlocks*avgInstructionsPerBlock),
-			}
-		}
-
+		fn := createFunction(pkg.Prog, obj, name, syntax, pkg.info, goversion)
+		fn.Pkg = pkg
+		pkg.created = append(pkg.created, fn)
 		pkg.values[obj] = fn
 		pkg.Functions = append(pkg.Functions, fn)
 		if name != "_" && sig.Recv() == nil {
@@ -126,6 +107,37 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 	default: // (incl. *types.Package)
 		panic("unexpected Object type: " + obj.String())
 	}
+}
+
+// createFunction creates a function or method. It supports both
+// CreatePackage (with or without syntax) and the on-demand creation
+// of methods in non-created packages based on their types.Func.
+func createFunction(prog *Program, obj *types.Func, name string, syntax ast.Node, info *types.Info, goversion string) *Function {
+	sig := obj.Type().(*types.Signature)
+
+	/* declared function/method (from syntax or export data) */
+	fn := &Function{
+		name:           name,
+		object:         obj,
+		Signature:      sig,
+		build:          (*builder).buildFromSyntax,
+		info:           info,
+		goversion:      goversion,
+		pos:            obj.Pos(),
+		syntax:         syntax,
+		Pkg:            nil, // may be set by caller
+		Prog:           prog,
+		recvtypeparams: sig.RecvTypeParams(),
+		typeparams:     sig.TypeParams(),
+	}
+	if syntax == nil {
+		fn.Synthetic = "from type information"
+		fn.build = (*builder).buildParamsOnly
+	}
+	if fn.hasTypeParams() {
+		fn.generic = new(generic)
+	}
+	return fn
 }
 
 // membersFromDecl populates package pkg with members for each
@@ -161,20 +173,11 @@ func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 
 	case *ast.FuncDecl:
 		id := decl.Name
-		obj, ok := pkg.info.Defs[id]
-		if !ok {
-			panic(fmt.Sprintf("couldn't find object for id %q at %s",
-				id.Name, pkg.Prog.Fset.PositionFor(id.Pos(), false)))
-		}
-		if obj == nil {
-			panic(fmt.Sprintf("found nil object for id %q at %s",
-				id.Name, pkg.Prog.Fset.PositionFor(id.Pos(), false)))
-		}
-		memberFromObject(pkg, obj, decl, goversion)
+		memberFromObject(pkg, pkg.info.Defs[id], decl, goversion)
 	}
 }
 
-// CreatePackage constructs and returns an IR Package from the
+// CreatePackage creates and returns an IR Package from the
 // specified type-checked, error-free file ASTs, and populates its
 // Members mapping.
 //
@@ -182,38 +185,43 @@ func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 // subsequent call to ImportedPackage(pkg.Path()).
 //
 // The real work of building IR form for each function is not done
-// until a subsequent call to Package.Build().
+// until a subsequent call to Package.Build.
 func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *types.Info, importable bool) *Package {
+	if pkg == nil {
+		panic("nil pkg") // otherwise pkg.Scope below returns types.Universe!
+	}
 	p := &Package{
 		Prog:    prog,
 		Members: make(map[string]Member),
-		values:  make(map[types.Object]Value),
+		values:  make(map[types.Object]Member),
 		Pkg:     pkg,
-		// transient values (CREATE and BUILD phases)
+		syntax:  info != nil,
+		// transient values (cleared after Package.Build)
 		info:        info,
 		files:       files,
 		initVersion: make(map[ast.Expr]string),
 	}
 
-	// Add init() function.
+	/* synthesized package initializer */
 	p.init = &Function{
-		name:         "init",
-		Signature:    new(types.Signature),
-		Synthetic:    SyntheticPackageInitializer,
-		Pkg:          p,
-		Prog:         prog,
-		functionBody: new(functionBody),
-		goversion:    "", // See Package.build for details.
+		name:      "init",
+		Signature: new(types.Signature),
+		Synthetic: "package initializer",
+		Pkg:       p,
+		Prog:      prog,
+		build:     (*builder).buildPackageInit,
+		info:      p.info,
+		goversion: "", // See Package.build for details.
 	}
 	p.Members[p.init.name] = p.init
 	p.Functions = append(p.Functions, p.init)
+	p.created = append(p.created, p.init)
 
-	// CREATE phase.
 	// Allocate all package members: vars, funcs, consts and types.
 	if len(files) > 0 {
 		// Go source package.
 		for _, file := range files {
-			goversion := version.Lang(p.info.FileVersions[file])
+			goversion := versions.Lang(versions.FileVersion(p.info, file))
 			for _, decl := range file.Decls {
 				membersFromDecl(p, decl, goversion)
 			}
@@ -227,6 +235,7 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 			obj := scope.Lookup(name)
 			memberFromObject(p, obj, nil, "")
 			if obj, ok := obj.(*types.TypeName); ok {
+				// No Unalias: aliases should not duplicate methods.
 				if named, ok := obj.Type().(*types.Named); ok {
 					for i, n := 0, named.NumMethods(); i < n; i++ {
 						memberFromObject(p, named.Method(i), nil, "")
@@ -236,13 +245,15 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		}
 	}
 
-	// Add initializer guard variable.
-	initguard := &Global{
-		Pkg:  p,
-		name: "init$guard",
-		typ:  types.NewPointer(tBool),
+	if prog.mode&BareInits == 0 {
+		// Add initializer guard variable.
+		initguard := &Global{
+			Pkg:  p,
+			name: "init$guard",
+			typ:  types.NewPointer(tBool),
+		}
+		p.Members[initguard.Name()] = initguard
 	}
-	p.Members[initguard.Name()] = initguard
 
 	if prog.mode&GlobalDebug != 0 {
 		p.SetDebugMode(true)
@@ -265,8 +276,8 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 // printMu serializes printing of Packages/Functions to stdout.
 var printMu sync.Mutex
 
-// AllPackages returns a new slice containing all packages in the
-// program prog in unspecified order.
+// AllPackages returns a new slice containing all packages created by
+// prog.CreatePackage in unspecified order.
 func (prog *Program) AllPackages() []*Package {
 	pkgs := make([]*Package, 0, len(prog.packages))
 	for _, pkg := range prog.packages {
@@ -288,10 +299,21 @@ func (prog *Program) AllPackages() []*Package {
 // false---yet this function remains very convenient.
 // Clients should use (*Program).Package instead where possible.
 // IR doesn't really need a string-keyed map of packages.
+//
+// Furthermore, the graph of packages may contain multiple variants
+// (e.g. "p" vs "p as compiled for q.test"), and each has a different
+// view of its dependencies.
 func (prog *Program) ImportedPackage(path string) *Package {
 	return prog.imported[path]
 }
 
+// SetNoReturn sets the predicate used when building the ir.Program
+// prog that reports whether a given function cannot return.
+// This may be used to prune spurious control flow edges
+// after (e.g.) log.Fatal, improving the precision of analyses.
+//
+// A typical implementation is the [ctrlflow.CFGs.NoReturn] method from
+// [golang.org/x/tools/go/analysis/passes/ctrlflow].
 func (prog *Program) SetNoReturn(fn func(*types.Func) bool) {
 	prog.noReturn = fn
 }

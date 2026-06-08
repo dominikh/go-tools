@@ -9,40 +9,33 @@
 package irutil
 
 import (
-	"go/parser"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"honnef.co/go/tools/go/ir"
+	"honnef.co/go/tools/internal/xtools-internal/testfiles"
 
-	"golang.org/x/tools/go/analysis/analysistest"
-	//lint:ignore SA1019 go/loader is deprecated, but works fine for our tests
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/txtar"
 )
 
 func TestSwitches(t *testing.T) {
-	conf := loader.Config{ParserMode: parser.ParseComments}
-	f, err := conf.ParseFile(filepath.Join(analysistest.TestData(), "switches.go"), nil)
+	archive, err := txtar.ParseFile("testdata/switches.txtar")
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
-	conf.CreateFromFiles("main", f)
-	iprog, err := conf.Load()
-	if err != nil {
-		t.Error(err)
-		return
+	ppkgs := testfiles.LoadPackages(t, archive, ".")
+	if len(ppkgs) != 1 {
+		t.Fatalf("Expected to load one package but got %d", len(ppkgs))
 	}
+	f := ppkgs[0].Syntax[0]
 
-	prog := CreateProgram(iprog, 0)
-	mainPkg := prog.Package(iprog.Created[0].Pkg)
+	prog, _ := Packages(ppkgs, ir.BuilderMode(0))
+	mainPkg := prog.Package(ppkgs[0].Types)
 	mainPkg.Build()
 
 	for _, mem := range mainPkg.Members {
 		if fn, ok := mem.(*ir.Function); ok {
-			if fn.Synthetic != 0 {
+			if fn.Synthetic != "" {
 				continue // e.g. init()
 			}
 			// Each (multi-line) "switch" comment within

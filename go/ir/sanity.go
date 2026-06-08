@@ -114,6 +114,9 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 			for i, e := range instr.Edges {
 				if e == nil {
 					s.errorf("phi node '%s' has no value for edge #%d from %s", instr.Comment(), i, s.block.Preds[i])
+				} else if !types.Identical(instr.typ, e.Type()) {
+					s.errorf("phi node '%s' has a different type (%s) for edge #%d from %s (%s)",
+						instr.Comment(), instr.Type(), i, s.block.Preds[i], e.Type())
 				}
 			}
 		}
@@ -125,19 +128,21 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 
 	case *BinOp:
 	case *Call:
+		if common := instr.Call; common.IsInvoke() {
+			if !types.IsInterface(common.Value.Type()) {
+				s.errorf("invoke on %s (%s) which is not an interface type (or type param)", common.Value, common.Value.Type())
+			}
+		}
 	case *ChangeInterface:
 	case *ChangeType:
 	case *SliceToArrayPointer:
 	case *SliceToArray:
 	case *Convert:
-		tsetInstrX := typeutil.NewTypeSet(instr.X.Type().Underlying())
-		tsetInstr := typeutil.NewTypeSet(instr.Type().Underlying())
-		ok1 := tsetInstr.Any(func(term *types.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
-		ok2 := tsetInstrX.Any(func(term *types.Term) bool { _, ok := term.Type().Underlying().(*types.Basic); return ok })
-		if !ok1 && !ok2 {
-			s.errorf("convert %s -> %s: at least one type set must contain basic type", instr.X.Type(), instr.Type())
+		if from := instr.X.Type(); !isBasicConvTypes(from) {
+			if to := instr.Type(); !isBasicConvTypes(to) {
+				s.errorf("convert %s -> %s: at least one type must be basic (or all basic, []byte, or []rune)", from, to)
+			}
 		}
-
 	case *MultiConvert:
 	case *Defer:
 	case *Extract:
@@ -155,6 +160,13 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		if numFree != numBind {
 			s.errorf("MakeClosure has %d Bindings for function %s with %d free vars",
 				numBind, instr.Fn, numFree)
+		} else {
+			for i, fv := range instr.Fn.(*Function).FreeVars {
+				if !types.Identical(instr.Bindings[i].Type(), fv.Type()) {
+					s.errorf("MakeClosure binding %d for %s has type %s, expected %s",
+						i, fv.Name(), instr.Bindings[i].Type(), fv.Type())
+				}
+			}
 		}
 		if recv := instr.Type().(*types.Signature).Recv(); recv != nil {
 			s.errorf("MakeClosure's type includes receiver %s", recv.Type())
@@ -165,12 +177,39 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *MakeSlice:
 	case *MapUpdate:
 	case *Next:
+		rng, ok := instr.Iter.(*Range)
+		if !ok {
+			s.errorf("Next: Iter is %T, not *Range", instr.Iter)
+		}
+		var ek, ev types.Type
+		switch xt := typeutil.CoreType(rng.X.Type()).(type) {
+		case *types.Basic:
+			if types.Default(xt) != tString {
+				s.errorf("Next: basic operand of Next.Iter (Range) is %s, want string or untyped string", xt)
+			}
+			ek, ev = tInt, tRune
+		case *types.Map:
+			ek, ev = xt.Key(), xt.Elem()
+		}
+
+		res := instr.Type().(*types.Tuple) // (ok bool, k K, v V), but K or V may be invalid if unused
+		if !types.Identical(res.At(1).Type(), ek) && res.At(1).Type() != tInvalid {
+			s.errorf("Next: key type %s does not match map key type %s", res.At(1).Type(), ek)
+		}
+		if !types.Identical(res.At(2).Type(), ev) && res.At(2).Type() != tInvalid {
+			s.errorf("Next: value type %s does not match map value type %s", res.At(2).Type(), ev)
+		}
+
 	case *Range:
 	case *RunDefers:
 	case *Select:
 	case *Send:
 	case *Slice:
 	case *Store:
+		if !types.Identical(instr.Val.Type(), typeutil.CoreType(instr.Addr.Type()).(*types.Pointer).Elem()) {
+			s.errorf("Store: value type %s does not match address type %s",
+				instr.Val.Type(), instr.Addr.Type())
+		}
 	case *TypeAssert:
 	case *UnOp:
 	case *DebugRef:
@@ -195,6 +234,8 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		t := v.Type()
 		if t == nil {
 			s.errorf("no type: %s = %s", v.Name(), v)
+		} else if t == tDeferStack {
+			// not a proper type; ignore.
 		} else if b, ok := t.Underlying().(*types.Basic); ok && b.Info()&types.IsUntyped != 0 {
 			if _, ok := v.(*Const); !ok {
 				s.errorf("instruction has 'untyped' result: %s = %s : %s", v.Name(), v, t)
@@ -253,6 +294,11 @@ func (s *sanity) checkFinalInstr(instr Instruction) {
 		}
 
 	case *ConstantSwitch:
+		if nsuccs := len(s.block.Succs); nsuccs != len(instr.Conds) {
+			s.errorf("ConstantSwitch-terminated block has %d successors for %d constants",
+				nsuccs, len(instr.Conds))
+			return
+		}
 
 	default:
 		s.errorf("non-control flow instruction at end of block")
@@ -270,8 +316,9 @@ func (s *sanity) checkBlock(b *BasicBlock, index int) {
 	}
 
 	// Check all blocks are reachable.
-	// (The entry block is always implicitly reachable, the exit block may be unreachable.)
-	if index > 1 && len(b.Preds) == 0 {
+	// (The entry block is always implicitly reachable,
+	// as is the Recover block, if any.)
+	if (index > 0 && b != b.parent.Recover) && len(b.Preds) == 0 {
 		s.warnf("unreachable block")
 		if b.Instrs == nil {
 			// Since this block is about to be pruned,
@@ -338,7 +385,7 @@ func (s *sanity) checkBlock(b *BasicBlock, index int) {
 
 			// Check that "untyped" types only appear on constant operands.
 			if _, ok := (*op).(*Const); !ok {
-				if basic, ok := types.Unalias((*op).Type()).(*types.Basic); ok {
+				if basic, ok := (*op).Type().Underlying().(*types.Basic); ok {
 					if basic.Info()&types.IsUntyped != 0 {
 						s.errorf("operand #%d of %s is untyped: %s", i, instr, basic)
 					}
@@ -399,52 +446,144 @@ func (s *sanity) checkReferrerList(v Value) {
 	}
 }
 
+func (s *sanity) checkFunctionParams() {
+	signature := s.fn.Signature
+	params := s.fn.Params
+
+	// startSigParams is the start of signature.Params() within params.
+	startSigParams := 0
+	if signature.Recv() != nil {
+		startSigParams = 1
+	}
+
+	if startSigParams+signature.Params().Len() != len(params) {
+		s.errorf("function has %d parameters in signature but has %d after building",
+			startSigParams+signature.Params().Len(), len(params))
+		return
+	}
+
+	for i, param := range params {
+		var sigType types.Type
+		si := i - startSigParams
+		if si < 0 {
+			sigType = signature.Recv().Type()
+		} else {
+			sigType = signature.Params().At(si).Type()
+		}
+
+		if !types.Identical(sigType, param.Type()) {
+			s.errorf("expect type %s in signature but got type %s in param %d", sigType, param.Type(), i)
+		}
+	}
+}
+
+// checkTransientFields checks whether all transient fields of Function are cleared.
+func (s *sanity) checkTransientFields() {
+	fn := s.fn
+	if fn.build != nil {
+		s.errorf("function transient field 'build' is not nil")
+	}
+	if fn.currentBlock != nil {
+		s.errorf("function transient field 'currentBlock' is not nil")
+	}
+	if fn.vars != nil {
+		s.errorf("function transient field 'vars' is not nil")
+	}
+	if fn.results != nil {
+		s.errorf("function transient field 'results' is not nil")
+	}
+	if fn.returnVars != nil {
+		s.errorf("function transient field 'returnVars' is not nil")
+	}
+	if fn.targets != nil {
+		s.errorf("function transient field 'targets' is not nil")
+	}
+	if fn.lblocks != nil {
+		s.errorf("function transient field 'lblocks' is not nil")
+	}
+	if fn.subst != nil {
+		s.errorf("function transient field 'subst' is not nil")
+	}
+	if fn.jump != nil {
+		s.errorf("function transient field 'jump' is not nil")
+	}
+	if fn.deferstack != nil {
+		s.errorf("function transient field 'deferstack' is not nil")
+	}
+	if fn.source != nil {
+		s.errorf("function transient field 'source' is not nil")
+	}
+	if fn.exits != nil {
+		s.errorf("function transient field 'exits' is not nil")
+	}
+	if fn.uniq != 0 {
+		s.errorf("function transient field 'uniq' is not zero")
+	}
+}
+
 func (s *sanity) checkFunction(fn *Function) bool {
-	// TODO(adonovan): check Function invariants:
-	// - check params match signature
-	// - check transient fields are nil
-	// - warn if any fn.Locals do not appear among block instructions.
 	s.fn = fn
+	s.checkFunctionParams()
+	s.checkTransientFields()
+
+	// TODO(taking): Sanity check origin, typeparams, and typeargs.
 	if fn.Prog == nil {
 		s.errorf("nil Prog")
 	}
 
 	var buf bytes.Buffer
-	_ = fn.String()            // must not crash
-	_ = fn.RelString(fn.pkg()) // must not crash
-	WriteFunction(&buf, fn)    // must not crash
+	_ = fn.String()               // must not crash
+	_ = fn.RelString(fn.relPkg()) // must not crash
+	WriteFunction(&buf, fn)       // must not crash
 
 	// All functions have a package, except delegates (which are
 	// shared across packages, or duplicated as weak symbols in a
 	// separate-compilation model), and error.Error.
 	if fn.Pkg == nil {
-		switch fn.Synthetic {
-		case SyntheticWrapper, SyntheticBound, SyntheticThunk, SyntheticGeneric:
-		default:
-			if !strings.HasSuffix(fn.name, "Error") {
-				s.errorf("nil Pkg")
-			}
+		if strings.HasPrefix(fn.Synthetic, "from type information (on demand)") ||
+			strings.HasPrefix(fn.Synthetic, "wrapper ") ||
+			strings.HasPrefix(fn.Synthetic, "bound ") ||
+			strings.HasPrefix(fn.Synthetic, "thunk ") ||
+			strings.HasSuffix(fn.name, "Error") ||
+			strings.HasPrefix(fn.Synthetic, "instance ") ||
+			strings.HasPrefix(fn.Synthetic, "instantiation ") ||
+			fn.parent != nil && fn.parent.hasTypeArgs() /* anon fun in instance */ {
+			// ok
+		} else {
+			s.errorf("nil Pkg")
 		}
 	}
-	if syn, src := fn.Synthetic == 0, fn.source != nil; src != syn {
-		if _, ok := fn.source.(*ast.RangeStmt); !ok || fn.Synthetic != SyntheticRangeOverFuncYield {
-			// Only range-over-func yield functions are synthetic and have syntax
+	if src, syn := fn.Synthetic == "", fn.Syntax() != nil; src != syn {
+		if fn.hasTypeArgs() && fn.Prog.mode&InstantiateGenerics != 0 {
+			// ok (instantiation with InstantiateGenerics on)
+		} else if fn.hasTypeArgs() && fn.topLevelOrigin != nil {
+			// ok (we always have the syntax set for instantiation)
+		} else if _, rng := fn.syntax.(*ast.RangeStmt); rng && fn.Synthetic == "range-over-func yield" {
+			// ok (range-func-yields are both synthetic and keep syntax)
+		} else {
 			s.errorf("got fromSource=%t, hasSyntax=%t; want same values", src, syn)
 		}
 	}
+
+	// Build the set of valid referrers.
+	s.instrs = make(map[Instruction]struct{})
+
+	// instrs are the instructions that are present in the function.
+	for instr := range fn.instrs() {
+		s.instrs[instr] = unit{}
+	}
+
+	// Check all Locals allocations appear in the function instruction.
 	for i, l := range fn.Locals {
+		if _, present := s.instrs[l]; !present {
+			s.warnf("function doesn't contain Local alloc %s", l.Name())
+		}
+
 		if l.Parent() != fn {
 			s.errorf("Local %s at index %d has wrong parent", l.Name(), i)
 		}
 		if l.Heap {
 			s.errorf("Local %s at index %d has Heap flag set", l.Name(), i)
-		}
-	}
-	// Build the set of valid referrers.
-	s.instrs = make(map[Instruction]struct{})
-	for _, b := range fn.Blocks {
-		for _, instr := range b.Instrs {
-			s.instrs[instr] = struct{}{}
 		}
 	}
 	for i, p := range fn.Params {
@@ -483,11 +622,17 @@ func (s *sanity) checkFunction(fn *Function) bool {
 		}
 		s.checkBlock(b, i)
 	}
+	if fn.Recover != nil && fn.Blocks[fn.Recover.Index] != fn.Recover {
+		s.errorf("Recover block is not in Blocks slice")
+	}
 
 	s.block = nil
 	for i, anon := range fn.AnonFuncs {
 		if anon.Parent() != fn {
 			s.errorf("AnonFuncs[%d]=%s but %s.Parent()=%s", i, anon, anon, anon.Parent())
+		}
+		if i != int(anon.anonIdx) {
+			s.errorf("AnonFuncs[%d]=%s but %s.anonIdx=%d", i, anon, anon, anon.anonIdx)
 		}
 	}
 	s.fn = nil
@@ -501,6 +646,19 @@ func sanityCheckPackage(pkg *Package) {
 	if pkg.Pkg == nil {
 		panic(fmt.Sprintf("Package %s has no Object", pkg))
 	}
+	if pkg.info != nil {
+		panic(fmt.Sprintf("package %s field 'info' is not cleared", pkg))
+	}
+	if pkg.files != nil {
+		panic(fmt.Sprintf("package %s field 'files' is not cleared", pkg))
+	}
+	if pkg.created != nil {
+		panic(fmt.Sprintf("package %s field 'created' is not cleared", pkg))
+	}
+	if pkg.initVersion != nil {
+		panic(fmt.Sprintf("package %s field 'initVersion' is not cleared", pkg))
+	}
+
 	_ = pkg.String() // must not crash
 
 	for name, mem := range pkg.Members {

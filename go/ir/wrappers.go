@@ -26,7 +26,7 @@ import (
 
 // -- wrappers -----------------------------------------------------------
 
-// makeWrapper returns a synthetic method that delegates to the
+// createWrapper returns a synthetic method that delegates to the
 // declared method denoted by meth.Obj(), first performing any
 // necessary pointer indirections or field selections implied by meth.
 //
@@ -36,64 +36,92 @@ import (
 // following axes of variation when making changes:
 //   - optional receiver indirection
 //   - optional implicit field selections
+//   - optional method type arguments
 //   - meth.Obj() may denote a concrete or an interface method
 //   - the result may be a thunk or a wrapper.
-//
-// EXCLUSIVE_LOCKS_REQUIRED(prog.methodsMu)
-func makeWrapper(prog *Program, sel *types.Selection) *Function {
-	obj := sel.Obj().(*types.Func)       // the declared function
-	sig := sel.Type().(*types.Signature) // type of this wrapper
+func createWrapper(prog *Program, sel *selection, targs []types.Type) *Function {
+	obj := sel.obj.(*types.Func) // the declared function
+	name, sig := maybeInstance(prog, obj.Name(), sel.typ.(*types.Signature), targs)
 
 	var recv *types.Var // wrapper's receiver or thunk's params[0]
-	name := obj.Name()
-	var description Synthetic
-	var start int // first regular param
-	if sel.Kind() == types.MethodExpr {
+	var description string
+	if sel.kind == types.MethodExpr {
 		name += "$thunk"
-		description = SyntheticThunk
+		description = "thunk"
 		recv = sig.Params().At(0)
-		start = 1
 	} else {
-		description = SyntheticWrapper
+		description = "wrapper"
 		recv = sig.Recv()
 	}
 
+	description = fmt.Sprintf("%s for %s", description, obj)
 	if prog.mode&LogSource != 0 {
-		defer logStack("make %s to (%s)", description, recv.Type())()
+		defer logStack("create %s to (%s)", description, recv.Type())()
 	}
-	fn := &Function{
-		name:         name,
-		method:       sel,
-		object:       obj,
-		Signature:    sig,
-		Synthetic:    description,
-		Prog:         prog,
-		functionBody: new(functionBody),
+	/* method wrapper */
+	return &Function{
+		name:      name,
+		method:    sel,
+		object:    obj,
+		Signature: sig,
+		Synthetic: description,
+		Prog:      prog,
+		pos:       obj.Pos(),
+		typeargs:  targs,
+		// wrappers have no syntax
+		build:     (*builder).buildWrapper,
+		info:      nil,
+		goversion: "",
 	}
+}
+
+// maybeInstance returns name and sig instantiated to reflect any type arguments in targs.
+func maybeInstance(prog *Program, name string, sig *types.Signature, targs []types.Type) (string, *types.Signature) {
+	if len(targs) > 0 {
+		name = fmt.Sprintf("%s%s", name, targstr(targs))
+		instSig, err := types.Instantiate(prog.ctxt, sig, targs, false)
+		if err != nil {
+			// validate was false, we should never get an error
+			panic(err)
+		}
+		sig = prog.canon.Type(instSig).(*types.Signature)
+	}
+	return name, sig
+}
+
+// buildWrapper builds fn.Body for a method wrapper.
+func (b *builder) buildWrapper(fn *Function) {
+	var recv *types.Var // wrapper's receiver or thunk's params[0]
+	var start int       // first regular param
+	if fn.method.kind == types.MethodExpr {
+		recv = fn.Signature.Params().At(0)
+		start = 1
+	} else {
+		recv = fn.Signature.Recv()
+	}
+
 	fn.startBody()
 	fn.addSpilledParam(recv, nil)
 	createParams(fn, start)
 
-	indices := sel.Index()
+	indices := fn.method.index
 
 	var v Value = fn.Locals[0] // spilled receiver
-	if isPointer(sel.Recv()) {
+	if isPointer(fn.method.recv) {
 		v = emitLoad(fn, v, nil)
 
 		// For simple indirection wrappers, perform an informative nil-check:
 		// "value method (T).f called using nil *T pointer"
-		if len(indices) == 1 && !isPointer(recvType(obj)) {
+		if len(indices) == 1 && !isPointer(recvType(fn.object)) {
 			var c Call
 			c.Call.Value = &Builtin{
-				name: "ir:wrapnilchk",
-				sig: types.NewSignatureType(nil, nil, nil,
-					types.NewTuple(anonVar(sel.Recv()), anonVar(tString), anonVar(tString)),
-					types.NewTuple(anonVar(sel.Recv())), false),
+				name: "ssa:wrapnilchk",
+				sig:  types.NewSignatureType(nil, nil, nil, types.NewTuple(anonVar(fn.method.recv), anonVar(tString), anonVar(tString)), types.NewTuple(anonVar(fn.method.recv)), false),
 			}
 			c.Call.Args = []Value{
 				v,
-				stringConst(deref(sel.Recv()).String(), nil),
-				stringConst(sel.Obj().Name(), nil),
+				stringConst(deref(fn.method.recv).String(), nil),
+				stringConst(fn.method.obj.Name(), nil),
 			}
 			c.setType(v.Type())
 			v = fn.emit(&c, nil)
@@ -115,22 +143,21 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 	// address of implicit  C field.
 
 	var c Call
-	if r := recvType(obj); !types.IsInterface(r) { // concrete method
+	if r := recvType(fn.object); !types.IsInterface(r) { // concrete method
 		if !isPointer(r) {
 			v = emitLoad(fn, v, nil)
 		}
-		c.Call.Value = prog.declaredFunc(obj)
+		c.Call.Value = fn.Prog.objectMethod(fn.object, fn.typeargs, b)
 		c.Call.Args = append(c.Call.Args, v)
 	} else {
-		c.Call.Method = obj
-		c.Call.Value = emitLoad(fn, v, nil)
+		c.Call.Method = fn.object
+		c.Call.Value = emitLoad(fn, v, nil) // interface (possibly a typeparam)
 	}
 	for _, arg := range fn.Params[1:] {
 		c.Call.Args = append(c.Call.Args, arg)
 	}
 	emitTailCall(fn, &c, nil)
 	fn.finishBody()
-	return fn
 }
 
 // createParams creates parameters for wrapper method fn based on its
@@ -145,7 +172,7 @@ func createParams(fn *Function, start int) {
 
 // -- bounds -----------------------------------------------------------
 
-// makeBound returns a bound method wrapper (or "bound"), a synthetic
+// createBound returns a bound method wrapper (or "bound"), a synthetic
 // function that delegates to a concrete or interface method denoted
 // by obj.  The resulting function has no receiver, but has one free
 // variable which will be used as the method's receiver in the
@@ -164,55 +191,63 @@ func createParams(fn *Function, start int) {
 //
 //	f := func() { return t.meth() }
 //
-// Unlike makeWrapper, makeBound need perform no indirection or field
+// Unlike createWrapper, createBound need perform no indirection or field
 // selections because that can be done before the closure is
 // constructed.
-//
-// EXCLUSIVE_LOCKS_ACQUIRED(meth.Prog.methodsMu)
-func makeBound(prog *Program, obj *types.Func) *Function {
-	prog.methodsMu.Lock()
-	defer prog.methodsMu.Unlock()
+func createBound(prog *Program, obj *types.Func, targs []types.Type) *Function {
+	description := fmt.Sprintf("bound method wrapper for %s", obj)
 	if prog.mode&LogSource != 0 {
-		defer logStack("%s", SyntheticBound)()
+		defer logStack("%s", description)()
 	}
-	fn := &Function{
-		name:         obj.Name() + "$bound",
-		object:       obj,
-		Signature:    changeRecv(obj.Type().(*types.Signature), nil), // drop receiver
-		Synthetic:    SyntheticBound,
-		Prog:         prog,
-		functionBody: new(functionBody),
-	}
+	name, sig := maybeInstance(prog, obj.Name(), obj.Type().(*types.Signature), targs)
 
-	fv := &FreeVar{name: "recv", typ: recvType(obj), parent: fn}
-	fn.FreeVars = []*FreeVar{fv}
+	/* bound method wrapper */
+	fn := &Function{
+		name:      name + "$bound",
+		object:    obj,
+		Signature: changeRecv(sig, nil), // drop receiver
+		Synthetic: description,
+		Prog:      prog,
+		pos:       obj.Pos(),
+		typeargs:  targs,
+		// wrappers have no syntax
+		build:     (*builder).buildBound,
+		info:      nil,
+		goversion: "",
+	}
+	fn.FreeVars = []*FreeVar{{name: "recv", typ: recvType(obj), parent: fn}} // (cyclic)
+	return fn
+}
+
+// buildBound builds fn.Body for a bound method closure.
+func (b *builder) buildBound(fn *Function) {
 	fn.startBody()
 	createParams(fn, 0)
 	var c Call
 
-	if !types.IsInterface(recvType(obj)) { // concrete
-		c.Call.Value = prog.declaredFunc(obj)
-		c.Call.Args = []Value{fv}
+	recv := fn.FreeVars[0]
+	if !types.IsInterface(recvType(fn.object)) { // concrete
+		c.Call.Value = fn.Prog.objectMethod(fn.object, fn.typeargs, b)
+		c.Call.Args = []Value{recv}
 	} else {
-		c.Call.Value = fv
-		c.Call.Method = obj
+		c.Call.Method = fn.object
+		c.Call.Value = recv // interface (possibly a typeparam)
 	}
 	for _, arg := range fn.Params {
 		c.Call.Args = append(c.Call.Args, arg)
 	}
 	emitTailCall(fn, &c, nil)
 	fn.finishBody()
-	return fn
 }
 
 // -- thunks -----------------------------------------------------------
 
-// makeThunk returns a thunk, a synthetic function that delegates to a
-// concrete or interface method denoted by sel.Obj().  The resulting
+// createThunk returns a thunk, a synthetic function that delegates to a
+// concrete or interface method denoted by sel.obj.  The resulting
 // function has no receiver, but has an additional (first) regular
 // parameter.
 //
-// Precondition: sel.Kind() == types.MethodExpr.
+// Precondition: sel.kind == types.MethodExpr.
 //
 //	type T int          or:  type T interface { meth() }
 //	func (t T) meth()
@@ -223,17 +258,12 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 // f is a synthetic wrapper defined as if by:
 //
 //	f := func(t T) { return t.meth() }
-//
-// EXCLUSIVE_LOCKS_ACQUIRED(meth.Prog.methodsMu)
-func makeThunk(prog *Program, sel *types.Selection) *Function {
-	if sel.Kind() != types.MethodExpr {
+func createThunk(prog *Program, sel *selection, targs []types.Type) *Function {
+	if sel.kind != types.MethodExpr {
 		panic(sel)
 	}
 
-	prog.methodsMu.Lock()
-	defer prog.methodsMu.Unlock()
-
-	fn := makeWrapper(prog, sel)
+	fn := createWrapper(prog, sel, targs)
 	if fn.Signature.Recv() != nil {
 		panic(fn) // unexpected receiver
 	}
@@ -244,93 +274,84 @@ func changeRecv(s *types.Signature, recv *types.Var) *types.Signature {
 	return types.NewSignatureType(recv, nil, nil, s.Params(), s.Results(), s.Variadic())
 }
 
-// makeInstance creates a wrapper function with signature sig that calls the generic function fn.
-// If targs is not nil, fn is a function and targs describes the concrete type arguments.
-// If targs is nil, fn is a method and the type arguments are derived from the receiver.
-func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *types.TypeList) *Function {
-	if sig.Recv() != nil {
-		assert(targs == nil)
-		// Methods don't have their own type parameters, but the receiver does
-		targs = types.Unalias(deref(sig.Recv().Type())).(*types.Named).TypeArgs()
-	} else {
-		assert(targs != nil)
-	}
+// A local version of *types.Selection.
+// Needed for some additional control, such as creating a MethodExpr for an instantiation.
+type selection struct {
+	kind     types.SelectionKind
+	recv     types.Type
+	typ      types.Type
+	obj      types.Object
+	index    []int
+	indirect bool
+}
 
-	wrapper := fn.generics.At(targs)
-	if wrapper != nil {
-		return wrapper
+func toSelection(sel *types.Selection) *selection {
+	return &selection{
+		kind:     sel.Kind(),
+		recv:     sel.Recv(),
+		typ:      sel.Type(),
+		obj:      sel.Obj(),
+		index:    sel.Index(),
+		indirect: sel.Indirect(),
 	}
+}
 
-	var name string
+// -- instantiations --------------------------------------------------
+
+// buildInstantiationWrapper builds the body of an instantiation
+// wrapper fn. The body calls the original generic function,
+// bracketed by ChangeType conversions on its arguments and results.
+func (b *builder) buildInstantiationWrapper(fn *Function) {
+	orig := fn.topLevelOrigin
+	sig := fn.Signature
+
+	fn.startBody()
 	if sig.Recv() != nil {
-		name = fn.name
-	} else {
-		name = fmt.Sprintf("%s$generic#%d", fn.name, fn.generics.Len())
+		fn.addParamVar(sig.Recv(), nil)
 	}
-	w := &Function{
-		name:         name,
-		object:       fn.object,
-		Signature:    sig,
-		Synthetic:    SyntheticGeneric,
-		Prog:         prog,
-		functionBody: new(functionBody),
-	}
-	w.startBody()
-	if sig.Recv() != nil {
-		w.addParamVar(sig.Recv(), nil)
-	}
-	createParams(w, 0)
+	createParams(fn, 0)
+
+	// Create body. Add a call to origin generic function
+	// and make type changes between argument and parameters,
+	// as well as return values.
 	var c Call
-	c.Call.Value = fn
-	tresults := fn.Signature.Results()
-	if tresults.Len() == 1 {
-		c.typ = tresults.At(0).Type()
+	c.Call.Value = orig
+	if res := orig.Signature.Results(); res.Len() == 1 {
+		c.typ = res.At(0).Type()
 	} else {
-		c.typ = tresults
+		c.typ = res
 	}
 
-	changeType := func(v Value, typ types.Type) Value {
-		if types.Identical(v.Type(), typ) {
-			return v
-		}
-		var c ChangeType
-		c.X = v
-		c.typ = typ
-		return w.emit(&c, nil)
-	}
-
-	for i, arg := range w.Params {
-		if sig.Recv() != nil {
-			if i == 0 {
-				c.Call.Args = append(c.Call.Args, changeType(w.Params[0], fn.Signature.Recv().Type()))
-			} else {
-				c.Call.Args = append(c.Call.Args, changeType(arg, fn.Signature.Params().At(i-1).Type()))
-			}
+	// parameter of instance becomes an argument to the call
+	// to the original generic function.
+	argOffset := 0
+	for i, arg := range fn.Params {
+		var typ types.Type
+		if i == 0 && sig.Recv() != nil {
+			typ = orig.Signature.Recv().Type()
+			argOffset = 1
 		} else {
-			c.Call.Args = append(c.Call.Args, changeType(arg, fn.Signature.Params().At(i).Type()))
+			typ = orig.Signature.Params().At(i - argOffset).Type()
 		}
+		c.Call.Args = append(c.Call.Args, emitTypeCoercion(fn, arg, typ, nil))
 	}
-	for arg := range targs.Types() {
-		c.Call.TypeArgs = append(c.Call.TypeArgs, arg)
-	}
-	results := w.emit(&c, nil)
+
+	results := fn.emit(&c, nil)
 	var ret Return
-	switch tresults.Len() {
+	switch res := sig.Results(); res.Len() {
 	case 0:
+		// no results, do nothing.
 	case 1:
-		ret.Results = []Value{changeType(results, sig.Results().At(0).Type())}
+		ret.Results = []Value{emitTypeCoercion(fn, results, res.At(0).Type(), nil)}
 	default:
-		for i := 0; i < tresults.Len(); i++ {
-			v := emitExtract(w, results, i, nil)
-			ret.Results = append(ret.Results, changeType(v, sig.Results().At(i).Type()))
+		for i := 0; i < sig.Results().Len(); i++ {
+			v := emitExtract(fn, results, i, nil)
+			ret.Results = append(ret.Results, emitTypeCoercion(fn, v, res.At(i).Type(), nil))
 		}
 	}
 
-	w.emit(&ret, nil)
-	w.currentBlock = nil
+	fn.emit(&ret, nil)
+	fn.currentBlock = nil
 
-	w.finishBody()
-
-	fn.generics.Set(targs, w)
-	return w
+	fn.finishBody()
 }

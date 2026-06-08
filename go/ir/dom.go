@@ -23,12 +23,14 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"slices"
 	"sort"
 )
 
 // Idom returns the block that immediately dominates b:
 // its parent in the dominator tree, if any.
-// The entry node (b.Index==0) does not have a parent.
+// Neither the entry node (b.Index==0) nor recover node
+// (b==b.Parent().Recover()) have a parent.
 func (b *BasicBlock) Idom() *BasicBlock { return b.dom.idom }
 
 // Dominees returns the list of blocks that b immediately dominates:
@@ -40,20 +42,25 @@ func (b *BasicBlock) Dominates(c *BasicBlock) bool {
 	return b.dom.pre <= c.dom.pre && c.dom.post <= b.dom.post
 }
 
-type byDomPreorder []*BasicBlock
-
-func (a byDomPreorder) Len() int           { return len(a) }
-func (a byDomPreorder) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byDomPreorder) Less(i, j int) bool { return a[i].dom.pre < a[j].dom.pre }
-
-// DomPreorder returns a new slice containing the blocks of f in
-// dominator tree preorder.
+// DomPreorder returns a new slice containing the blocks of f
+// in a preorder traversal of the dominator tree.
 func (f *Function) DomPreorder() []*BasicBlock {
-	n := len(f.Blocks)
-	order := make(byDomPreorder, n)
-	copy(order, f.Blocks)
-	sort.Sort(order)
-	return order
+	slice := slices.Clone(f.Blocks)
+	sort.Slice(slice, func(i, j int) bool {
+		return slice[i].dom.pre < slice[j].dom.pre
+	})
+	return slice
+}
+
+// DomPostorder returns a new slice containing the blocks of f
+// in a postorder traversal of the dominator tree.
+// (This is not the same as a postdominance order.)
+func (f *Function) DomPostorder() []*BasicBlock {
+	slice := slices.Clone(f.Blocks)
+	sort.Slice(slice, func(i, j int) bool {
+		return slice[i].dom.post < slice[j].dom.post
+	})
+	return slice
 }
 
 // domInfo contains a BasicBlock's dominance information.
@@ -129,7 +136,11 @@ func buildDomTree(fn *Function) {
 	// Step 1.  Number vertices by depth-first preorder.
 	preorder := space[3*n : 4*n]
 	root := fn.Blocks[0]
-	lt.dfs(root, 0, preorder)
+	prenum := lt.dfs(root, 0, preorder)
+	recover := fn.Recover
+	if recover != nil {
+		lt.dfs(recover, prenum, preorder)
+	}
 
 	buckets := space[4*n : 5*n]
 	copy(buckets, preorder)
@@ -175,7 +186,7 @@ func buildDomTree(fn *Function) {
 	// Step 4. Explicitly define the immediate dominator of each
 	// node, in preorder.
 	for _, w := range preorder[1:] {
-		if w == root {
+		if w == root || w == recover {
 			w.dom.idom = nil
 		} else {
 			if w.dom.idom != lt.sdom[w.Index] {
@@ -186,9 +197,12 @@ func buildDomTree(fn *Function) {
 		}
 	}
 
-	numberDomTree(root, 0, 0)
+	pre, post := numberDomTree(root, 0, 0)
+	if recover != nil {
+		numberDomTree(recover, pre, post)
+	}
 
-	// printDomTreeDot(os.Stderr, fn) // debugging
+	// printDomTreeDot(os.Stderr, f)        // debugging
 	// printDomTreeText(os.Stderr, root, 0) // debugging
 
 	if fn.Prog.mode&SanityCheckFunctions != 0 {
@@ -230,8 +244,8 @@ func sanityCheckDomTree(f *Function) {
 	all.Set(one).Lsh(&all, uint(n)).Sub(&all, one)
 
 	// Initialization.
-	for i := range f.Blocks {
-		if i == 0 {
+	for i, b := range f.Blocks {
+		if i == 0 || b == f.Recover {
 			// A root is dominated only by itself.
 			D[i].SetBit(&D[0], 0, 1)
 		} else {
@@ -245,7 +259,7 @@ func sanityCheckDomTree(f *Function) {
 	for changed := true; changed; {
 		changed = false
 		for i, b := range f.Blocks {
-			if i == 0 {
+			if i == 0 || b == f.Recover {
 				continue
 			}
 			// Compute intersection across predecessors.
@@ -263,10 +277,14 @@ func sanityCheckDomTree(f *Function) {
 	}
 
 	// Check the entire relation.  O(n^2).
+	// The Recover block (if any) must be treated specially so we skip it.
 	ok := true
 	for i := range n {
 		for j := range n {
 			b, c := f.Blocks[i], f.Blocks[j]
+			if c == f.Recover {
+				continue
+			}
 			actual := b.Dominates(c)
 			expected := D[j].Bit(i) == 1
 			if actual != expected {
@@ -287,12 +305,11 @@ func sanityCheckDomTree(f *Function) {
 	if !ok {
 		panic("sanityCheckDomTree failed for " + f.String())
 	}
-
 }
 
 // Printing functions ----------------------------------------
 
-// printDomTree prints the dominator tree as text, using indentation.
+// printDomTreeText prints the dominator tree as text, using indentation.
 //
 //lint:ignore U1000 used during debugging
 func printDomTreeText(buf *bytes.Buffer, v *BasicBlock, indent int) {

@@ -80,14 +80,23 @@ func findEnclosingPackageLevelFunction(pkg *Package, path []ast.Node) *Function 
 			}
 
 		case *ast.FuncDecl:
-			// Declared function/method.
-			fn := findNamedFunc(pkg, decl.Pos())
-			if fn == nil && decl.Recv == nil && decl.Name.Name == "init" {
+			if decl.Recv == nil && decl.Name.Name == "init" {
+				// Explicit init() function.
+				for _, b := range pkg.init.Blocks {
+					for _, instr := range b.Instrs {
+						if instr, ok := instr.(*Call); ok {
+							if callee, ok := instr.Call.Value.(*Function); ok && callee.Pkg == pkg && callee.Pos() == decl.Name.NamePos {
+								return callee
+							}
+						}
+					}
+				}
 				// Hack: return non-nil when IR is not yet
 				// built so that HasEnclosingFunction works.
 				return pkg.init
 			}
-			return fn
+			// Declared function/method.
+			return findNamedFunc(pkg, decl.Name.NamePos)
 		}
 	}
 	return nil // not in any function
@@ -96,9 +105,25 @@ func findEnclosingPackageLevelFunction(pkg *Package, path []ast.Node) *Function 
 // findNamedFunc returns the named function whose FuncDecl.Ident is at
 // position pos.
 func findNamedFunc(pkg *Package, pos token.Pos) *Function {
-	for _, fn := range pkg.Functions {
-		if fn.Pos() == pos {
-			return fn
+	// Look at all package members and method sets of named types.
+	// Not very efficient.
+	for _, mem := range pkg.Members {
+		switch mem := mem.(type) {
+		case *Function:
+			if mem.Pos() == pos {
+				return mem
+			}
+		case *Type:
+			mset := pkg.Prog.MethodSets.MethodSet(types.NewPointer(mem.Type()))
+			for i, n := 0, mset.Len(); i < n; i++ {
+				// Don't call Program.Method: avoid creating wrappers.
+				obj := mset.At(i).Obj().(*types.Func)
+				if obj.Pos() == pos {
+					// obj from MethodSet may not be the origin type.
+					m := obj.Origin()
+					return pkg.values[m].(*Function)
+				}
+			}
 		}
 	}
 	return nil
@@ -151,25 +176,26 @@ func (prog *Program) Package(obj *types.Package) *Package {
 	return prog.packages[obj]
 }
 
-// packageLevelValue returns the package-level value corresponding to
-// the specified named object, which may be a package-level const
-// (*Const), var (*Global) or func (*Function) of some package in
-// prog.  It returns nil if the object is not found.
-func (prog *Program) packageLevelValue(obj types.Object) Value {
+// packageLevelMember returns the package-level member corresponding
+// to the specified symbol, which may be a package-level const
+// (*NamedConst), var (*Global) or func/method (*Function) of some
+// package in prog.
+//
+// It returns nil if the object belongs to a package that has not been
+// created by prog.CreatePackage.
+func (prog *Program) packageLevelMember(obj types.Object) Member {
 	if pkg, ok := prog.packages[obj.Pkg()]; ok {
 		return pkg.values[obj]
 	}
 	return nil
 }
 
-// FuncValue returns the concrete Function denoted by the source-level
-// named function obj, or nil if obj denotes an interface method.
-//
-// TODO(adonovan): check the invariant that obj.Type() matches the
-// result's Signature, both in the params/results and in the receiver.
+// FuncValue returns the SSA function or (non-interface) method
+// denoted by the specified func symbol. It returns nil if the symbol
+// denotes an interface method, or belongs to a package that was not
+// created by prog.CreatePackage.
 func (prog *Program) FuncValue(obj *types.Func) *Function {
-	obj = obj.Origin()
-	fn, _ := prog.packageLevelValue(obj).(*Function)
+	fn, _ := prog.packageLevelMember(obj).(*Function)
 	return fn
 }
 
@@ -184,8 +210,8 @@ func (prog *Program) ConstValue(obj *types.Const) *Const {
 		return NewConst(obj.Val(), obj.Type(), nil)
 	}
 	// Package-level named constant?
-	if v := prog.packageLevelValue(obj); v != nil {
-		return v.(*Const)
+	if v := prog.packageLevelMember(obj); v != nil {
+		return v.(*NamedConst).Value
 	}
 	return NewConst(obj.Val(), obj.Type(), nil)
 }
@@ -255,7 +281,7 @@ func (prog *Program) VarValue(obj *types.Var, pkg *Package, ref []ast.Node) (val
 	}
 
 	// Defining ident of package-level var?
-	if v := prog.packageLevelValue(obj); v != nil {
+	if v := prog.packageLevelMember(obj); v != nil {
 		return v.(*Global), true
 	}
 
