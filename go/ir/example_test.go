@@ -151,7 +151,7 @@ func Example_loadPackages() {
 	}
 
 	// Create IR packages for all well-typed packages.
-	prog, pkgs := irutil.Packages(initial, ir.PrintPackages, nil)
+	prog, pkgs := irutil.Packages(initial, ir.PrintPackages)
 	_ = prog
 
 	// Build IR code for the well-typed initial packages.
@@ -174,7 +174,7 @@ func Example_loadWholeProgram() {
 	}
 
 	// Create IR packages for well-typed packages and their dependencies.
-	prog, pkgs := irutil.AllPackages(initial, ir.PrintPackages, nil)
+	prog, pkgs := irutil.AllPackages(initial, ir.PrintPackages)
 	_ = pkgs
 
 	// Build IR code for the whole program.

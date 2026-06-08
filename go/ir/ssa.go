@@ -30,7 +30,6 @@ type ID int
 // A Program is a partial or complete Go program converted to IR form.
 type Program struct {
 	Fset       *token.FileSet              // position information for the files of this Program
-	PrintFunc  string                      // create ir.html for function specified in PrintFunc
 	imported   map[string]*Package         // all importable Packages, keyed by import path
 	packages   map[*types.Package]*Package // all loaded Packages, keyed by object
 	mode       BuilderMode                 // set of mode bits for IR construction
@@ -60,7 +59,6 @@ type Package struct {
 	values    map[types.Object]Value // package members (incl. types and methods), keyed by object
 	init      *Function              // Func("init"); the package's init function
 	debug     bool                   // include full debug info in this package
-	printFunc string                 // which function to print in HTML form
 
 	// The following fields are set transiently, then cleared
 	// after building.
@@ -494,7 +492,6 @@ type functionBody struct {
 	consts          map[constKey]constValue
 	aggregateConsts typeutil.Map[[]*AggregateConst]
 
-	wr        *HTMLWriter
 	fakeExits BlockSet
 	blocksets [5]BlockSet
 	hasDefer  bool

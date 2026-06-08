@@ -619,9 +619,6 @@ func (f *Function) finishBody() {
 
 	numberNodes(f)
 
-	defer f.wr.Close()
-	f.wr.WriteFunc("start", "start", f)
-
 	if f.Prog.mode&PrintFunctions != 0 {
 		printMu.Lock()
 		f.WriteTo(os.Stdout)
@@ -990,15 +987,6 @@ type extentNode [2]token.Pos
 
 func (n extentNode) Pos() token.Pos { return n[0] }
 func (n extentNode) End() token.Pos { return n[1] }
-
-func (f *Function) initHTML(name string) {
-	if name == "" {
-		return
-	}
-	if rel := f.RelString(nil); rel == name {
-		f.wr = NewHTMLWriter("ir.html", rel, "")
-	}
-}
 
 func killInstruction(instr Instruction) {
 	ops := instr.Operands(nil)

@@ -70,7 +70,6 @@ func makeWrapper(prog *Program, sel *types.Selection) *Function {
 		Prog:         prog,
 		functionBody: new(functionBody),
 	}
-	fn.initHTML(prog.PrintFunc)
 	fn.startBody()
 	fn.addSpilledParam(recv, nil)
 	createParams(fn, start)
@@ -184,7 +183,6 @@ func makeBound(prog *Program, obj *types.Func) *Function {
 		Prog:         prog,
 		functionBody: new(functionBody),
 	}
-	fn.initHTML(prog.PrintFunc)
 
 	fv := &FreeVar{name: "recv", typ: recvType(obj), parent: fn}
 	fn.FreeVars = []*FreeVar{fv}
@@ -277,7 +275,6 @@ func makeInstance(prog *Program, fn *Function, sig *types.Signature, targs *type
 		Prog:         prog,
 		functionBody: new(functionBody),
 	}
-	w.initHTML(prog.PrintFunc)
 	w.startBody()
 	if sig.Recv() != nil {
 		w.addParamVar(sig.Recv(), nil)

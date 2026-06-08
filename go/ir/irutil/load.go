@@ -18,11 +18,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-type Options struct {
-	// Which function, if any, to print in HTML form
-	PrintFunc string
-}
-
 // Packages creates an IR program for a set of packages.
 //
 // The packages must have been loaded from source syntax using the
@@ -40,8 +35,8 @@ type Options struct {
 // packages with well-typed syntax trees.
 //
 // The mode parameter controls diagnostics and checking during IR construction.
-func Packages(initial []*packages.Package, mode ir.BuilderMode, opts *Options) (*ir.Program, []*ir.Package) {
-	return doPackages(initial, mode, false, opts)
+func Packages(initial []*packages.Package, mode ir.BuilderMode) (*ir.Program, []*ir.Package) {
+	return doPackages(initial, mode, false)
 }
 
 // AllPackages creates an IR program for a set of packages plus all
@@ -61,21 +56,17 @@ func Packages(initial []*packages.Package, mode ir.BuilderMode, opts *Options) (
 // well-typed syntax trees.
 //
 // The mode parameter controls diagnostics and checking during IR construction.
-func AllPackages(initial []*packages.Package, mode ir.BuilderMode, opts *Options) (*ir.Program, []*ir.Package) {
-	return doPackages(initial, mode, true, opts)
+func AllPackages(initial []*packages.Package, mode ir.BuilderMode) (*ir.Program, []*ir.Package) {
+	return doPackages(initial, mode, true)
 }
 
-func doPackages(initial []*packages.Package, mode ir.BuilderMode, deps bool, opts *Options) (*ir.Program, []*ir.Package) {
-
+func doPackages(initial []*packages.Package, mode ir.BuilderMode, deps bool) (*ir.Program, []*ir.Package) {
 	var fset *token.FileSet
 	if len(initial) > 0 {
 		fset = initial[0].Fset
 	}
 
 	prog := ir.NewProgram(fset, mode)
-	if opts != nil {
-		prog.PrintFunc = opts.PrintFunc
-	}
 
 	isInitial := make(map[*packages.Package]bool, len(initial))
 	for _, p := range initial {

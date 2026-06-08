@@ -45,6 +45,6 @@ func TestStdlib(t *testing.T) {
 	var mode ir.BuilderMode
 	mode |= ir.SanityCheckFunctions
 	mode |= ir.GlobalDebug
-	prog, _ := irutil.Packages(pkgs, mode, nil)
+	prog, _ := irutil.Packages(pkgs, mode)
 	prog.Build()
 }

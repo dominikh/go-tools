@@ -104,7 +104,6 @@ func memberFromObject(pkg *Package, obj types.Object, syntax ast.Node, goversion
 		}
 
 		fn.source = syntax
-		fn.initHTML(pkg.printFunc)
 		if syntax == nil {
 			fn.Synthetic = SyntheticLoadedFromExportData
 		} else {
@@ -193,7 +192,6 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		// transient values (CREATE and BUILD phases)
 		info:        info,
 		files:       files,
-		printFunc:   prog.PrintFunc,
 		initVersion: make(map[ast.Expr]string),
 	}
 
@@ -207,7 +205,6 @@ func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *
 		functionBody: new(functionBody),
 		goversion:    "", // See Package.build for details.
 	}
-	p.init.initHTML(prog.PrintFunc)
 	p.Members[p.init.name] = p.init
 	p.Functions = append(p.Functions, p.init)
 

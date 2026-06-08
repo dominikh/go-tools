@@ -82,8 +82,6 @@ func jDone() *Const {
 // builder holds state associated with the package currently being built.
 // Its methods contain all the logic for AST-to-IR conversion.
 type builder struct {
-	printFunc string
-
 	blocksets [5]BlockSet
 }
 
@@ -626,7 +624,6 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		fn2.uniq = fn.uniq // start from parent's unique values
 		fn2.source = e
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
-		fn2.initHTML(b.printFunc)
 		b.buildFunction(fn2)
 		fn.uniq = fn2.uniq // resume after anon's unique values
 		if fn2.FreeVars == nil {
@@ -3374,9 +3371,7 @@ func (p *Package) build() {
 		init.emit(&v, nil)
 	}
 
-	b := builder{
-		printFunc: p.printFunc,
-	}
+	b := builder{}
 
 	// Initialize package-level vars in correct order.
 	for _, varinit := range p.info.InitOrder {
