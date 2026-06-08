@@ -49,6 +49,9 @@ func (ts TypeSet) CoreType() types.Type {
 		if !ok {
 			return nil
 		}
+		if !types.Identical(ch1.Elem(), ch2.Elem()) {
+			return nil
+		}
 		if ch1.Dir() == types.SendRecv {
 			// typ is currently a bidirectional channel. The term's type is either also bidirectional, or
 			// unidirectional. Use the term's type.
