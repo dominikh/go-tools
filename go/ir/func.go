@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/format"
 	"go/token"
 	"go/types"
 	"io"
@@ -749,24 +748,30 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 
 	from := f.pkg()
 
+	// NB. column calculations are confused by non-ASCII
+	// characters
+	const punchcard = 80 // for old time's sake.
+	const padding = "        "
+
 	if f.FreeVars != nil {
 		buf.WriteString("# Free variables:\n")
 		for i, fv := range f.FreeVars {
-			fmt.Fprintf(buf, "# % 3d:\t%s %s\n", i, fv.Name(), relType(fv.Type(), from))
+			fmt.Fprintf(buf, "# % 3d:%s%s %s\n", i, padding, fv.Name(), relType(fv.Type(), from))
 		}
 	}
 
 	if len(f.Locals) > 0 {
 		buf.WriteString("# Locals:\n")
 		for i, l := range f.Locals {
-			fmt.Fprintf(buf, "# % 3d:\t%s %s\n", i, l.Name(), relType(deref(l.Type()), from))
+			fmt.Fprintf(buf, "# % 3d:%s%s %s\n", i, padding, l.Name(), relType(deref(l.Type()), from))
 		}
 	}
 	writeSignature(buf, from, f.Name(), f.Signature)
 	buf.WriteString(":\n")
 
 	if f.Blocks == nil {
-		buf.WriteString("\t(external)\n")
+		buf.WriteString(padding)
+		buf.WriteString("(external)\n")
 	}
 
 	for _, b := range f.Blocks {
@@ -775,67 +780,55 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 			fmt.Fprintf(buf, ".nil:\n")
 			continue
 		}
-		fmt.Fprintf(buf, "b%d:", b.Index)
-		if len(b.Preds) > 0 {
-			fmt.Fprint(buf, " ←")
-			for _, pred := range b.Preds {
-				fmt.Fprintf(buf, " b%d", pred.Index)
-			}
+		n, _ := fmt.Fprintf(buf, "%d:", b.Index)
+		// (|predecessors|, |successors|, immediate dominator)
+		bmsg := fmt.Sprintf("%s P:%d S:%d", b.Comment, len(b.Preds), len(b.Succs))
+		if b.Idom() != nil {
+			bmsg = fmt.Sprintf("%s idom:%d", bmsg, b.Idom().Index)
 		}
-		if b.Comment != "" {
-			fmt.Fprintf(buf, " # %s", b.Comment)
-		}
-		buf.WriteByte('\n')
+		fmt.Fprintf(buf, "%*s%s\n", punchcard-1-n-len(bmsg), "", bmsg)
 
 		if false { // CFG debugging
-			fmt.Fprintf(buf, "\t# CFG: %s --> %s --> %s\n", b.Preds, b, b.Succs)
+			fmt.Fprintf(buf, "%s# CFG: %s --> %s --> %s\n", padding, b.Preds, b, b.Succs)
 		}
-
-		buf2 := &bytes.Buffer{}
 		for _, instr := range b.Instrs {
-			buf.WriteString("\t")
+			buf.WriteString(padding)
 			switch v := instr.(type) {
 			case Value:
+				l := punchcard - len(padding)
 				// Left-align the instruction.
 				if name := v.Name(); name != "" {
-					fmt.Fprintf(buf, "%s = ", name)
+					n, _ := fmt.Fprintf(buf, "%s = ", name)
+					l -= n
 				}
-				buf.WriteString(instr.String())
+				n, _ := buf.WriteString(instr.String())
+				l -= n
+				// Right-align the type if there's space.
+				if t := v.Type(); t != nil {
+					buf.WriteByte(' ')
+					ts := relType(t, from)
+					l -= len(ts) + len("  ") // (spaces before and after type)
+					if l > 0 {
+						fmt.Fprintf(buf, "%*s", l, "")
+					}
+					buf.WriteString(ts)
+				}
 			case nil:
 				// Be robust against bad transforms.
 				buf.WriteString("<deleted>")
 			default:
 				buf.WriteString(instr.String())
 			}
-			if instr != nil && instr.Comment() != "" {
-				buf.WriteString(" # ")
-				buf.WriteString(instr.Comment())
-			}
-			buf.WriteString("\n")
-
-			if f.Prog.mode&PrintSource != 0 {
-				if s := instr.Source(); s != nil {
-					buf2.Reset()
-					format.Node(buf2, f.Prog.Fset, s)
-					for {
-						line, err := buf2.ReadString('\n')
-						if len(line) == 0 {
-							break
-						}
-						buf.WriteString("\t\t> ")
-						buf.WriteString(line)
-						if line[len(line)-1] != '\n' {
-							buf.WriteString("\n")
-						}
-						if err != nil {
-							break
-						}
-					}
+			// -mode=S: show line numbers
+			if f.Prog.mode&LogSource != 0 {
+				if pos := instr.Pos(); pos.IsValid() {
+					fmt.Fprintf(buf, " L%d", f.Prog.Fset.Position(pos).Line)
 				}
 			}
+			buf.WriteString("\n")
 		}
-		buf.WriteString("\n")
 	}
+	buf.WriteString("\n")
 }
 
 // newBasicBlock adds to f a new basic block and returns it.  It does

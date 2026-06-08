@@ -80,14 +80,14 @@ func TestPackages(t *testing.T) {
 # Package: bytes
 # Location: $GOROOT/src/bytes/buffer.go:1
 func NewBuffer(buf []byte) *Buffer:
-b0: # entry
-	t1 = Const <int> {0}
-	t2 = Const <readOp> {0}
-	t3 = Parameter <[]byte> {buf}
-	t4 = HeapAlloc <*Buffer> # complit
-	t5 = CompositeValue <Buffer> [100] t3 t1 t2
-	Store {bytes.Buffer} t4 t5
-	Return t4
+0:                                                                entry P:0 S:0
+        t1 = 0:int                                                          int
+        t2 = 0:readOp                                                    readOp
+        t3 = parameter buf : []byte                                      []byte
+        t4 = new Buffer (complit)                                       *Buffer
+        t5 = {buf: t3, off: t1, lastRead: t2}                            Buffer
+        *t4 = t5
+        return t4
 
 `[1:]
 	if got != want {

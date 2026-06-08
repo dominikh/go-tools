@@ -179,13 +179,13 @@ type Instruction interface {
 	// String returns the disassembled form of this value.
 	//
 	// Examples of Instructions that are Values:
-	//       "BinOp <int> {+} t1 t2"  (BinOp)
-	//       "Call <int> len t1"      (Call)
+	//       "x + y"     (BinOp)
+	//       "len([])"   (Call)
 	// Note that the name of the Value is not printed.
 	//
 	// Examples of Instructions that are not Values:
-	//       "Return t1"              (Return)
-	//       "Store {int} t2 t1"      (Store)
+	//       "return x"  (Return)
+	//       "*y = x"    (Store)
 	//
 	// (The separation of Value.Name() from Value.String() is useful
 	// for some analyses which distinguish the operation from the
@@ -570,9 +570,12 @@ type Parameter struct {
 //
 // Example printed form:
 //
-//	Const <int> {42}
-//	Const <untyped string> {"test"}
-//	Const <MyComplex> {(3 + 4i)}
+//	42:int
+//	"hello":untyped string
+//	3+4i:MyComplex
+//	nil:*int
+//	0:interface{int|int64}
+//	nil:interface{bool|int} // no go/constant representation
 type Const struct {
 	register
 
@@ -690,8 +693,8 @@ type Builtin struct {
 //
 // Example printed form:
 //
-//	t1 = StackAlloc <*int>
-//	t2 = HeapAlloc <*int> (new)
+//	t0 = local int
+//	t1 = new int
 type Alloc struct {
 	register
 	Heap  bool
@@ -709,7 +712,7 @@ type Alloc struct {
 //
 // Example printed form:
 //
-//	t3 = Phi <int> 2:t1 4:t2 (x)
+//	t2 = phi [0: t0, 1: t1]
 type Phi struct {
 	register
 	Edges []Value // Edges[i] is value for Block().Preds[i]
@@ -729,9 +732,9 @@ type Phi struct {
 //
 // Example printed form:
 //
-//	t3 = Call <()> println t1 t2
-//	t4 = Call <()> foo$1
-//	t6 = Invoke <string> t5.String
+//	t2 = println(t0, t1)
+//	t4 = t3()
+//	t7 = invoke t5.Println(...t6)
 type Call struct {
 	register
 	Call CallCommon
@@ -743,7 +746,7 @@ type Call struct {
 //
 // Example printed form:
 //
-//	t3 = BinOp <int> {+} t2 t1
+//	t1 = t0 + 1:int
 type BinOp struct {
 	register
 	// One of:
@@ -761,7 +764,7 @@ type BinOp struct {
 //
 // Example printed form:
 //
-//	t2 = UnOp <int> {^} t1
+//	t0 = ^x
 type UnOp struct {
 	register
 	Op token.Token // One of: NOT SUB XOR ! - ^
@@ -799,7 +802,7 @@ type Load struct {
 //
 // Example printed form:
 //
-//	t2 = ChangeType <*T> t1
+//	t1 = changetype *int <- IntPtr (t0)
 type ChangeType struct {
 	register
 	X Value
@@ -829,7 +832,7 @@ type ChangeType struct {
 //
 // Example printed form:
 //
-//	t2 = Convert <[]byte> t1
+//	t1 = convert []byte <- string (t0)
 type Convert struct {
 	register
 	X Value
@@ -866,7 +869,7 @@ type MultiConvert struct {
 //
 // Example printed form:
 //
-//	t2 = ChangeInterface <I1> t1
+//	t1 = change interface interface{} <- I (t0)
 type ChangeInterface struct {
 	register
 	X Value
@@ -880,7 +883,7 @@ type ChangeInterface struct {
 //
 // Example printed form:
 //
-//	t2 = SliceToArrayPointer <*[4]byte> t1
+//	t1 = slice to array pointer *[4]byte <- []byte (t0)
 type SliceToArrayPointer struct {
 	register
 	X Value
@@ -915,7 +918,8 @@ type SliceToArray struct {
 //
 // Example printed form:
 //
-//	t2 = MakeInterface <interface{}> t1
+//	t1 = make interface{} <- int (42:int)
+//	t1 = make Stringer <- t0
 type MakeInterface struct {
 	register
 	X Value
@@ -931,8 +935,8 @@ type MakeInterface struct {
 //
 // Example printed form:
 //
-//	t1 = MakeClosure <func()> foo$1 t1 t2
-//	t5 = MakeClosure <func(int)> (T).foo$bound t4
+//	t0 = make closure anon@1.2 [x y z]
+//	t1 = make closure bound$(main.I).add [i]
 type MakeClosure struct {
 	register
 	Fn       Value   // always a *Function
@@ -949,8 +953,8 @@ type MakeClosure struct {
 //
 // Example printed form:
 //
-//	t1 = MakeMap <map[string]int>
-//	t2 = MakeMap <StringIntMap> t1
+//	t1 = make map[string]int t0
+//	t1 = make StringIntMap t0
 type MakeMap struct {
 	register
 	Reserve Value // initial space reservation; nil => default
@@ -966,8 +970,8 @@ type MakeMap struct {
 //
 // Example printed form:
 //
-//	t3 = MakeChan <chan int> t1
-//	t4 = MakeChan <chan IntChan> t2
+//	t1 = make chan int t0
+//	t1 = make IntChan t0
 type MakeChan struct {
 	register
 	Size Value // int; size of buffer; zero => synchronous.
@@ -988,8 +992,8 @@ type MakeChan struct {
 //
 // Example printed form:
 //
-//	t3 = MakeSlice <[]string> t1 t2
-//	t4 = MakeSlice <StringSlice> t1 t2
+//	t2 = make []string t1 t0
+//	t2 = make StringSlice t1 t0
 type MakeSlice struct {
 	register
 	Len Value
@@ -1011,7 +1015,7 @@ type MakeSlice struct {
 //
 // Example printed form:
 //
-//	t4 = Slice <[]int> t3 t2 t1 <nil>
+//	t2 = slice t0[t1:]
 type Slice struct {
 	register
 	X              Value // slice, string, or *array
@@ -1033,7 +1037,7 @@ type Slice struct {
 //
 // Example printed form:
 //
-//	t2 = FieldAddr <*int> [0] (X) t1
+//	t1 = &t0.name [#1]
 type FieldAddr struct {
 	register
 	X     Value // *struct
@@ -1051,7 +1055,7 @@ type FieldAddr struct {
 //
 // Example printed form:
 //
-//	t2 = FieldAddr <int> [0] (X) t1
+//	t1 = t0.name [#1]
 type Field struct {
 	register
 	X     Value // struct
@@ -1074,7 +1078,7 @@ type Field struct {
 //
 // Example printed form:
 //
-//	t3 = IndexAddr <*int> t2 t1
+//	t2 = &t0[t1]
 type IndexAddr struct {
 	register
 	X     Value // slice or *array,
@@ -1088,7 +1092,7 @@ type IndexAddr struct {
 //
 // Example printed form:
 //
-//	t3 = Index <int> t2 t1
+//	t2 = t0[t1]
 type Index struct {
 	register
 	X     Value // array
@@ -1105,8 +1109,8 @@ type Index struct {
 //
 // Example printed form:
 //
-//	t4 = MapLookup <string> t3 t1
-//	t6 = MapLookup <(string, bool)> t3 t2
+//	t2 = t0[t1]
+//	t5 = t3[t4],ok
 type MapLookup struct {
 	register
 	X       Value // map
@@ -1173,8 +1177,8 @@ type SelectState struct {
 //
 // Example printed form:
 //
-//	t6 = SelectNonBlocking <(index int, ok bool, int)> [<-t4, t5<-t1]
-//	t11 = SelectBlocking <(index int, ok bool)> []
+//	t3 = select nonblocking [<-t0, t1<-t2]
+//	t4 = select blocking []
 type Select struct {
 	register
 	States   []*SelectState
@@ -1215,8 +1219,7 @@ type Range struct {
 //
 // Example printed form:
 //
-//	t5 = Next <(ok bool, k int, v rune)> t2
-//	t5 = Next <(ok bool, k invalid type, v invalid type)> t2
+//	t1 = next t0
 type Next struct {
 	register
 	Iter     Value
@@ -1256,8 +1259,8 @@ type Next struct {
 //
 // Example printed form:
 //
-//	t2 = TypeAssert <int> t1
-//	t4 = TypeAssert <(value fmt.Stringer, ok bool)> t1
+//	t1 = typeassert t0.(int)
+//	t3 = typeassert,ok t2.(T)
 type TypeAssert struct {
 	register
 	X            Value
@@ -1273,7 +1276,7 @@ type TypeAssert struct {
 //
 // Example printed form:
 //
-//	t7 = Extract <bool> [1] (ok) t4
+//	t1 = extract t0 #1
 type Extract struct {
 	register
 	Tuple Value
@@ -1291,7 +1294,7 @@ type Extract struct {
 //
 // Example printed form:
 //
-//	Jump → b1
+//	jump done
 type Jump struct {
 	anInstruction
 }
@@ -1321,7 +1324,7 @@ type Unreachable struct {
 //
 // Example printed form:
 //
-//	If t2 → b1 b2
+//	if t0 goto done else body
 type If struct {
 	anInstruction
 	Cond Value
@@ -1361,8 +1364,8 @@ type TypeSwitch struct {
 //
 // Example printed form:
 //
-//	Return
-//	Return t1 t2
+//	return
+//	return t0, t1
 type Return struct {
 	anInstruction
 	Results []Value
@@ -1379,7 +1382,7 @@ type Return struct {
 //
 // Example printed form:
 //
-//	RunDefers
+//	rundefers
 type RunDefers struct {
 	anInstruction
 }
@@ -1397,7 +1400,7 @@ type RunDefers struct {
 //
 // Example printed form:
 //
-//	Panic t1
+//	panic t0
 type Panic struct {
 	anInstruction
 	X Value // an interface{}
@@ -1412,9 +1415,9 @@ type Panic struct {
 //
 // Example printed form:
 //
-//	Go println t1
-//	Go t3
-//	GoInvoke t4.Bar t2
+//	go println(t0, t1)
+//	go t3()
+//	go invoke t5.Println(...t6)
 type Go struct {
 	anInstruction
 	Call CallCommon
@@ -1435,9 +1438,9 @@ type Go struct {
 //
 // Example printed form:
 //
-//	Defer println t1
-//	Defer t3
-//	DeferInvoke t4.Bar t2
+//	defer println(t0, t1)
+//	defer t3()
+//	defer invoke t5.Println(...t6)
 type Defer struct {
 	anInstruction
 	Call        CallCommon
@@ -1452,7 +1455,7 @@ type Defer struct {
 //
 // Example printed form:
 //
-//	Send t2 t1
+//	send t0 <- t1
 type Send struct {
 	anInstruction
 	Chan, X Value
@@ -1488,7 +1491,7 @@ type Recv struct {
 //
 // Example printed form:
 //
-//	Store {int} t2 t1
+//	*x = y
 type Store struct {
 	anInstruction
 	Addr Value
@@ -1518,7 +1521,7 @@ type BlankStore struct {
 //
 // Example printed form:
 //
-//	MapUpdate t3 t1 t2
+//	t0[t1] = t2
 type MapUpdate struct {
 	anInstruction
 	Map   Value
@@ -1643,9 +1646,9 @@ func (instr anInstruction) Comment() string {
 //
 // Example printed form:
 //
-//	t3 = Call <()> println t1 t2
-//	Go t3
-//	Defer t3
+//	t2 = println(t0, t1)
+//	go t3()
+//	defer t5(...t6)
 //
 // 2. "invoke" mode: when Method is non-nil (IsInvoke), a CallCommon
 // represents a dynamically dispatched call to an interface method.
@@ -1660,9 +1663,9 @@ func (instr anInstruction) Comment() string {
 //
 // Example printed form:
 //
-//	t6 = Invoke <string> t5.String
-//	GoInvoke t4.Bar t2
-//	DeferInvoke t4.Bar t2
+//	t1 = invoke t0.String()
+//	go invoke t3.Run(t2)
+//	defer invoke t4.Handle(...t5)
 //
 // For all calls to variadic functions (Signature().Variadic()),
 // the last element of Args is a slice.

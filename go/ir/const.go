@@ -7,15 +7,17 @@ package ir
 // This file defines the Const SSA value type.
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/constant"
 	"go/types"
 	"strconv"
-	"strings"
+
+	"honnef.co/go/tools/go/types/typeutil"
+	"honnef.co/go/tools/internal/xtools-internal/typesinternal"
 
 	"golang.org/x/exp/typeparams"
-	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // NewConst returns a new constant of the specified value and type.
@@ -138,7 +140,7 @@ func zeroConst(t types.Type, source ast.Node) Constant {
 func (c *Const) RelString(from *types.Package) string {
 	var p string
 	if c.Value == nil {
-		p = "nil"
+		p, _ = typesinternal.ZeroString(c.typ, types.RelativeTo(from))
 	} else if c.Value.Kind() == constant.String {
 		v := constant.StringVal(c.Value)
 		const max = 20
@@ -150,7 +152,7 @@ func (c *Const) RelString(from *types.Package) string {
 	} else {
 		p = c.Value.String()
 	}
-	return fmt.Sprintf("Const <%s> {%s}", relType(c.Type(), from), p)
+	return p + ":" + relType(c.Type(), from)
 }
 
 func (c *Const) String() string {
@@ -163,7 +165,8 @@ func (c *Const) String() string {
 }
 
 func (v *ArrayConst) RelString(pkg *types.Package) string {
-	return fmt.Sprintf("ArrayConst <%s>", relType(v.Type(), pkg))
+	s, _ := typesinternal.ZeroString(v.typ, types.RelativeTo(pkg))
+	return "const " + s
 }
 
 func (v *ArrayConst) String() string {
@@ -171,15 +174,16 @@ func (v *ArrayConst) String() string {
 }
 
 func (v *AggregateConst) RelString(pkg *types.Package) string {
-	values := make([]string, len(v.Values))
-	for i, v := range v.Values {
-		if v != nil {
-			values[i] = v.Name()
-		} else {
-			values[i] = "nil"
+	var b bytes.Buffer
+	fmt.Fprint(&b, "const {")
+	for i, vv := range v.Values {
+		if i > 0 {
+			fmt.Fprint(&b, ", ")
 		}
+		fmt.Fprint(&b, relName(vv, v))
 	}
-	return fmt.Sprintf("AggregateConst <%s> (%s)", relType(v.Type(), pkg), strings.Join(values, ", "))
+	fmt.Fprint(&b, "}")
+	return b.String()
 }
 
 func (v *AggregateConst) String() string {

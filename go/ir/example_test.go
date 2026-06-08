@@ -94,39 +94,37 @@ func Example_buildPackage() {
 	//   func  init       func()
 	//   var   init$guard bool
 	//   func  main       func()
-	//   const message    message = Const <untyped string> {"Hello, World!"}
+	//   const message    message = "Hello, World!":untyped string
 	//
 	// # Name: hello.init
 	// # Package: hello
 	// # Synthetic: package initializer
 	// func init():
-	// b0: # entry
-	// 	t1 = Const <bool> {true}
-	// 	t2 = Load <bool> init$guard
-	// 	If t2 → b2 b1
-	//
-	// b1: ← b0 # init.start
-	// 	Store {bool} init$guard t1
-	// 	t5 = Call <()> fmt.init
-	// 	Jump → b2
-	//
-	// b2: ← b0 b1 # init.done
-	// 	Return
+	// 0:                                                                entry P:0 S:2
+	//         t1 = true:bool                                                     bool
+	//         t2 = *init$guard                                                   bool
+	//         if t2 goto 2 else 1
+	// 1:                                                    init.start P:1 S:1 idom:0
+	//         *init$guard = t1
+	//         t5 = fmt.init()                                                      ()
+	//         jump 2
+	// 2:                                                     init.done P:2 S:0 idom:0
+	//         return
 	//
 	// # Name: hello.main
 	// # Package: hello
 	// # Location: hello.go:8:1
 	// func main():
-	// b0: # entry
-	// 	t1 = Const <string> {"Hello, World!"}
-	// 	t2 = Const <int> {0}
-	// 	t3 = HeapAlloc <*[1]any> # varargs
-	// 	t4 = IndexAddr <*any> t3 t2
-	// 	t5 = MakeInterface <any> t1
-	// 	Store {any} t4 t5
-	// 	t7 = Slice <[]any> t3 <nil> <nil> <nil>
-	// 	t8 = Call <(n int, err error)> fmt.Println t7
-	// 	Return
+	// 0:                                                                entry P:0 S:0
+	//         t1 = "Hello, World!":string                                      string
+	//         t2 = 0:int                                                          int
+	//         t3 = new [1]any (varargs)                                       *[1]any
+	//         t4 = &t3[t2]                                                       *any
+	//         t5 = make any <- string (t1)                                        any
+	//         *t4 = t5
+	//         t7 = slice t3[:]                                                  []any
+	//         t8 = fmt.Println(t7...)                              (n int, err error)
+	//         return
 }
 
 // This example builds IR code for a set of packages using the

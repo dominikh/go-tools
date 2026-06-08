@@ -67,34 +67,36 @@ func relString(m Member, from *types.Package) string {
 
 func (v *Parameter) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("Parameter <%s> {%s}", relType(v.Type(), from), v.name)
+	return fmt.Sprintf("parameter %s : %s", v.Object().Name(), relType(v.Type(), from))
 }
 
 func (v *FreeVar) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("FreeVar <%s> %s", relType(v.Type(), from), v.Name())
+	return fmt.Sprintf("freevar %s : %s", v.Name(), relType(v.Type(), from))
 }
 
 func (v *Builtin) String() string {
-	return fmt.Sprintf("Builtin %s", v.Name())
+	return fmt.Sprintf("builtin %s", v.Name())
 }
 
 // Instruction.String()
 
 func (v *Alloc) String() string {
-	from := v.Parent().pkg()
-	storage := "Stack"
+	op := "local"
 	if v.Heap {
-		storage = "Heap"
+		op = "new"
 	}
-	return fmt.Sprintf("%sAlloc <%s>", storage, relType(v.Type(), from))
+	from := v.Parent().pkg()
+	return fmt.Sprintf("%s %s (%s)", op, relType(deref(v.Type()), from), v.Comment())
 }
 
 func (v *Phi) String() string {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "Phi <%s>", v.Type())
+	b.WriteString("phi [")
 	for i, edge := range v.Edges {
-		b.WriteString(" ")
+		if i > 0 {
+			b.WriteString(", ")
+		}
 		// Be robust against malformed CFG.
 		if v.block == nil {
 			b.WriteString("??")
@@ -104,39 +106,40 @@ func (v *Phi) String() string {
 		if i < len(v.block.Preds) {
 			block = v.block.Preds[i].Index
 		}
-		fmt.Fprintf(&b, "%d:", block)
+		fmt.Fprintf(&b, "%d: ", block)
 		edgeVal := "<nil>" // be robust
 		if edge != nil {
 			edgeVal = relName(edge, v)
 		}
 		b.WriteString(edgeVal)
 	}
+	b.WriteString("]")
+	if v.Comment() != "" {
+		b.WriteString(" #")
+		b.WriteString(v.Comment())
+	}
 	return b.String()
 }
 
 func printCall(v *CallCommon, prefix string, instr Instruction) string {
 	var b bytes.Buffer
+	b.WriteString(prefix)
 	if !v.IsInvoke() {
-		if value, ok := instr.(Value); ok {
-			fmt.Fprintf(&b, "%s <%s> %s", prefix, relType(value.Type(), instr.Parent().pkg()), relName(v.Value, instr))
-		} else {
-			fmt.Fprintf(&b, "%s %s", prefix, relName(v.Value, instr))
-		}
+		b.WriteString(relName(v.Value, instr))
 	} else {
-		if value, ok := instr.(Value); ok {
-			fmt.Fprintf(&b, "%sInvoke <%s> %s.%s", prefix, relType(value.Type(), instr.Parent().pkg()), relName(v.Value, instr), v.Method.Name())
-		} else {
-			fmt.Fprintf(&b, "%sInvoke %s.%s", prefix, relName(v.Value, instr), v.Method.Name())
+		fmt.Fprintf(&b, "invoke %s.%s", relName(v.Value, instr), v.Method.Name())
+	}
+	b.WriteString("(")
+	for i, arg := range v.Args {
+		if i > 0 {
+			b.WriteString(", ")
 		}
-	}
-	for _, arg := range v.TypeArgs {
-		b.WriteString(" ")
-		b.WriteString(relType(arg, instr.Parent().pkg()))
-	}
-	for _, arg := range v.Args {
-		b.WriteString(" ")
 		b.WriteString(relName(arg, instr))
 	}
+	if v.Signature().Variadic() {
+		b.WriteString("...")
+	}
+	b.WriteString(")")
 	return b.String()
 }
 
@@ -145,61 +148,97 @@ func (c *CallCommon) String() string {
 }
 
 func (v *Call) String() string {
-	return printCall(&v.Call, "Call", v)
+	return printCall(&v.Call, "", v)
 }
 
 func (v *BinOp) String() string {
-	return fmt.Sprintf("BinOp <%s> {%s} %s %s", relType(v.Type(), v.Parent().pkg()), v.Op.String(), relName(v.X, v), relName(v.Y, v))
+	return fmt.Sprintf("%s %s %s", relName(v.X, v), v.Op.String(), relName(v.Y, v))
 }
 
 func (v *UnOp) String() string {
-	return fmt.Sprintf("UnOp <%s> {%s} %s", relType(v.Type(), v.Parent().pkg()), v.Op.String(), relName(v.X, v))
+	return fmt.Sprintf("%s%s", v.Op, relName(v.X, v))
 }
 
 func (v *Load) String() string {
-	return fmt.Sprintf("Load <%s> %s", relType(v.Type(), v.Parent().pkg()), relName(v.X, v))
+	return fmt.Sprintf("*%s", relName(v.X, v))
 }
 
 func printConv(prefix string, v, x Value) string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("%s <%s> %s",
+	return fmt.Sprintf("%s %s <- %s (%s)",
 		prefix,
 		relType(v.Type(), from),
+		relType(x.Type(), from),
 		relName(x, v.(Instruction)))
 }
 
-func (v *ChangeType) String() string          { return printConv("ChangeType", v, v.X) }
-func (v *Convert) String() string             { return printConv("Convert", v, v.X) }
-func (v *ChangeInterface) String() string     { return printConv("ChangeInterface", v, v.X) }
-func (v *SliceToArrayPointer) String() string { return printConv("SliceToArrayPointer", v, v.X) }
+func (v *ChangeType) String() string          { return printConv("changetype", v, v.X) }
+func (v *Convert) String() string             { return printConv("convert", v, v.X) }
+func (v *ChangeInterface) String() string     { return printConv("change interface", v, v.X) }
+func (v *SliceToArrayPointer) String() string { return printConv("slice to array pointer", v, v.X) }
 func (v *SliceToArray) String() string        { return printConv("SliceToArray", v, v.X) }
-func (v *MakeInterface) String() string       { return printConv("MakeInterface", v, v.X) }
+func (v *MakeInterface) String() string       { return printConv("make", v, v.X) }
+
+func (v *MultiConvert) String() string {
+	from := v.Parent().pkg()
+
+	var b strings.Builder
+	b.WriteString(printConv("multiconvert", v, v.X))
+	b.WriteString(" [")
+	for i, s := range v.from.Terms {
+		for j, d := range v.to.Terms {
+			if i != 0 || j != 0 {
+				b.WriteString(" | ")
+			}
+			fmt.Fprintf(&b, "%s <- %s", relTerm(d, from), relTerm(s, from))
+		}
+	}
+	b.WriteString("]")
+	return b.String()
+}
 
 func (v *MakeClosure) String() string {
-	from := v.Parent().pkg()
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "MakeClosure <%s> %s", relType(v.Type(), from), relName(v.Fn, v))
+	fmt.Fprintf(&b, "make closure %s", relName(v.Fn, v))
 	if v.Bindings != nil {
-		for _, c := range v.Bindings {
-			b.WriteString(" ")
+		b.WriteString(" [")
+		for i, c := range v.Bindings {
+			if i > 0 {
+				b.WriteString(", ")
+			}
 			b.WriteString(relName(c, v))
 		}
+		b.WriteString("]")
 	}
 	return b.String()
 }
 
 func (v *MakeSlice) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("MakeSlice <%s> %s %s",
+	return fmt.Sprintf("make %s %s %s",
 		relType(v.Type(), from),
 		relName(v.Len, v),
 		relName(v.Cap, v))
 }
 
 func (v *Slice) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("Slice <%s> %s %s %s %s",
-		relType(v.Type(), from), relName(v.X, v), relName(v.Low, v), relName(v.High, v), relName(v.Max, v))
+	var b bytes.Buffer
+	b.WriteString("slice ")
+	b.WriteString(relName(v.X, v))
+	b.WriteString("[")
+	if v.Low != nil {
+		b.WriteString(relName(v.Low, v))
+	}
+	b.WriteString(":")
+	if v.High != nil {
+		b.WriteString(relName(v.High, v))
+	}
+	if v.Max != nil {
+		b.WriteString(":")
+		b.WriteString(relName(v.Max, v))
+	}
+	b.WriteString("]")
+	return b.String()
 }
 
 func (v *MakeMap) String() string {
@@ -208,76 +247,79 @@ func (v *MakeMap) String() string {
 		res = relName(v.Reserve, v)
 	}
 	from := v.Parent().pkg()
-	return fmt.Sprintf("MakeMap <%s> %s", relType(v.Type(), from), res)
+	return fmt.Sprintf("make %s %s", relType(v.Type(), from), res)
 }
 
 func (v *MakeChan) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("MakeChan <%s> %s", relType(v.Type(), from), relName(v.Size, v))
+	return fmt.Sprintf("make %s %s", relType(v.Type(), from), relName(v.Size, v))
+}
+
+// fieldOf returns the index'th field of the (core type of) a struct type;
+// otherwise returns nil.
+func fieldOf(typ types.Type, index int) *types.Var {
+	if st, ok := typeutil.CoreType(typ).(*types.Struct); ok {
+		if 0 <= index && index < st.NumFields() {
+			return st.Field(index)
+		}
+	}
+	return nil
 }
 
 func (v *FieldAddr) String() string {
-	from := v.Parent().pkg()
-	// v.X.Type() might be a pointer to a type parameter whose core type is a pointer to a struct
-	st := deref(typeutil.CoreType(deref(v.X.Type()))).Underlying().(*types.Struct)
 	// Be robust against a bad index.
 	name := "?"
-	if 0 <= v.Field && v.Field < st.NumFields() {
-		name = st.Field(v.Field).Name()
+	if fld := fieldOf(deref(v.X.Type()), v.Field); fld != nil {
+		name = fld.Name()
 	}
-	return fmt.Sprintf("FieldAddr <%s> [%d] (%s) %s", relType(v.Type(), from), v.Field, name, relName(v.X, v))
+	return fmt.Sprintf("&%s.%s [#%d]", relName(v.X, v), name, v.Field)
 }
 
 func (v *Field) String() string {
-	st := typeutil.CoreType(v.X.Type()).Underlying().(*types.Struct)
 	// Be robust against a bad index.
 	name := "?"
-	if 0 <= v.Field && v.Field < st.NumFields() {
-		name = st.Field(v.Field).Name()
+	if fld := fieldOf(v.X.Type(), v.Field); fld != nil {
+		name = fld.Name()
 	}
-	from := v.Parent().pkg()
-	return fmt.Sprintf("Field <%s> [%d] (%s) %s", relType(v.Type(), from), v.Field, name, relName(v.X, v))
+	return fmt.Sprintf("%s.%s [#%d]", relName(v.X, v), name, v.Field)
 }
 
 func (v *IndexAddr) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("IndexAddr <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
+	return fmt.Sprintf("&%s[%s]", relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *Index) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("Index <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
+	return fmt.Sprintf("%s[%s]", relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *MapLookup) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("MapLookup <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
+	return fmt.Sprintf("%s[%s]%s", relName(v.X, v), relName(v.Index, v), commaOk(v.CommaOk))
 }
 
 func (v *StringLookup) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("StringLookup <%s> %s %s", relType(v.Type(), from), relName(v.X, v), relName(v.Index, v))
+	return fmt.Sprintf("%s[%s]", relName(v.X, v), relName(v.Index, v))
 }
 
 func (v *Range) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("Range <%s> %s", relType(v.Type(), from), relName(v.X, v))
+	return "range " + relName(v.X, v)
 }
 
 func (v *Next) String() string {
-	from := v.Parent().pkg()
-	return fmt.Sprintf("Next <%s> %s", relType(v.Type(), from), relName(v.Iter, v))
+	return "next " + relName(v.Iter, v)
 }
 
 func (v *TypeAssert) String() string {
 	from := v.Parent().pkg()
-	return fmt.Sprintf("TypeAssert <%s> %s", relType(v.Type(), from), relName(v.X, v))
+	return fmt.Sprintf("typeassert%s %s.(%s)", commaOk(v.CommaOk), relName(v.X, v), relType(v.AssertedType, from))
 }
 
 func (v *Extract) String() string {
-	from := v.Parent().pkg()
 	name := v.Tuple.Type().(*types.Tuple).At(v.Index).Name()
-	return fmt.Sprintf("Extract <%s> [%d] (%s) %s", relType(v.Type(), from), v.Index, name, relName(v.Tuple, v))
+	if name == "" {
+		return fmt.Sprintf("extract %s #%d", relName(v.Tuple, v), v.Index)
+	} else {
+		return fmt.Sprintf("extract %s #%d (%s)", relName(v.Tuple, v), v.Index, name)
+	}
 }
 
 func (s *Jump) String() string {
@@ -286,7 +328,7 @@ func (s *Jump) String() string {
 	if s.block != nil && len(s.block.Succs) == 1 {
 		block = s.block.Succs[0].Index
 	}
-	str := fmt.Sprintf("Jump → b%d", block)
+	str := fmt.Sprintf("jump %d", block)
 	if s.Comment() != "" {
 		str = fmt.Sprintf("%s # %s", str, s.Comment())
 	}
@@ -304,7 +346,7 @@ func (s *If) String() string {
 		tblock = s.block.Succs[0].Index
 		fblock = s.block.Succs[1].Index
 	}
-	return fmt.Sprintf("If %s → b%d b%d", relName(s.Cond, s), tblock, fblock)
+	return fmt.Sprintf("if %s goto %d else %d", relName(s.Cond, s), tblock, fblock)
 }
 
 func (s *ConstantSwitch) String() string {
@@ -322,72 +364,87 @@ func (s *ConstantSwitch) String() string {
 
 func (v *CompositeValue) String() string {
 	var b bytes.Buffer
-	from := v.Parent().pkg()
-	fmt.Fprintf(&b, "CompositeValue <%s>", relType(v.Type(), from))
-	if v.NumSet >= len(v.Values) {
-		// All values provided
-		fmt.Fprint(&b, " [all]")
-	} else if v.Bitmap.BitLen() == 0 {
-		// No values provided
-		fmt.Fprint(&b, " [none]")
-	} else {
-		// Some values provided
-		bits := fmt.Appendf(nil, "%0*b", len(v.Values), &v.Bitmap)
-		for i := 0; i < len(bits)/2; i++ {
-			o := len(bits) - 1 - i
-			bits[i], bits[o] = bits[o], bits[i]
+	fmt.Fprint(&b, "{")
+	first := true
+
+	var printValue func(idx int, vv Value)
+	switch typ := typeutil.CoreType(v.typ).(type) {
+	case *types.Struct:
+		printValue = func(idx int, vv Value) {
+			fieldName := typ.Field(idx).Name()
+			fmt.Fprintf(&b, "%s: %s", fieldName, relName(vv, v))
 		}
-		fmt.Fprintf(&b, " [%s]", bits)
+	case *types.Array:
+		if v.NumSet >= len(v.Values) {
+			printValue = func(idx int, vv Value) {
+				fmt.Fprint(&b, relName(vv, v))
+			}
+		} else {
+			// This is currently unreachable as we don't use CompositeValue for
+			// incomplete arrays.
+			printValue = func(idx int, vv Value) {
+				fmt.Fprintf(&b, "%d: %s", idx, relName(vv, v))
+			}
+		}
+	default:
+		panic(fmt.Sprintf("internal error: unexpected type %T", typ))
 	}
-	for _, vv := range v.Values {
-		fmt.Fprintf(&b, " %s", relName(vv, v))
+	for i, vv := range v.Values {
+		if !first {
+			fmt.Fprint(&b, ", ")
+		}
+		first = false
+		printValue(i, vv)
 	}
+	fmt.Fprint(&b, "}")
 	return b.String()
 }
 
 func (s *TypeSwitch) String() string {
-	from := s.Parent().pkg()
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "TypeSwitch <%s> %s", relType(s.typ, from), relName(s.Tag, s))
+	fmt.Fprintf(&b, "switch %s.(type)", relName(s.Tag, s))
 	for _, cond := range s.Conds {
-		fmt.Fprintf(&b, " %q", relType(cond, s.block.parent.pkg()))
+		fmt.Fprintf(&b, " %s", relType(cond, s.block.parent.pkg()))
 	}
 	return b.String()
 }
 
 func (s *Go) String() string {
-	return printCall(&s.Call, "Go", s)
+	return printCall(&s.Call, "go ", s)
 }
 
 func (s *Panic) String() string {
-	return fmt.Sprintf("Panic %s", relName(s.X, s))
+	return "panic " + relName(s.X, s)
 }
 
 func (s *Return) String() string {
 	var b bytes.Buffer
-	b.WriteString("Return")
-	for _, r := range s.Results {
-		b.WriteString(" ")
+	b.WriteString("return")
+	for i, r := range s.Results {
+		if i == 0 {
+			b.WriteString(" ")
+		} else {
+			b.WriteString(", ")
+		}
 		b.WriteString(relName(r, s))
 	}
 	return b.String()
 }
 
 func (*RunDefers) String() string {
-	return "RunDefers"
+	return "rundefers"
 }
 
 func (s *Send) String() string {
-	return fmt.Sprintf("Send %s %s", relName(s.Chan, s), relName(s.X, s))
+	return fmt.Sprintf("send %s <- %s", relName(s.Chan, s), relName(s.X, s))
 }
 
 func (recv *Recv) String() string {
-	from := recv.Parent().pkg()
-	return fmt.Sprintf("Recv <%s> %s", relType(recv.Type(), from), relName(recv.Chan, recv))
+	return fmt.Sprintf("<-%s", relName(recv.Chan, recv))
 }
 
 func (s *Defer) String() string {
-	prefix := "Defer "
+	prefix := "defer "
 	if s._DeferStack != nil {
 		prefix += "[" + relName(s._DeferStack, s) + "] "
 	}
@@ -412,23 +469,21 @@ func (s *Select) String() string {
 	}
 	non := ""
 	if !s.Blocking {
-		non = "Non"
+		non = "non"
 	}
-	from := s.Parent().pkg()
-	return fmt.Sprintf("Select%sBlocking <%s> [%s]", non, relType(s.Type(), from), b.String())
+	return fmt.Sprintf("select %sblocking [%s]", non, b.String())
 }
 
 func (s *Store) String() string {
-	return fmt.Sprintf("Store {%s} %s %s",
-		s.Val.Type(), relName(s.Addr, s), relName(s.Val, s))
+	return fmt.Sprintf("*%s = %s", relName(s.Addr, s), relName(s.Val, s))
 }
 
 func (s *BlankStore) String() string {
-	return fmt.Sprintf("BlankStore %s", relName(s.Val, s))
+	return fmt.Sprintf("_ = %s", relName(s.Val, s))
 }
 
 func (s *MapUpdate) String() string {
-	return fmt.Sprintf("MapUpdate %s %s %s", relName(s.Map, s), relName(s.Key, s), relName(s.Value, s))
+	return fmt.Sprintf("%s[%s] = %s", relName(s.Map, s), relName(s.Key, s), relName(s.Value, s))
 }
 
 func (s *DebugRef) String() string {
@@ -493,27 +548,16 @@ func WritePackage(buf *bytes.Buffer, p *Package) {
 
 		case *Global:
 			fmt.Fprintf(buf, "  var   %-*s %s\n",
-				maxname, name, relType(mem.Type().(*types.Pointer).Elem(), from))
+				maxname, name, relType(deref(mem.Type()), from))
 		}
 	}
 
 	fmt.Fprintf(buf, "\n")
 }
 
-func (v *MultiConvert) String() string {
-	from := v.Parent().Pkg.Pkg
-
-	var b strings.Builder
-	b.WriteString(printConv("MultiConvert", v, v.X))
-	b.WriteString(" [")
-	for i, s := range v.from.Terms {
-		for j, d := range v.to.Terms {
-			if i != 0 || j != 0 {
-				b.WriteString(" | ")
-			}
-			fmt.Fprintf(&b, "%s -> %s", relTerm(s, from), relTerm(d, from))
-		}
+func commaOk(x bool) string {
+	if x {
+		return ",ok"
 	}
-	b.WriteString("]")
-	return b.String()
+	return ""
 }
