@@ -1220,7 +1220,12 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 					t:    t.Field(fieldIndex).Type(),
 					expr: e,
 				}
-				b.assign(fn, ce, e, isZero, sb, e)
+				// We use b.assign for its handling of implicit & (which,
+				// albeit not needed for structs now, may be needed in the
+				// future), but no store buffer because 1) it's not needed 2)
+				// implicit conversions have to be emitted before we emit the
+				// CompositeValue.
+				b.assign(fn, ce, e, isZero, nil, e)
 				v.Bitmap.SetBit(&v.Bitmap, fieldIndex, 1)
 				v.NumSet++
 			}
@@ -1278,7 +1283,11 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 						expr: e,
 					}
 
-					b.assign(fn, iaddr, e, true, sb, e)
+					// We use b.assign for its handling of implicit &, but no
+					// store buffer because 1) it's not needed 2) implicit
+					// conversions have to be emitted before we emit the
+					// CompositeValue.
+					b.assign(fn, iaddr, e, true, nil, e)
 					v.Bitmap.SetBit(&v.Bitmap, int(idx.Int64()), 1)
 					v.NumSet++
 				}
