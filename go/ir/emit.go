@@ -527,7 +527,7 @@ func emitImplicitSelections(f *Function, v Value, indices []int, source ast.Node
 		// We may have a generic type containing a pointer, or a pointer to a generic type containing a struct. A
 		// pointer to a generic containing a pointer to a struct shouldn't be possible because the outer pointer gets
 		// dereferenced implicitly before we get here.
-		fld := typeutil.CoreType(deref(v.Type())).Underlying().(*types.Struct).Field(index)
+		fld := typeutil.CoreType(deref(v.Type())).(*types.Struct).Field(index)
 
 		if isPointer(v.Type()) {
 			instr := &FieldAddr{
@@ -562,7 +562,7 @@ func emitFieldSelection(f *Function, v Value, index int, wantAddr bool, id *ast.
 	// We may have a generic type containing a pointer, or a pointer to a generic type containing a struct. A
 	// pointer to a generic containing a pointer to a struct shouldn't be possible because the outer pointer gets
 	// dereferenced implicitly before we get here.
-	vut := typeutil.CoreType(deref(v.Type())).Underlying().(*types.Struct)
+	vut := typeutil.CoreType(deref(v.Type())).(*types.Struct)
 	fld := vut.Field(index)
 	if isPointer(v.Type()) {
 		instr := &FieldAddr{

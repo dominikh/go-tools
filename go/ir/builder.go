@@ -191,7 +191,7 @@ func (b *builder) exprN(fn *Function, e ast.Expr) Value {
 		return emitCall(fn, &c, e)
 
 	case *ast.IndexExpr:
-		mapt := typeutil.CoreType(fn.Pkg.typeOf(e.X)).Underlying().(*types.Map)
+		mapt := typeutil.CoreType(fn.Pkg.typeOf(e.X)).(*types.Map)
 		lookup := &MapLookup{
 			X:       b.expr(fn, e.X),
 			Index:   emitConv(fn, b.expr(fn, e.Index), mapt.Key(), e),
@@ -372,7 +372,7 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) (RET lvalue) {
 		wantAddr := true
 		v := b.receiver(fn, e.X, wantAddr, escaping, sel, e)
 		index := sel.Index()[len(sel.Index())-1]
-		vut := typeutil.CoreType(deref(v.Type())).Underlying().(*types.Struct)
+		vut := typeutil.CoreType(deref(v.Type())).(*types.Struct)
 		fld := vut.Field(index)
 		// Due to the two phases of resolving AssignStmt, a panic from x.f = p()
 		// when x is nil is required to come after the side-effects of
@@ -424,7 +424,7 @@ func (b *builder) addr(fn *Function, e ast.Expr, escaping bool) (RET lvalue) {
 			// slice or *array
 			x = b.expr(fn, e.X)
 			et = types.NewPointer(elem)
-		} else if t, ok := typeutil.CoreType(xt).Underlying().(*types.Map); ok {
+		} else if t, ok := typeutil.CoreType(xt).(*types.Map); ok {
 			return &element{
 				m: b.expr(fn, e.X),
 				k: emitConv(fn, b.expr(fn, e.Index), t.Key(), e.Index),
@@ -541,7 +541,7 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 
 				// Subtle: emit debug ref for aggregate types only;
 				// slice and map are handled by store ops in compLit.
-				switch typeutil.CoreType(loc.typ()).Underlying().(type) {
+				switch typeutil.CoreType(loc.typ()).(type) {
 				case *types.Struct, *types.Array:
 					if sb != nil {
 						// Make sure we don't emit DebugRefs before the store has actually occurred
@@ -846,7 +846,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		} else if _, ok := isAddressableIndexable(); ok {
 			// All types are addressable (otherwise the previous branch would've fired)
 			return b.addr(fn, e, false).load(fn, e)
-		} else if t, ok := typeutil.CoreType(xt).Underlying().(*types.Map); ok {
+		} else if t, ok := typeutil.CoreType(xt).(*types.Map); ok {
 			// Maps are not addressable.
 			v := &MapLookup{
 				X:     b.expr(fn, e.X),
@@ -1785,7 +1785,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 				Dir:  types.SendOnly,
 				Chan: ch,
 				Send: emitConv(fn, b.expr(fn, comm.Value),
-					typeutil.CoreType(ch.Type()).Underlying().(*types.Chan).Elem(), comm),
+					typeutil.CoreType(ch.Type()).(*types.Chan).Elem(), comm),
 				Pos: comm.Arrow,
 			}
 			if debugInfo {
@@ -1828,7 +1828,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 	vars = append(vars, varIndex, varOk)
 	for _, st := range states {
 		if st.Dir == types.RecvOnly {
-			tElem := typeutil.CoreType(st.Chan.Type()).Underlying().(*types.Chan).Elem()
+			tElem := typeutil.CoreType(st.Chan.Type()).(*types.Chan).Elem()
 			vars = append(vars, anonVar(tElem))
 		}
 	}
@@ -2207,7 +2207,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 
 	k = emitLoad(fn, index, source)
 	if tv != nil {
-		switch t := typeutil.CoreType(x.Type()).Underlying().(type) {
+		switch t := typeutil.CoreType(x.Type()).(type) {
 		case *types.Array:
 			instr := &Index{
 				X:     x,
@@ -2278,7 +2278,7 @@ func (b *builder) rangeIter(fn *Function, x Value, tk, tv types.Type, source ast
 	fn.currentBlock = loop
 
 	// Go doesn't currently allow ranging over string|[]byte, so isString is decidable.
-	_, isString := typeutil.CoreType(x.Type()).Underlying().(*types.Basic)
+	_, isString := typeutil.CoreType(x.Type()).(*types.Basic)
 
 	okv := &Next{
 		Iter:     it,
@@ -2322,7 +2322,7 @@ func (b *builder) rangeChan(fn *Function, x Value, tk types.Type, source ast.Nod
 	emitJump(fn, loop, source)
 	fn.currentBlock = loop
 
-	retv := emitRecv(fn, x, true, types.NewTuple(newVar("k", typeutil.CoreType(x.Type()).Underlying().(*types.Chan).Elem()), varOk), source)
+	retv := emitRecv(fn, x, true, types.NewTuple(newVar("k", typeutil.CoreType(x.Type()).(*types.Chan).Elem()), varOk), source)
 
 	body := fn.newBasicBlock("rangechan.body")
 	done = fn.newBasicBlock("rangechan.done")
@@ -2423,7 +2423,7 @@ func (b *builder) rangeStmt(fn *Function, s *ast.RangeStmt, label *lblock, sourc
 
 	var k, v Value
 	var loop, done *BasicBlock
-	switch rt := typeutil.CoreType(x.Type()).Underlying().(type) {
+	switch rt := typeutil.CoreType(x.Type()).(type) {
 	case *types.Slice, *types.Array, *types.Pointer: // *array
 		k, v, loop, done = b.rangeIndexed(fn, x, tv, source)
 
@@ -2814,7 +2814,7 @@ start:
 		instr := &Send{
 			Chan: b.expr(fn, s.Chan),
 			X: emitConv(fn, b.expr(fn, s.Value),
-				typeutil.CoreType(fn.Pkg.typeOf(s.Chan)).Underlying().(*types.Chan).Elem(), s),
+				typeutil.CoreType(fn.Pkg.typeOf(s.Chan)).(*types.Chan).Elem(), s),
 		}
 		fn.emit(instr, s)
 
