@@ -110,7 +110,6 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		}
 		if ne, np := len(instr.Edges), len(s.block.Preds); ne != np {
 			s.errorf("phi node has %d edges but %d predecessors", ne, np)
-
 		} else {
 			for i, e := range instr.Edges {
 				if e == nil {
@@ -156,7 +155,6 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		if numFree != numBind {
 			s.errorf("MakeClosure has %d Bindings for function %s with %d free vars",
 				numBind, instr.Fn, numFree)
-
 		}
 		if recv := instr.Type().(*types.Signature).Recv(); recv != nil {
 			s.errorf("MakeClosure's type includes receiver %s", recv.Type())
@@ -181,8 +179,6 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 	case *Parameter:
 	case *Const:
 	case *AggregateConst:
-	case *ArrayConst:
-	case *GenericConst:
 	case *Recv:
 	case *TypeSwitch:
 	case *CompositeValue:
@@ -466,7 +462,6 @@ func (s *sanity) checkFunction(fn *Function) bool {
 			}
 			if !types.Identical(p.Type(), sig.Params().At(j).Type()) {
 				s.errorf("Param %s at index %d has wrong type (%s, versus %s in Signature)", p.Name(), i, p.Type(), sig.Params().At(j).Type())
-
 			}
 		}
 

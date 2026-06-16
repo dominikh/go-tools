@@ -612,8 +612,6 @@ func emitConst(f *Function, c Constant) Constant {
 	switch c := c.(type) {
 	case *Const:
 		val = c.Value
-	case *ArrayConst, *GenericConst:
-		// These can only represent zero values, so all we need is the type
 	case *AggregateConst:
 		candidates, _ := f.aggregateConsts.At(c.typ)
 		for _, candidate := range candidates {

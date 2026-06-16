@@ -155,8 +155,6 @@ func (s *state) get(v ir.Value) ValueNilness {
 		return ValueNilness{AlwaysNil, AlwaysNil}
 	case *ir.AggregateConst:
 		return ValueNilness{Outer: NeverNil}
-	case *ir.GenericConst:
-		return ValueNilness{Inner: MaybeNil, Outer: MaybeNil}
 	}
 	num := s.n.number(v)
 	if num < len(s.m) {
@@ -188,7 +186,7 @@ func (s *state) set(key ir.Value, value ValueNilness) {
 		return
 	}
 
-	if value == (lattice{}).Ident() {
+	if value == (lattice{}.Ident()) {
 		// No point in storing the default value.
 		return
 	}
@@ -237,7 +235,7 @@ func (s *state) setOuter(key ir.Value, value Nilness) {
 	if !typeutil.IsPointerLike(key.Type()) {
 		return
 	}
-	if value == (lattice{}.Ident().Outer) {
+	if value == (lattice{}).Ident().Outer {
 		return
 	}
 	num := s.n.number(key)
@@ -663,8 +661,8 @@ start:
 				}
 			case *ir.DebugRef, *ir.Jump, *ir.BlankStore, *ir.Phi,
 				*ir.Panic, *ir.Return, *ir.RunDefers, *ir.Unreachable, *ir.ConstantSwitch,
-				*ir.UnOp, *ir.BinOp, *ir.CompositeValue, *ir.ArrayConst, *ir.Range, *ir.Next,
-				*ir.Const, *ir.AggregateConst, *ir.GenericConst, *ir.Parameter:
+				*ir.UnOp, *ir.BinOp, *ir.CompositeValue, *ir.Range, *ir.Next,
+				*ir.Const, *ir.AggregateConst, *ir.Parameter:
 			default:
 				posn := pass.Fset.PositionFor(v.Pos(), false)
 				panic(fmt.Sprintf("internal error: unhandled type %T at %s", v, posn))

@@ -552,21 +552,14 @@ type Parameter struct {
 	object *types.Var // non-nil
 }
 
-// A Const represents the value of a constant expression.
+// A Const represents a value known at build time.
 //
-// The underlying type of a constant may be any boolean, numeric, or
-// string type.  In addition, a Const may represent the nil value of
-// any reference type---interface, map, channel, pointer, slice, or
-// function---but not "untyped nil".
+// Consts include true constants of boolean, numeric, and string types, as
+// defined by the Go spec; these are represented by a non-nil Value field.
 //
-// All source-level constant expressions are represented by a Const
-// of the same type and value.
-//
-// Value holds the exact value of the constant, independent of its
-// Type(), using the same representation as package go/constant uses for
-// constants, or nil for a typed nil value.
-//
-// Pos() returns token.NoPos.
+// Consts also include the "zero" value of any type, of which the nil values
+// of various pointer-like types are a special case; these are represented
+// by a nil Value field.
 //
 // Example printed form:
 //
@@ -574,6 +567,9 @@ type Parameter struct {
 //	"hello":untyped string
 //	3+4i:MyComplex
 //	nil:*int
+//	nil:[]string
+//	[3]int{}:[3]int
+//	struct{x string}{}:struct{x string}
 //	0:interface{int|int64}
 //	nil:interface{bool|int} // no go/constant representation
 type Const struct {
@@ -599,15 +595,6 @@ type CompositeValue struct {
 	Values []Value
 }
 
-// TODO add the element's zero constant to ArrayConst
-type ArrayConst struct {
-	register
-}
-
-type GenericConst struct {
-	register
-}
-
 type Constant interface {
 	Instruction
 	Value
@@ -619,8 +606,6 @@ type Constant interface {
 
 func (*Const) aConstant()          {}
 func (*AggregateConst) aConstant() {}
-func (*ArrayConst) aConstant()     {}
-func (*GenericConst) aConstant()   {}
 
 // A Global is a named Value holding the address of a package-level
 // variable.
@@ -2123,11 +2108,9 @@ func (v *CompositeValue) Operands(rands []*Value) []*Value {
 }
 
 // Non-Instruction Values:
-func (v *Builtin) Operands(rands []*Value) []*Value      { return rands }
-func (v *FreeVar) Operands(rands []*Value) []*Value      { return rands }
-func (v *Const) Operands(rands []*Value) []*Value        { return rands }
-func (v *ArrayConst) Operands(rands []*Value) []*Value   { return rands }
-func (v *GenericConst) Operands(rands []*Value) []*Value { return rands }
-func (v *Function) Operands(rands []*Value) []*Value     { return rands }
-func (v *Global) Operands(rands []*Value) []*Value       { return rands }
-func (v *Parameter) Operands(rands []*Value) []*Value    { return rands }
+func (v *Builtin) Operands(rands []*Value) []*Value   { return rands }
+func (v *FreeVar) Operands(rands []*Value) []*Value   { return rands }
+func (v *Const) Operands(rands []*Value) []*Value     { return rands }
+func (v *Function) Operands(rands []*Value) []*Value  { return rands }
+func (v *Global) Operands(rands []*Value) []*Value    { return rands }
+func (v *Parameter) Operands(rands []*Value) []*Value { return rands }

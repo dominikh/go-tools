@@ -96,16 +96,16 @@ func complit() {
 	_ = & /*@Slice*/ ([]int{})
 
 	// 2. Arrays
-	print( /*@ArrayConst*/ ([1]int{}))
+	print( /*@Const*/ ([1]int{}))
 	print( /*@Alloc*/ (&[1]int{}))
 	print(& /*@Alloc*/ ([1]int{}))
 
-	arr1 := /*@ArrayConst*/ ([1]int{})
+	arr1 := /*@Const*/ ([1]int{})
 	arr2 := /*@Alloc*/ (&[1]int{})
 	arr3 := & /*@Alloc*/ ([1]int{})
 	_, _, _ = arr1, arr2, arr3
 
-	_ = /*@ArrayConst*/ ([1]int{})
+	_ = /*@Const*/ ([1]int{})
 	_ = /*@Alloc*/ (& /*@Alloc*/ ([1]int{}))
 	_ = & /*@Alloc*/ ([1]int{})
 
@@ -125,16 +125,16 @@ func complit() {
 	_ = & /*@MakeMap*/ (M{})
 
 	// 4. Structs
-	print( /*@AggregateConst*/ (struct{}{}))
+	print( /*@Const*/ (struct{}{}))
 	print( /*@Alloc*/ (&struct{}{}))
 	print(& /*@Alloc*/ (struct{}{}))
 
-	s1 := /*@AggregateConst*/ (struct{}{})
+	s1 := /*@Const*/ (struct{}{})
 	s2 := /*@Alloc*/ (&struct{}{})
 	s3 := & /*@Alloc*/ (struct{}{})
 	_, _, _ = s1, s2, s3
 
-	_ = /*@AggregateConst*/ (struct{}{})
+	_ = /*@Const*/ (struct{}{})
 	_ = /*@Alloc*/ (& /*@Alloc*/ (struct{}{}))
 	_ = & /*@Alloc*/ (struct{}{})
 }
