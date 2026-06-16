@@ -84,6 +84,9 @@ func run(pass *analysis.Pass) (any, error) {
 					return false
 				}
 			}
+			if strings.HasPrefix(text, "Deprecated: ") {
+				return false
+			}
 
 			// Check comment before we strip articles in case the type's name is an article.
 			if strings.HasPrefix(text, node.Name.Name+" ") {
