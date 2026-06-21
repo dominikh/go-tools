@@ -286,7 +286,7 @@ func printMapping[S any](fn *ir.Function, m map[ir.Value]S) {
 		keys = append(keys, k)
 	}
 	slices.SortFunc(keys, func(a, b ir.Value) int {
-		return cmp.Compare(a.ID(), b.ID())
+		return cmp.Compare(fmt.Sprintf("%v", a), fmt.Sprintf("%v", b))
 	})
 	for _, k := range keys {
 		v := m[k]

@@ -43,7 +43,6 @@ package ir
 // Also see many other "TODO: opt" suggestions in the code.
 
 import (
-	"encoding/binary"
 	"fmt"
 	"os"
 	"slices"
@@ -536,16 +535,6 @@ func markLiveSigma(sigma *Sigma) {
 // nodes where all edges are identical, or consist of only the phi
 // itself and one other value, may be replaced with the value.
 func simplifyPhisAndSigmas(newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newSigma]) {
-	// temporary numbering of values used in phis so that we can build map keys
-	var id ID
-	for _, npList := range newPhis {
-		for _, np := range npList {
-			for _, edge := range np.phi.Edges {
-				edge.setID(id)
-				id++
-			}
-		}
-	}
 	// find all phis that are trivial and can be replaced with a
 	// non-phi value. run until we reach a fixpoint, because replacing
 	// a phi may make other phis trivial.
@@ -598,42 +587,11 @@ func simplifyPhisAndSigmas(newPhis BlockMap[[]newPhi], newSigmas BlockMap[[]newS
 				}
 			}
 		}
-
-		// Replace duplicate phi nodes with a single node. As far as we know, these duplicate nodes only ever exist
-		// because of the previous sigma deduplication.
-		keyb := make([]byte, 0, 4*8)
-		for _, npList := range newPhis {
-			primaryPhis := map[string]*Phi{}
-			for _, np := range npList {
-				if np.phi.live {
-					continue
-				}
-				if n := len(np.phi.Edges) * 8; cap(keyb) >= n {
-					keyb = keyb[:n]
-				} else {
-					keyb = make([]byte, n, n*2)
-				}
-				for i, e := range np.phi.Edges {
-					binary.LittleEndian.PutUint64(keyb[i*8:i*8+8], uint64(e.ID()))
-				}
-				if alt, ok := primaryPhis[string(keyb)]; ok {
-					replaceAll(np.phi, alt)
-					np.phi.live = true
-					changed = true
-				} else {
-					primaryPhis[string(keyb)] = np.phi
-				}
-			}
-		}
-
 	}
 
 	for _, npList := range newPhis {
 		for _, np := range npList {
 			np.phi.live = false
-			for _, edge := range np.phi.Edges {
-				edge.setID(0)
-			}
 		}
 	}
 

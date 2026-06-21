@@ -104,8 +104,6 @@ type NamedConst struct {
 
 // A Value is an IR value that can be referenced by an instruction.
 type Value interface {
-	setID(ID)
-
 	// Name returns the name of this value, and determines how
 	// this Value appears when used as an operand of an
 	// Instruction.
@@ -119,17 +117,6 @@ type Value interface {
 	// The name of an IR Value is not semantically significant,
 	// and may not even be unique within a function.
 	Name() string
-
-	// ID returns the ID of this value. IDs are unique within a single
-	// function and are densely numbered, but may contain gaps.
-	// Values and other Instructions share the same ID space.
-	// Globally, values are identified by their addresses. However,
-	// IDs exist to facilitate efficient storage of mappings between
-	// values and data when analysing functions.
-	//
-	// NB: IDs are allocated late in the IR construction process and
-	// are not available to early stages of said process.
-	ID() ID
 
 	// If this value is an Instruction, String returns its
 	// disassembled form; otherwise it returns unspecified
@@ -268,10 +255,7 @@ type Instruction interface {
 // use the more specific and informative Value or Instruction
 // interfaces where appropriate.
 type Node interface {
-	setID(ID)
-
 	// Common methods:
-	ID() ID
 	String() string
 	Source() ast.Node
 	Pos() token.Pos
@@ -1644,11 +1628,7 @@ type register struct {
 
 type node struct {
 	source ast.Node
-	id     ID
 }
-
-func (n *node) setID(id ID) { n.id = id }
-func (n node) ID() ID       { return n.id }
 
 func (n *node) setSource(source ast.Node) { n.source = source }
 func (n *node) Source() ast.Node          { return n.source }
@@ -1664,8 +1644,17 @@ func (n *node) Pos() token.Pos {
 // It provides the implementations of the Block and setBlock methods.
 type anInstruction struct {
 	node
+	id      ID
 	block   *BasicBlock // the basic block of this instruction
 	comment string
+}
+
+func (instr *anInstruction) setID(id ID) {
+	instr.id = id
+}
+
+func (instr anInstruction) ID() ID {
+	return instr.id
 }
 
 func (instr anInstruction) Comment() string {
