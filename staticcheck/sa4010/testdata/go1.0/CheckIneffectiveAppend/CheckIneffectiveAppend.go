@@ -133,6 +133,13 @@ func fn20() {
 	s = append(s, 1) //@ diag(`this result of append is never used`)
 }
 
+func fn20_1() {
+	var x [4]int
+	s := x[:]
+	s = append(s, 1)
+	_ = x[0]
+}
+
 func fn21() {
 	var x []byte
 	x = append(x, 1)
@@ -140,13 +147,12 @@ func fn21() {
 	x = append(x, 2)
 }
 
-func fn22() {
-	// we should probably flag this, but we currently don't
+func fn22_1() {
 	var x1 []byte
-	x2 := append(x1, 1)
-	x2 = append(x2, 2)
-	x3 := append(x1, 3)
-	x3 = append(x3, 4)
+	x2 := append(x1, 1) //@ diag(`this result of append is never used`)
+	x2 = append(x2, 2)  //@ diag(`this result of append is never used`)
+	x3 := append(x1, 3) //@ diag(`this result of append is never used`)
+	x3 = append(x3, 4)  //@ diag(`this result of append is never used`)
 }
 
 func fn23(n int) []int {
@@ -169,7 +175,7 @@ func fn24() []byte {
 func fn25() {
 	var s []byte
 	if true {
-		s = append(s, 1)
+		s = append(s, 1) //@ diag(`this result of append is never used`)
 	}
 	s = append(s, 2) //@ diag(`this result of append is never used`)
 }

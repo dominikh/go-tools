@@ -16,8 +16,6 @@ func IsStub(fn *ir.Function) bool {
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr.(type) {
-			case *ir.Const:
-				// const naturally has no side-effects
 			case *ir.Panic:
 				// panic is a stub if it only uses constants
 			case *ir.Return:
@@ -64,8 +62,6 @@ func isTrivial(fn *ir.Function, seen map[*ir.Function]struct{}) bool {
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr := instr.(type) {
-			case *ir.Const:
-				// const naturally has no side-effects
 			case *ir.Panic:
 				// panic is a stub if it only uses constants
 			case *ir.Return:

@@ -14,10 +14,7 @@ import (
 	"go/types"
 	"io"
 	"os"
-	"sort"
 	"strings"
-
-	"honnef.co/go/tools/go/types/typeutil"
 )
 
 // addEdge adds a control-flow graph edge from from to to.
@@ -253,19 +250,10 @@ func (f *Function) addParamVar(v *types.Var, source ast.Node) *Parameter {
 	if name == "" {
 		name = fmt.Sprintf("arg%d", len(f.Params))
 	}
-	var b *BasicBlock
-	if len(f.Blocks) > 0 {
-		b = f.Blocks[0]
-	}
-	param := &Parameter{name: name}
-	param.setBlock(b)
-	param.setType(v.Type())
+	param := &Parameter{name: name, typ: v.Type(), parent: f}
 	param.setSource(source)
 	param.object = v
 	f.Params = append(f.Params, param)
-	if b != nil {
-		f.Blocks[0].Instrs = append(f.Blocks[0].Instrs, param)
-	}
 	return param
 }
 
@@ -415,51 +403,6 @@ func buildReferrers(f *Function) {
 			updateOperandsReferrers(instr, rands)
 		}
 	}
-
-	for _, c := range f.consts {
-		rands = c.c.Operands(rands[:0])
-		updateOperandsReferrers(c.c, rands)
-	}
-}
-
-func (f *Function) emitConsts() {
-	defer func() {
-		f.consts = nil
-		f.aggregateConsts = typeutil.Map[[]*AggregateConst]{}
-	}()
-
-	if len(f.Blocks) == 0 {
-		return
-	}
-
-	// TODO(dh): our deduplication only works on booleans and
-	// integers. other constants are represented as pointers to
-	// things.
-	head := make([]constValue, 0, len(f.consts))
-	for _, c := range f.consts {
-		if len(*c.c.Referrers()) == 0 {
-			// TODO(dh): killing a const may make other consts dead, too
-			killInstruction(c.c)
-		} else {
-			head = append(head, c)
-		}
-	}
-	sort.Slice(head, func(i, j int) bool {
-		return head[i].idx < head[j].idx
-	})
-	entry := f.Blocks[0]
-	instrs := make([]Instruction, 0, len(entry.Instrs)+len(head))
-	for _, c := range head {
-		instrs = append(instrs, c.c)
-	}
-	f.aggregateConsts.Iterate(func(key types.Type, value []*AggregateConst) {
-		for _, c := range value {
-			instrs = append(instrs, c)
-		}
-	})
-
-	instrs = append(instrs, entry.Instrs...)
-	entry.Instrs = instrs
 }
 
 // finishBody() finalizes the function after IR code generation of its body.
@@ -493,10 +436,6 @@ func (f *Function) finishBody() {
 			}
 		}
 	}
-
-	// emit constants after lifting, because lifting may produce new constants, but before other variable splitting,
-	// because it expects constants to have been deduplicated.
-	f.emitConsts()
 
 	// clear remaining builder state
 	f.results = nil    // (used by lifting)

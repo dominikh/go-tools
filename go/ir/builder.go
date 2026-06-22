@@ -52,32 +52,21 @@ var (
 	tEface      = types.NewInterfaceType(nil, nil).Complete()
 	tDeferStack = types.NewPointer(typeutil.NewDeferStack())
 
+	vOne      = intConst(1, nil)
+	vTrue     = NewConst(constant.MakeBool(true), tBool, nil)
+	vNoReturn = NewConst(constant.MakeString("noreturn"), tString, nil)
+
+	jReady        = intConst(0, nil)  // range-over-func jump is READY
+	jBusy         = intConst(-1, nil) // range-over-func jump is BUSY
+	jDone         = intConst(-2, nil) // range-over-func jump is DONE
+	jDroppedPanic = stringConst("iterator call did not preserve panic", nil)
+	jLateYield    = stringConst("yield function called after range loop exit", nil)
+
 	vDeferStack = &Builtin{
 		name: "ssa:deferstack",
 		sig:  types.NewSignatureType(nil, nil, nil, nil, types.NewTuple(anonVar(tDeferStack)), false),
 	}
 )
-
-// range-over-func jump is READY
-func jReady() *Const {
-	c := intConst(0, nil)
-	c.comment = "rangefunc.exit.ready"
-	return c
-}
-
-// range-over-func jump is BUSY
-func jBusy() *Const {
-	c := intConst(-1, nil)
-	c.comment = "rangefunc.exit.busy"
-	return c
-}
-
-// range-over-func jump is DONE
-func jDone() *Const {
-	c := intConst(-2, nil)
-	c.comment = "rangefunc.exit.done"
-	return c
-}
 
 // builder holds state associated with the package currently being built.
 // Its methods contain all the logic for AST-to-IR conversion.
@@ -140,11 +129,11 @@ func (b *builder) logicalBinop(fn *Function, e *ast.BinaryExpr) Value {
 	switch e.Op {
 	case token.LAND:
 		b.cond(fn, e.X, rhs, done)
-		short = emitConst(fn, NewConst(constant.MakeBool(false), t, e))
+		short = NewConst(constant.MakeBool(false), t, e)
 
 	case token.LOR:
 		b.cond(fn, e.X, done, rhs)
-		short = emitConst(fn, NewConst(constant.MakeBool(true), t, e))
+		short = NewConst(constant.MakeBool(true), t, e)
 	}
 
 	// Is rhs unreachable?
@@ -273,7 +262,7 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 			return fn.emit(v, source)
 
 		case *types.Chan:
-			var sz Value = emitConst(fn, intConst(0, source))
+			var sz Value = intConst(0, source)
 			if len(args) == 2 {
 				sz = b.expr(fn, args[1])
 			}
@@ -306,7 +295,7 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 		t := typeutil.CoreType(deref(fn.Pkg.typeOf(args[0])))
 		if at, ok := t.(*types.Array); ok {
 			b.expr(fn, args[0]) // for effects only
-			return emitConst(fn, intConst(at.Len(), args[0]))
+			return intConst(at.Len(), args[0])
 		}
 		// Otherwise treat as normal.
 
@@ -315,7 +304,7 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 			X: emitConv(fn, b.expr(fn, args[0]), tEface, source),
 		}, source)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
-		return emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil)) // any non-nil Value will do
+		return vTrue // any non-nil Value will do
 	}
 	return nil // treat all others as a regular function call
 }
@@ -587,7 +576,7 @@ func (b *builder) expr(fn *Function, e ast.Expr) Value {
 
 	// Is expression a constant?
 	if tv.Value != nil {
-		return emitConst(fn, NewConst(tv.Value, tv.Type, e))
+		return NewConst(tv.Value, tv.Type, e)
 	}
 
 	var v Value
@@ -748,7 +737,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		case *types.Builtin:
 			return &Builtin{name: obj.Name(), sig: tv.Type.(*types.Signature)}
 		case *types.Nil:
-			return emitConst(fn, nilConst(tv.Type, e))
+			return nilConst(tv.Type, e)
 		}
 		// Package-level func or var?
 		if v := fn.Prog.packageLevelValue(obj); v != nil {
@@ -1030,7 +1019,7 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 		st := sig.Params().At(np).Type().(*types.Slice)
 		vt := st.Elem()
 		if len(varargs) == 0 {
-			args = append(args, emitConst(fn, nilConst(st, nil)))
+			args = append(args, nilConst(st, nil))
 		} else {
 			// Replace a suffix of args with a slice containing it.
 			at := types.NewArray(vt, int64(len(varargs)))
@@ -1039,7 +1028,7 @@ func (b *builder) emitCallArgs(fn *Function, sig *types.Signature, e *ast.CallEx
 			for i, arg := range varargs {
 				iaddr := &IndexAddr{
 					X:     a,
-					Index: emitConst(fn, intConst(int64(i), nil)),
+					Index: intConst(int64(i), nil),
 				}
 				iaddr.setType(types.NewPointer(vt))
 				fn.emit(iaddr, e)
@@ -1200,14 +1189,14 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 		lvalue := &address{addr: addr, expr: e}
 		if len(e.Elts) == 0 {
 			if !isZero {
-				sb.store(lvalue, zeroValue(fn, deref(addr.Type()), e), e)
+				sb.store(lvalue, zeroConst(deref(addr.Type()), e), e)
 			}
 		} else {
 			v := &CompositeValue{
 				Values: make([]Value, t.NumFields()),
 			}
 			for i := 0; i < t.NumFields(); i++ {
-				v.Values[i] = emitConst(fn, zeroConst(t.Field(i).Type(), e))
+				v.Values[i] = zeroConst(t.Field(i).Type(), e)
 			}
 			v.setType(typ)
 
@@ -1254,7 +1243,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 		var final Value
 		if len(e.Elts) == 0 {
 			if !isZero {
-				zc := emitConst(fn, zeroConst(at, e))
+				zc := zeroConst(at, e)
 				final = zc
 			}
 		} else {
@@ -1263,7 +1252,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 				v := &CompositeValue{
 					Values: make([]Value, at.Len()),
 				}
-				zc := emitConst(fn, zeroConst(at.Elem(), e))
+				zc := zeroConst(at.Elem(), e)
 				for i := range v.Values {
 					v.Values[i] = zc
 				}
@@ -1279,7 +1268,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 						if idx != nil {
 							idxval = idx.Int64() + 1
 						}
-						idx = emitConst(fn, intConst(idxval, e)).(*Const)
+						idx = intConst(idxval, e)
 					}
 
 					iaddr := &compositeElement{
@@ -1300,7 +1289,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 				// like []int{1<<62: 1}.
 				if !isZero {
 					// memclear
-					sb.store(&address{array, nil}, zeroValue(fn, deref(array.Type()), e), e)
+					sb.store(&address{array, nil}, zeroConst(deref(array.Type()), e), e)
 				}
 
 				var idx *Const
@@ -1313,7 +1302,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 						if idx != nil {
 							idxval = idx.Int64() + 1
 						}
-						idx = emitConst(fn, intConst(idxval, e)).(*Const)
+						idx = intConst(idxval, e)
 					}
 					iaddr := &IndexAddr{
 						X:     array,
@@ -1342,7 +1331,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 		}
 
 	case *types.Map:
-		m := &MakeMap{Reserve: emitConst(fn, intConst(int64(len(e.Elts)), e))}
+		m := &MakeMap{Reserve: intConst(int64(len(e.Elts)), e)}
 		m.setType(typ)
 		fn.emit(m, e)
 		for _, e := range e.Elts {
@@ -1497,8 +1486,7 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 	if s.Init != nil {
 		b.stmt(fn, s.Init)
 	}
-	kTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil))
-	var tag Value = kTrue
+	var tag Value = vTrue
 
 	if s.Tag != nil {
 		tag = b.expr(fn, s.Tag)
@@ -1541,7 +1529,7 @@ func (b *builder) switchStmtDynamic(fn *Function, s *ast.SwitchStmt, label *lblo
 		var nextCond *BasicBlock
 		for _, cond := range cc.List {
 			nextCond = fn.newBasicBlock("switch.next")
-			if tag == kTrue {
+			if tag == vTrue {
 				// emit a proper if/else chain instead of a comparison
 				// of a value against true.
 				//
@@ -1636,7 +1624,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 		} else {
 			for _, expr := range cc.List {
 				tswtch.Conds = append(tswtch.Conds, fn.Pkg.typeOf(expr))
-				cswtch.Conds = append(cswtch.Conds, emitConst(fn, intConst(int64(index), expr)))
+				cswtch.Conds = append(cswtch.Conds, intConst(int64(index), expr))
 				index++
 			}
 			if len(cc.List) == 1 {
@@ -1661,7 +1649,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	// default branch
 	fn.currentBlock = entry
 	fn.emit(tswtch, s)
-	cswtch.Conds = append(cswtch.Conds, emitConst(fn, intConst(int64(-1), nil)))
+	cswtch.Conds = append(cswtch.Conds, intConst(int64(-1), nil))
 	cswtch.Tag = emitExtract(fn, tswtch, 0, s)
 	fn.emit(cswtch, s)
 
@@ -1688,7 +1676,7 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 
 				l := fn.vars[obj]
 				if rets[index] == tUntypedNil {
-					emitStore(fn, l, emitConst(fn, nilConst(tswtch.Tag.Type(), nil)), s.Assign)
+					emitStore(fn, l, nilConst(tswtch.Tag.Type(), nil), s.Assign)
 				} else {
 					x := emitExtract(fn, tswtch, index+1, s.Assign)
 					emitStore(fn, l, x, nil)
@@ -1868,10 +1856,10 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 			b.stmtList(fn, clause.Body)
 			emitJump(fn, done, s)
 			fn.targets = fn.targets.tail
-			swtch.Conds = append(swtch.Conds, emitConst(fn, intConst(-1, nil)))
+			swtch.Conds = append(swtch.Conds, intConst(-1, nil))
 			continue
 		}
-		swtch.Conds = append(swtch.Conds, emitConst(fn, intConst(int64(state), nil)))
+		swtch.Conds = append(swtch.Conds, intConst(int64(state), nil))
 		body := fn.newBasicBlock("select.body")
 		fn.currentBlock = body
 		bodies = append(bodies, body)
@@ -2178,7 +2166,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 		// We use the core type of x, even though the length of type parameters isn't constant as per the language
 		// specification. Just because len(x) isn't constant doesn't mean we can't emit IR that takes advantage of a
 		// known length.
-		length = emitConst(fn, intConst(arr.Len(), nil))
+		length = intConst(arr.Len(), nil)
 	} else {
 		// length = len(x).
 		var c Call
@@ -2189,7 +2177,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 	}
 
 	index := emitLocal(fn, tInt, source, "rangeindex")
-	emitStore(fn, index, emitConst(fn, intConst(-1, nil)), source)
+	emitStore(fn, index, intConst(-1, nil), source)
 
 	loop = fn.newBasicBlock("rangeindex.loop")
 	emitJump(fn, loop, source)
@@ -2198,7 +2186,7 @@ func (b *builder) rangeIndexed(fn *Function, x Value, tv types.Type, source ast.
 	incr := &BinOp{
 		Op: token.ADD,
 		X:  emitLoad(fn, index, source),
-		Y:  emitConst(fn, intConst(1, nil)),
+		Y:  vOne,
 	}
 	incr.setType(tInt)
 	emitStore(fn, index, fn.emit(incr, source), source)
@@ -2363,7 +2351,7 @@ func (b *builder) rangeInt(fn *Function, x Value, tk types.Type, source ast.Node
 
 	body := fn.newBasicBlock("rangeint.body")
 	done = fn.newBasicBlock("rangeint.done")
-	emitIf(fn, emitCompare(fn, token.LSS, emitConst(fn, zeroConst(T, source)), x, source), body, done, source)
+	emitIf(fn, emitCompare(fn, token.LSS, zeroConst(T, source), x, source), body, done, source)
 
 	loop = fn.newBasicBlock("rangeint.loop")
 	fn.currentBlock = loop
@@ -2371,7 +2359,7 @@ func (b *builder) rangeInt(fn *Function, x Value, tk types.Type, source ast.Node
 	incr := &BinOp{
 		Op: token.ADD,
 		X:  emitLoad(fn, iter, source),
-		Y:  emitConv(fn, emitConst(fn, intConst(1, source)), T, source),
+		Y:  emitConv(fn, intConst(1, source), T, source),
 	}
 	incr.setType(T)
 	emitStore(fn, iter, fn.emit(incr, source), source)
@@ -2699,27 +2687,25 @@ func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit,
 	bodies[1] = fn.newBasicBlock("rangefunc.resume.ready")
 
 	conds := make([]Value, 2, 2+len(exits))
-	conds[0] = emitConst(fn, jBusy())
-	conds[1] = emitConst(fn, jReady())
+	conds[0] = jBusy
+	conds[1] = jReady
 
 	fn.currentBlock = bodies[0]
 	fn.emit(
 		&Panic{
-			X: emitConv(fn, emitConst(fn, stringConst("iterator call did not preserve panic", nil)), tEface, nil),
+			X: emitConv(fn, jDroppedPanic, tEface, nil),
 		},
 		nil,
 	)
 
 	fn.currentBlock = bodies[1]
-	storeVar(fn, jump, emitConst(fn, jDone()), nil)
+	storeVar(fn, jump, jDone, nil)
 	emitJump(fn, done, nil)
 
 	for _, e := range exits {
 		body := fn.newBasicBlock(fmt.Sprintf("rangefunc.resume.exit.%d", e.id))
 		bodies = append(bodies, body)
-		id_ := intConst(e.id, nil)
-		id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
-		id := emitConst(fn, id_)
+		id := intConst(e.id, nil)
 		conds = append(conds, id)
 
 		fn.currentBlock = body
@@ -2740,7 +2726,7 @@ func (b *builder) buildYieldResume(fn *Function, jump *types.Var, exits []*exit,
 			// fn is a range-over-func function.
 
 			storeVar(fn, fn.jump, id, e.source)
-			vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
+			vFalse := NewConst(constant.MakeBool(false), tBool, e.source)
 			fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 
 		case e.block == nil && e.label == nil: // return from fn?
@@ -2829,7 +2815,7 @@ start:
 			op = token.SUB
 		}
 		loc := b.addr(fn, s.X, false)
-		b.assignOp(fn, loc, emitConst(fn, NewConst(constant.MakeInt64(1), loc.typ(), s)), op, s)
+		b.assignOp(fn, loc, NewConst(constant.MakeInt64(1), loc.typ(), s), op, s)
 
 	case *ast.AssignStmt:
 		switch s.Tok {
@@ -2938,11 +2924,9 @@ func (b *builder) branchStmt(fn *Function, s *ast.BranchStmt) {
 	} else { // break outside of fn.
 		// fn must be a range-over-func
 		e := blockExit(fn, block, s)
-		id_ := intConst(e.id, s)
-		id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
-		id := emitConst(fn, id_)
+		id := intConst(e.id, s)
 		storeVar(fn, fn.jump, id, s)
-		vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, s))
+		vFalse := NewConst(constant.MakeBool(false), tBool, s)
 		fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 	}
 	fn.currentBlock = fn.newBasicBlock("unreachable")
@@ -2990,11 +2974,9 @@ func (b *builder) returnStmt(fn *Function, s *ast.ReturnStmt) {
 		// The return statement is syntactically within the loop,
 		// but the generated code is in the 'switch jump {...}' after it.
 		e := returnExit(fn, s)
-		id_ := intConst(e.id, e.source)
-		id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
-		id := emitConst(fn, id_)
+		id := intConst(e.id, e.source)
 		storeVar(fn, fn.jump, id, e.source)
-		vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
+		vFalse := NewConst(constant.MakeBool(false), tBool, e.source)
 		fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 		fn.currentBlock = fn.newBasicBlock("unreachable")
 		return
@@ -3132,8 +3114,7 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	//   return true
 	saved := fn.currentBlock
 	fn.currentBlock = ycont
-	storeVar(fn, fn.jump, emitConst(fn, jReady()), s.Body)
-	vTrue := emitConst(fn, NewConst(constant.MakeBool(true), tBool, nil))
+	storeVar(fn, fn.jump, jReady, s.Body)
 	// A yield function's own deferstack is always empty, so rundefers is not needed.
 	fn.emit(&Return{Results: []Value{vTrue}}, nil)
 
@@ -3147,17 +3128,17 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	invalid := fn.newBasicBlock("yield-invalid")
 
 	jumpVal := emitLoad(fn, fn.lookup(fn.jump, true), nil)
-	emitIf(fn, emitCompare(fn, token.EQL, jumpVal, emitConst(fn, jReady()), nil), yloop, invalid, nil)
+	emitIf(fn, emitCompare(fn, token.EQL, jumpVal, jReady, nil), yloop, invalid, nil)
 	fn.currentBlock = invalid
 	fn.emit(
 		&Panic{
-			X: emitConv(fn, emitConst(fn, stringConst("yield function called after range loop exit", nil)), tEface, nil),
+			X: emitConv(fn, jLateYield, tEface, nil),
 		},
 		nil,
 	)
 
 	fn.currentBlock = yloop
-	storeVar(fn, fn.jump, emitConst(fn, jBusy()), s.Body)
+	storeVar(fn, fn.jump, jBusy, s.Body)
 
 	// Initialize k and v from params.
 	var tk, tv types.Type
@@ -3221,11 +3202,9 @@ func (b *builder) buildYieldFunc(fn *Function) {
 			//     jump = id
 			//     return false
 			fn.currentBlock = lb._goto
-			id_ := intConst(e.id, e.source)
-			id_.comment = fmt.Sprintf("rangefunc.exit.%d", e.id)
-			id := emitConst(fn, id_)
+			id := intConst(e.id, e.source)
 			storeVar(fn, fn.jump, id, e.source)
-			vFalse := emitConst(fn, NewConst(constant.MakeBool(false), tBool, e.source))
+			vFalse := NewConst(constant.MakeBool(false), tBool, e.source)
 			fn.emit(&Return{Results: []Value{vFalse}}, e.source)
 		}
 
@@ -3307,7 +3286,7 @@ func (p *Package) build() {
 	done = init.newBasicBlock("init.done")
 	emitIf(init, emitLoad(init, initguard, nil), done, doinit, nil)
 	init.currentBlock = doinit
-	emitStore(init, initguard, emitConst(init, NewConst(constant.MakeBool(true), tBool, nil)), nil)
+	emitStore(init, initguard, vTrue, nil)
 
 	// Call the init() function of each package we import.
 	for _, pkg := range p.Pkg.Imports() {

@@ -101,12 +101,11 @@ func Example_buildPackage() {
 	// # Synthetic: package initializer
 	// func init():
 	// 0:                                                                entry P:0 S:2
-	//         t1 = true:bool                                                     bool
-	//         t2 = *init$guard                                                   bool
-	//         if t2 goto 2 else 1
+	//         t1 = *init$guard                                                   bool
+	//         if t1 goto 2 else 1
 	// 1:                                                    init.start P:1 S:1 idom:0
-	//         *init$guard = t1
-	//         t5 = fmt.init()                                                      ()
+	//         *init$guard = true:bool
+	//         t4 = fmt.init()                                                      ()
 	//         jump 2
 	// 2:                                                     init.done P:2 S:0 idom:0
 	//         return
@@ -116,14 +115,12 @@ func Example_buildPackage() {
 	// # Location: hello.go:8:1
 	// func main():
 	// 0:                                                                entry P:0 S:0
-	//         t1 = "Hello, World!":string                                      string
-	//         t2 = 0:int                                                          int
-	//         t3 = new [1]any (varargs)                                       *[1]any
-	//         t4 = &t3[t2]                                                       *any
-	//         t5 = make any <- string (t1)                                        any
-	//         *t4 = t5
-	//         t7 = slice t3[:]                                                  []any
-	//         t8 = fmt.Println(t7...)                              (n int, err error)
+	//         t1 = new [1]any (varargs)                                       *[1]any
+	//         t2 = &t1[0:int]                                                    *any
+	//         t3 = make any <- string ("Hello, World!":string)                    any
+	//         *t2 = t3
+	//         t5 = slice t1[:]                                                  []any
+	//         t6 = fmt.Println(t5...)                              (n int, err error)
 	//         return
 }
 

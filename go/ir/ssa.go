@@ -454,11 +454,6 @@ func (m *instanceWrapperMap) Len() int {
 	return m.len
 }
 
-type constValue struct {
-	c   Constant
-	idx int
-}
-
 type functionBody struct {
 	// The following fields are set transiently during building,
 	// then cleared.
@@ -472,9 +467,6 @@ type functionBody struct {
 	deferstack   *types.Var               // synthetic variable holding enclosing ssa:deferstack()
 	sourceFn     *Function                // nearest enclosing source function
 	exits        []*exit                  // exits of the function that need to be resolved
-
-	consts          map[constKey]constValue
-	aggregateConsts typeutil.Map[[]*AggregateConst]
 
 	blocksets [4]BlockSet
 	hasDefer  bool
@@ -546,10 +538,13 @@ type FreeVar struct {
 
 // A Parameter represents an input parameter of a function.
 type Parameter struct {
-	register
+	node
 
-	name   string
-	object *types.Var // non-nil
+	name      string
+	object    *types.Var // non-nil
+	typ       types.Type
+	parent    *Function
+	referrers []Instruction
 }
 
 // A Const represents a value known at build time.
@@ -573,14 +568,16 @@ type Parameter struct {
 //	0:interface{int|int64}
 //	nil:interface{bool|int} // no go/constant representation
 type Const struct {
-	register
+	node
 
+	typ   types.Type
 	Value constant.Value
 }
 
 type AggregateConst struct {
-	register
+	node
 
+	typ    types.Type
 	Values []Value
 }
 
@@ -596,12 +593,10 @@ type CompositeValue struct {
 }
 
 type Constant interface {
-	Instruction
 	Value
 	aConstant()
 	RelString(*types.Package) string
 	equal(Constant) bool
-	setType(types.Type)
 }
 
 func (*Const) aConstant()          {}
@@ -1822,7 +1817,12 @@ func (v *Function) Out(node int) iter.Seq[int] {
 	}
 }
 
-func (v *Parameter) Object() types.Object { return v.object }
+func (v *Parameter) Type() types.Type          { return v.typ }
+func (v *Parameter) Name() string              { return v.name }
+func (v *Parameter) Object() types.Object      { return v.object }
+func (v *Parameter) Referrers() *[]Instruction { return &v.referrers }
+func (v *Parameter) Pos() token.Pos            { return v.object.Pos() }
+func (v *Parameter) Parent() *Function         { return v.parent }
 
 func (v *Alloc) Type() types.Type          { return v.typ }
 func (v *Alloc) Referrers() *[]Instruction { return &v.referrers }

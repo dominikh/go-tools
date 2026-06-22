@@ -1,6 +1,6 @@
 package pkg
 
-func tpgen1[T *int,]() T {
+func tpgen1[T *int]() T {
 	return (T)(nil)
 }
 
@@ -22,10 +22,12 @@ func tpfn2[T ~int](x T) {
 }
 
 func tpgen3[T any](x T) any {
+	_ = x // not a trivial function
 	return any(x)
 }
 
 func tpgen4[T ~*int](x T) any {
+	_ = x // not a trivial function
 	return any(x)
 }
 

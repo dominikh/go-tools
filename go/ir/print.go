@@ -24,7 +24,7 @@ import (
 // Functions (including methods) and Globals use RelString and
 // all types are displayed with relType, so that only cross-package
 // references are package-qualified.
-func relName(v Value, i Instruction) string {
+func relName(v Value, i Node) string {
 	if v == nil {
 		return "<nil>"
 	}

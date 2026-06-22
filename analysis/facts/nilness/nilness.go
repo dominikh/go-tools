@@ -661,8 +661,7 @@ start:
 				}
 			case *ir.DebugRef, *ir.Jump, *ir.BlankStore, *ir.Phi,
 				*ir.Panic, *ir.Return, *ir.RunDefers, *ir.Unreachable, *ir.ConstantSwitch,
-				*ir.UnOp, *ir.BinOp, *ir.CompositeValue, *ir.Range, *ir.Next,
-				*ir.Const, *ir.AggregateConst, *ir.Parameter:
+				*ir.UnOp, *ir.BinOp, *ir.CompositeValue, *ir.Range, *ir.Next:
 			default:
 				posn := pass.Fset.PositionFor(v.Pos(), false)
 				panic(fmt.Sprintf("internal error: unhandled type %T at %s", v, posn))

@@ -18,17 +18,17 @@ func four() int { return 4 }
 // A non-constant case makes a switch "impure", but its pure
 // cases form two separate switches.
 func SwitchWithNonConstantCase(x int) {
-	// switch t12 {
-	// case t1: print(t2)
-	// case t3: print(t5)
-	// case t4: print(t5)
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 2:int: print(23:int)
+	// case 3:int: print(23:int)
 	// default: four()
 	// }
 
-	// switch t12 {
-	// case t7: print(t8)
-	// case t9: print(t10)
-	// default: print(t11)
+	// switch x {
+	// case 5:int: print(5:int)
+	// case 6:int: print(6:int)
+	// default: print("done":string)
 	// }
 	switch x {
 	case 1:
@@ -49,19 +49,19 @@ func SwitchWithNonConstantCase(x int) {
 // program doesn't have a switch statement.
 
 func ImplicitSwitches(x, y int) {
-	// switch t13 {
-	// case t1: print(t4)
-	// case t2: print(t4)
-	// default: t13 < t3
+	// switch x {
+	// case 1:int: print(12:int)
+	// case 2:int: print(12:int)
+	// default: x < 5:int
 	// }
 	if x == 1 || 2 == x || x < 5 {
 		print(12)
 	}
 
-	// switch t13 {
-	// case t5: print(t7)
-	// case t6: print(t7)
-	// default: t13 == t14
+	// switch x {
+	// case 3:int: print(34:int)
+	// case 4:int: print(34:int)
+	// default: x == y
 	// }
 	if x == 3 || 4 == x || x == y {
 		print(34)
@@ -79,10 +79,10 @@ func ImplicitSwitches(x, y int) {
 }
 
 func IfElseBasedSwitch(x int) {
-	// switch t6 {
-	// case t1: print(t2)
-	// case t3: print(t4)
-	// default: print(t5)
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 2:int: print(2:int)
+	// default: print("else":string)
 	// }
 	if x == 1 {
 		print(1)
@@ -94,10 +94,10 @@ func IfElseBasedSwitch(x int) {
 }
 
 func GotoBasedSwitch(x int) {
-	// switch t6 {
-	// case t1: print(t4)
-	// case t2: print(t5)
-	// default: print(t3)
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 2:int: print(2:int)
+	// default: print("else":string)
 	// }
 	if x == 1 {
 		goto L1
@@ -115,10 +115,10 @@ end:
 }
 
 func SwitchInAForLoop(x, y int) {
-	// switch t7 {
-	// case t2: print(t3)
-	// case t4: print(t5)
-	// default: t7 == t8
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 2:int: print(2:int)
+	// default: x == y
 	// }
 loop:
 	for {
@@ -141,10 +141,10 @@ loop:
 // As before, the default case points back to the block containing the
 // switch, but that's ok.
 func SwitchInAForLoopUsingGoto(x int) {
-	// switch t6 {
-	// case t2: print(t4)
-	// case t3: print(t5)
-	// default: print(t1)
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 2:int: print(2:int)
+	// default: print("head":string)
 	// }
 loop:
 	print("head")
@@ -164,10 +164,10 @@ end:
 }
 
 func UnstructuredSwitchInAForLoop(x int) {
-	// switch t5 {
-	// case t1: print(t2)
-	// case t3: t5 == t1
-	// default: print(t4)
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 2:int: x == 1:int
+	// default: print("end":string)
 	// }
 	for {
 		if x == 1 {
@@ -200,10 +200,10 @@ func CaseWithMultiplePreds(x int) {
 }
 
 func DuplicateConstantsAreNotEliminated(x int) {
-	// switch t7 {
-	// case t1: print(t2)
-	// case t3: print(t4)
-	// case t5: print(t6)
+	// switch x {
+	// case 1:int: print(1:int)
+	// case 1:int: print("1a":string)
+	// case 2:int: print(2:int)
 	// default: return
 	// }
 	if x == 1 {
@@ -226,10 +226,10 @@ func MakeInterfaceIsNotAConstant(x interface{}) {
 }
 
 func ZeroInitializedVarsAreConstants(x int) {
-	// switch t6 {
-	// case t5: print(t1)
-	// case t2: print(t3)
-	// default: print(t4)
+	// switch x {
+	// case 0:int: print(1:int)
+	// case 2:int: print(2:int)
+	// default: print("end":string)
 	// }
 	var zero int // SSA construction replaces zero with 0
 	if x == zero {
@@ -244,10 +244,10 @@ func ZeroInitializedVarsAreConstants(x int) {
 
 // NB, potentially fragile reliance on register number.
 func AdHocTypeSwitch(x interface{}) {
-	// switch t2.(type) {
-	// case t4 int: println(t4)
-	// case t11 string: println(t11)
-	// default: print(t1)
+	// switch x.(type) {
+	// case t2 int: println(t2)
+	// case t9 string: println(t9)
+	// default: print("default":string)
 	// }
 	if i, ok := x.(int); ok {
 		println(i)

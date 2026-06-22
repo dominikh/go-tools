@@ -1133,7 +1133,7 @@ func replace(instr Instruction, x, y Value) {
 func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 	v := renaming[alloc.index]
 	if v == nil {
-		v = emitConst(fn, zeroConst(deref(alloc.Type()), alloc.source))
+		v = zeroConst(deref(alloc.Type()), alloc.source)
 		renaming[alloc.index] = v
 	}
 	return v
@@ -1278,7 +1278,7 @@ func simplifyConstantCompositeValues(fn *Function) bool {
 					}
 				}
 				if replaced {
-					replaceAll(cv, emitConst(fn, ac))
+					replaceAll(cv, ac)
 					killInstruction(cv)
 				}
 

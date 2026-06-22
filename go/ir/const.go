@@ -57,9 +57,7 @@ func NewConst(val constant.Value, typ types.Type, source ast.Node) *Const {
 		}
 	}
 	c := &Const{
-		register: register{
-			typ: typ,
-		},
+		typ:   typ,
 		Value: val,
 	}
 	c.setSource(source)
@@ -107,14 +105,23 @@ func (c *Const) RelString(from *types.Package) string {
 	return p + ":" + relType(c.Type(), from)
 }
 
-func (c *Const) String() string {
-	if c.block == nil {
-		// Constants don't have a block till late in the compilation process. But we want to print consts during
-		// debugging.
-		return c.RelString(nil)
-	}
-	return c.RelString(c.Parent().pkg())
+func (c *Const) Name() string {
+	return c.RelString(nil)
 }
+
+func (c *Const) String() string {
+	return c.RelString(nil)
+}
+
+func (c *Const) Type() types.Type {
+	return c.typ
+}
+
+func (c *Const) Referrers() *[]Instruction {
+	return nil
+}
+
+func (c *Const) Parent() *Function { return nil }
 
 func (v *AggregateConst) RelString(pkg *types.Package) string {
 	var b bytes.Buffer
@@ -129,12 +136,23 @@ func (v *AggregateConst) RelString(pkg *types.Package) string {
 	return b.String()
 }
 
-func (v *AggregateConst) String() string {
-	if v.block == nil {
-		return v.RelString(nil)
-	}
-	return v.RelString(v.Parent().pkg())
+func (v *AggregateConst) Name() string {
+	return v.RelString(nil)
 }
+
+func (v *AggregateConst) String() string {
+	return v.RelString(nil)
+}
+
+func (v *AggregateConst) Type() types.Type {
+	return v.typ
+}
+
+func (v *AggregateConst) Referrers() *[]Instruction {
+	return nil
+}
+
+func (v *AggregateConst) Parent() *Function { return nil }
 
 // IsNil returns true if this constant represents a typed or untyped nil value.
 func (c *Const) IsNil() bool {

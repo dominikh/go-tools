@@ -254,7 +254,7 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 
 		// Untyped nil constant?  Return interface-typed nil constant.
 		if ut_src == tUntypedNil {
-			return emitConst(f, zeroConst(t_dst, source))
+			return zeroConst(t_dst, source)
 		}
 
 		// Convert (non-nil) "untyped" literals to their default type.
@@ -351,12 +351,12 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 			// constant of the destination type and
 			// (initially) the same abstract value.
 			// We don't truncate the value yet.
-			return emitConst(f, NewConst(c.Value, t_dst, source))
+			return NewConst(c.Value, t_dst, source)
 		}
 		// Can we always convert from zero value without panicking?
 		const mayPanic = sliceToArray | sliceToArrayPtr
 		if c.Value == nil && classifications&mayPanic == 0 {
-			return emitConst(f, NewConst(nil, t_dst, source))
+			return NewConst(nil, t_dst, source)
 		}
 
 		// We're converting from constant to non-constant type,
@@ -380,7 +380,7 @@ func emitConv(f *Function, val Value, t_dst types.Type, source ast.Node) Value {
 		return f.emit(p, source)
 
 	case sliceTo0Array: // slice to zero-length arrays (constant)
-		return emitConst(f, zeroConst(t_dst, source))
+		return zeroConst(t_dst, source)
 
 	case convert: // representation-changing conversion
 		c := &Convert{X: val}
@@ -506,7 +506,6 @@ func emitCall(fn *Function, call *Call, source ast.Node) Value {
 		// Call doesn't return normally. Either it doesn't return at all
 		// (infinitely blocked or exitting the process), or it unwinds the stack
 		// (panic, runtime.Goexit). Model this as a panic.
-		vNoReturn := emitConst(fn, NewConst(constant.MakeString("noreturn"), tString, source))
 		fn.emit(&Panic{
 			X: emitConv(fn, vNoReturn, tEface, source),
 		}, source)
@@ -588,68 +587,4 @@ func emitFieldSelection(f *Function, v Value, index int, wantAddr bool, id *ast.
 	}
 	emitDebugRef(f, id, v, wantAddr)
 	return v
-}
-
-// zeroValue emits to f code to produce a zero value of type t,
-// and returns it.
-func zeroValue(f *Function, t types.Type, source ast.Node) Value {
-	return emitConst(f, zeroConst(t, source))
-}
-
-type constKey struct {
-	typ    types.Type
-	value  constant.Value
-	source ast.Node
-}
-
-func emitConst(f *Function, c Constant) Constant {
-	if f.consts == nil {
-		f.consts = map[constKey]constValue{}
-	}
-
-	typ := c.Type()
-	var val constant.Value
-	switch c := c.(type) {
-	case *Const:
-		val = c.Value
-	case *AggregateConst:
-		candidates, _ := f.aggregateConsts.At(c.typ)
-		for _, candidate := range candidates {
-			if c.equal(candidate) {
-				return candidate
-			}
-		}
-
-		for i := range c.Values {
-			c.Values[i] = emitConst(f, c.Values[i].(Constant))
-		}
-
-		c.setBlock(f.Blocks[0])
-		rands := c.Operands(nil)
-		updateOperandsReferrers(c, rands)
-		candidates = append(candidates, c)
-		f.aggregateConsts.Set(c.typ, candidates)
-		return c
-
-	default:
-		panic(fmt.Sprintf("unexpected type %T", c))
-	}
-	k := constKey{
-		typ:    typ,
-		value:  val,
-		source: c.Source(),
-	}
-	dup, ok := f.consts[k]
-	if ok {
-		return dup.c
-	} else {
-		c.setBlock(f.Blocks[0])
-		f.consts[k] = constValue{
-			c:   c,
-			idx: len(f.consts),
-		}
-		rands := c.Operands(nil)
-		updateOperandsReferrers(c, rands)
-		return c
-	}
 }

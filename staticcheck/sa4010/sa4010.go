@@ -112,26 +112,27 @@ func run(pass *analysis.Pass) (any, error) {
 
 	var validateReferrers func(v ir.Value, seen map[ir.Instruction]struct{}) bool
 	validateReferrers = func(v ir.Value, seen map[ir.Instruction]struct{}) bool {
-		for _, ref := range *v.Referrers() {
-			if _, ok := seen[ref]; ok {
-				continue
-			}
+		if refs := v.Referrers(); refs != nil {
+			for _, ref := range *refs {
+				if _, ok := seen[ref]; ok {
+					continue
+				}
 
-			seen[ref] = struct{}{}
-			switch ref.(type) {
-			case *ir.Phi:
-			case *ir.Slice:
-			case *ir.Const:
-			case *ir.MakeSlice:
-			case *ir.Alloc:
-			case *ir.DebugRef:
-			default:
-				return false
-			}
-
-			if ref, ok := ref.(ir.Value); ok {
-				if !validateReferrers(ref, seen) {
+				seen[ref] = struct{}{}
+				switch ref.(type) {
+				case *ir.Phi:
+				case *ir.Slice:
+				case *ir.MakeSlice:
+				case *ir.Alloc:
+				case *ir.DebugRef:
+				default:
 					return false
+				}
+
+				if ref, ok := ref.(ir.Value); ok {
+					if !validateReferrers(ref, seen) {
+						return false
+					}
 				}
 			}
 		}
@@ -192,8 +193,9 @@ func run(pass *analysis.Pass) (any, error) {
 
 				seen2 := map[ir.Instruction]struct{}{}
 				for k := range seen {
-					// the only values we allow are also instructions, so this type assertion cannot fail
-					seen2[k.(ir.Instruction)] = struct{}{}
+					if k, ok := k.(ir.Instruction); ok {
+						seen2[k] = struct{}{}
+					}
 				}
 				seen2[ins] = struct{}{}
 				failed := false

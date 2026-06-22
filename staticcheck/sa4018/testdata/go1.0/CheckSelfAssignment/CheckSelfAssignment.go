@@ -63,6 +63,7 @@ func gen1() []int {
 }
 
 func gen2(x int) []int {
+	_ = x // not a stub
 	return nil
 }
 
@@ -71,7 +72,7 @@ func gen3(x int) []int {
 }
 
 func pure(n int) int {
-	return n
+	return n + 1
 }
 
 func impure(n int) int {
