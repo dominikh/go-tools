@@ -141,7 +141,7 @@ func validateJSONTag(pass *analysis.Pass, field *ast.Field, tag string) {
 				report.Report(pass, field.Tag,
 					fmt.Sprintf("invalid appearance of unknown `case:%s` tag value", rawOpt))
 			}
-		case "inline":
+		case "embed", "inline":
 		case "unknown":
 		case "omitzero":
 		case "omitempty":
