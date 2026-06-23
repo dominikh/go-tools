@@ -114,9 +114,25 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	}
 
-	var tfn types.Object
-	stack := 0
+	// Track which files have dot imports so we can check bare ast.Ident nodes
+	// in those files for deprecated object usage.
+	hasDotImport := map[*ast.File]bool{}
+	for _, file := range pass.Files {
+		for _, imp := range file.Imports {
+			if imp.Name != nil && imp.Name.Name == "." {
+				hasDotImport[file] = true
+				break
+			}
+		}
+	}
 
+	var tfn types.Object
+	currentFileHasDotImports := false
+	stack := 0
+	syntheticSel := &ast.SelectorExpr{}
+
+	// checkIdentObj checks whether sel.Sel refers to a deprecated object.
+	// For dot-imported identifiers, sel.X is nil.
 	checkIdentObj := func(sel *ast.SelectorExpr) bool {
 		obj := pass.TypesInfo.ObjectOf(sel.Sel)
 
@@ -148,12 +164,21 @@ func run(pass *analysis.Pass) (any, error) {
 			return true
 		}
 
-		node := ast.Node(sel)
-		if pass.TypesInfo.Types[sel.X].IsType() {
-			node = sel.Sel
-		}
 		if depr, ok := deprs.Objects[obj]; ok {
-			handleDeprecation(depr, node, code.SelectorName(pass, sel), obj.Pkg().Path(), tfn)
+			var node ast.Node
+			var name string
+			if sel.X != nil {
+				node = sel
+				if pass.TypesInfo.Types[sel.X].IsType() {
+					node = sel.Sel
+				}
+				name = code.SelectorName(pass, sel)
+			} else {
+				node = sel.Sel
+				name = obj.Pkg().Path() + "." + obj.Name()
+			}
+
+			handleDeprecation(depr, node, name, obj.Pkg().Path(), tfn)
 		}
 		return true
 	}
@@ -172,7 +197,27 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		switch v := node.(type) {
-		// FIXME(dh): this misses dot-imported objects
+		case *ast.File:
+			currentFileHasDotImports = hasDotImport[v]
+		case *ast.Ident:
+			// When you import a package normally and reference an exported symbol, Go's AST represents that
+			// reference as an ast.SelectorExpr.
+			//
+			// However, when you "dot-import" a package (import . "example/pkg"), the package's exported symbols
+			// are injected directly into the file's block scope, represented as ast.Ident.
+			//
+			// So only bother checking Idents if this node's file actually uses dot imports.
+			if !currentFileHasDotImports {
+				break
+			}
+			obj := pass.TypesInfo.ObjectOf(v)
+			if obj == nil || obj.Pkg() == nil || obj.Pkg() == pass.Pkg {
+				break
+			}
+			syntheticSel.X = nil
+			syntheticSel.Sel = v
+			return checkIdentObj(syntheticSel)
+
 		case *ast.SelectorExpr:
 			return checkIdentObj(v)
 
@@ -198,8 +243,9 @@ func run(pass *analysis.Pass) (any, error) {
 					// in a struct initializer.
 					return true
 				}
-				sel := &ast.SelectorExpr{X: v.Type, Sel: key}
-				checkIdentObj(sel)
+				syntheticSel.X = v.Type
+				syntheticSel.Sel = key
+				checkIdentObj(syntheticSel)
 			}
 		}
 		return true
