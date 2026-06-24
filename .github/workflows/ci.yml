@@ -9,8 +9,8 @@ jobs:
       fail-fast: false
       matrix:
         os: ["windows-latest", "ubuntu-latest", "macOS-latest"]
-        go: ["1.25", "1.26"]
-        godebug: ["gotypesalias=0", "gotypesalias=1"]
+        go: ["1.26", "1.27.0-rc.1"]
+        godebug: [""]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
