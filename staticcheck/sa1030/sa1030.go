@@ -128,7 +128,7 @@ func validateFloatFormat(arg *callcheck.Argument) {
 		switch val {
 		case 'b', 'e', 'E', 'f', 'g', 'G', 'x', 'X':
 		default:
-			arg.Invalid(fmt.Sprintf("'fmt' argument is invalid: unknown format %q", val))
+			arg.Invalid(fmt.Sprintf("'fmt' argument is invalid: unknown format %q", rune(val)))
 		}
 	}
 }
