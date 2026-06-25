@@ -218,3 +218,10 @@ func fn42(x unsafe.Pointer) unsafe.Pointer { // would want fn42:`nilness: \[\{_ 
 	}
 	return x
 }
+
+func fn43(b bool, x any) any {
+	if b {
+		_ = x.(int)
+	}
+	return x
+}

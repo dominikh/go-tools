@@ -7,6 +7,7 @@ import (
 	"go/types"
 	"reflect"
 	"slices"
+	"strings"
 
 	"honnef.co/go/tools/analysis/dfa"
 	"honnef.co/go/tools/analysis/dfa/dense"
@@ -146,14 +147,6 @@ type state struct {
 func (s *state) get(v ir.Value) ValueNilness {
 	if !typeutil.IsPointerLike(v.Type()) {
 		// All non-pointer-like types are always {_ NeverNil}.
-		return ValueNilness{Outer: NeverNil}
-	}
-	switch v.(type) {
-	case *ir.Const:
-		// The only constant pointer-like is nil, and we only get here for
-		// pointer-likes.
-		return ValueNilness{AlwaysNil, AlwaysNil}
-	case *ir.AggregateConst:
 		return ValueNilness{Outer: NeverNil}
 	}
 	num := s.n.number(v)
@@ -681,9 +674,46 @@ start:
 		return s
 	}
 
+	// Populate default state for non-instruction values we encounter. We
+	// cannot defer this logic to state.get because control flow merges use
+	// simple merges of lattice values and won't know about value-specific
+	// defaults.
+	entrys := state{cloned: true, n: n}
+	for _, param := range fn.Params {
+		if typeutil.IsPointerLike(param.Type()) {
+			entrys.set(param, ValueNilness{Inner: MaybeNil, Outer: MaybeNil})
+		} else {
+			// We never track nilness for value types, so they don't have to be
+			// present in the entry state, either.
+		}
+	}
+	if strings.HasPrefix(fn.Synthetic, "bound method wrapper") {
+		// This is a bound method and the bound receiver might be nil
+		for _, fvar := range fn.FreeVars {
+			entrys.set(fvar, ValueNilness{Outer: MaybeNil})
+		}
+	} else {
+		// This is a closure, and closed over variables are allocs, which
+		// cannot be nil.
+		for _, fvar := range fn.FreeVars {
+			entrys.set(fvar, ValueNilness{Outer: NeverNil})
+		}
+	}
+	var ops []*ir.Value
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			ops = instr.Operands(ops[:0])
+			for _, pop := range ops {
+				if op, ok := (*pop).(*ir.Const); ok && typeutil.IsPointerLike(op.Type()) {
+					// The only constant pointer-like is nil.
+					entrys.set(op, ValueNilness{Inner: AlwaysNil, Outer: AlwaysNil})
+				}
+			}
+		}
+	}
 	res := dense.Forward[dfa.DenseMapLattice[ValueNilness, lattice]](
 		fn,
-		nil,
+		map[int][]ValueNilness{0: entrys.m},
 		func(fromID, toID int, in []ValueNilness) []ValueNilness {
 			from := fn.Blocks[fromID]
 			to := fn.Blocks[toID]
