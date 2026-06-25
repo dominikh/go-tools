@@ -26,7 +26,7 @@ jobs:
     - run: "go vet ./..."
     - uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
       with:
-        version: "2026.1"
+        version: "master"
         min-go-version: "module"
         install-go: false
         cache-key: ${{ matrix.go }}
@@ -56,4 +56,5 @@ jobs:
     - uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
       with:
         install-go: false
+        version: "master"
         merge-files: ${{ steps.glob.outputs.files }}
