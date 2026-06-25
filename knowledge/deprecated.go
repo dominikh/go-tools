@@ -246,6 +246,11 @@ var StdlibDeprecations = map[string]Deprecation{
 	"crypto/rsa.EncryptPKCS1v15":           {"go1.26", DeprecatedNeverUse},
 
 	"(net/http/httputil.ReverseProxy).Director": {"go1.26", "go1.20"},
+
+	// Note that the available alternative, testing/cryptotest.SetGlobalRandom
+	// is only an alternative for testing, not all possible uses of the
+	// deprecated field.
+	"(crypto/tls.Config).Rand": {"go1.27", "go1.26"},
 }
 
 // Last imported from GOROOT/api/go1.26.txt at d3ddc4854429185e6e06ca1f7628bb790404abb5.
