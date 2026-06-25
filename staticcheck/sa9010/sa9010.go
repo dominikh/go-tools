@@ -39,7 +39,7 @@ function:
 
     defer f()()
 `,
-		Since:    "Unreleased",
+		Since:    "2026.2",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,
 	},
