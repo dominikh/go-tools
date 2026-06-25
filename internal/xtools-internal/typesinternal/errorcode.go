@@ -4,8 +4,6 @@
 
 package typesinternal
 
-//go:generate stringer -type=ErrorCode
-
 type ErrorCode int
 
 // This file defines the error codes that can be produced during type-checking.
