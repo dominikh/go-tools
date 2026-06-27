@@ -9,6 +9,9 @@ title: Staticcheck
 Staticcheck is a state of the art linter for the Go programming language.
 Using static analysis, it finds bugs and performance issues, offers simplifications, and enforces style rules.
 
+Install Staticcheck by running:
+
+    go install honnef.co/go/tools/cmd/staticcheck@latest
 
 <div class="mx-auto">
 	<a class="btn btn-lg btn-secondary mr-3 mb-4" href="{{< relref "/docs" >}}">
