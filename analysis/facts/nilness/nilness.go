@@ -539,6 +539,7 @@ start:
 				s.setOuter(v.Chan, NeverNil)
 			case *ir.Recv:
 				s.setOuter(v.Chan, NeverNil)
+				s.set(v, ValueNilness{MaybeNil, MaybeNil})
 			case *ir.MakeInterface:
 				s.set(v, ValueNilness{
 					Inner: s.get(v.X).Outer,
