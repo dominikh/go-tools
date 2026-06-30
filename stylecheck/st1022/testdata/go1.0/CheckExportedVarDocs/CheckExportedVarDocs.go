@@ -39,3 +39,6 @@ var H int
 //some:directive //@ diag(`should be of the form`)
 // Whatever
 var I int
+
+// Deprecated: don't use.
+var J int
