@@ -46,6 +46,19 @@ func ReplaceWithNode(fset *token.FileSet, old Ranger, new ast.Node) analysis.Tex
 	}
 }
 
+// ReplaceWithStatements replaces a range with statements.
+func ReplaceWithStatements(fset *token.FileSet, old Ranger, new ...ast.Stmt) analysis.TextEdit {
+	buf := &bytes.Buffer{}
+	if err := format.Node(buf, fset, new); err != nil {
+		panic("internal error: " + err.Error())
+	}
+	return analysis.TextEdit{
+		Pos:     old.Pos(),
+		End:     old.End(),
+		NewText: buf.Bytes(),
+	}
+}
+
 // ReplaceWithPattern replaces a range with the result of executing a pattern.
 func ReplaceWithPattern(fset *token.FileSet, old Ranger, new pattern.Pattern, state pattern.State) analysis.TextEdit {
 	r := pattern.NodeToAST(new.Root, state)
