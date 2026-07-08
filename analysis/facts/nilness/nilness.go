@@ -26,7 +26,7 @@ import (
 // 	z := s[:0]
 //
 // x will have MaybeNil at every program point and s will have MaybeNil before
-// execution of y, even though executing y without panicing tells us that s has
+// execution of y, even though executing y without panicking tells us that s has
 // been non-nil for all 3 instructions.
 
 type nilnessFact struct {
@@ -635,7 +635,7 @@ start:
 						s.setOuter(tuple.Tag, NeverNil)
 						typ := tuple.Conds[idx]
 						if types.IsInterface(typ) && !typeparams.IsTypeParam(typ) {
-							// Succesfully type asserting to an interface type
+							// Successfully type asserting to an interface type
 							// always produces a non-nil interface value.
 							s.setInner(v, s.get(tuple.Tag).Inner)
 							s.setOuter(v, NeverNil)

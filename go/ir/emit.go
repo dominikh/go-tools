@@ -534,7 +534,7 @@ func emitCall(fn *Function, call *Call, source ast.Node) Value {
 		fn.Prog.noReturn != nil &&
 		fn.Prog.noReturn(callee.object) {
 		// Call doesn't return normally. Either it doesn't return at all
-		// (infinitely blocked or exitting the process), or it unwinds the stack
+		// (infinitely blocked or exiting the process), or it unwinds the stack
 		// (panic, runtime.Goexit). Model this as a panic.
 		fn.emit(&Panic{
 			X: emitConv(fn, vNoReturn, tEface, source),
