@@ -2,6 +2,7 @@ package nilness
 
 import (
 	"fmt"
+	"go/ast"
 	"go/constant"
 	"go/token"
 	"go/types"
@@ -292,6 +293,14 @@ start:
 	}
 	if fn.Blocks == nil {
 		goto bailout
+	}
+	if len(fn.Blocks) > 1000 {
+		for _, file := range pass.Files {
+			if file.Pos() <= fn.Pos() && fn.Pos() <= file.End() && ast.IsGenerated(file) {
+				// Reuse conservative unknown facts for large generated state machines.
+				goto bailout
+			}
+		}
 	}
 	if _, ok := seenFns[fn]; ok {
 		// break recursion
