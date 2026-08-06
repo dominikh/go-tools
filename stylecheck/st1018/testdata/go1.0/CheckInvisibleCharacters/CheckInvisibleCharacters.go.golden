@@ -55,25 +55,6 @@ est`
 	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
 )
 
--- replace format character U+200B with '\u200b' --
-// Package pkg ...
-package pkg
-
-var (
-	a = ""  //@ diag(`Unicode control character U+0007`)
-	b = "" //@ diag(`Unicode control characters`)
-	c = "Test	test"
-	d = `T
-est`
-	e = `Zero\u200bWidth` //@ diag(`Unicode format character U+200B`)
-	f = "\u200b"
-	g = "👩🏽‍🔬"  //@ diag(`Unicode control character U+0007`)
-	h = "👩🏽‍🔬​" //@ diag(`Unicode format and control characters`)
-	i = "👨‍👩‍👦"
-	j = "🏳️‍🌈"
-	k = "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
-)
-
 -- delete all control characters --
 // Package pkg ...
 package pkg
