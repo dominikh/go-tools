@@ -502,9 +502,9 @@ start:
 				s.set(v, s.get(v.X))
 			case *ir.Load:
 				if _, ok := v.X.(*ir.Global); ok {
-					s.setOuter(v, MaybeNilGlobal)
+					s.set(v, ValueNilness{MaybeNilGlobal, MaybeNilGlobal})
 				} else {
-					s.setOuter(v, MaybeNil)
+					s.set(v, ValueNilness{MaybeNil, MaybeNil})
 				}
 				s.setOuter(v.X, NeverNil)
 			case *ir.FieldAddr:
