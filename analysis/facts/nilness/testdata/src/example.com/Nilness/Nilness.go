@@ -230,3 +230,14 @@ func fn43(b bool, x any) any {
 func fn44() any {
 	return recover()
 }
+
+var g any
+
+func fn47() any { // want fn47:`nilness: \[\{MaybeNilGlobal MaybeNilGlobal\}\]`
+	v := g
+	if v == nil {
+		return v
+	} else {
+		return v
+	}
+}

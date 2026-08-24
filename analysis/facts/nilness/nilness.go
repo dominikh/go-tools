@@ -109,6 +109,10 @@ func run(pass *analysis.Pass) (any, error) {
 
 type Nilness uint8
 
+func (n Nilness) IsGlobal() bool {
+	return n == AlwaysNilGlobal || n == MaybeNilGlobal
+}
+
 const (
 	// The value is never nil.
 	NeverNil Nilness = iota + 1
@@ -119,6 +123,8 @@ const (
 	MaybeNilGlobal
 	// The value might be nil.
 	MaybeNil
+	// The value is always nil and loaded from a global
+	AlwaysNilGlobal
 )
 
 func (n Nilness) String() string {
@@ -129,6 +135,8 @@ func (n Nilness) String() string {
 		return "NeverNil"
 	case AlwaysNil:
 		return "AlwaysNil"
+	case AlwaysNilGlobal:
+		return "AlwaysNilGlobal"
 	case MaybeNilGlobal:
 		return "MaybeNilGlobal"
 	case MaybeNil:
@@ -332,6 +340,8 @@ start:
 						s.setOuter(v, an)
 					case AlwaysNil:
 						s.setOuter(v, MaybeNil)
+					case AlwaysNilGlobal:
+						s.setOuter(v, MaybeNilGlobal)
 					}
 				case "UnsafeSlice":
 					// If len is negative, or if ptr is nil and len is not
@@ -487,7 +497,11 @@ start:
 				}
 				switch op {
 				case token.EQL:
-					s.set(target, ValueNilness{AlwaysNil, AlwaysNil})
+					if s.get(target).Outer.IsGlobal() {
+						s.set(target, ValueNilness{AlwaysNilGlobal, AlwaysNilGlobal})
+					} else {
+						s.set(target, ValueNilness{AlwaysNil, AlwaysNil})
+					}
 				case token.NEQ:
 					s.setOuter(target, NeverNil)
 				default:
@@ -576,6 +590,8 @@ start:
 			case *ir.MapLookup:
 				if s.get(v.X).Outer == AlwaysNil {
 					s.set(v, ValueNilness{AlwaysNil, AlwaysNil})
+				} else if s.get(v.X).Outer == AlwaysNilGlobal {
+					s.set(v, ValueNilness{AlwaysNilGlobal, AlwaysNilGlobal})
 				} else {
 					s.set(v, ValueNilness{MaybeNil, MaybeNil})
 				}
@@ -777,41 +793,54 @@ func (l lattice) Ident() ValueNilness {
 	return ValueNilness{}
 }
 
-var latticeMerge = [5][5]Nilness{
+var latticeMerge = [6][6]Nilness{
 	0: {
-		0:              0,
-		NeverNil:       NeverNil,
-		AlwaysNil:      AlwaysNil,
-		MaybeNilGlobal: MaybeNilGlobal,
-		MaybeNil:       MaybeNil,
+		0:               0,
+		NeverNil:        NeverNil,
+		AlwaysNil:       AlwaysNil,
+		AlwaysNilGlobal: AlwaysNilGlobal,
+		MaybeNilGlobal:  MaybeNilGlobal,
+		MaybeNil:        MaybeNil,
 	},
 	NeverNil: {
-		0:              NeverNil,
-		NeverNil:       NeverNil,
-		AlwaysNil:      MaybeNil,
-		MaybeNilGlobal: MaybeNilGlobal,
-		MaybeNil:       MaybeNil,
+		0:               NeverNil,
+		NeverNil:        NeverNil,
+		AlwaysNil:       MaybeNil,
+		AlwaysNilGlobal: MaybeNilGlobal,
+		MaybeNilGlobal:  MaybeNilGlobal,
+		MaybeNil:        MaybeNil,
 	},
 	AlwaysNil: {
-		0:              AlwaysNil,
-		NeverNil:       MaybeNil,
-		AlwaysNil:      AlwaysNil,
-		MaybeNilGlobal: MaybeNil,
-		MaybeNil:       MaybeNil,
+		0:               AlwaysNil,
+		NeverNil:        MaybeNil,
+		AlwaysNil:       AlwaysNil,
+		AlwaysNilGlobal: AlwaysNil,
+		MaybeNilGlobal:  MaybeNil,
+		MaybeNil:        MaybeNil,
+	},
+	AlwaysNilGlobal: {
+		0:               AlwaysNilGlobal,
+		NeverNil:        MaybeNilGlobal,
+		AlwaysNil:       AlwaysNil,
+		AlwaysNilGlobal: AlwaysNilGlobal,
+		MaybeNilGlobal:  MaybeNilGlobal,
+		MaybeNil:        MaybeNil,
 	},
 	MaybeNilGlobal: {
-		0:              MaybeNilGlobal,
-		NeverNil:       MaybeNilGlobal,
-		AlwaysNil:      MaybeNil,
-		MaybeNilGlobal: MaybeNilGlobal,
-		MaybeNil:       MaybeNil,
+		0:               MaybeNilGlobal,
+		NeverNil:        MaybeNilGlobal,
+		AlwaysNil:       MaybeNil,
+		AlwaysNilGlobal: MaybeNilGlobal,
+		MaybeNilGlobal:  MaybeNilGlobal,
+		MaybeNil:        MaybeNil,
 	},
 	MaybeNil: {
-		0:              MaybeNil,
-		NeverNil:       MaybeNil,
-		AlwaysNil:      MaybeNil,
-		MaybeNilGlobal: MaybeNil,
-		MaybeNil:       MaybeNil,
+		0:               MaybeNil,
+		NeverNil:        MaybeNil,
+		AlwaysNil:       MaybeNil,
+		AlwaysNilGlobal: MaybeNil,
+		MaybeNilGlobal:  MaybeNil,
+		MaybeNil:        MaybeNil,
 	},
 }
 
