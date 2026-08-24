@@ -707,9 +707,14 @@ start:
 		for _, instr := range b.Instrs {
 			ops = instr.Operands(ops[:0])
 			for _, pop := range ops {
-				if op, ok := (*pop).(*ir.Const); ok && typeutil.MaybePointerLike(op.Type()) {
-					// The only constant pointer-like is nil.
-					entrys.set(op, ValueNilness{Inner: AlwaysNil, Outer: AlwaysNil})
+				if op, ok := (*pop).(*ir.Const); ok {
+					if op.IsNil() {
+						entrys.set(op, ValueNilness{Inner: AlwaysNil, Outer: AlwaysNil})
+					} else if typeutil.MaybePointerLike(op.Type()) {
+						entrys.set(op, ValueNilness{Inner: MaybeNil, Outer: MaybeNil})
+					} else {
+						entrys.set(op, ValueNilness{Inner: NeverNil, Outer: NeverNil})
+					}
 				}
 			}
 		}
