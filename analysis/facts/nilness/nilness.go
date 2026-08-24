@@ -39,7 +39,7 @@ func (fact *nilnessFact) String() string {
 }
 
 type ValueNilness struct {
-	// Undefined for non-interface values.
+	// Undefined for non-interface values and dynamically nil interface values.
 	// For interface values, whether the stored value may be nil.
 	// Even when Outer == MaybeNil, Inner may still offer precise information
 	// for the cases when Outer is dynamically not nil. For example, {NeverNil,
@@ -498,9 +498,9 @@ start:
 				switch op {
 				case token.EQL:
 					if s.get(target).Outer.IsGlobal() {
-						s.set(target, ValueNilness{AlwaysNilGlobal, AlwaysNilGlobal})
+						s.setOuter(target, AlwaysNilGlobal)
 					} else {
-						s.set(target, ValueNilness{AlwaysNil, AlwaysNil})
+						s.setOuter(target, AlwaysNil)
 					}
 				case token.NEQ:
 					s.setOuter(target, NeverNil)
@@ -846,9 +846,29 @@ var latticeMerge = [6][6]Nilness{
 
 // Merge implements [dfa.Semilattice].
 func (l lattice) Merge(a, b ValueNilness) ValueNilness {
+	o := latticeMerge[a.Outer][b.Outer]
+	i := latticeMerge[a.Inner][b.Inner]
+
+	// When an interface value is always nil, then there is no stored value and
+	// Inner is technically undefined, regardless of what concrete nilness
+	// value was assigned to it.
+	//
+	// For example, {AlwaysNil, AlwaysNil} ∨ {NeverNil, NeverNil} should
+	// produce {NeverNil, MaybeNil} instead of {MaybeNil, MaybeNil}, to denote
+	// that when the interface value isn't nil, the stored value is never nil.
+	//
+	// {AlwaysNilGlobal, _} v {AlwaysNil, _}, however, should result in
+	// {AlwaysNil, _}, regardless of the outer value.
+	if i != AlwaysNil && i != AlwaysNilGlobal {
+		if a.Outer == AlwaysNil || a.Outer == AlwaysNilGlobal {
+			i = b.Inner
+		} else if b.Outer == AlwaysNil || b.Outer == AlwaysNilGlobal {
+			i = a.Inner
+		}
+	}
 	return ValueNilness{
-		Inner: latticeMerge[a.Inner][b.Inner],
-		Outer: latticeMerge[a.Outer][b.Outer],
+		Inner: i,
+		Outer: o,
 	}
 }
 

@@ -111,7 +111,7 @@ func gen17(x interface{}) interface{} {
 	return x
 }
 
-func gen18() (int, error) {
+func gen18() (int, error) { // want gen18:`nilness: \[\{NeverNil NeverNil\} \{NeverNil MaybeNil\}\]`
 	_, err := fn3()
 	if err != nil {
 		return 0, errors.New("yo")

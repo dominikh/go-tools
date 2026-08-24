@@ -80,14 +80,14 @@ func fn16() []int { // want fn16:`nilness: \[\{[^ ]+ AlwaysNil\}\]`
 	return nil
 }
 
-func fn17() error {
+func fn17() error { // want fn17:`nilness: \[\{NeverNil MaybeNil\}\]`
 	if true {
 		return errors.New("")
 	}
 	return nil
 }
 
-func fn18() (err error) { // want fn18:`nilness: \[\{MaybeNil NeverNil\}\]`
+func fn18() (err error) { // want fn18:`nilness: \[\{NeverNil NeverNil\}\]`
 	for {
 		if err = fn17(); err != nil {
 			return
@@ -125,7 +125,7 @@ func fn30() *int { // want fn30:`nilness: \[\{[^ ]+ AlwaysNil\}\]`
 	return m[0]
 }
 
-func fn31() (err error) { // want fn31:`nilness: \[\{AlwaysNil AlwaysNil\}\]`
+func fn31() (err error) { // want fn31:`nilness: \[\{[^ ]+ AlwaysNil\}\]`
 	for {
 		if err = fn17(); err == nil {
 			return
