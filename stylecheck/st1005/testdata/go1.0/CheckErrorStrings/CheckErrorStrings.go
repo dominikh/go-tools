@@ -15,6 +15,10 @@ func fn() {
 	errors.New("Foo(bar) failed")
 	errors.New("Foo(bar, baz) failed")
 	errors.New("P384 is a nice curve")
+	errors.New("Docker failed to start")
+	errors.New("Kubernetes could not schedule the pod")
+	errors.New("Travis CI blew up, oh noes")
+	errors.New("Nope is not a proper noun") //@ diag(`error strings should not be capitalized`)
 }
 
 func Write() {
