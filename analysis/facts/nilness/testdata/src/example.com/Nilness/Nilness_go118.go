@@ -45,3 +45,15 @@ func generic3[T []byte | string](s T) T { // want generic3:`nilness: \[\{[^ ]+ N
 		return T([]byte{})
 	}
 }
+
+// Make sure we don't crash on ordering comparisons involving the zero value of
+// a type parameter, which we represent as an ir.Const with a nil Value, just
+// like an actual nil.
+func generic4[T ~int | ~string](s string, parse func(string) (T, error)) (T, error) {
+	n, err := parse(s)
+	var zero T
+	if err != nil || n <= zero {
+		return zero, err
+	}
+	return n, nil
+}
