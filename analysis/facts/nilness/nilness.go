@@ -473,7 +473,7 @@ start:
 					if !ok {
 						return false
 					}
-					return k.Value == nil
+					return k.IsNil()
 				}
 				var target ir.Value
 				if isNil(binop.X) {
