@@ -46,7 +46,7 @@ func IsTrivial(fn *ir.Function) bool {
 }
 
 func isTrivial(fn *ir.Function, seen map[*ir.Function]struct{}) bool {
-	if fn.Source() == nil {
+	if fn == nil || fn.Source() == nil {
 		// External functions have to be assumed to be nontrivial.
 		return false
 	}
