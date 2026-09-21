@@ -69,17 +69,6 @@ func GroupSpecs(fset *token.FileSet, specs []ast.Spec) [][]ast.Spec {
 	return groups
 }
 
-// Unparen returns e with any enclosing parentheses stripped.
-func Unparen(e ast.Expr) ast.Expr {
-	for {
-		p, ok := e.(*ast.ParenExpr)
-		if !ok {
-			return e
-		}
-		e = p.X
-	}
-}
-
 // CopyExpr creates a deep copy of an expression.
 // It doesn't support copying FuncLits and returns ok == false when encountering one.
 func CopyExpr(node ast.Expr) (ast.Expr, bool) {

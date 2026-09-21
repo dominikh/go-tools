@@ -38,3 +38,22 @@ func fn26() *[0]int { // want fn26:`nilness: \[\{[^ ]+ AlwaysNil\}\]`
 	type T *[0]int
 	return (T)(x)
 }
+
+func fn45[T comparable](vals ...T) T { // {MaybeNil, MaybeNil} doesn't get exported
+	var zero T
+	for _, val := range vals {
+		if val != zero {
+			return val
+		}
+	}
+	return zero
+}
+func fn46[T int | uint](vals ...T) T { // non-nillable types don't get exported
+	var zero T
+	for _, val := range vals {
+		if val != zero {
+			return val
+		}
+	}
+	return zero
+}

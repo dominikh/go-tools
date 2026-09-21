@@ -149,7 +149,7 @@ func valueSwitch(sw *Switch, k *ir.Const, seen map[*ir.BasicBlock]bool) {
 			switch instr.(type) {
 			case *ir.If, *ir.BinOp:
 				n++
-			case *ir.Phi, *ir.DebugRef:
+			case *ir.Phi:
 			default:
 				n += 1000
 			}

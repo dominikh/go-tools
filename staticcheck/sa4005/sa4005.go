@@ -50,7 +50,7 @@ fnLoop:
 		}
 
 		recv := fn.Params[0]
-		refs := irutil.FilterDebug(*recv.Referrers())
+		refs := *recv.Referrers()
 		if len(refs) != 1 {
 			continue
 		}
@@ -74,8 +74,6 @@ fnLoop:
 						writes[ref.Field] = append(writes[ref.Field], refref)
 					case *ir.Load:
 						reads[ref.Field] = append(reads[ref.Field], refref)
-					case *ir.DebugRef:
-						continue
 					default:
 						// this should be safe… if the field address
 						// escapes, then alloc.Heap will be true.
@@ -98,8 +96,6 @@ fnLoop:
 				for i := 0; i < recv.Type().Underlying().(*types.Struct).NumFields(); i++ {
 					reads[i] = append(reads[i], ref)
 				}
-			case *ir.DebugRef:
-				continue
 			default:
 				continue fnLoop
 			}

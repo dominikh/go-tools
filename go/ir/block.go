@@ -28,6 +28,10 @@ func (b *BasicBlock) Control() Instruction {
 // Parent returns the function that contains block b.
 func (b *BasicBlock) Parent() *Function { return b.parent }
 
+func (b *BasicBlock) Reaches(o *BasicBlock) bool {
+	return b.SCC.reachable.Bit(o.SCC.Index) != 0
+}
+
 // String returns a human-readable label of this block.
 // It is not guaranteed unique within the function.
 func (b *BasicBlock) String() string {

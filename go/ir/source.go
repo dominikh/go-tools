@@ -152,19 +152,9 @@ func findNamedFunc(pkg *Package, pos token.Pos) *Function {
 // EnclosingFunction to locate the Function, then ValueForExpr to find
 // the ir.Value.)
 func (f *Function) ValueForExpr(e ast.Expr) (value Value, isAddr bool) {
-	if f.debugInfo() { // (opt)
-		e = unparen(e)
-		for _, b := range f.Blocks {
-			for _, instr := range b.Instrs {
-				if ref, ok := instr.(*DebugRef); ok {
-					if ref.Expr == e {
-						return ref.X, ref.IsAddr
-					}
-				}
-			}
-		}
-	}
-	return
+	e = ast.Unparen(e)
+	entry := f.exprToValue[e]
+	return entry.v, entry.isAddr
 }
 
 // --- Lookup functions for source-level named entities (types.Objects) ---
@@ -270,14 +260,8 @@ func (prog *Program) VarValue(obj *types.Var, pkg *Package, ref []ast.Node) (val
 	}
 
 	// Other ident?
-	for _, b := range fn.Blocks {
-		for _, instr := range b.Instrs {
-			if dr, ok := instr.(*DebugRef); ok {
-				if dr.Pos() == id.Pos() {
-					return dr.X, dr.IsAddr
-				}
-			}
-		}
+	if v, ok := fn.exprToValue[id]; ok {
+		return v.v, v.isAddr
 	}
 
 	// Defining ident of package-level var?

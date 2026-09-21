@@ -212,7 +212,7 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 		}
 	case *TypeAssert:
 	case *UnOp:
-	case *DebugRef:
+	case *debugRef:
 	case *BlankStore:
 	case *Load:
 	case *Recv:

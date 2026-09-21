@@ -85,7 +85,7 @@ func loadPackages(t testing.TB, src fs.FS, patterns ...string) []*packages.Packa
 			packages.NeedCompiledGoFiles |
 			packages.NeedTypes,
 		Env: append(os.Environ(),
-			"GO111MODULES=on",
+			"GO111MODULE=on",
 			"GOPATH=",
 			"GOWORK=off",
 			"GOPROXY=off"),

@@ -44,7 +44,7 @@ var Analyzer = SCAnalyzer.Analyzer
 func run(pass *analysis.Pass) (any, error) {
 	for _, fn := range pass.ResultOf[buildir.Analyzer].(*buildir.IR).SrcFuncs {
 		for _, block := range fn.Blocks {
-			instrs := irutil.FilterDebug(block.Instrs)
+			instrs := block.Instrs
 			if len(instrs) < 2 {
 				continue
 			}

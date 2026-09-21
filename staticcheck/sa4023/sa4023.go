@@ -179,7 +179,15 @@ func run(pass *analysis.Pass) (any, error) {
 				}
 
 				nillity := nilnessRes.Nilness(obj, idx)
+				// We aim to detect interface values that are never nil (i.e.,
+				// always typed) but may contain typed nils. This usually
+				// points to a bug in the producer of the value. We
+				// intentionally do not flag comparisons with non-nil interface
+				// values whose stored value is also never nil (such as the
+				// return value of errors.New)--those are more likely to be
+				// defensive code, protecting against a future untyped nil.
 				if nillity.Outer == nilness.NeverNil &&
+					(nillity.Inner == nilness.MaybeNil || nillity.Inner == nilness.AlwaysNil) &&
 					!code.IsInTest(pass, binop) &&
 					!irutil.IsTrivial(irpkg.Pkg.Prog.FuncValue(obj)) {
 					// Don't flag these comparisons in tests. Tests may be

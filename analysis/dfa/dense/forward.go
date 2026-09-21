@@ -126,16 +126,19 @@ type blockEdge struct {
 //
 // We use this ordering so forward analysis converges more quickly.
 type nodeHeap struct {
-	heap    []int
-	inQueue []int64 // Bitmap over node IDs
-	prio    []int   // NodeID -> priority
+	heap        []int   // Remaining nodes in the current sweep
+	deferred    []int   // Nodes of next sweep
+	inQueue     []int64 // Bitmap over node IDs
+	prio        []int   // NodeID -> priority
+	currentPrio int     // Priority of last dequeued node, or -1
 }
 
 func (h *nodeHeap) init(g graph.Graph[int]) {
 	nNodes := g.NumNodes()
 	*h = nodeHeap{
-		inQueue: make([]int64, (nNodes+63)/64),
-		prio:    make([]int, nNodes),
+		inQueue:     make([]int64, (nNodes+63)/64),
+		prio:        make([]int, nNodes),
+		currentPrio: -1,
 	}
 	for p, nid := range graph.ReversePostorder(g) {
 		h.prio[nid] = p
@@ -147,16 +150,32 @@ func (h *nodeHeap) enqueue(nid int) {
 		return
 	}
 	h.inQueue[nid/64] |= 1 << (nid % 64)
-	heap.Push(h, nid)
+
+	if h.currentPrio >= 0 && h.prio[nid] <= h.currentPrio {
+		// This is a retreating edge, self-edge, or other update to a node
+		// already passed in this sweep. Coalesce it into the next sweep.
+		h.deferred = append(h.deferred, nid)
+	} else {
+		heap.Push(h, nid)
+	}
 }
 
 func (h *nodeHeap) dequeue() int {
+	if len(h.heap) == 0 {
+		// Start the next RPO sweep.
+		h.heap, h.deferred = h.deferred, h.heap[:0]
+		h.currentPrio = -1
+		heap.Init(h)
+	}
+
 	nid := h.heap[0]
 	heap.Pop(h)
 	h.inQueue[nid/64] &^= 1 << (nid % 64)
+	h.currentPrio = h.prio[nid]
 	return nid
 }
 
+func (h *nodeHeap) pending() bool     { return len(h.heap) != 0 || len(h.deferred) != 0 }
 func (h nodeHeap) Len() int           { return len(h.heap) }
 func (h nodeHeap) Less(i, j int) bool { return h.prio[h.heap[i]] < h.prio[h.heap[j]] }
 func (h nodeHeap) Swap(i, j int)      { h.heap[i], h.heap[j] = h.heap[j], h.heap[i] }
@@ -176,7 +195,7 @@ func (fb *fwdBuilder[L, Fact, NodeID]) merge(a, b Fact) Fact {
 }
 
 func (fb *fwdBuilder[L, Fact, NodeID]) propagate() {
-	for fb.queue.Len() > 0 {
+	for fb.queue.pending() {
 		bi := fb.queue.dequeue()
 		block := &fb.blocks[bi]
 

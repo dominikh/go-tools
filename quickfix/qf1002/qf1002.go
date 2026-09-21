@@ -121,7 +121,7 @@ func run(pass *analysis.Pass) (any, error) {
 }
 
 func findSwitchPairs(pass *analysis.Pass, expr ast.Expr, pairs *[]*ast.BinaryExpr) bool {
-	binexpr, ok := astutil.Unparen(expr).(*ast.BinaryExpr)
+	binexpr, ok := ast.Unparen(expr).(*ast.BinaryExpr)
 	if !ok {
 		return false
 	}

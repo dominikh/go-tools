@@ -477,7 +477,7 @@ func (s *MapUpdate) String() string {
 	return fmt.Sprintf("%s[%s] = %s", relName(s.Map, s), relName(s.Key, s), relName(s.Value, s))
 }
 
-func (s *DebugRef) String() string {
+func (s *debugRef) String() string {
 	p := s.Parent().Prog.Fset.Position(s.Pos())
 	var descr any
 	if s.object != nil {

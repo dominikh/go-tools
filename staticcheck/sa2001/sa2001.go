@@ -7,7 +7,6 @@ import (
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
-	"honnef.co/go/tools/go/ast/astutil"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -67,7 +66,7 @@ func run(pass *analysis.Pass) (any, error) {
 		if !ok {
 			return nil, "", false
 		}
-		call, ok := astutil.Unparen(expr.X).(*ast.CallExpr)
+		call, ok := ast.Unparen(expr.X).(*ast.CallExpr)
 		if !ok {
 			return nil, "", false
 		}

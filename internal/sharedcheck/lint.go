@@ -13,7 +13,6 @@ import (
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/ir"
-	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
@@ -58,7 +57,7 @@ func CheckRangeStringRunes(pass *analysis.Pass) (any, error) {
 
 			// Expect two refs: one for obtaining the length of the slice,
 			// one for accessing the elements
-			if len(irutil.FilterDebug(*refs)) != 2 {
+			if len(*refs) != 2 {
 				// TODO(dh): right now, we check that only one place
 				// refers to our slice. This will miss cases such as
 				// ranging over the slice twice. Ideally, we'd ensure that

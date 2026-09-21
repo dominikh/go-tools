@@ -100,16 +100,6 @@ func IsCallToAny(call *ir.CallCommon, names ...string) bool {
 	return slices.Contains(names, q)
 }
 
-func FilterDebug(instr []ir.Instruction) []ir.Instruction {
-	var out []ir.Instruction
-	for _, ins := range instr {
-		if _, ok := ins.(*ir.DebugRef); !ok {
-			out = append(out, ins)
-		}
-	}
-	return out
-}
-
 func IsExample(fn *ir.Function) bool {
 	if !strings.HasPrefix(fn.Name(), "Example") {
 		return false

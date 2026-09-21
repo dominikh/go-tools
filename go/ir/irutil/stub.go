@@ -20,7 +20,6 @@ func IsStub(fn *ir.Function) bool {
 				// panic is a stub if it only uses constants
 			case *ir.Return:
 				// return is a stub if it only uses constants
-			case *ir.DebugRef:
 			case *ir.Jump:
 				// if there are no disallowed instructions, then we're
 				// only jumping to the exit block (or possibly
@@ -66,7 +65,6 @@ func isTrivial(fn *ir.Function, seen map[*ir.Function]struct{}) bool {
 				// panic is a stub if it only uses constants
 			case *ir.Return:
 				// return is a stub if it only uses constants
-			case *ir.DebugRef:
 			case *ir.Jump:
 				// if there are no disallowed instructions, then we're
 				// only jumping to the exit block (or possibly

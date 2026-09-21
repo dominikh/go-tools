@@ -64,8 +64,7 @@ func run(pass *analysis.Pass) (any, error) {
 	// - calls to append
 	//
 	// If this step succeeds, we look at all referrers of the values found in the first step, recursively.
-	// These referrers must either be in the set of values found in the first step,
-	// be DebugRefs,
+	// These referrers must either be in the set of values found in the first step
 	// or fulfill the same type requirements as step 1, with the exception of appends, which are forbidden.
 	//
 	// If both steps succeed then we know that the backing array hasn't been aliased in an observable manner.
@@ -124,7 +123,6 @@ func run(pass *analysis.Pass) (any, error) {
 				case *ir.Slice:
 				case *ir.MakeSlice:
 				case *ir.Alloc:
-				case *ir.DebugRef:
 				default:
 					return false
 				}
@@ -157,9 +155,6 @@ func run(pass *analysis.Pass) (any, error) {
 							continue
 						}
 						visited[ref] = true
-						if _, ok := ref.(*ir.DebugRef); ok {
-							continue
-						}
 						switch ref := ref.(type) {
 						case *ir.Phi:
 							walkRefs(*ref.Referrers())

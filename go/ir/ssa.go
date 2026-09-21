@@ -373,6 +373,11 @@ type Function struct {
 	Pkg    *Package  // enclosing package; nil for shared funcs (wrappers and error.Error)
 	Prog   *Program  // enclosing program
 
+	exprToValue map[ast.Expr]struct {
+		v      Value
+		isAddr bool
+	}
+
 	buildshared *task // wait for a shared function to be done building (may be nil if <=1 builder ever needs to wait)
 
 	// These fields are populated only when the function body is built:
@@ -386,6 +391,8 @@ type Function struct {
 	referrers []Instruction // referring instructions (iff Parent() != nil)
 	anonIdx   int32         // position of a nested function in parent's AnonFuncs. fn.Parent()!=nil => fn.Parent().AnonFunc[fn.anonIdx] == fn.
 
+	SCCs []*SCC // SCC DAG in reverse topological order
+
 	recvtypeparams *types.TypeParamList // receiver type parameters of this function. recvtypeparams.Len() > 0 => method on generic or instance of generic type
 	recvtypeargs   []types.Type         // type arguments that instantiated recvtypeparams. len(recvtypeargs) > 0 => method on instance of generic type
 	typeparams     *types.TypeParamList // type parameters of this function. typeparams.Len() > 0 => generic or instance of generic function or method
@@ -394,19 +401,20 @@ type Function struct {
 	generic        *generic             // instances of this function, if generic
 
 	// The following fields are cleared after building.
-	build        buildFunc                // algorithm to build function body (nil => built)
-	currentBlock *BasicBlock              // where to emit code
-	vars         map[*types.Var]Value     // addresses of local variables
-	results      []*Alloc                 // result allocations of the current function
-	returnVars   []*types.Var             // variables for a return statement. Either results or for range-over-func a parent's results
-	targets      *targets                 // linked stack of branch targets
-	lblocks      map[*types.Label]*lblock // labelled blocks
-	subst        *subster                 // type parameter substitutions (if non-nil)
-	jump         *types.Var               // synthetic variable for the yield state (non-nil => range-over-func)
-	deferstack   *types.Var               // synthetic variable holding enclosing ssa:deferstack()
-	source       *Function                // nearest enclosing source function
-	exits        []*exit                  // exits of the function that need to be resolved
-	uniq         int64                    // source of unique ints within the source tree while building
+	build            buildFunc                // algorithm to build function body (nil => built)
+	currentBlock     *BasicBlock              // where to emit code
+	vars             map[*types.Var]Value     // addresses of local variables
+	results          []*Alloc                 // result allocations of the current function
+	returnVars       []*types.Var             // variables for a return statement. Either results or for range-over-func a parent's results
+	targets          *targets                 // linked stack of branch targets
+	lblocks          map[*types.Label]*lblock // labelled blocks
+	subst            *subster                 // type parameter substitutions (if non-nil)
+	jump             *types.Var               // synthetic variable for the yield state (non-nil => range-over-func)
+	deferstack       *types.Var               // synthetic variable holding enclosing ssa:deferstack()
+	source           *Function                // nearest enclosing source function
+	exits            []*exit                  // exits of the function that need to be resolved
+	uniq             int64                    // source of unique ints within the source tree while building
+	liftableBlockMap BlockMap[liftableBlockDesc]
 
 	blocksets [4]BlockSet
 }
@@ -436,10 +444,18 @@ type BasicBlock struct {
 	parent       *Function      // parent function
 	Instrs       []Instruction  // instructions in order
 	Preds, Succs []*BasicBlock  // predecessors and successors
+	SCC          *SCC           // strongly connected component
 	succs2       [2]*BasicBlock // initial space for Succs
 	dom          domInfo        // dominator tree info
 	gaps         int            // number of nil Instrs (transient)
 	rundefers    int            // number of rundefers (transient)
+}
+
+type SCC struct {
+	Index        int
+	Blocks       []*BasicBlock
+	Preds, Succs []*SCC
+	reachable    big.Int
 }
 
 // Pure values ----------------------------------------
@@ -1472,11 +1488,11 @@ type MapUpdate struct {
 	Value Value
 }
 
-// A DebugRef instruction maps a source-level expression Expr to the
+// A debugRef instruction maps a source-level expression Expr to the
 // IR value X that represents the value (!IsAddr) or address (IsAddr)
 // of that expression.
 //
-// DebugRef is a pseudo-instruction: it has no dynamic effect.
+// debugRef is a pseudo-instruction: it has no dynamic effect.
 //
 // Pos() returns Expr.Pos(), the start position of the source-level
 // expression.  This is not the same as the "designated" token as
@@ -1505,7 +1521,7 @@ type MapUpdate struct {
 //	; *ast.CallExpr @ 102:9 is t5
 //	; var x float64 @ 109:72 is x
 //	; address of *ast.CompositeLit @ 216:10 is t0
-type DebugRef struct {
+type debugRef struct {
 	anInstruction
 	Expr   ast.Expr     // the referring expression (never *ast.ParenExpr)
 	object types.Object // the identity of the source var/func
@@ -1962,7 +1978,7 @@ func (c *NamedConst) RelString(from *types.Package) string { return relString(c,
 func (v *Function) Pos() token.Pos   { return v.pos }
 func (v *Function) Source() ast.Node { return v.syntax }
 
-func (d *DebugRef) Object() types.Object { return d.object }
+func (d *debugRef) Object() types.Object { return d.object }
 
 // Func returns the package-level function of the specified name,
 // or nil if not found.
@@ -1992,7 +2008,7 @@ func (p *Package) Type(name string) (t *Type) {
 	return
 }
 
-func (s *DebugRef) Pos() token.Pos { return s.Expr.Pos() }
+func (s *debugRef) Pos() token.Pos { return s.Expr.Pos() }
 
 // Operands.
 
@@ -2048,7 +2064,7 @@ func (v *SliceToArray) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
 }
 
-func (s *DebugRef) Operands(rands []*Value) []*Value {
+func (s *debugRef) Operands(rands []*Value) []*Value {
 	return append(rands, &s.X)
 }
 

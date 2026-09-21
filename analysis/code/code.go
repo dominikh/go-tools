@@ -16,7 +16,6 @@ import (
 	"honnef.co/go/tools/analysis/facts/generated"
 	"honnef.co/go/tools/analysis/facts/purity"
 	"honnef.co/go/tools/analysis/facts/tokenfile"
-	"honnef.co/go/tools/go/ast/astutil"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/knowledge"
 	"honnef.co/go/tools/pattern"
@@ -172,7 +171,7 @@ func CallName(pass *analysis.Pass, call *ast.CallExpr) string {
 	// See the comment in typeutil.FuncName for why this doesn't require special handling
 	// of aliases.
 
-	fun := astutil.Unparen(call.Fun)
+	fun := ast.Unparen(call.Fun)
 
 	// Instantiating a function cannot return another generic function, so doing this once is enough
 	switch idx := fun.(type) {

@@ -524,7 +524,7 @@ type store struct {
 	source ast.Node
 
 	// if debugRef is set no other fields will be set
-	debugRef *DebugRef
+	debugRef *debugRef
 }
 
 type storebuf struct{ stores []store }
@@ -533,7 +533,7 @@ func (sb *storebuf) store(lhs lvalue, rhs Value, source ast.Node) {
 	sb.stores = append(sb.stores, store{lhs, rhs, source, nil})
 }
 
-func (sb *storebuf) storeDebugRef(ref *DebugRef) {
+func (sb *storebuf) storeDebugRef(ref *debugRef) {
 	sb.stores = append(sb.stores, store{debugRef: ref})
 }
 
@@ -562,7 +562,7 @@ func (sb *storebuf) emit(fn *Function) {
 // literal that may reference parts of the LHS.
 func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *storebuf, source ast.Node) {
 	// Can we initialize it in place?
-	if e, ok := unparen(e).(*ast.CompositeLit); ok {
+	if e, ok := ast.Unparen(e).(*ast.CompositeLit); ok {
 		// A CompositeLit never evaluates to a pointer,
 		// so if the type of the location is a pointer,
 		// an &-operation is implied.
@@ -633,7 +633,7 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 // expr lowers a single-result expression e to IR form, emitting code
 // to fn and returning the Value defined by the expression.
 func (b *builder) expr(fn *Function, e ast.Expr) Value {
-	e = unparen(e)
+	e = ast.Unparen(e)
 
 	tv := fn.info.Types[e]
 
@@ -709,7 +709,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			return y
 		}
 		// Call to "intrinsic" built-ins, e.g. new, make, panic.
-		if id, ok := unparen(e.Fun).(*ast.Ident); ok {
+		if id, ok := ast.Unparen(e.Fun).(*ast.Ident); ok {
 			if obj, ok := fn.info.Uses[id].(*types.Builtin); ok {
 				if v := b.builtin(fn, obj, e.Args, fn.typ(tv.Type), e); v != nil {
 					return v
@@ -726,7 +726,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		switch e.Op {
 		case token.AND: // &X --- potentially escaping.
 			addr := b.addr(fn, e.X, true)
-			if _, ok := unparen(e.X).(*ast.StarExpr); ok {
+			if _, ok := ast.Unparen(e.X).(*ast.StarExpr); ok {
 				// &*p must panic if p is nil (https://golang.org/s/go12nil).
 				// For simplicity, we'll just (suboptimally) rely
 				// on the side effects of a load.
@@ -1009,7 +1009,7 @@ func (b *builder) receiver(fn *Function, e ast.Expr, wantAddr, escaping bool, se
 // occurring in e.
 func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
 	// Is this a (possibly generic) method call?
-	m := unparen(e.Fun)
+	m := ast.Unparen(e.Fun)
 	switch e := m.(type) {
 	case *ast.IndexExpr:
 		m = e.X
@@ -1513,7 +1513,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 			// An &-operation may be implied:
 			//	map[*struct{}]bool{&struct{}{}: true}
 			wantAddr := false
-			if _, ok := unparen(e.Key).(*ast.CompositeLit); ok {
+			if _, ok := ast.Unparen(e.Key).(*ast.CompositeLit); ok {
 				wantAddr = isPointerCore(t.Key())
 			}
 
@@ -1557,7 +1557,7 @@ func (b *builder) switchStmt(fn *Function, s *ast.SwitchStmt, label *lblock) {
 	for _, iclause := range s.Body.List {
 		clause := iclause.(*ast.CaseClause)
 		for _, cond := range clause.List {
-			if fn.info.Types[unparen(cond)].Value == nil {
+			if fn.info.Types[ast.Unparen(cond)].Value == nil {
 				dynamic = true
 				break
 			}
@@ -1753,9 +1753,9 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	var tag Value
 	switch e := s.Assign.(type) {
 	case *ast.ExprStmt: // x.(type)
-		tag = b.expr(fn, unparen(e.X).(*ast.TypeAssertExpr).X)
+		tag = b.expr(fn, ast.Unparen(e.X).(*ast.TypeAssertExpr).X)
 	case *ast.AssignStmt: // y := x.(type)
-		tag = b.expr(fn, unparen(e.Rhs[0]).(*ast.TypeAssertExpr).X)
+		tag = b.expr(fn, ast.Unparen(e.Rhs[0]).(*ast.TypeAssertExpr).X)
 	default:
 		panic("unreachable")
 	}
@@ -1952,7 +1952,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 			}
 
 		case *ast.AssignStmt: // x := <-ch
-			recv := unparen(comm.Rhs[0]).(*ast.UnaryExpr)
+			recv := ast.Unparen(comm.Rhs[0]).(*ast.UnaryExpr)
 			st = &SelectState{
 				Dir:  types.RecvOnly,
 				Chan: b.expr(fn, recv.X),
@@ -1963,7 +1963,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) (no
 			}
 
 		case *ast.ExprStmt: // <-ch
-			recv := unparen(comm.X).(*ast.UnaryExpr)
+			recv := ast.Unparen(comm.X).(*ast.UnaryExpr)
 			st = &SelectState{
 				Dir:  types.RecvOnly,
 				Chan: b.expr(fn, recv.X),

@@ -85,25 +85,18 @@ func run(pass *analysis.Pass) (any, error) {
 					continue
 				}
 				refs := ins.Referrers()
-				// need at least two (DebugRef) references: the
-				// conversion and the *ast.Ident
-				if refs == nil || len(*refs) < 2 {
-					continue
-				}
-				ident := false
-				// skip first reference, that's the conversion itself
-				for _, ref := range (*refs)[1:] {
+				anyUses := false
+				for _, ref := range *refs {
 					switch ref := ref.(type) {
-					case *ir.DebugRef:
-						if _, ok := ref.Expr.(*ast.Ident); !ok {
-							// the string seems to be used somewhere
-							// unexpected; the default branch should
-							// catch this already, but be safe
-							continue insLoop
-						} else {
-							ident = true
-						}
 					case *ir.MapLookup:
+						anyUses = true
+						if src, ok := ref.Source().(*ast.IndexExpr); ok {
+							if _, ok := src.Index.(*ast.Ident); !ok {
+								continue insLoop
+							}
+						} else {
+							continue insLoop
+						}
 					default:
 						// the string is used somewhere else than a
 						// map lookup
@@ -111,9 +104,7 @@ func run(pass *analysis.Pass) (any, error) {
 					}
 				}
 
-				// the result of the conversion wasn't assigned to an
-				// identifier
-				if !ident {
+				if !anyUses {
 					continue
 				}
 				report.Report(pass, ins, "m[string(key)] would be more efficient than k := string(key); m[k]")

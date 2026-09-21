@@ -19,14 +19,11 @@ import (
 	"honnef.co/go/tools/go/types/typeutil"
 
 	"golang.org/x/exp/typeparams"
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 type unit struct{}
 
 //// AST utilities
-
-func unparen(e ast.Expr) ast.Expr { return astutil.Unparen(e) }
 
 // isBlankIdent returns true iff e is an Ident with name "_".
 // They have no associated types.Object, and thus no type.

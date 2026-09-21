@@ -19,13 +19,11 @@ import (
 
 // flags
 var (
-	mode = ir.BuilderMode(0)
-
-	testFlag = flag.Bool("test", false, "include implicit test packages and executables")
-
+	mode       = ir.BuilderMode(0)
+	testFlag   = flag.Bool("test", false, "include implicit test packages and executables")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-
-	tagsFlag = flag.String("tags", "", "comma-separated list of extra build tags (see: go help buildconstraint)")
+	memprofile = flag.String("memprofile", "", "write heap profile to file")
+	tagsFlag   = flag.String("tags", "", "comma-separated list of extra build tags (see: go help buildconstraint)")
 )
 
 func init() {
@@ -70,6 +68,16 @@ func doMain() error {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		defer pprof.WriteHeapProfile(f)
 	}
 
 	// Load, parse and type-check the initial packages,

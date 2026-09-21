@@ -160,6 +160,70 @@ func TestCycle(t *testing.T) {
 	)
 }
 
+func TestFlowOrderLoop(t *testing.T) {
+	// Construct a loop with many latches:
+	//
+	//              +-> arm 0 --+
+	//              |           |
+	//  entry -> header -> ... -+-+
+	//            ^ |           | |
+	//            | +-> arm N --+ |
+	//            +---------------+
+	//
+	// Each arm contributes one bit to the fact propagated back to the header.
+	// An eager RPO priority queue processes the header immediately after each
+	// individual backedge update. This prevents updates from being coalesced
+	// and causes the loop body to be processed a quadratic number of times.
+	// A sweep-based RPO scheduler defers the header until the current sweep has
+	// finished and processes it only a small number of times.
+	const (
+		arms     = 32
+		entry    = 0
+		header   = 1
+		firstArm = 2
+	)
+
+	edges := make([][]int, 2+arms)
+	edges[entry] = []int{header}
+	for i := range arms {
+		arm := firstArm + i
+		edges[header] = append(edges[header], arm)
+		edges[arm] = []int{header}
+	}
+	g := &simpleGraph{
+		numNodes: len(edges),
+		edges:    edges,
+	}
+
+	transfers := 0
+	headerEdgeTransfers := 0
+	transfer := func(from, to int, in nodeSet) nodeSet {
+		transfers++
+		if from == header {
+			headerEdgeTransfers++
+		}
+		if from >= firstArm {
+			return in | set(from-firstArm)
+		}
+		return in
+	}
+
+	result := dense.Forward[nodeSetUnion](g, nil, transfer)
+	want := nodeSet((uint64(1) << arms) - 1)
+	if got := result.In(header); got != want {
+		t.Fatalf("header input: got %064b, want %064b", got, want)
+	}
+
+	// The header has one outgoing edge per arm, so this bounds the number of
+	// times its transfer function was evaluated to two complete sweeps.
+	if max := 2 * arms; headerEdgeTransfers > max {
+		t.Errorf("header edges transferred %d times, want at most %d", headerEdgeTransfers, max)
+	}
+	if max := 4*arms + 1; transfers > max {
+		t.Errorf("got %d total transfer calls, want at most %d", transfers, max)
+	}
+}
+
 func TestFlowOrder(t *testing.T) {
 	// This test constructs a "Spine with Bottleneck" graph in which a naive
 	// visit order would result in quadratic time.

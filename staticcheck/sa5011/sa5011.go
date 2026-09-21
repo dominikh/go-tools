@@ -154,7 +154,7 @@ func run(pass *analysis.Pass) (any, error) {
 	// We choose to err on the side of false negatives.
 
 	isNilConst := func(v ir.Value) bool {
-		if typeutil.IsPointerLike(v.Type()) {
+		if typeutil.MaybePointerLike(v.Type()) {
 			if k, ok := v.(*ir.Const); ok {
 				return k.IsNil()
 			}

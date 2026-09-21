@@ -43,7 +43,7 @@ func run(pass *analysis.Pass) (any, error) {
 				if refs == nil {
 					continue
 				}
-				for _, ref := range irutil.FilterDebug(*refs) {
+				for _, ref := range *refs {
 					ifstmt, ok := ref.(*ir.If)
 					if !ok {
 						continue

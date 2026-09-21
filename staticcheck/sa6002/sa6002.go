@@ -45,7 +45,7 @@ var rules = map[string]callcheck.Check{
 		arg := call.Args[knowledge.Arg("(*sync.Pool).Put.x")]
 		typ := arg.Value.Value.Type()
 		_, isSlice := typ.Underlying().(*types.Slice)
-		if !typeutil.IsPointerLike(typ) || isSlice {
+		if !typeutil.MaybePointerLike(typ) || isSlice {
 			arg.Invalid("argument should be pointer-like to avoid allocations")
 		}
 	},

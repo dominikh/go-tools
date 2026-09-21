@@ -9,7 +9,6 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ir"
-	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/go/types/typeutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
@@ -60,7 +59,7 @@ fnLoop:
 					continue
 				}
 				refs := ins.Referrers()
-				if refs == nil || len(irutil.FilterDebug(*refs)) > 0 {
+				if refs == nil || len(*refs) > 0 {
 					continue
 				}
 

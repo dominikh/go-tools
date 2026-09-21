@@ -7,7 +7,6 @@ import (
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
 	"honnef.co/go/tools/go/ir"
-	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/internal/passes/buildir"
 
 	"golang.org/x/tools/go/analysis"
@@ -65,7 +64,7 @@ func run(pass *analysis.Pass) (any, error) {
 					if refs == nil {
 						continue
 					}
-					if len(irutil.FilterDebug(*refs)) != 0 {
+					if len(*refs) != 0 {
 						continue
 					}
 

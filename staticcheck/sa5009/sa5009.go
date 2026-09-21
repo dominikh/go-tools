@@ -252,7 +252,7 @@ func checkImpl(carg *callcheck.Argument, f ir.Value, args []ir.Value) {
 			}
 		}
 
-		if flags&isPointer != 0 && typeutil.IsPointerLike(T) {
+		if flags&isPointer != 0 && typeutil.MaybePointerLike(T) {
 			return true
 		}
 		if flags&isPseudoPointer != 0 {

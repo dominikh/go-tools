@@ -186,11 +186,10 @@ func test() {
 	}
 	_ = gen5() == nil //@ diag(`never true`)
 	_ = gen6(false) == nil
-	_ = gen7() == nil         //@ diag(`never true`)
-	_ = gen8(nil) == nil      //@ diag(`never true`)
-	_ = gen9() == nil         //@ diag(`never true`)
-	_ = gen10() == nil        //@ diag(`never true`)
-	_ = errors.New("") == nil //@ diag(`never true`)
+	_ = gen7() == nil    //@ diag(`never true`)
+	_ = gen8(nil) == nil //@ diag(`never true`)
+	_ = gen9() == nil    //@ diag(`never true`)
+	_ = gen10() == nil   //@ diag(`never true`)
 	_ = gen11() == nil
 	_ = gen12(true) == nil //@ diag(`never true`)
 	_ = gen13() == nil     //@ diag(`never true`)

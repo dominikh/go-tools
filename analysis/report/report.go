@@ -13,7 +13,6 @@ import (
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/facts/generated"
-	"honnef.co/go/tools/go/ast/astutil"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -122,7 +121,7 @@ func shortRange(node ast.Node) (pos, end token.Pos) {
 	case *ast.FuncLit:
 		return node.Pos(), node.Type.End()
 	case *ast.GoStmt:
-		if _, ok := astutil.Unparen(node.Call.Fun).(*ast.FuncLit); ok {
+		if _, ok := ast.Unparen(node.Call.Fun).(*ast.FuncLit); ok {
 			return node.Pos(), node.Go + token.Pos(len("go"))
 		} else {
 			return node.Pos(), node.End()
