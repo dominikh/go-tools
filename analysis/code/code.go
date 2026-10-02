@@ -100,6 +100,10 @@ func SelectorName(pass *analysis.Pass, expr *ast.SelectorExpr) string {
 			return fmt.Sprintf("%s.%s", pkg.Imported().Path(), expr.Sel.Name)
 		case *ast.SelectorExpr:
 			return fmt.Sprintf("(%s).%s", SelectorName(pass, x), expr.Sel.Name)
+		case *ast.IndexExpr:
+			return SelectorName(pass, &ast.SelectorExpr{X: x.X, Sel: expr.Sel})
+		case *ast.IndexListExpr:
+			return SelectorName(pass, &ast.SelectorExpr{X: x.X, Sel: expr.Sel})
 		default:
 			panic(fmt.Sprintf("unsupported selector: %v", expr))
 		}
