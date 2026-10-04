@@ -11,6 +11,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"iter"
 	"os"
 	"testing"
 	"testing/fstest"
@@ -144,4 +145,18 @@ func parsePackageClause(t testing.TB, content string) string {
 		t.Fatalf("parsing the file %q failed with error: %s", content, err)
 	}
 	return f.Name.Name
+}
+
+// findInstructions is a test helper to extract the instructions of type `T`
+// from any block inside `f`.
+func findInstructions[T ir.Instruction](f *ir.Function) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for _, block := range f.Blocks {
+			for _, instr := range block.Instrs {
+				if instr, ok := instr.(T); ok && !yield(instr) {
+					return
+				}
+			}
+		}
+	}
 }
