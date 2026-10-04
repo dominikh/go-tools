@@ -209,6 +209,8 @@ func (prog *program) loadFromExport(spec *PackageSpec) (*Package, error) {
 	}
 	defer f.Close()
 
+	//lint:ignore SA1019 NewReader does exactly what we need: it supports Go
+	//  1.27 compiler export data and Go 1.28 cmd/export data.
 	r, err := gcexportdata.NewReader(f)
 	if err != nil {
 		return nil, err
