@@ -122,6 +122,9 @@ func (cfg Config) Merge(ocfg Config) Config {
 	if ocfg.Initialisms != nil {
 		cfg.Initialisms = mergeLists(cfg.Initialisms, ocfg.Initialisms)
 	}
+	if ocfg.ProperNouns != nil {
+		cfg.ProperNouns = mergeLists(cfg.ProperNouns, ocfg.ProperNouns)
+	}
 	if ocfg.DotImportWhitelist != nil {
 		cfg.DotImportWhitelist = mergeLists(cfg.DotImportWhitelist, ocfg.DotImportWhitelist)
 	}
@@ -141,6 +144,7 @@ type Config struct {
 
 	Checks                  []string `toml:"checks"`
 	Initialisms             []string `toml:"initialisms"`
+	ProperNouns             []string `toml:"proper_nouns"`
 	DotImportWhitelist      []string `toml:"dot_import_whitelist"`
 	HTTPStatusCodeWhitelist []string `toml:"http_status_code_whitelist"`
 }
@@ -150,6 +154,7 @@ func (c Config) String() string {
 
 	fmt.Fprintf(buf, "Checks: %#v\n", c.Checks)
 	fmt.Fprintf(buf, "Initialisms: %#v\n", c.Initialisms)
+	fmt.Fprintf(buf, "ProperNouns: %#v\n", c.ProperNouns)
 	fmt.Fprintf(buf, "DotImportWhitelist: %#v\n", c.DotImportWhitelist)
 	fmt.Fprintf(buf, "HTTPStatusCodeWhitelist: %#v", c.HTTPStatusCodeWhitelist)
 
@@ -172,6 +177,14 @@ var DefaultConfig = Config{
 		"UDP", "UI", "GID", "UID", "UUID", "URI",
 		"URL", "UTF8", "VM", "XML", "XMPP", "XSRF",
 		"XSS", "SIP", "RTP", "AMQP", "DB", "TS",
+	},
+	ProperNouns: []string{
+		"Amazon", "Android", "Ansible", "Azure", "Cloudflare",
+		"Consul", "Docker", "Elasticsearch", "Envoy", "Etcd",
+		"Grafana", "Heroku", "Istio", "Jenkins", "Jira",
+		"Kafka", "Kibana", "Kubernetes", "Linux", "Nginx",
+		"Nomad", "Postgres", "Prometheus", "Redis", "Terraform",
+		"Travis", "Vault", "Windows",
 	},
 	DotImportWhitelist: []string{
 		"simd/archsimd",
@@ -271,6 +284,7 @@ func Load(dir string) (Config, error) {
 
 	conf.Checks = normalizeList(conf.Checks)
 	conf.Initialisms = normalizeList(conf.Initialisms)
+	conf.ProperNouns = normalizeList(conf.ProperNouns)
 	conf.DotImportWhitelist = normalizeList(conf.DotImportWhitelist)
 	conf.HTTPStatusCodeWhitelist = normalizeList(conf.HTTPStatusCodeWhitelist)
 
