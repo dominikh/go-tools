@@ -351,9 +351,14 @@ type call struct {
 	callee  string
 	tparams int
 	targs   int
+	hasRecv bool
 }
 
 func build(t *testing.T, src string) *ir.Package {
+	return buildMode(t, src, ir.SanityCheckFunctions|ir.InstantiateGenerics)
+}
+
+func buildMode(t *testing.T, src string, mode ir.BuilderMode) *ir.Package {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "p.go", src, 0)
 	if err != nil {
@@ -373,11 +378,55 @@ func build(t *testing.T, src string) *ir.Package {
 		t.Fatal(err)
 	}
 
-	prog := ir.NewProgram(fset, ir.SanityCheckFunctions|ir.InstantiateGenerics)
+	prog := ir.NewProgram(fset, mode)
 	p := prog.CreatePackage(pkg, []*ast.File{f}, info, true)
 	prog.Build()
 
 	return p
+}
+
+func TestIssue81602(t *testing.T) {
+	// Test that instantiating a generic function does not pick up the
+	// signature of an earlier method value of a generic method with the
+	// same parameters and results (receivers are not part of a signature's
+	// identity).
+	testenv.NeedsGoCommand1Point(t, 27)
+	const src = `
+package p
+type S struct{}
+func (S) M[T any]() error { return nil }
+func F[T any]() error     { return nil }
+func f() {
+	// The method value is built before F[int] is instantiated.
+	m := S{}.M[int]
+	_ = m()
+	_ = F[int]()
+}
+`
+	findCall := func(calls []*call, name string) *call {
+		for _, c := range calls {
+			if c.callee == name {
+				return c
+			}
+		}
+		return nil
+	}
+	for _, mode := range []ir.BuilderMode{
+		0,
+		ir.SanityCheckFunctions,
+		ir.SanityCheckFunctions | ir.InstantiateGenerics,
+	} {
+		p := buildMode(t, src, mode)
+		calls := getCalls(t, p)
+		c := findCall(calls, "p.F[int]")
+		if c == nil {
+			t.Errorf("mode %s: call to p.F[int] not found", mode)
+			continue
+		}
+		if c.hasRecv {
+			t.Errorf("mode %s: %s has a receiver", mode, c.callee)
+		}
+	}
 }
 
 func getCalls(t *testing.T, p *ir.Package) []*call {
@@ -395,6 +444,7 @@ func getCalls(t *testing.T, p *ir.Package) []*call {
 					callee:  fn.String(),
 					tparams: fn.TypeParams().Len(),
 					targs:   len(fn.TypeArgs()),
+					hasRecv: fn.Signature.Recv() != nil,
 				})
 			}
 			// don't care about the extra call for MakeClosure
