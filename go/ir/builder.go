@@ -676,10 +676,12 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			info:           fn.info,
 			goversion:      fn.goversion,
 			build:          (*builder).buildFromSyntax,
-			topLevelOrigin: nil,           // use anonIdx to lookup an anon instance's origin.
-			typeparams:     fn.typeparams, // share the parent's type parameters.
-			typeargs:       fn.typeargs,   // share the parent's type arguments.
-			subst:          fn.subst,      // share the parent's type substitutions.
+			topLevelOrigin: nil,               // use anonIdx to lookup an anon instance's origin.
+			recvtypeparams: fn.recvtypeparams, // share the parent's receiver type parameters.
+			recvtypeargs:   fn.recvtypeargs,   // share the parent's receiver type arguments.
+			typeparams:     fn.typeparams,     // share the parent's type parameters.
+			typeargs:       fn.typeargs,       // share the parent's type arguments.
+			subst:          fn.subst,          // share the parent's type substitutions.
 		}
 		fn2.uniq = fn.uniq // start from parent's unique values
 		fn.AnonFuncs = append(fn.AnonFuncs, fn2)
@@ -2798,6 +2800,8 @@ func (b *builder) rangeFunc(fn *Function, x Value, rng *ast.RangeStmt, label *lb
 		info:           fn.info,
 		build:          (*builder).buildYieldFunc,
 		topLevelOrigin: nil,
+		recvtypeparams: fn.recvtypeparams,
+		recvtypeargs:   fn.recvtypeargs,
 		typeparams:     fn.typeparams,
 		typeargs:       fn.typeargs,
 		subst:          fn.subst,
