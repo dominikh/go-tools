@@ -38,6 +38,12 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 
+		// Escape sequences are not interpreted inside raw string literals: replacing an
+		// invisible character with \u200b there would change the string's value to the
+		// six characters of the escape sequence. For raw strings we therefore only offer
+		// to delete the character, and we don't tell the user to use escape sequences.
+		isRaw := lit.Value[0] == '`'
+
 		type invalid struct {
 			r   rune
 			off int
@@ -93,7 +99,12 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 
 			r := invalids[0]
-			msg := fmt.Sprintf("string literal contains the Unicode %s character %U, consider using the %q escape sequence instead", kind, r.r, r.r)
+			var msg string
+			if isRaw {
+				msg = fmt.Sprintf("raw string literal contains the Unicode %s character %U, consider using an interpreted string literal and the %q escape sequence instead", kind, r.r, r.r)
+			} else {
+				msg = fmt.Sprintf("string literal contains the Unicode %s character %U, consider using the %q escape sequence instead", kind, r.r, r.r)
+			}
 
 			replacement := strconv.QuoteRune(r.r)
 			replacement = replacement[1 : len(replacement)-1]
@@ -112,7 +123,11 @@ func run(pass *analysis.Pass) (any, error) {
 					End: lit.Pos() + token.Pos(r.off) + token.Pos(utf8.RuneLen(r.r)),
 				}},
 			}
-			report.Report(pass, lit, msg, report.Fixes(edit, delete))
+			if isRaw {
+				report.Report(pass, lit, msg, report.Fixes(delete))
+			} else {
+				report.Report(pass, lit, msg, report.Fixes(edit, delete))
+			}
 		default:
 			var kind string
 			if hasFormat && hasControl {
@@ -125,7 +140,12 @@ func run(pass *analysis.Pass) (any, error) {
 				panic("unreachable")
 			}
 
-			msg := fmt.Sprintf("string literal contains Unicode %s characters, consider using escape sequences instead", kind)
+			var msg string
+			if isRaw {
+				msg = fmt.Sprintf("raw string literal contains Unicode %s characters, consider using an interpreted string literal and escape sequences instead", kind)
+			} else {
+				msg = fmt.Sprintf("string literal contains Unicode %s characters, consider using escape sequences instead", kind)
+			}
 			var edits []analysis.TextEdit
 			var deletions []analysis.TextEdit
 			for _, r := range invalids {
@@ -149,7 +169,11 @@ func run(pass *analysis.Pass) (any, error) {
 				Message:   fmt.Sprintf("delete all %s characters", kind),
 				TextEdits: deletions,
 			}
-			report.Report(pass, lit, msg, report.Fixes(edit, delete))
+			if isRaw {
+				report.Report(pass, lit, msg, report.Fixes(delete))
+			} else {
+				report.Report(pass, lit, msg, report.Fixes(edit, delete))
+			}
 		}
 	}
 	code.Preorder(pass, fn, (*ast.BasicLit)(nil))
