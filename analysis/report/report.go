@@ -261,7 +261,9 @@ func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
 
 func Ordinal(n int) string {
 	suffix := "th"
-	if n < 10 || n > 20 {
+	// 11th, 12th and 13th are irregular in every hundred, not just in the
+	// first one, so 111st is as wrong as 11st.
+	if n%100 < 11 || n%100 > 13 {
 		switch n % 10 {
 		case 0:
 			suffix = "th"
