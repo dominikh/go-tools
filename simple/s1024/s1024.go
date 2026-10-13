@@ -39,7 +39,13 @@ var (
 
 func run(pass *analysis.Pass) (any, error) {
 	for node := range code.Matches(pass, checkTimeUntilQ) {
-		if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
+		// The fix rewrites 'x.Sub(time.Now())' into 'time.Until(x)', which only compiles
+		// when x is itself a time.Time. Sub is also reachable when x embeds a time.Time,
+		// or when x is a *time.Time; in both cases 'time.Until(x)' does not type-check.
+		// Naming the embedded field instead is not always possible either, because it can
+		// be unexported and declared in another package, so we keep the diagnostic and
+		// drop the fix.
+		if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok && code.IsOfTypeWithName(pass, sel.X, "time.Time") {
 			r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]any{"arg": sel.X}).(ast.Node)
 			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 				report.FilterGenerated(),
