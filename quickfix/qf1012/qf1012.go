@@ -54,11 +54,16 @@ var (
 				(Symbol "fmt.Sprintf")
 				(Symbol "fmt.Sprintln"))
 			args))`)
+
+	checkWriteStringConcatQ = pattern.MustParse(`
+	(CallExpr
+		(SelectorExpr recv (Ident "WriteString"))
+		concat@(BinaryExpr _ "+" (BasicLit "STRING" _)))`)
 )
 
 func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
-		getRecv := func(m *pattern.Matcher) (ast.Expr, types.Type) {
+		getRecv := func(m *pattern.Matcher) (ast.Expr, ast.Expr, types.Type) {
 			recv := m.State["recv"].(ast.Expr)
 			recvT := pass.TypesInfo.TypeOf(recv)
 
@@ -69,14 +74,14 @@ func run(pass *analysis.Pass) (any, error) {
 			// since otherwise the code wouldn't compile.
 			if _, ok := types.Unalias(recvT).(*types.Named); ok && !types.IsInterface(recvT) {
 				recvT = types.NewPointer(recvT)
-				recv = &ast.UnaryExpr{Op: token.AND, X: recv}
-
+				recvPtr := &ast.UnaryExpr{Op: token.AND, X: recv}
+				return recvPtr, recv, recvT
 			}
-			return recv, recvT
+			return recv, recv, recvT
 		}
 
 		if m, ok := code.Match(pass, checkWriteBytesSprintfQ, node); ok {
-			recv, recvT := getRecv(m)
+			recvPtr, _, recvT := getRecv(m)
 			if !types.Implements(recvT, knowledge.Interfaces["io.Writer"]) {
 				return
 			}
@@ -91,11 +96,11 @@ func run(pass *analysis.Pass) (any, error) {
 					X:   ast.NewIdent("fmt"),
 					Sel: ast.NewIdent(newName),
 				},
-				Args: append([]ast.Expr{recv}, args...),
+				Args: append([]ast.Expr{recvPtr}, args...),
 			}))
 			report.Report(pass, node, msg, report.Fixes(fix))
 		} else if m, ok := code.Match(pass, checkWriteStringSprintfQ, node); ok {
-			recv, recvT := getRecv(m)
+			recvPtr, _, recvT := getRecv(m)
 			if !types.Implements(recvT, knowledge.Interfaces["io.StringWriter"]) {
 				return
 			}
@@ -115,14 +120,65 @@ func run(pass *analysis.Pass) (any, error) {
 					X:   ast.NewIdent("fmt"),
 					Sel: ast.NewIdent(newName),
 				},
-				Args: append([]ast.Expr{recv}, args...),
+				Args: append([]ast.Expr{recvPtr}, args...),
 			}))
+			report.Report(pass, node, msg, report.Fixes(fix))
+		} else if m, ok := code.Match(pass, checkWriteStringConcatQ, node); ok {
+			_, recv, recvT := getRecv(m)
+			// TODO(IlyasYOY): add support for []bytes, similar to the block above.
+			if !types.Implements(recvT, knowledge.Interfaces["io.StringWriter"]) {
+				return
+			}
+
+			concat := m.State["concat"].(ast.Expr)
+			concatLits := unwrapStringConcat(concat)
+
+			editStmts := make([]ast.Stmt, 0, len(concatLits))
+			for _, lit := range concatLits {
+				editStmts = append(editStmts, &ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun:  &ast.SelectorExpr{X: recv, Sel: ast.NewIdent("WriteString")},
+						Args: []ast.Expr{lit},
+					},
+				})
+			}
+
+			const msg = "Replace WriteString(x + y) with WriteString(x); WriteString(y)"
+			fix := edit.Fix(msg, edit.ReplaceWithStatements(pass.Fset, node, editStmts...))
 			report.Report(pass, node, msg, report.Fixes(fix))
 		}
 	}
-	if !code.CouldMatchAny(pass, checkWriteBytesSprintfQ, checkWriteStringSprintfQ) {
+	if !code.CouldMatchAny(pass, checkWriteBytesSprintfQ, checkWriteStringSprintfQ, checkWriteStringConcatQ) {
 		return nil, nil
 	}
 	code.Preorder(pass, fn, (*ast.CallExpr)(nil))
 	return nil, nil
+}
+
+func unwrapStringConcat(rightExpr ast.Expr) []*ast.BasicLit {
+	rightExpr = ast.Unparen(rightExpr)
+
+	if bin, ok := rightExpr.(*ast.BinaryExpr); ok {
+		if bin.Op != token.ADD {
+			return nil
+		}
+
+		xs := unwrapStringConcat(bin.X)
+		ys := unwrapStringConcat(bin.Y)
+
+		all := make([]*ast.BasicLit, 0, len(xs)+len(ys))
+		all = append(all, xs...)
+		all = append(all, ys...)
+
+		return all
+	}
+
+	// TODO(IlyasYOY): handle case for any expression returning string.
+	if lit, ok := rightExpr.(*ast.BasicLit); ok {
+		if lit.Kind == token.STRING {
+			return []*ast.BasicLit{lit}
+		}
+	}
+
+	return nil
 }
