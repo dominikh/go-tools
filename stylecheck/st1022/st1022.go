@@ -74,6 +74,10 @@ func run(pass *analysis.Pass) (any, error) {
 			if !ok {
 				return false
 			}
+			if strings.HasPrefix(text, "Deprecated: ") {
+				return false
+			}
+
 			prefix := name + " "
 			if !strings.HasPrefix(text, prefix) {
 				kind := "var"
