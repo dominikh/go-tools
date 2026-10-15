@@ -1,0 +1,35 @@
+-- Explicitly use nanoseconds --
+package pkg
+
+import timelib "time"
+
+const c1 = 1
+const c2 = 200
+
+func fn() {
+	timelib.Sleep(1 * timelib.Nanosecond)  //@ diag(`sleeping for 1`)
+	timelib.Sleep(42 * timelib.Nanosecond) //@ diag(`sleeping for 42`)
+	timelib.Sleep(201)
+	timelib.Sleep(c1)
+	timelib.Sleep(c2)
+	timelib.Sleep(2 * timelib.Nanosecond)
+	timelib.Sleep(timelib.Nanosecond)
+}
+
+-- Use seconds --
+package pkg
+
+import timelib "time"
+
+const c1 = 1
+const c2 = 200
+
+func fn() {
+	timelib.Sleep(1 * timelib.Second)  //@ diag(`sleeping for 1`)
+	timelib.Sleep(42 * timelib.Second) //@ diag(`sleeping for 42`)
+	timelib.Sleep(201)
+	timelib.Sleep(c1)
+	timelib.Sleep(c2)
+	timelib.Sleep(2 * timelib.Nanosecond)
+	timelib.Sleep(timelib.Nanosecond)
+}

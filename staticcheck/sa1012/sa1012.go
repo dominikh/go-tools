@@ -3,6 +3,7 @@ package sa1012
 import (
 	"go/ast"
 	"go/types"
+	"strconv"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -36,12 +37,6 @@ var Analyzer = SCAnalyzer.Analyzer
 var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Symbol _) (Builtin "nil"):_)`)
 
 func run(pass *analysis.Pass) (any, error) {
-	todo := &ast.CallExpr{
-		Fun: edit.Selector("context", "TODO"),
-	}
-	bg := &ast.CallExpr{
-		Fun: edit.Selector("context", "Background"),
-	}
 	for node, m := range code.Matches(pass, checkNilContextQ) {
 		call := node.(*ast.CallExpr)
 		fun, ok := m.State["fun"].(*types.Func)
@@ -59,10 +54,44 @@ func run(pass *analysis.Pass) (any, error) {
 		if !typeutil.IsTypeWithName(sig.Params().At(0).Type(), "context.Context") {
 			continue
 		}
-		report.Report(pass, call.Args[0],
-			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use", report.Fixes(
+		options := []report.Option(nil)
+		if contextAlias := importAlias(pass, call, "context"); contextAlias != "" {
+			todo := &ast.CallExpr{Fun: edit.Selector(contextAlias, "TODO")}
+			bg := &ast.CallExpr{Fun: edit.Selector(contextAlias, "Background")}
+			options = append(options, report.Fixes(
 				edit.Fix("Use context.TODO", edit.ReplaceWithNode(pass.Fset, call.Args[0], todo)),
 				edit.Fix("Use context.Background", edit.ReplaceWithNode(pass.Fset, call.Args[0], bg))))
+		}
+		report.Report(pass, call.Args[0],
+			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use", options...)
 	}
 	return nil, nil
+}
+
+func importAlias(pass *analysis.Pass, node ast.Node, path string) string {
+	file := code.File(pass, node)
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || importPath != path {
+			continue
+		}
+		var pkgName *types.PkgName
+		if spec.Name == nil {
+			pkgName, _ = pass.TypesInfo.Implicits[spec].(*types.PkgName)
+		} else {
+			pkgName, _ = pass.TypesInfo.Defs[spec.Name].(*types.PkgName)
+		}
+		if pkgName == nil || pkgName.Name() == "." || pkgName.Name() == "_" {
+			return ""
+		}
+		scope := pass.TypesInfo.Scopes[file].Innermost(node.Pos())
+		if scope != nil {
+			_, obj := scope.LookupParent(pkgName.Name(), node.Pos())
+			if obj == pkgName {
+				return pkgName.Name()
+			}
+		}
+		return ""
+	}
+	return ""
 }
