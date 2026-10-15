@@ -44,7 +44,7 @@ func fn(s string) {
 	tb.Fatal(s)   //@ diag(`should use print-style function`)
 	tb.Skip(s)    //@ diag(`should use print-style function`)
 
-	errors.New(s) //@ diag(`should use print-style function`)
+	fmt.Errorf(s) //@ diag(`should use print-style function`)
 
 	var nested struct {
 		l log.Logger

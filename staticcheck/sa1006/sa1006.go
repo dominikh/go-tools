@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
+	"strconv"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -74,6 +75,38 @@ var query1 = pattern.MustParse(`
 var query2 = pattern.MustParse(`(CallExpr (Symbol "fmt.Fprintf") _:format:[])`)
 
 func run(pass *analysis.Pass) (any, error) {
+	importName := func(node ast.Node, path string) (string, bool) {
+		for _, file := range pass.Files {
+			if node.Pos() < file.Pos() || node.Pos() > file.End() {
+				continue
+			}
+			for _, spec := range file.Imports {
+				pkgPath, err := strconv.Unquote(spec.Path.Value)
+				if err != nil || pkgPath != path {
+					continue
+				}
+				var pkgName *types.PkgName
+				if spec.Name != nil {
+					pkgName, _ = pass.TypesInfo.Defs[spec.Name].(*types.PkgName)
+				} else {
+					pkgName, _ = pass.TypesInfo.Implicits[spec].(*types.PkgName)
+				}
+				if pkgName == nil || pkgName.Name() == "." || pkgName.Name() == "_" {
+					return "", false
+				}
+				scope := pass.TypesInfo.Scopes[file].Innermost(node.Pos())
+				if scope != nil {
+					_, obj := scope.LookupParent(pkgName.Name(), node.Pos())
+					if obj == pkgName {
+						return pkgName.Name(), true
+					}
+				}
+				return "", false
+			}
+		}
+		return "", false
+	}
+
 	for node, m := range code.Matches(pass, query1, query2) {
 		call := node.(*ast.CallExpr)
 		name, ok := m.State["name"].(string)
@@ -96,9 +129,14 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		var alt string
+		var fixes []analysis.SuggestedFix
 		if name == "fmt.Errorf" {
-			// The alternative to fmt.Errorf isn't fmt.Error but errors.New
-			alt = "errors.New"
+			// The alternative to fmt.Errorf is errors.New, but we cannot
+			// suggest it unless errors is already imported.
+			if errorsName, ok := importName(node, "errors"); ok {
+				alt = errorsName + ".New"
+				fixes = append(fixes, edit.Fix(fmt.Sprintf("Use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt)))
+			}
 		} else {
 			// This can be either a function call like log.Printf or a method call with an
 			// arbitrarily complex selector, such as foo.bar[0].Printf. In either case,
@@ -106,10 +144,14 @@ func run(pass *analysis.Pass) (any, error) {
 			// expression.
 			alt = report.Render(pass, call.Fun)
 			alt = alt[:len(alt)-1]
+			fixes = append(fixes, edit.Fix(fmt.Sprintf("Use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt)))
+		}
+		var opts []report.Option
+		if len(fixes) > 0 {
+			opts = append(opts, report.Fixes(fixes...))
 		}
 		report.Report(pass, call,
-			"printf-style function with dynamic format string and no further arguments should use print-style function instead",
-			report.Fixes(edit.Fix(fmt.Sprintf("Use %s instead of %s", alt, name), edit.ReplaceWithString(call.Fun, alt))))
+			"printf-style function with dynamic format string and no further arguments should use print-style function instead", opts...)
 	}
 	return nil, nil
 }
