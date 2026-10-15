@@ -507,7 +507,7 @@ func (g *graph) entry() {
 
 					// (1.8) packages use symbols linked via go:linkname
 					fields := strings.Fields(c.Text)
-					if len(fields) == 3 {
+					if len(fields) == 2 || len(fields) == 3 {
 						obj := g.pkg.Scope().Lookup(fields[1])
 						if obj == nil {
 							continue

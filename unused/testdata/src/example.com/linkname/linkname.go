@@ -2,6 +2,9 @@ package pkg
 
 import _ "unsafe"
 
+//go:linkname localOnly
+func localOnly() {} //@ used("localOnly", true)
+
 //other:directive
 //go:linkname ol other4
 
