@@ -1,5 +1,8 @@
 package pkg
 
+// Deprecated: use another function.
+func DeprecatedFn() {}
+
 type SD struct {
 	// Deprecated: external don't use me
 	D string

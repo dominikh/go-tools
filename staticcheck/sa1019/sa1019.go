@@ -116,9 +116,9 @@ func run(pass *analysis.Pass) (any, error) {
 
 	var tfn types.Object
 	stack := 0
+	var nodeStack []ast.Node
 
-	checkIdentObj := func(sel *ast.SelectorExpr) bool {
-		obj := pass.TypesInfo.ObjectOf(sel.Sel)
+	checkObject := func(obj types.Object, node ast.Node, name string) bool {
 
 		if obj_, ok := obj.(*types.Func); ok {
 			obj = obj_.Origin()
@@ -148,21 +148,34 @@ func run(pass *analysis.Pass) (any, error) {
 			return true
 		}
 
+		if depr, ok := deprs.Objects[obj]; ok {
+			handleDeprecation(depr, node, name, obj.Pkg().Path(), tfn)
+		}
+		return true
+	}
+	checkIdentObj := func(sel *ast.SelectorExpr) bool {
+		obj := pass.TypesInfo.ObjectOf(sel.Sel)
+		if obj_, ok := obj.(*types.Func); ok {
+			obj = obj_.Origin()
+		}
 		node := ast.Node(sel)
 		if pass.TypesInfo.Types[sel.X].IsType() {
 			node = sel.Sel
 		}
-		if depr, ok := deprs.Objects[obj]; ok {
-			handleDeprecation(depr, node, code.SelectorName(pass, sel), obj.Pkg().Path(), tfn)
-		}
-		return true
+		return checkObject(obj, node, code.SelectorName(pass, sel))
 	}
 
 	fn := func(node ast.Node, push bool) bool {
 		if !push {
 			stack--
+			nodeStack = nodeStack[:len(nodeStack)-1]
 			return false
 		}
+		var parent ast.Node
+		if len(nodeStack) > 0 {
+			parent = nodeStack[len(nodeStack)-1]
+		}
+		nodeStack = append(nodeStack, node)
 		stack++
 		if stack == 1 {
 			tfn = nil
@@ -172,9 +185,33 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		switch v := node.(type) {
-		// FIXME(dh): this misses dot-imported objects
 		case *ast.SelectorExpr:
 			return checkIdentObj(v)
+		case *ast.Ident:
+			// Selector names are handled together with their selector so that
+			// diagnostics can use the qualified name and the correct source node.
+			if sel, ok := parent.(*ast.SelectorExpr); ok && sel.Sel == v {
+				break
+			}
+			if kv, ok := parent.(*ast.KeyValueExpr); ok && kv.Key == v && len(nodeStack) >= 3 {
+				if lit, ok := nodeStack[len(nodeStack)-3].(*ast.CompositeLit); ok {
+					litType := pass.TypesInfo.Types[lit.Type]
+					if litType.IsType() {
+						if _, ok := litType.Type.Underlying().(*types.Struct); ok {
+							// Struct literal keys are checked below with a synthetic selector.
+							break
+						}
+					}
+				}
+			}
+			obj := pass.TypesInfo.ObjectOf(v)
+			if obj == nil || obj.Pkg() == nil {
+				break
+			}
+			if obj_, ok := obj.(*types.Func); ok {
+				obj = obj_.Origin()
+			}
+			checkObject(obj, v, obj.Pkg().Name()+"."+obj.Name())
 
 		case *ast.CompositeLit:
 			litType := pass.TypesInfo.Types[v.Type]
