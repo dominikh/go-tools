@@ -58,6 +58,12 @@ func isTrivial(fn *ir.Function, seen map[*ir.Function]struct{}) bool {
 
 	// We delay adding to seen until a call, to avoid creating garbage in the
 	// common case.
+	addedFn := false
+	defer func() {
+		if addedFn {
+			delete(seen, fn)
+		}
+	}()
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
 			switch instr := instr.(type) {
@@ -82,7 +88,10 @@ func isTrivial(fn *ir.Function, seen map[*ir.Function]struct{}) bool {
 				if seen == nil {
 					seen = make(map[*ir.Function]struct{})
 				}
-				seen[fn] = struct{}{}
+				if !addedFn {
+					seen[fn] = struct{}{}
+					addedFn = true
+				}
 				callee := instr.Call.StaticCallee()
 				if callee == nil || !isTrivial(callee, seen) {
 					return false
