@@ -176,8 +176,10 @@ func (ins *Instance[L, Elem]) Forward(fn *ir.Function) {
 					Decision: d.Decision,
 				}
 
-				for _, ref := range *instr.Referrers() {
-					worklist[ref] = struct{}{}
+				if refs := d.Value.Referrers(); refs != nil {
+					for _, ref := range *refs {
+						worklist[ref] = struct{}{}
+					}
 				}
 			}
 		}
