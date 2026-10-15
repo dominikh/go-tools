@@ -348,7 +348,11 @@ func matchNodeAST(m *Matcher, a Node, b any) (any, bool) {
 		return match(m, a, b[0])
 	case ast.Node:
 		ra := reflect.ValueOf(a)
-		rb := reflect.ValueOf(b).Elem()
+		rb := reflect.ValueOf(b)
+		if rb.IsNil() {
+			return nil, false
+		}
+		rb = rb.Elem()
 
 		if ra.Type().Name() != rb.Type().Name() {
 			return nil, false
