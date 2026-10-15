@@ -2,21 +2,21 @@ package pkg
 
 import (
 	"bytes"
-	"strings"
+	str "strings"
 )
 
 func fn() {
-	strings.Replace("", "", "", -1) //@ diag(`could use strings.ReplaceAll instead`)
-	strings.Replace("", "", "", 0)
-	strings.Replace("", "", "", 1)
+	str.Replace("", "", "", -1) //@ diag(`could use strings.ReplaceAll instead`)
+	str.Replace("", "", "", 0)
+	str.Replace("", "", "", 1)
 
-	strings.SplitN("", "", -1) //@ diag(`could use strings.Split instead`)
-	strings.SplitN("", "", 0)
-	strings.SplitN("", "", 1)
+	str.SplitN("", "", -1) //@ diag(`could use strings.Split instead`)
+	str.SplitN("", "", 0)
+	str.SplitN("", "", 1)
 
-	strings.SplitAfterN("", "", -1) //@ diag(`could use strings.SplitAfter instead`)
-	strings.SplitAfterN("", "", 0)
-	strings.SplitAfterN("", "", 1)
+	str.SplitAfterN("", "", -1) //@ diag(`could use strings.SplitAfter instead`)
+	str.SplitAfterN("", "", 0)
+	str.SplitAfterN("", "", 1)
 
 	bytes.Replace(nil, nil, nil, -1) //@ diag(`could use bytes.ReplaceAll instead`)
 	bytes.Replace(nil, nil, nil, 0)
