@@ -105,7 +105,7 @@ func readELF(name string, f *os.File, data []byte) (buildid string, err error) {
 		}
 
 		var note []byte
-		if p.Off+p.Filesz < uint64(len(data)) {
+		if p.Off <= uint64(len(data)) && p.Filesz <= uint64(len(data))-p.Off {
 			note = data[p.Off : p.Off+p.Filesz]
 		} else {
 			// For some linkers, such as the Solaris linker,
@@ -129,21 +129,21 @@ func readELF(name string, f *os.File, data []byte) (buildid string, err error) {
 		filesz := p.Filesz
 		off := p.Off
 		for filesz >= 16 {
-			nameSize := ef.ByteOrder.Uint32(note)
-			valSize := ef.ByteOrder.Uint32(note[4:])
+			nameSize := uint64(ef.ByteOrder.Uint32(note))
+			valSize := uint64(ef.ByteOrder.Uint32(note[4:]))
 			tag := ef.ByteOrder.Uint32(note[8:])
 			nname := note[12:16]
-			if nameSize == 4 && 16+valSize <= uint32(len(note)) && tag == elfGoBuildIDTag && bytes.Equal(nname, elfGoNote) {
-				return string(note[16 : 16+valSize]), nil
+			if nameSize == 4 && 16+valSize <= uint64(len(note)) && tag == elfGoBuildIDTag && bytes.Equal(nname, elfGoNote) {
+				return string(note[16 : 16+int(valSize)]), nil
 			}
 
-			if nameSize == 4 && 16+valSize <= uint32(len(note)) && tag == gnuBuildIDTag && bytes.Equal(nname, elfGNUNote) {
-				gnu = string(note[16 : 16+valSize])
+			if nameSize == 4 && 16+valSize <= uint64(len(note)) && tag == gnuBuildIDTag && bytes.Equal(nname, elfGNUNote) {
+				gnu = string(note[16 : 16+int(valSize)])
 			}
 
 			nameSize = (nameSize + 3) &^ 3
 			valSize = (valSize + 3) &^ 3
-			notesz := uint64(12 + nameSize + valSize)
+			notesz := uint64(12) + nameSize + valSize
 			if filesz <= notesz {
 				break
 			}
@@ -151,6 +151,9 @@ func readELF(name string, f *os.File, data []byte) (buildid string, err error) {
 			align := p.Align
 			alignedOff := (off + align - 1) &^ (align - 1)
 			notesz += alignedOff - off
+			if notesz > filesz {
+				break
+			}
 			off = alignedOff
 			filesz -= notesz
 			note = note[notesz:]
