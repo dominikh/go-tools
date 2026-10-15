@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
@@ -72,10 +73,11 @@ func run(pass *analysis.Pass) (any, error) {
 		if !ok {
 			return
 		}
-		funIdent := sel.Sel
-		if pkgIdent.Name != "strings" && pkgIdent.Name != "bytes" {
+		pkgName, ok := pass.TypesInfo.Uses[pkgIdent].(*types.PkgName)
+		if !ok || (pkgName.Imported().Path() != "strings" && pkgName.Imported().Path() != "bytes") {
 			return
 		}
+		funIdent := sel.Sel
 
 		var r ast.Expr
 		switch funIdent.Name {
