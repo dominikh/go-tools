@@ -33,9 +33,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 var Analyzer = SCAnalyzer.Analyzer
 
 var (
-	checkBytesCompareQ  = pattern.MustParse(`(BinaryExpr (CallExpr (Symbol "bytes.Compare") args) op@(Or "==" "!=") (IntegerLiteral "0"))`)
-	checkBytesCompareRe = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args)`)
-	checkBytesCompareRn = pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
+	checkBytesCompareQ = pattern.MustParse(`(BinaryExpr (CallExpr (Symbol "bytes.Compare") args) op@(Or "==" "!=") (IntegerLiteral "0"))`)
 )
 
 func CheckBytesCompare(pass *analysis.Pass) (any, error) {
@@ -44,6 +42,21 @@ func CheckBytesCompare(pass *analysis.Pass) (any, error) {
 		return nil, nil
 	}
 	for node, m := range code.Matches(pass, checkBytesCompareQ) {
+		call := node.(*ast.BinaryExpr).X.(*ast.CallExpr)
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			prefix := ""
+			if m.State["op"].(token.Token) == token.NEQ {
+				prefix = "!"
+			}
+			report.Report(pass, node, fmt.Sprintf("should use %sbytes.Equal(%s) instead", prefix, report.RenderArgs(pass, m.State["args"].([]ast.Expr))), report.FilterGenerated())
+			continue
+		}
+		pkg := selector.X
+		equal := &ast.CallExpr{
+			Fun:  &ast.SelectorExpr{X: pkg, Sel: ast.NewIdent("Equal")},
+			Args: m.State["args"].([]ast.Expr),
+		}
 		args := report.RenderArgs(pass, m.State["args"].([]ast.Expr))
 		prefix := ""
 		if m.State["op"].(token.Token) == token.NEQ {
@@ -53,9 +66,9 @@ func CheckBytesCompare(pass *analysis.Pass) (any, error) {
 		var fix analysis.SuggestedFix
 		switch tok := m.State["op"].(token.Token); tok {
 		case token.EQL:
-			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRe, m.State))
+			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithNode(pass.Fset, node, equal))
 		case token.NEQ:
-			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRn, m.State))
+			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithNode(pass.Fset, node, &ast.UnaryExpr{Op: token.NOT, X: equal}))
 		default:
 			panic(fmt.Sprintf("unexpected token %v", tok))
 		}
