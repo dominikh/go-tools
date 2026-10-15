@@ -33,8 +33,8 @@ fields in structs, not unexported ones. It is usually an error to try
 to (un)marshal structs that only consist of unexported fields.
 
 This check will not flag calls involving types that define custom
-marshaling behavior, e.g. via \'MarshalJSON\' methods. It will also not
-flag empty structs.`,
+marshaling behavior, e.g. via \'MarshalJSON\' methods or the Go 1.27
+\'encoding/json/v2\' interfaces. It will also not flag empty structs.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,
@@ -49,17 +49,39 @@ var rules = map[string]callcheck.Check{
 	// Let's see if we encounter any false positives.
 	//
 	// Also, should we flag gob?
-	"encoding/json.Marshal":           check(knowledge.Arg("json.Marshal.v"), "MarshalJSON", "MarshalText"),
-	"encoding/json.MarshalIndent":     check(knowledge.Arg("json.MarshalIndent.v"), "MarshalJSON", "MarshalText"),
+	"encoding/json.Marshal":           check(knowledge.Arg("json.Marshal.v"), "MarshalJSON", "MarshalJSONTo", "MarshalText"),
+	"encoding/json.MarshalIndent":     check(knowledge.Arg("json.MarshalIndent.v"), "MarshalJSON", "MarshalJSONTo", "MarshalText"),
 	"encoding/xml.Marshal":            check(knowledge.Arg("xml.Marshal.v"), "MarshalXML", "MarshalText"),
 	"encoding/xml.MarshalIndent":      check(knowledge.Arg("xml.MarshalIndent.v"), "MarshalXML", "MarshalText"),
-	"(*encoding/json.Encoder).Encode": check(knowledge.Arg("(*encoding/json.Encoder).Encode.v"), "MarshalJSON", "MarshalText"),
+	"(*encoding/json.Encoder).Encode": check(knowledge.Arg("(*encoding/json.Encoder).Encode.v"), "MarshalJSON", "MarshalJSONTo", "MarshalText"),
 	"(*encoding/xml.Encoder).Encode":  check(knowledge.Arg("(*encoding/xml.Encoder).Encode.v"), "MarshalXML", "MarshalText"),
 
-	"encoding/json.Unmarshal":         check(knowledge.Arg("json.Unmarshal.v"), "UnmarshalJSON", "UnmarshalText"),
+	"encoding/json.Unmarshal":         check(knowledge.Arg("json.Unmarshal.v"), "UnmarshalJSON", "UnmarshalJSONFrom", "UnmarshalText"),
 	"encoding/xml.Unmarshal":          check(knowledge.Arg("xml.Unmarshal.v"), "UnmarshalXML", "UnmarshalText"),
-	"(*encoding/json.Decoder).Decode": check(knowledge.Arg("(*encoding/json.Decoder).Decode.v"), "UnmarshalJSON", "UnmarshalText"),
+	"(*encoding/json.Decoder).Decode": check(knowledge.Arg("(*encoding/json.Decoder).Decode.v"), "UnmarshalJSON", "UnmarshalJSONFrom", "UnmarshalText"),
 	"(*encoding/xml.Decoder).Decode":  check(knowledge.Arg("(*encoding/xml.Decoder).Decode.v"), "UnmarshalXML", "UnmarshalText"),
+}
+
+// isJSONv2Method checks the actual interface contract, not just its spelling.
+func isJSONv2Method(sig *types.Signature, name string) bool {
+	if sig.Variadic() || sig.Params().Len() != 1 || sig.Results().Len() != 1 ||
+		!types.Identical(sig.Results().At(0).Type(), types.Universe.Lookup("error").Type()) {
+		return false
+	}
+	ptr, ok := types.Unalias(sig.Params().At(0).Type()).(*types.Pointer)
+	if !ok {
+		return false
+	}
+	named, ok := types.Unalias(ptr.Elem()).(*types.Named)
+	if !ok {
+		return false
+	}
+	want := "Encoder"
+	if name == "UnmarshalJSONFrom" {
+		want = "Decoder"
+	}
+	obj := named.Obj()
+	return obj.Pkg() != nil && obj.Pkg().Path() == "encoding/json/jsontext" && obj.Name() == want
 }
 
 func check(argN int, meths ...string) callcheck.Check {
@@ -87,7 +109,12 @@ func check(argN int, meths ...string) callcheck.Check {
 		// TODO(dh): we're not checking the signature, which can cause false negatives.
 		// This isn't a huge problem, however, since vet complains about incorrect signatures.
 		for _, meth := range meths {
-			if ms.Lookup(nil, meth) != nil {
+			if sel := ms.Lookup(nil, meth); sel != nil {
+				if meth == "MarshalJSONTo" || meth == "UnmarshalJSONFrom" {
+					if !isJSONv2Method(sel.Obj().Type().(*types.Signature), meth) {
+						continue
+					}
+				}
 				return
 			}
 		}
