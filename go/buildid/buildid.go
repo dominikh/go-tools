@@ -131,6 +131,9 @@ func readGccgoArchive(name string, f *os.File) (string, error) {
 		if err != nil {
 			return bad()
 		}
+		if size < 0 {
+			return bad()
+		}
 
 		name := strings.TrimSpace(string(hdr[:16]))
 		if name == "_buildid.o/" {
