@@ -1,6 +1,7 @@
 package irutil
 
 import (
+	"go/token"
 	"go/types"
 
 	"honnef.co/go/tools/go/ir"
@@ -29,15 +30,14 @@ func Terminates(fn *ir.Function) bool {
 					// Check if we got here by receiving from a closed
 					// time.Tick channel – this cannot happen at
 					// runtime and thus doesn't constitute termination
-					iff := ctrl
-					if !ok {
-						return true
+					cond := ctrl.Cond
+					negated := false
+					if unop, ok := cond.(*ir.UnOp); ok && unop.Op == token.NOT {
+						cond = unop.X
+						negated = true
 					}
-					ex, ok := iff.Cond.(*ir.Extract)
-					if !ok {
-						return true
-					}
-					if ex.Index != 1 {
+					ex, ok := cond.(*ir.Extract)
+					if !ok || ex.Index != 1 {
 						return true
 					}
 					recv, ok := ex.Tuple.(*ir.Recv)
@@ -57,6 +57,22 @@ func Terminates(fn *ir.Function) bool {
 						return true
 					}
 					if fn2.FullName() != "time.Tick" {
+						return true
+					}
+					// A receive from time.Tick always reports ok == true. The
+					// return is reachable only on the true edge, accounting for
+					// an optional logical negation of the condition.
+					found := false
+					for i, succ := range pred.Succs {
+						if succ == block {
+							found = true
+							if (i == 0) != negated {
+								return true
+							}
+							break
+						}
+					}
+					if !found {
 						return true
 					}
 				default:
