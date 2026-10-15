@@ -19,33 +19,32 @@ func (err parseBuildConfigError) Error() string { return err.err.Error() }
 func parseBuildConfigs(r io.Reader) ([]buildConfig, error) {
 	var builds []buildConfig
 	br := bufio.NewReader(r)
-	i := 0
+	lineNumber := 0
 	for {
 		line, err := br.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				return nil, err
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if len(line) != 0 {
+			lineNumber++
+			line = strings.TrimSpace(line)
+			if line != "" {
+				name, envs, flags, err := parseBuildConfig(line)
+				if err != nil {
+					return nil, parseBuildConfigError{line: lineNumber, err: err}
+				}
+
+				bc := buildConfig{
+					Name:  name,
+					Envs:  envs,
+					Flags: flags,
+				}
+				builds = append(builds, bc)
 			}
 		}
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if err == io.EOF {
+			break
 		}
-		name, envs, flags, err := parseBuildConfig(line)
-		if err != nil {
-			return nil, parseBuildConfigError{line: i + 1, err: err}
-		}
-
-		bc := buildConfig{
-			Name:  name,
-			Envs:  envs,
-			Flags: flags,
-		}
-		builds = append(builds, bc)
-
-		i++
 	}
 	return builds, nil
 }
