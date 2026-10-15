@@ -103,9 +103,8 @@ func (enc *encoder) newMapEncoder(t fakereflect.TypeAndCanAddr, stack string) *U
 		return enc.newTypeEncoder(t.Elem(), stack+"[k]")
 	}
 
-	switch t.Key().Type.Underlying().(type) {
-	case *types.Basic:
-	default:
+	if basic, ok := t.Key().Type.Underlying().(*types.Basic); !ok ||
+		basic.Kind() != types.String && basic.Info()&types.IsInteger == 0 {
 		if !t.Key().Implements(knowledge.Interfaces["encoding.TextMarshaler"]) {
 			return &UnsupportedTypeError{
 				Type: t.Type,
