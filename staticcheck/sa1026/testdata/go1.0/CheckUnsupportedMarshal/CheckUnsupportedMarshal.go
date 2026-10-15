@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"time"
+	"unsafe"
 )
 
 type T1 struct {
@@ -279,6 +280,13 @@ func longPathXML() {
 func otherPackageXML() {
 	var x time.Ticker
 	xml.Marshal(x) //@ diag(`unsupported type <-chan time.Time, via x.C`)
+}
+
+func unsupportedXMLBasicTypes() {
+	var c complex128
+	var p unsafe.Pointer
+	xml.Marshal(c) //@ diag(`unsupported type complex128`)
+	xml.Marshal(p) //@ diag(`unsupported type unsafe.Pointer`)
 }
 
 type ToplevelPointerMarshalerXML struct {
