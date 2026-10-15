@@ -1,8 +1,11 @@
 package pkg
 
+import m "math"
+
 const x = 0.0
 
 func fn() {
+	_ = m.Copysign
 	_ = -0.0          //@ diag(`in Go, the floating-point literal '-0.0' is the same as '0.0', it does not produce a negative zero`)
 	_ = float32(-0.0) //@ diag(`in Go, the floating-point literal '-0.0' is the same as '0.0', it does not produce a negative zero`)
 	_ = float64(-0.0) //@ diag(`in Go, the floating-point literal '-0.0' is the same as '0.0', it does not produce a negative zero`)
