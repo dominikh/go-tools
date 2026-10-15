@@ -41,6 +41,13 @@ func CheckDeMorgan(pass *analysis.Pass) (any, error) {
 		ast.Inspect(expr, func(node ast.Node) bool {
 			if expr, ok := node.(ast.Expr); ok {
 				if typ := pass.TypesInfo.TypeOf(expr); typ != nil {
+					// A type parameter may be instantiated with a floating-point
+					// type even when its constraint's underlying type is an interface.
+					// Negating comparisons is not equivalent for NaN values.
+					if _, ok := typ.(*types.TypeParam); ok {
+						found = true
+						return false
+					}
 					if basic, ok := typ.Underlying().(*types.Basic); ok {
 						if (basic.Info() & types.IsFloat) != 0 {
 							found = true
