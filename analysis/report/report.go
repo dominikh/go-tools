@@ -67,7 +67,7 @@ func MinimumLanguageVersion(vers string) Option {
 	return func(opts *Options) { opts.MinimumLanguageVersion = vers }
 }
 func MaximumLanguageVersion(vers string) Option {
-	return func(opts *Options) { opts.MinimumLanguageVersion = vers }
+	return func(opts *Options) { opts.MaximumLanguageVersion = vers }
 }
 func MinimumStdlibVersion(vers string) Option {
 	return func(opts *Options) { opts.MinimumStdlibVersion = vers }

@@ -2,6 +2,15 @@ package report
 
 import "testing"
 
+func TestLanguageVersionOptions(t *testing.T) {
+	var opts Options
+	MinimumLanguageVersion("go1.20")(&opts)
+	MaximumLanguageVersion("go1.24")(&opts)
+	if opts.MinimumLanguageVersion != "go1.20" || opts.MaximumLanguageVersion != "go1.24" {
+		t.Fatalf("language version options = (%q, %q), want (%q, %q)", opts.MinimumLanguageVersion, opts.MaximumLanguageVersion, "go1.20", "go1.24")
+	}
+}
+
 func TestOrdinal(t *testing.T) {
 	tests := []struct {
 		num  int
