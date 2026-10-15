@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"time"
+	"unsafe"
 )
 
 type T1 struct {
@@ -197,6 +198,13 @@ func mapsJSON() {
 	json.Marshal(m6)
 	json.Marshal(m7) //@ diag(`unsupported type map[PointerMarshaler]string`)
 	json.Marshal(m8)
+}
+
+func unsupportedJSONBasicTypes() {
+	var c complex128
+	var p unsafe.Pointer
+	json.Marshal(c) //@ diag(`unsupported type complex128`)
+	json.Marshal(p) //@ diag(`unsupported type unsafe.Pointer`)
 }
 
 func mapsXML() {
