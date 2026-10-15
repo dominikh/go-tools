@@ -75,9 +75,19 @@ var tinfoMap sync.Map // map[reflect.Type]*typeInfo
 // getTypeInfo returns the typeInfo structure with details necessary
 // for marshaling and unmarshaling typ.
 func getTypeInfo(typ fakereflect.TypeAndCanAddr) (*typeInfo, error) {
+	return getTypeInfoRecursive(typ, map[fakereflect.TypeAndCanAddr]bool{})
+}
+
+func getTypeInfoRecursive(typ fakereflect.TypeAndCanAddr, visiting map[fakereflect.TypeAndCanAddr]bool) (*typeInfo, error) {
 	if ti, ok := tinfoMap.Load(typ); ok {
 		return ti.(*typeInfo), nil
 	}
+	if visiting[typ] {
+		// Recursive embedded structs cannot contribute fields indefinitely.
+		return &typeInfo{}, nil
+	}
+	visiting[typ] = true
+	defer delete(visiting, typ)
 
 	tinfo := &typeInfo{}
 	if typ.IsStruct() && !typeutil.IsTypeWithName(typ.Type, "encoding/xml.Name") {
@@ -95,7 +105,7 @@ func getTypeInfo(typ fakereflect.TypeAndCanAddr) (*typeInfo, error) {
 					t = t.Elem()
 				}
 				if t.IsStruct() {
-					inner, err := getTypeInfo(t)
+					inner, err := getTypeInfoRecursive(t, visiting)
 					if err != nil {
 						return nil, err
 					}

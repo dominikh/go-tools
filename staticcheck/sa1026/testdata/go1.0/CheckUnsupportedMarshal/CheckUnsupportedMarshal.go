@@ -57,6 +57,10 @@ type Recursive struct {
 	Field *Recursive
 }
 
+type RecursiveEmbed struct {
+	*RecursiveEmbed
+}
+
 type ValueMarshaler chan int
 
 func (ValueMarshaler) MarshalText() ([]byte, error) { return nil, nil }
@@ -314,6 +318,11 @@ func cyclicPointer() {
 	}
 	var s S1
 	xml.Marshal(s) //@ diag(`cyclic type P, via x.Foo.Bar`)
+}
+
+func cyclicEmbeddedStruct() {
+	var value RecursiveEmbed
+	xml.Marshal(value)
 }
 
 func functionAsArgument(arg T1) {
