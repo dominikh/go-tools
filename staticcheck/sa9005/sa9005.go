@@ -62,6 +62,28 @@ var rules = map[string]callcheck.Check{
 	"(*encoding/xml.Decoder).Decode":  check(knowledge.Arg("(*encoding/xml.Decoder).Decode.v"), "UnmarshalXML", "UnmarshalText"),
 }
 
+// isJSONv2Method checks the actual interface contract, not just its spelling.
+func isJSONv2Method(sig *types.Signature, name string) bool {
+	if sig.Variadic() || sig.Params().Len() != 1 || sig.Results().Len() != 1 ||
+		!types.Identical(sig.Results().At(0).Type(), types.Universe.Lookup("error").Type()) {
+		return false
+	}
+	ptr, ok := types.Unalias(sig.Params().At(0).Type()).(*types.Pointer)
+	if !ok {
+		return false
+	}
+	named, ok := types.Unalias(ptr.Elem()).(*types.Named)
+	if !ok {
+		return false
+	}
+	want := "Encoder"
+	if name == "UnmarshalJSONFrom" {
+		want = "Decoder"
+	}
+	obj := named.Obj()
+	return obj.Pkg() != nil && obj.Pkg().Path() == "encoding/json/jsontext" && obj.Name() == want
+}
+
 func check(argN int, meths ...string) callcheck.Check {
 	return func(call *callcheck.Call) {
 		if code.IsGenerated(call.Pass, call.Instr.Pos()) {
@@ -87,7 +109,12 @@ func check(argN int, meths ...string) callcheck.Check {
 		// TODO(dh): we're not checking the signature, which can cause false negatives.
 		// This isn't a huge problem, however, since vet complains about incorrect signatures.
 		for _, meth := range meths {
-			if ms.Lookup(nil, meth) != nil {
+			if sel := ms.Lookup(nil, meth); sel != nil {
+				if meth == "MarshalJSONTo" || meth == "UnmarshalJSONFrom" {
+					if !isJSONv2Method(sel.Obj().Type().(*types.Signature), meth) {
+						continue
+					}
+				}
 				return
 			}
 		}
