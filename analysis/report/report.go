@@ -261,7 +261,7 @@ func DisplayPosition(fset *token.FileSet, p token.Pos) token.Position {
 
 func Ordinal(n int) string {
 	suffix := "th"
-	if n < 10 || n > 20 {
+	if n%100 < 10 || n%100 > 20 {
 		switch n % 10 {
 		case 0:
 			suffix = "th"
