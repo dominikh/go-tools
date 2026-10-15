@@ -128,6 +128,7 @@ func CopyExpr(node ast.Expr) (ast.Expr, bool) {
 		if !ok {
 			return nil, false
 		}
+		cp.Indices = make([]ast.Expr, len(node.Indices))
 		for i, v := range node.Indices {
 			cp.Indices[i], ok = CopyExpr(v)
 			if !ok {
@@ -203,12 +204,29 @@ func CopyExpr(node ast.Expr) (ast.Expr, bool) {
 		return &cp, ok
 	case *ast.InterfaceType:
 		cp := *node
-		return &cp, true
+		var ok bool
+		cp.Methods, ok = copyFieldList(node.Methods)
+		return &cp, ok
 	case *ast.StructType:
 		cp := *node
-		return &cp, true
-	case *ast.FuncLit, *ast.FuncType:
-		// TODO(dh): implement copying of function literals and types.
+		var ok bool
+		cp.Fields, ok = copyFieldList(node.Fields)
+		return &cp, ok
+	case *ast.FuncType:
+		cp := *node
+		var ok bool
+		cp.TypeParams, ok = copyFieldList(node.TypeParams)
+		if !ok {
+			return nil, false
+		}
+		cp.Params, ok = copyFieldList(node.Params)
+		if !ok {
+			return nil, false
+		}
+		cp.Results, ok = copyFieldList(node.Results)
+		return &cp, ok
+	case *ast.FuncLit:
+		// TODO(dh): implement copying of function literals.
 		return nil, false
 	case *ast.ChanType:
 		var ok bool
@@ -459,4 +477,56 @@ func SimplifyParentheses(node ast.Expr) ast.Expr {
 	}
 
 	return node
+}
+
+func copyCommentGroup(g *ast.CommentGroup) *ast.CommentGroup {
+	if g == nil {
+		return nil
+	}
+	c := *g
+	c.List = make([]*ast.Comment, len(g.List))
+	for i, x := range g.List {
+		if x != nil {
+			v := *x
+			c.List[i] = &v
+		}
+	}
+	return &c
+}
+func copyFieldList(g *ast.FieldList) (*ast.FieldList, bool) {
+	if g == nil {
+		return nil, true
+	}
+	c := *g
+	c.List = make([]*ast.Field, len(g.List))
+	for i, x := range g.List {
+		if x == nil {
+			continue
+		}
+		v := *x
+		v.Doc = copyCommentGroup(x.Doc)
+		v.Comment = copyCommentGroup(x.Comment)
+		if x.Names != nil {
+			v.Names = make([]*ast.Ident, len(x.Names))
+			for j, n := range x.Names {
+				if n != nil {
+					nc := *n
+					v.Names[j] = &nc
+				}
+			}
+		}
+		if x.Type != nil {
+			var ok bool
+			v.Type, ok = CopyExpr(x.Type)
+			if !ok {
+				return nil, false
+			}
+		}
+		if x.Tag != nil {
+			tag := *x.Tag
+			v.Tag = &tag
+		}
+		c.List[i] = &v
+	}
+	return &c, true
 }
