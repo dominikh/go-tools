@@ -54,7 +54,7 @@ func run(pass *analysis.Pass) (any, error) {
 	for _, code := range config.For(pass).HTTPStatusCodeWhitelist {
 		whitelist[code] = true
 	}
-	for _, m := range code.Matches(pass, query) {
+	for node, m := range code.Matches(pass, query) {
 		var arg int
 		switch m.State["name"].(string) {
 		case "net/http.Error":
@@ -89,9 +89,16 @@ func run(pass *analysis.Pass) (any, error) {
 			continue
 		}
 		lit := args[arg]
-		report.Report(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n),
-			report.FilterGenerated(),
-			report.Fixes(edit.Fix(fmt.Sprintf("Use http.%s instead of %d", s, n), edit.ReplaceWithString(lit, "http."+s))))
+		options := []report.Option{report.FilterGenerated()}
+		if call, ok := node.(*ast.CallExpr); ok {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+				if pkg, ok := sel.X.(*ast.Ident); ok {
+					name := pkg.Name + "." + s
+					options = append(options, report.Fixes(edit.Fix(fmt.Sprintf("Use %s instead of %d", name, n), edit.ReplaceWithString(lit, name))))
+				}
+			}
+		}
+		report.Report(pass, lit, fmt.Sprintf("should use constant http.%s instead of numeric literal %d", s, n), options...)
 	}
 	return nil, nil
 }
