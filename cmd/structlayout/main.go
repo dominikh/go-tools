@@ -137,7 +137,7 @@ func sizes(typ *types.Struct, prefix string, base int64, out []st.Field) []st.Fi
 		field.Size = 1
 		field.End++
 	}
-	pad := s.Sizeof(typ) - field.End
+	pad := base + s.Sizeof(typ) - field.End
 	if pad > 0 {
 		out = append(out, st.Field{
 			IsPadding: true,
