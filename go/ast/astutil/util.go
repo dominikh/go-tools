@@ -232,6 +232,9 @@ func Equal(a, b ast.Node) bool {
 	if reflect.TypeOf(a) != reflect.TypeOf(b) {
 		return false
 	}
+	if reflect.ValueOf(a).IsNil() || reflect.ValueOf(b).IsNil() {
+		return reflect.ValueOf(a).IsNil() && reflect.ValueOf(b).IsNil()
+	}
 
 	switch a := a.(type) {
 	case *ast.BasicLit:
@@ -319,9 +322,12 @@ func Equal(a, b ast.Node) bool {
 	case *ast.FuncLit:
 		// TODO(dh): support function literals
 		return false
+	case *ast.FuncType:
+		b := b.(*ast.FuncType)
+		return Equal(a.TypeParams, b.TypeParams) && Equal(a.Params, b.Params) && Equal(a.Results, b.Results)
 	case *ast.ChanType:
 		b := b.(*ast.ChanType)
-		return a.Dir == b.Dir && (a.Arrow == token.NoPos && b.Arrow == token.NoPos || a.Arrow != token.NoPos && b.Arrow != token.NoPos)
+		return a.Dir == b.Dir && Equal(a.Value, b.Value) && (a.Arrow == token.NoPos && b.Arrow == token.NoPos || a.Arrow != token.NoPos && b.Arrow != token.NoPos)
 	case *ast.FieldList:
 		b := b.(*ast.FieldList)
 		if len(a.List) != len(b.List) {
