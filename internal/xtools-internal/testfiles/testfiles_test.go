@@ -82,6 +82,27 @@ one
 	}
 }
 
+func TestLoadPackagesForcesModuleMode(t *testing.T) {
+	t.Setenv("GO111MODULE", "off")
+
+	const input = `
+-- go.mod --
+module example.com/test
+
+go 1.23
+-- main.go --
+package test
+`
+	archive := txtar.Parse([]byte(input))
+	pkgs := testfiles.LoadPackages(t, archive, ".")
+	if len(pkgs) != 1 {
+		t.Fatalf("LoadPackages returned %d packages, want 1", len(pkgs))
+	}
+	if got := pkgs[0].PkgPath; got != "example.com/test" {
+		t.Fatalf("LoadPackages returned package path %q, want %q", got, "example.com/test")
+	}
+}
+
 // helper for TestTestDirErrors
 type fatalIntercept struct {
 	testing.TB
