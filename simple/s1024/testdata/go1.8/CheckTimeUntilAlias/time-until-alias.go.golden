@@ -1,0 +1,7 @@
+package pkg
+
+import timelib "time"
+
+func fn(t timelib.Time) {
+	timelib.Until(t) //@ diag(`time.Until`)
+}

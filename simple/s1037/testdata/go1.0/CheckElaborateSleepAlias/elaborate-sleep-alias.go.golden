@@ -1,0 +1,7 @@
+package pkg
+
+import timelib "time"
+
+func fn() {
+	timelib.Sleep(0)
+}
