@@ -193,6 +193,7 @@ func flattenFields(T *types.Struct, path []int, seen map[types.Type]bool) []Fiel
 		return nil
 	}
 	seen[T] = true
+	defer delete(seen, T)
 	var out []Field
 	for i := 0; i < T.NumFields(); i++ {
 		field := T.Field(i)
