@@ -12,7 +12,10 @@ func init() {
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: sharedcheck.RedundantTypeInDeclarationChecker("should", false),
 	Doc: &lint.RawDocumentation{
-		Title:      "Redundant type in variable declaration",
+		Title: "Redundant type in variable declaration",
+		Text: `This check does not flag redundant types in packages that import
+syscall or unsafe. Such packages sometimes declare variables with an
+explicit type to make sure a value has exactly the expected type.`,
 		Since:      "2021.1",
 		NonDefault: true,
 		MergeIf:    lint.MergeIfAll,
