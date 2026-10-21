@@ -73,6 +73,11 @@ func Vararg(x *ir.Slice) ([]ir.Value, bool) {
 			return nil, false
 		}
 	}
+	// Stores through a slice don't appear in the allocation's referrers
+	array, ok := typeutil.Dereference(alloc.Type()).Underlying().(*types.Array)
+	if !ok || int64(len(out)) != array.Len() {
+		return nil, false
+	}
 	return out, true
 }
 

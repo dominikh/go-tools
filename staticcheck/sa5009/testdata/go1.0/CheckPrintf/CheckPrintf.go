@@ -422,3 +422,20 @@ func fn3() {
 		_ = s
 	}
 }
+
+// https://github.com/dominikh/go-tools/issues/1845
+func loopPopulatedSlice() {
+	args := make([]interface{}, 2)
+	for i := 0; i < len(args); i++ {
+		args[i] = 100.0
+	}
+	_ = fmt.Sprintf("%f %f", args...)
+}
+
+func zeroInitializedSlice() {
+	_ = fmt.Sprintf("%v %v", make([]interface{}, 2)...)
+}
+
+func emptySlice() {
+	_ = fmt.Sprintf("%f", make([]interface{}, 0)...) //@ diag(`Printf format %f reads arg #1, but call has only 0 args`)
+}
