@@ -20,7 +20,14 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(rules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Cannot marshal channels or functions`,
+		Title: `Cannot marshal channels or functions`,
+		Text: `JSON and XML encoders cannot represent values such as channels and
+functions, including those in exported struct fields or collection
+elements. XML encoding also does not support maps. Attempting to marshal
+unsupported values returns an error instead of encoded data. Exclude
+fields that should not be serialized with \'json:"-"\' or \'xml:"-"\' tags,
+or provide an appropriate representation using the encoder's supported
+custom marshaling interfaces.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

@@ -22,7 +22,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
+		Title: `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
+		Text: `When comparing byte slices for equality, use \'bytes.Equal\' instead of
+comparing the result of \'bytes.Compare\' with zero. \'bytes.Equal\' makes
+the intent clear, while \'bytes.Compare\' is useful when the ordering of
+the slices matters.`,
 		Before:  `if bytes.Compare(x, y) == 0 {}`,
 		After:   `if bytes.Equal(x, y) {}`,
 		Since:   "2017.1",

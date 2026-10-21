@@ -1,4 +1,4 @@
--- Apply De Morgan's law --
+-- Apply De Morgan's laws --
 package pkg
 
 func fn() {
@@ -6,11 +6,11 @@ func fn() {
 	var e, f, g int
 	var h, i float64
 
-	_ = !a || !b || !(!c || e > f) || g != f //@ diag(`could apply De Morgan's law`)
+	_ = !a || !b || !(!c || e > f) || g != f //@ diag(`could apply De Morgan's laws`)
 	_ = !(a && h > i)
 }
 
--- Apply De Morgan's law recursively --
+-- Apply De Morgan's laws recursively --
 package pkg
 
 func fn() {
@@ -18,11 +18,11 @@ func fn() {
 	var e, f, g int
 	var h, i float64
 
-	_ = !a || !b || (c && e <= f) || g != f //@ diag(`could apply De Morgan's law`)
+	_ = !a || !b || (c && e <= f) || g != f //@ diag(`could apply De Morgan's laws`)
 	_ = !(a && h > i)
 }
 
--- Apply De Morgan's law recursively & simplify --
+-- Apply De Morgan's laws recursively & simplify --
 package pkg
 
 func fn() {
@@ -30,6 +30,6 @@ func fn() {
 	var e, f, g int
 	var h, i float64
 
-	_ = !a || !b || c && e <= f || g != f //@ diag(`could apply De Morgan's law`)
+	_ = !a || !b || c && e <= f || g != f //@ diag(`could apply De Morgan's laws`)
 	_ = !(a && h > i)
 }

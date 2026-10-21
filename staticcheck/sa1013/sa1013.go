@@ -20,7 +20,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `\'io.Seeker.Seek\' is being called with the whence constant as the first argument, but it should be the second`,
+		Title: `\'io.Seeker.Seek\' is being called with the whence constant as the first argument, but it should be the second`,
+		Text: `The first argument to \'Seek\' is a byte offset. The second argument selects
+the origin for that offset: \'io.SeekStart\', \'io.SeekCurrent\', or
+\'io.SeekEnd\'. Passing a whence constant as the offset usually means the
+arguments have been swapped. For example, use \'f.Seek(0, io.SeekEnd)\' to
+seek to the end of a file.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

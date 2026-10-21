@@ -19,7 +19,16 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `It is not possible to use \'(*time.Timer).Reset\''s return value correctly`,
+		Title: `It is not possible to use \'(*time.Timer).Reset\''s return value correctly`,
+		Text: `When using pre-Go 1.23 timer semantics, draining a timer's channel based on
+\'Reset\''s return value is racy: the new timer may expire before the channel
+is drained, causing the new notification to be consumed instead of the old
+one. Stop the timer and, if necessary, drain its channel before calling
+\'Reset\'. This must be coordinated with any other receivers of the channel.
+
+With Go 1.23 timer semantics, \'Reset\' guarantees that subsequent receives
+will not observe stale values from the previous timer settings. There is
+no need to drain the channel when resetting such a timer.`,
 		Since:    "2019.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

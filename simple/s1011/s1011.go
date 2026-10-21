@@ -25,6 +25,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Use a single \'append\' to concatenate two slices`,
+		Text: `When two slices have the same type, a loop that only appends elements
+from one to the other can be replaced with a single call to \'append\'.
+Use \'append(x, y...)\' to append all elements of \'y\' to \'x\', making the
+concatenation explicit without a loop.`,
 		Before: `
 for _, e := range y {
     x = append(x, e)

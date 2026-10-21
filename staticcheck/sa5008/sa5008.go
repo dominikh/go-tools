@@ -23,7 +23,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Invalid struct tag`,
+		Title: `Invalid struct tag`,
+		Text: `Malformed struct tags, duplicate keys, and invalid JSON or XML options
+can cause reflection-based packages to ignore the intended settings or
+report errors. Use the conventional space-separated \'key:"value"\' syntax
+and ensure that each option is supported by the package reading the tag
+and is appropriate for the field's type.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

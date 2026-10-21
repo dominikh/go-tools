@@ -23,7 +23,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?`,
+		Title: `A value assigned to a variable is never read before being overwritten. Forgotten error check or dead code?`,
+		Text: `A value assigned to a variable may go unused even if the variable is
+read later, because a later assignment can overwrite the value first.
+This may hide a missing step, such as checking an error before reusing
+\'err\'. Use the value where intended, or remove the unnecessary
+assignment while preserving any needed side effects of the expression
+being assigned.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

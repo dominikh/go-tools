@@ -25,6 +25,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Simplify returning boolean expression`,
+		Text: `An if statement that returns \'true\' when a condition holds, followed by
+a return of \'false\', can be replaced with a single return of the
+condition. If the return values are reversed, return the negated
+condition instead.`,
 		Before: `
 if <expr> {
     return true

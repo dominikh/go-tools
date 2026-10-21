@@ -22,7 +22,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    "Omit embedded fields from selector expression",
+		Title: "Omit embedded fields from selector expression",
+		Text: `Go promotes the fields and methods of embedded fields to the containing
+struct. When this allows the same field or method to be accessed directly,
+the explicit embedded field can be omitted to make selectors less
+verbose. For example, \'x.Inner.Field\' can be shortened to \'x.Field\' if
+\'Inner\' is embedded and doing so does not change which field is accessed.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},

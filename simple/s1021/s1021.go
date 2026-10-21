@@ -22,6 +22,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Merge variable declaration and assignment`,
+		Text: `A variable declaration immediately followed by its initial assignment
+can be combined into a declaration with an initializer, as long as the
+initializer does not refer to the variable itself. This keeps the
+variable and its initial value together while preserving any explicit
+type needed for the declaration.`,
 		Before: `
 var x uint
 x = 1`,

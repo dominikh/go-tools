@@ -22,7 +22,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `Use result of type assertion to simplify cases`,
+		Title: `Use result of type assertion to simplify cases`,
+		Text: `A type switch can bind the matched value to a variable using
+\'switch v := x.(type)\'. Within a case that lists a single type, the
+variable has that type. Use this variable instead of repeating a type
+assertion on the original interface value in the case body.`,
 		Since:   "2019.2",
 		MergeIf: lint.MergeIfAny,
 	},

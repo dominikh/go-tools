@@ -17,7 +17,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Comparing a value against NaN even though no value is equal to NaN`,
+		Title: `Comparing a value against NaN even though no value is equal to NaN`,
+		Text: `NaN is not equal to any value, including itself. Equality and ordering
+comparisons with NaN are always false, while \'!=\' comparisons are
+always true. Consequently, comparing a value with \'math.NaN()\' cannot
+determine whether it is NaN. Use \'math.IsNaN\' instead.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

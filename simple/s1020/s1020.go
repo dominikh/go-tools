@@ -21,7 +21,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `Omit redundant nil check in type assertion`,
+		Title: `Omit redundant nil check in type assertion`,
+		Text: `A successful type assertion implies that the original interface value
+is not nil. When checking the boolean result of a type assertion, an
+additional nil check on that interface is redundant. This does not rule
+out the asserted value being a nil pointer.`,
 		Before:  `if _, ok := i.(T); ok && i != nil {}`,
 		After:   `if _, ok := i.(T); ok {}`,
 		Since:   "2017.1",

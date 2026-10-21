@@ -20,7 +20,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `A switch's default case should be the first or last case`,
+		Title: `A switch's default case should be the first or last case`,
+		Text: `Placing the default case at the beginning or end of a switch makes it
+easier to find and keeps the explicit cases together. An exception is
+when a \'fallthrough\' statement makes the position of the default case
+significant.`,
 		Since:   "2019.1",
 		MergeIf: lint.MergeIfAny,
 	},

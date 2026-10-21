@@ -19,7 +19,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Break statement with no effect. Did you mean to break out of an outer loop?`,
+		Title: `Break statement with no effect. Did you mean to break out of an outer loop?`,
+		Text: `An unlabeled \'break\' terminates the innermost \'for\', \'switch\', or
+\'select\' statement. Inside a \'switch\' or \'select\' nested in a loop,
+it does not terminate the loop. A \'break\' at the end of a case is
+redundant because the case ends there anyway. To exit the outer loop,
+give the loop a label and use \'break\' with that label.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

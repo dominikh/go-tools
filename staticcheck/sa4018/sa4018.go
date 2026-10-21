@@ -23,7 +23,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, purity.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Self-assignment of variables`,
+		Title: `Self-assignment of variables`,
+		Text: `Assigning a variable to itself preserves its existing value and is
+usually redundant. It may indicate a typo in either the source or the
+destination of an assignment, especially in a list of similar field
+assignments. Check that both sides refer to the intended values, or
+remove the assignment if it is unnecessary.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

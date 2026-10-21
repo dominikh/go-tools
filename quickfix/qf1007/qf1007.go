@@ -22,6 +22,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title: "Merge conditional assignment into variable declaration",
+		Text: `A boolean variable initialized to \'false\' and immediately set to \'true\'
+under a condition can be initialized with that condition directly. The
+reverse pattern, starting with \'true\' and conditionally setting \'false\',
+can use the negated condition. This expresses the value in a single
+assignment instead of a separate declaration and conditional update.`,
 		Before: `
 x := false
 if someCondition {

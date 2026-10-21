@@ -172,6 +172,11 @@ type Result struct {
 var Analyzer = &lint.Analyzer{
 	Doc: &lint.RawDocumentation{
 		Title: "Unused code",
+		Text: `Unused declarations add maintenance burden and may indicate incomplete code.
+This check follows uses within each package, so references from other unused
+code do not make a declaration used. Remove declarations that are no longer
+needed. Exported package-level declarations are treated as used, even in
+main packages.`,
 	},
 	Analyzer: &analysis.Analyzer{
 		Name:       "U1000",

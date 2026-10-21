@@ -19,7 +19,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `\"for { select { ...\" with an empty default branch spins`,
+		Title: `\"for { select { ...\" with an empty default branch spins`,
+		Text: `A \'select\' with a default branch does not block when none of its channel
+operations can proceed. In an unconditional loop, an empty default branch
+therefore causes the loop to spin, consuming CPU while waiting for work.
+Remove the default branch to let the \'select\' block until a channel
+operation is ready.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

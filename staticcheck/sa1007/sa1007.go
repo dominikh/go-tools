@@ -20,7 +20,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(rules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Invalid URL in \'net/url.Parse\'`,
+		Title: `Invalid URL in \'net/url.Parse\'`,
+		Text: `The URL contains a syntax error that causes \'net/url.Parse\' to return an
+error. Correct the URL's syntax, using \'url.PathEscape\' or \'url.QueryEscape\'
+for individual path segments or query values that require escaping. Note
+that \'url.Parse\' accepts relative URLs as well as absolute ones; a missing
+scheme or host alone does not make a URL invalid.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

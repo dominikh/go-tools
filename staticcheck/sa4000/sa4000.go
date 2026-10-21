@@ -26,7 +26,17 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Binary operator has identical expressions on both sides`,
+		Title: `Binary operator has identical expressions on both sides`,
+		Text: `Using the same expression on both sides of an operator often indicates a
+copy-and-paste error or a typo. For example, \'x == x\' compares a value
+with itself, and \'x - x\' subtracts it from itself. Check whether one of
+the operands was meant to refer to a different value.
+
+This check does not apply to floating-point values, for which identical
+operands can be meaningful. For example, \'x == x\' is false when \'x\'
+is NaN. The check can produce false positives when evaluating the operands
+has side effects: expressions such as \'<-ch == <-ch\' or \'fn() == fn()\'
+may compare different values despite having identical operands.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

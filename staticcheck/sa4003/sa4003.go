@@ -25,7 +25,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Comparing unsigned values against negative values is pointless`,
+		Title: `Comparing unsigned values against negative values is pointless`,
+		Text: `An integer's type limits the range of values it can hold. Comparisons
+against these limits can be redundant or indicate an incorrect boundary
+check. For example, an unsigned integer is always greater than or equal
+to zero, and a \'uint8\' cannot exceed 255. Check the comparison operator
+and boundary value, or remove the comparison if its result is already
+determined by the type.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

@@ -22,7 +22,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer, purity.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Discarding the return values of a function without side effects, making the call pointless`,
+		Title: `Discarding the return values of a function without side effects, making the call pointless`,
+		Text: `Some functions return a result instead of modifying their arguments or
+other program state. Discarding all return values of such a function
+leaves its result unused. For example, \'strings.Replace\' returns a new
+string rather than modifying the original. Assign or otherwise use the
+returned value, or remove the call if its result is not needed.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

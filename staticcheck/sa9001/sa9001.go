@@ -21,7 +21,14 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Defers in range loops may not run when you expect them to`,
+		Title: `Defers in range loops may not run when you expect them to`,
+		Text: `Deferred calls run when the surrounding function returns, not at the end
+of each loop iteration. A range loop over a channel may keep receiving
+indefinitely if the channel is never closed, leaving deferred cleanup
+pending and allowing resources to accumulate. Even closing the channel
+does not run the deferred calls until the function returns. If cleanup
+is needed after each item, call it explicitly or move the per-item work
+into a separate function that can use \'defer\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

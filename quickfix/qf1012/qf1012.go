@@ -24,7 +24,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Use \'fmt.Fprintf(x, ...)\' instead of \'x.Write(fmt.Sprintf(...))\'`,
+		Title: `Use \'fmt.Fprintf(x, ...)\' instead of \'x.Write(fmt.Sprintf(...))\'`,
+		Text: `When writing formatted output to an \'io.Writer\', \'fmt.Fprint\',
+\'fmt.Fprintf\', and \'fmt.Fprintln\' can format and write in one call. This
+is more direct than passing the result of \'fmt.Sprint\', \'fmt.Sprintf\',
+or \'fmt.Sprintln\' to \'WriteString\' or converting it to \'[]byte\' for
+\'Write\', and avoids constructing an intermediate string.`,
 		Since:    "2022.1",
 		Severity: lint.SeverityHint,
 	},

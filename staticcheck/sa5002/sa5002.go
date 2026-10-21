@@ -20,7 +20,15 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `The empty for loop (\"for {}\") spins and can block the scheduler`,
+		Title: `The empty for loop (\"for {}\") spins and can block the scheduler`,
+		Text: `An empty loop with no condition runs continuously, consuming CPU without
+doing useful work. An empty loop whose condition only reads ordinary
+variables cannot safely wait for another goroutine to change them:
+unsynchronized reads and writes constitute a data race.
+
+Use synchronization, such as a channel receive, to wait for work or for
+another goroutine to signal completion. To block forever without
+consuming CPU, use \'select {}\' instead of \'for {}\'.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

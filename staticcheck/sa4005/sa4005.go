@@ -20,7 +20,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
+		Title: `Field assignment that will never be observed. Did you mean to use a pointer receiver?`,
+		Text: `A method with a value receiver operates on a copy of the receiver.
+Assigning to a field of that copy has no effect on the caller's value.
+If the method does not subsequently read the assigned field, the
+assignment has no useful effect. Use a pointer receiver if the method
+is meant to modify the original value, or remove the unused assignment.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

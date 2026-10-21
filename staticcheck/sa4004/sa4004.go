@@ -21,7 +21,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `The loop exits unconditionally after one iteration`,
+		Title: `The loop exits unconditionally after one iteration`,
+		Text: `An unconditional \'break\' or \'return\' prevents a loop from running more
+than once, even if it appears to search or process multiple elements.
+Check whether the exit should depend on a condition, or whether a
+\'continue\' was intended. If only one iteration is needed, consider
+expressing that intent without a loop.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

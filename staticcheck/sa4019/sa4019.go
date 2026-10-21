@@ -21,7 +21,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Multiple, identical build constraints in the same file`,
+		Title: `Multiple, identical build constraints in the same file`,
+		Text: `Multiple legacy \'+build\' lines are combined with a logical AND.
+Repeating the same constraint, even with its space-separated terms in a
+different order, does not further restrict when the file is built.
+Remove the duplicate line, or correct it if a different constraint was
+intended.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

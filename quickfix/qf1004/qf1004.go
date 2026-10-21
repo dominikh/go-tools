@@ -21,7 +21,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{typeindexanalyzer.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Use \'strings.ReplaceAll\' instead of \'strings.Replace\' with \'n == -1\'`,
+		Title: `Use \'strings.ReplaceAll\' instead of \'strings.Replace\' with \'n == -1\'`,
+		Text: `The \'strings\' and \'bytes\' packages provide functions for replacing or
+splitting all occurrences without an explicit count. Calls to \'Replace\'
+with a count of \'-1\' can use \'ReplaceAll\' instead; similarly, \'SplitN\'
+and \'SplitAfterN\' can use \'Split\' and \'SplitAfter\'. These alternatives
+express the intent directly, without a special count value.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},

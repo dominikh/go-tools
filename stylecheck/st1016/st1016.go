@@ -23,7 +23,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:      `Use consistent method receiver names`,
+		Title: `Use consistent method receiver names`,
+		Text: `Methods on the same type should use the same receiver name, including
+both pointer and value receivers. Consistent names make it easier to
+recognize the receiver when reading different methods of the type.`,
 		Since:      "2019.1",
 		NonDefault: true,
 		MergeIf:    lint.MergeIfAny,

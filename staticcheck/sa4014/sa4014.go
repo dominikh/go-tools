@@ -18,7 +18,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either`,
+		Title: `An if/else if chain has repeated conditions and no side-effects; if the condition didn't match the first time, it won't match the second time, either`,
+		Text: `In an \'if/else if\' chain without side effects in its conditions, a
+repeated condition cannot become true after it was already false.
+The later branch is therefore unreachable. This often results from a
+copy-and-paste error; replace the repeated condition with the intended
+one, or remove the unreachable branch.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

@@ -22,7 +22,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Invalid template`,
+		Title: `Invalid template`,
+		Text: `The \'Parse\' methods in \'text/template\' and \'html/template\' return an
+error for malformed template syntax, such as an unclosed action or an
+unexpected character in an action. Correct the template's actions and
+delimiters before attempting to execute it.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

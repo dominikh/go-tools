@@ -17,7 +17,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Assignment to nil map`,
+		Title: `Assignment to nil map`,
+		Text: `The zero value of a map is nil. Reading from a nil map is safe, but
+assigning to an element panics. Initialize the map with \'make\' or a map
+literal before adding entries.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

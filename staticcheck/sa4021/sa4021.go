@@ -17,7 +17,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `\"x = append(y)\" is equivalent to \"x = y\"`,
+		Title: `\"x = append(y)\" is equivalent to \"x = y\"`,
+		Text: `Calling \'append\' with only a slice and no elements returns the slice
+unchanged. It does not copy its elements or allocate a new backing
+array. Use the slice directly if sharing its backing array is intended,
+or use \'slices.Clone\' to make a shallow copy. If elements were meant to
+be appended, supply them as additional arguments.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

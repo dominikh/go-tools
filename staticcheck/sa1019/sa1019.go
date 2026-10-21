@@ -26,7 +26,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, deprecated.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Using a deprecated function, variable, constant or field`,
+		Title: `Using a deprecated function, variable, constant or field`,
+		Text: `An API marked with a \'Deprecated:\' documentation comment is no longer
+recommended for use. Its deprecation message explains the reason and may
+suggest a replacement. Follow that guidance rather than relying on the
+API merely because it is still available. For standard library APIs,
+Staticcheck takes the targeted Go version into account when reporting
+deprecations.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityDeprecated,
 		MergeIf:  lint.MergeIfAny,

@@ -21,7 +21,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    "Convert slice of bytes to string when printing it",
+		Title: "Convert slice of bytes to string when printing it",
+		Text: `Functions such as \'fmt.Println\' and \'log.Print\' print a \'[]byte\' as a
+list of numeric byte values. If the slice contains text and the intent is
+to print that text, converting the slice to a string produces the desired
+output.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},

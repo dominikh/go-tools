@@ -21,7 +21,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Use \'time.Time.Equal\' instead of \'==\' operator`,
+		Title: `Use \'time.Time.Equal\' instead of \'==\' operator`,
+		Text: `Comparing \'time.Time\' values with \'==\' compares all their fields,
+including their locations and monotonic clock readings. Two values can
+therefore represent the same instant yet compare unequal. Use the
+\'Equal\' method when the intent is to compare instants in time, rather
+than to require identical representations.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityInfo,
 	},

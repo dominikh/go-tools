@@ -20,7 +20,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Deferring \'Close\' before checking for a possible error`,
+		Title: `Deferring \'Close\' before checking for a possible error`,
+		Text: `If a call to acquire a resource fails, the returned resource may be nil
+or otherwise unusable. Deferring \'Close\' before handling the error can
+cause a panic instead of the intended error handling. Check the error
+and handle the failure before registering the deferred call.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

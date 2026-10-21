@@ -16,7 +16,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `\'x % 1\' is always zero`,
+		Title: `\'x % 1\' is always zero`,
+		Text: `The remainder of integer division by one is always zero, regardless of
+the dividend. If a remainder was intended, check whether the divisor
+should be a different value. If the intent was to obtain the fractional
+part of a floating-point number, integer remainder cannot do that; use
+an appropriate floating-point operation such as \'math.Modf\'.`,
 		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants

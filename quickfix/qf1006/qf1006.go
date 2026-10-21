@@ -22,6 +22,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Lift \'if\'+\'break\' into loop condition`,
+		Text: `An unconditional loop that begins with an \'if\' statement whose only
+action is to \'break\' can instead use the negated condition as its loop
+condition. This makes the loop's termination condition visible in the
+loop header and removes a level of nesting.`,
 		Before: `
 for {
     if done {

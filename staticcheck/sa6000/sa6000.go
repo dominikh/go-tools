@@ -19,7 +19,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(rules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Using \'regexp.Match\' or related in a loop, should use \'regexp.Compile\'`,
+		Title: `Using \'regexp.Match\' or related in a loop, should use \'regexp.Compile\'`,
+		Text: `The package-level functions \'regexp.Match\', \'regexp.MatchString\', and
+\'regexp.MatchReader\' compile the regular expression on every call. When
+the pattern is constant, calling these functions in a loop repeatedly
+performs the same compilation work. Compile the pattern once outside the
+loop with \'regexp.Compile\' and reuse the resulting \'*regexp.Regexp\' and
+its matching methods.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

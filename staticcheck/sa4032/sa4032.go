@@ -21,7 +21,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Comparing \'runtime.GOOS\' or \'runtime.GOARCH\' against impossible value`,
+		Title: `Comparing \'runtime.GOOS\' or \'runtime.GOARCH\' against impossible value`,
+		Text: `A file's build constraints, including those implied by its name, limit
+the platforms on which its code can run. Comparing \'runtime.GOOS\' or
+\'runtime.GOARCH\' with a value excluded by those constraints makes an
+equality check always false and an inequality check always true. Check
+whether the comparison or the build constraints are incorrect, or move
+platform-specific code into an appropriately constrained file.`,
 		Since:    "2024.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

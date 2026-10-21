@@ -18,7 +18,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(rules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Invalid regular expression`,
+		Title: `Invalid regular expression`,
+		Text: `The regular expression cannot be parsed by the \'regexp\' package. Functions
+such as \'regexp.Compile\' return an error for this pattern, while
+\'regexp.MustCompile\' panics. Correct the expression to use Go's supported
+regular expression syntax. If the pattern is intended to match literal text,
+use \'regexp.QuoteMeta\' to escape it.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

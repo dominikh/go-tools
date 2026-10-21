@@ -20,7 +20,14 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Called \'testing.T.FailNow\' or \'SkipNow\' in a goroutine, which isn't allowed`,
+		Title: `Called \'testing.T.FailNow\' or \'SkipNow\' in a goroutine, which isn't allowed`,
+		Text: `Methods such as \'FailNow\' and \'SkipNow\', including \'Fatal\', \'Fatalf\',
+\'Skip\', and \'Skipf\', stop the calling goroutine using \'runtime.Goexit\'.
+They must be called from the goroutine running the test or benchmark, not
+from a goroutine it starts. Calling them in another goroutine stops only
+that goroutine, not the test. Use \'Error\', \'Errorf\', or \'Fail\' to report a
+failure from another goroutine, or communicate the result back to the test
+goroutine and let it decide whether to stop.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

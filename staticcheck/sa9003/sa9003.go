@@ -18,7 +18,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:      `Empty body in an if or else branch`,
+		Title: `Empty body in an if or else branch`,
+		Text: `An empty branch often indicates missing code, such as an error that was
+checked but never handled. Implement the intended behavior, or simplify
+the conditional if the branch deliberately does nothing. Preserve any
+required side effects of evaluating the condition.`,
 		Since:      "2017.1",
 		NonDefault: true,
 		Severity:   lint.SeverityWarning,

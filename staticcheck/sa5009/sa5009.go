@@ -24,7 +24,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(rules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Invalid Printf call`,
+		Title: `Invalid Printf call`,
+		Text: `Formatting functions such as \'fmt.Printf\' and \'fmt.Sprintf\' require the
+format string to agree with the number and types of the arguments.
+Malformed formats, invalid argument indices, and mismatched arguments
+produce diagnostic text such as \'%!d(string=...)\' instead of the intended
+output. Correct the format string or the arguments so that they match,
+including any arguments used for dynamic width or precision.`,
 		Since:    "2019.2",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

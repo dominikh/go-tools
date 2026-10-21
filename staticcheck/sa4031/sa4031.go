@@ -26,7 +26,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer, inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Checking never-nil value against nil`,
+		Title: `Checking never-nil value against nil`,
+		Text: `Values created by \'new\' or \'make\', as well as function declarations
+and function literals, are non-nil. Checking such a value against nil
+cannot distinguish success from failure. If the checked value is a
+function, check whether the intent was to call it and inspect its
+result instead.`,
 		Since:    "2022.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

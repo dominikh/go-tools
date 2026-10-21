@@ -19,7 +19,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{buildir.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `A function argument is overwritten before its first use`,
+		Title: `A function argument is overwritten before its first use`,
+		Text: `Overwriting a parameter before reading it discards the value supplied by
+the caller. This may indicate an accidental assignment or a parameter
+being used as a local variable. Check whether the original argument
+should be used, or introduce a separate local variable and remove the
+parameter if the function's API permits it.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

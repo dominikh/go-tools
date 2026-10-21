@@ -22,7 +22,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `Replace call to \'strings.Index\' with \'strings.Contains\'`,
+		Title: `Replace call to \'strings.Index\' with \'strings.Contains\'`,
+		Text: `When only checking whether a string or byte slice contains a value, use
+\'Contains\' instead of comparing the result of \'Index\' with zero or -1.
+This expresses the intent directly, without an explicit comparison of
+positions. The same applies to \'ContainsAny\' and \'ContainsRune\' in both
+the \'strings\' and \'bytes\' packages.`,
 		Before:  `if strings.Index(x, y) != -1 {}`,
 		After:   `if strings.Contains(x, y) {}`,
 		Since:   "2017.1",

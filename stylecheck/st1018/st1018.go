@@ -23,7 +23,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `Avoid zero-width and control characters in string literals`,
+		Title: `Avoid zero-width and control characters in string literals`,
+		Text: `Invisible format and control characters in string literals can be hard
+to spot and can make the source code misleading. If such a character is
+intentional, make it visible with an escape sequence in an interpreted
+string literal; otherwise, remove it. Ordinary tabs and line breaks, as
+well as emoji sequences, are allowed.`,
 		Since:   "2019.2",
 		MergeIf: lint.MergeIfAny,
 	},

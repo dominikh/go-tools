@@ -18,7 +18,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(checkUTF8CutsetRules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Various methods in the \"strings\" package expect valid UTF-8, but invalid input is provided`,
+		Title: `Various methods in the \"strings\" package expect valid UTF-8, but invalid input is provided`,
+		Text: `Functions in the \'strings\' package that process Unicode code points
+expect UTF-8-encoded strings. Invalid UTF-8 byte sequences are interpreted
+as Unicode replacement characters, not as the original bytes. Provide
+valid UTF-8 or use byte-oriented operations when working with arbitrary
+bytes.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityError,
 		MergeIf:  lint.MergeIfAny,

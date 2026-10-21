@@ -18,7 +18,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:   `Simplify error construction with \'fmt.Errorf\'`,
+		Title: `Simplify error construction with \'fmt.Errorf\'`,
+		Text: `The \'fmt.Errorf\' function formats a message and returns it as an error.
+Use it instead of wrapping a call to \'fmt.Sprintf\' in \'errors.New\' to
+construct an error with a formatted message in a single call.`,
 		Before:  `errors.New(fmt.Sprintf(...))`,
 		After:   `fmt.Errorf(...)`,
 		Since:   "2017.1",

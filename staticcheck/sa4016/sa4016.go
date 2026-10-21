@@ -24,7 +24,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Certain bitwise operations, such as \'x ^ 0\', do not do anything useful`,
+		Title: `Certain bitwise operations, such as \'x ^ 0\', do not do anything useful`,
+		Text: `The expressions \'x | 0\' and \'x ^ 0\' leave \'x\' unchanged, while
+\'x & 0\' always produces zero. These operations may indicate a typo or
+an incorrectly defined bit mask. In particular, the first constant in
+an \'iota\' sequence is zero; use \'1 << iota\' instead of \'iota\' when
+defining successive single-bit flags.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny, // MergeIfAny if we only flag literals, not named constants

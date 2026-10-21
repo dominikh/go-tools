@@ -22,7 +22,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    "Apply De Morgan's law",
+		Title: "Apply De Morgan's laws",
+		Text: `De Morgan's laws allow negated boolean expressions to be rewritten by
+exchanging \'&&\' and \'||\' and negating their operands. For example,
+\'!(a && b)\' can be written as \'!a || !b\'. Moving the negation inward
+can make a condition easier to read, especially when comparisons can be
+inverted as well.`,
 		Since:    "2021.1",
 		Severity: lint.SeverityHint,
 	},
@@ -105,18 +110,18 @@ func CheckDeMorgan(pass *analysis.Pass) (any, error) {
 		// simplifyParentheses might have rebalanced trees without
 		// affecting the rendered form.
 		var fixes []analysis.SuggestedFix
-		fixes = append(fixes, edit.Fix("Apply De Morgan's law", edit.ReplaceWithString(node, bn)))
+		fixes = append(fixes, edit.Fix("Apply De Morgan's laws", edit.ReplaceWithString(node, bn)))
 		if bn != bns {
-			fixes = append(fixes, edit.Fix("Apply De Morgan's law & simplify", edit.ReplaceWithString(node, bns)))
+			fixes = append(fixes, edit.Fix("Apply De Morgan's laws & simplify", edit.ReplaceWithString(node, bns)))
 		}
 		if bn != bnr {
-			fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively", edit.ReplaceWithString(node, bnr)))
+			fixes = append(fixes, edit.Fix("Apply De Morgan's laws recursively", edit.ReplaceWithString(node, bnr)))
 			if bnr != bnrs {
-				fixes = append(fixes, edit.Fix("Apply De Morgan's law recursively & simplify", edit.ReplaceWithString(node, bnrs)))
+				fixes = append(fixes, edit.Fix("Apply De Morgan's laws recursively & simplify", edit.ReplaceWithString(node, bnrs)))
 			}
 		}
 
-		report.Report(pass, node, "could apply De Morgan's law", report.Fixes(fixes...))
+		report.Report(pass, node, "could apply De Morgan's laws", report.Fixes(fixes...))
 	}
 
 	return nil, nil

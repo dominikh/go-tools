@@ -25,7 +25,10 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:  `Omit comparison with boolean constant`,
+		Title: `Omit comparison with boolean constant`,
+		Text: `A boolean expression can be used directly instead of comparing it with
+\'true\' or \'false\'. Use the expression itself, or its negation with \'!\',
+to express the same condition without the redundant comparison.`,
 		Before: `if x == true {}`,
 		After:  `if x {}`,
 		Since:  "2017.1",

@@ -20,7 +20,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `\'&*x\' gets simplified to \'x\', it does not copy \'x\'`,
+		Title: `\'&*x\' gets simplified to \'x\', it does not copy \'x\'`,
+		Text: `Combining address-taking and pointer dereferencing does not create a copy
+of the pointed-to value. In particular, \'&*p\' still points to the same
+object as \'p\'. To make a copy, assign \'*p\' to a new variable and take
+that variable's address. This is a shallow copy: any pointers, slices, or
+maps in the value still refer to the same underlying data.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

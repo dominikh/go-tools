@@ -21,7 +21,13 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Run:      callcheck.Analyzer(checkMathIntRules),
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Calling functions like \'math.Ceil\' on floats converted from integers doesn't do anything useful`,
+		Title: `Calling functions like \'math.Ceil\' on floats converted from integers doesn't do anything useful`,
+		Text: `Converting an integer to a floating-point value does not produce a
+fractional part, NaN, or infinity. Applying \'math.Ceil\', \'math.Floor\',
+or \'math.Trunc\' to that value leaves it unchanged, and \'math.IsNaN\'
+and \'math.IsInf\' return false. If the intent is to round the result of
+a division, convert the operands before dividing: converting the result
+of integer division cannot recover the discarded fractional part.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAll,

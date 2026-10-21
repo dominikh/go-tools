@@ -22,7 +22,12 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Using a non-octal \'os.FileMode\' that looks like it was meant to be in octal.`,
+		Title: `Using a non-octal \'os.FileMode\' that looks like it was meant to be in octal.`,
+		Text: `File permissions are conventionally written in octal, with one digit
+for each of the owner, group, and other permission sets. A literal such
+as \'644\' is decimal in Go and sets different permission bits than
+intended, potentially granting unwanted access. Use an octal literal
+such as \'0644\' or \'0o644\' when specifying permissions.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,

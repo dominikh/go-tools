@@ -19,7 +19,11 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
-		Title:    `Negating a boolean twice (\'!!b\') is the same as writing \'b\'. This is either redundant, or a typo.`,
+		Title: `Negating a boolean twice (\'!!b\') is the same as writing \'b\'. This is either redundant, or a typo.`,
+		Text: `Unlike languages that use double negation to convert a value to a
+boolean, Go only allows \'!\' on boolean operands. Applying it twice
+restores the original value. Remove both negations if the original
+value is intended, or remove one if the condition should be inverted.`,
 		Since:    "2017.1",
 		Severity: lint.SeverityWarning,
 		MergeIf:  lint.MergeIfAny,
