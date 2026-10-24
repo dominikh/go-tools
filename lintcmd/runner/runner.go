@@ -656,19 +656,11 @@ func (r *Runner) writeCacheReader(a *packageAction, kind string, rs io.ReadSeeke
 }
 
 func (r *Runner) writeCacheGob(a *packageAction, kind string, data any) (string, error) {
-	f, err := os.CreateTemp("", "staticcheck")
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	os.Remove(f.Name())
-	if err := gob.NewEncoder(f).Encode(data); err != nil {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(data); err != nil {
 		return "", fmt.Errorf("failed gob encoding data: %w", err)
 	}
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return "", err
-	}
-	return r.writeCacheReader(a, kind, f)
+	return r.writeCacheReader(a, kind, bytes.NewReader(b.Bytes()))
 }
 
 type packageActionResult struct {
