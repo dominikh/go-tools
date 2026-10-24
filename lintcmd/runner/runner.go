@@ -861,6 +861,9 @@ func (ar *analyzerRunner) do(act action) error {
 		_, ok := factTypes[typ]
 		return ok
 	}
+	// Having one objectpath.Encoder per analyzer instead of sharing one wastes
+	// some work, but avoids lock contention.
+	var pathEncoder objectpath.Encoder
 	a.Pass = &analysis.Pass{
 		Analyzer:   a.Analyzer,
 		Fset:       ar.pkg.Fset,
@@ -937,7 +940,7 @@ func (ar *analyzerRunner) do(act action) error {
 				Obj:  obj,
 				Type: reflect.TypeOf(fact),
 			}
-			path, _ := objectpath.For(obj)
+			path, _ := pathEncoder.For(obj)
 			a.ObjectFacts[key] = objectFact{fact, path}
 		},
 		ExportPackageFact: func(fact analysis.Fact) {

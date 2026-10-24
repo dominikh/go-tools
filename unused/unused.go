@@ -286,6 +286,8 @@ type graph struct {
 	// package-level named types
 	namedTypes     []*types.TypeName
 	interfaceTypes []*types.Interface
+
+	pathEnc objectpath.Encoder
 }
 
 type nodeState uint8
@@ -341,7 +343,7 @@ func (g *graph) objectToObject(obj types.Object) Object {
 
 	var path ObjectPath
 	if relevant {
-		objPath, _ := objectpath.For(obj)
+		objPath, _ := g.pathEnc.For(obj)
 		if objPath != "" {
 			path = ObjectPath{
 				PkgPath: obj.Pkg().Path(),
