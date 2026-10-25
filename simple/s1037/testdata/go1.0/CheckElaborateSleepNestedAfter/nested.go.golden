@@ -1,0 +1,7 @@
+package pkg
+
+import t "time"
+
+func fn(x struct{ After func() t.Duration }) {
+	t.Sleep(x.After())
+}

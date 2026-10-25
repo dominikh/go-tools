@@ -34,22 +34,39 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var (
 	checkTimeUntilQ = pattern.MustParse(`(CallExpr (Symbol "(time.Time).Sub") [(CallExpr (Symbol "time.Now") [])])`)
-	checkTimeUntilR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "time") (Ident "Until")) [arg])`)
 )
 
 func run(pass *analysis.Pass) (any, error) {
 	for node := range code.Matches(pass, checkTimeUntilQ) {
-		if sel, ok := node.(*ast.CallExpr).Fun.(*ast.SelectorExpr); ok {
-			r := pattern.NodeToAST(checkTimeUntilR.Root, map[string]any{"arg": sel.X}).(ast.Node)
-			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
-				report.FilterGenerated(),
-				report.MinimumStdlibVersion("go1.8"),
-				report.Fixes(edit.Fix("Replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, r))))
-		} else {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
 			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
 				report.MinimumStdlibVersion("go1.8"),
 				report.FilterGenerated())
+			continue
 		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
+				report.MinimumStdlibVersion("go1.8"),
+				report.FilterGenerated())
+			continue
+		}
+		timeNow := call.Args[0].(*ast.CallExpr)
+		nowSelector, ok := ast.Unparen(timeNow.Fun).(*ast.SelectorExpr)
+		if !ok {
+			report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())", report.MinimumStdlibVersion("go1.8"), report.FilterGenerated())
+			continue
+		}
+		timePkg := nowSelector.X
+		replacement := &ast.CallExpr{
+			Fun:  &ast.SelectorExpr{X: timePkg, Sel: ast.NewIdent("Until")},
+			Args: []ast.Expr{selector.X},
+		}
+		report.Report(pass, node, "should use time.Until instead of t.Sub(time.Now())",
+			report.FilterGenerated(),
+			report.MinimumStdlibVersion("go1.8"),
+			report.Fixes(edit.Fix("Replace with call to time.Until", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 	}
 	return nil, nil
 }

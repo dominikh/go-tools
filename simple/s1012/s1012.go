@@ -1,6 +1,8 @@
 package s1012
 
 import (
+	"go/ast"
+
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/facts/generated"
@@ -36,11 +38,23 @@ var (
 )
 
 func run(pass *analysis.Pass) (any, error) {
-	for node, m := range code.Matches(pass, checkTimeSinceQ) {
-		edits := code.EditMatch(pass, node, m, checkTimeSinceR)
+	for node := range code.Matches(pass, checkTimeSinceQ) {
+		call := node.(*ast.CallExpr)
+		sub := call.Fun.(*ast.SelectorExpr)
+		now := sub.X.(*ast.CallExpr)
+		selector, ok := ast.Unparen(now.Fun).(*ast.SelectorExpr)
+		if !ok {
+			report.Report(pass, node, "should use time.Since instead of time.Now().Sub", report.FilterGenerated())
+			continue
+		}
+		time := selector.X
+		replacement := &ast.CallExpr{
+			Fun:  &ast.SelectorExpr{X: time, Sel: ast.NewIdent("Since")},
+			Args: call.Args,
+		}
 		report.Report(pass, node, "should use time.Since instead of time.Now().Sub",
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("Replace with call to time.Since", edits...)))
+			report.Fixes(edit.Fix("Replace with call to time.Since", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 	}
 	return nil, nil
 }
