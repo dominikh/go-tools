@@ -1,0 +1,12 @@
+package pkg
+
+import (
+	err "errors"
+	"fmt"
+)
+
+var _ = err.New
+
+func alias(s string) {
+	_ = err.New(s) //@ diag(`should use print-style function`)
+}
