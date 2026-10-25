@@ -1,6 +1,8 @@
 package s1028
 
 import (
+	"go/ast"
+
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/edit"
 	"honnef.co/go/tools/analysis/facts/generated"
@@ -33,16 +35,26 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var (
 	checkErrorsNewSprintfQ = pattern.MustParse(`(CallExpr (Symbol "errors.New") [(CallExpr (Symbol "fmt.Sprintf") args)])`)
-	checkErrorsNewSprintfR = pattern.MustParse(`(CallExpr (SelectorExpr (Ident "fmt") (Ident "Errorf")) args)`)
 )
 
 func run(pass *analysis.Pass) (any, error) {
 	for node, m := range code.Matches(pass, checkErrorsNewSprintfQ) {
-		edits := code.EditMatch(pass, node, m, checkErrorsNewSprintfR)
+		call := node.(*ast.CallExpr)
+		sprintf := call.Args[0].(*ast.CallExpr)
+		selector, ok := sprintf.Fun.(*ast.SelectorExpr)
+		if !ok {
+			report.Report(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))", report.FilterGenerated())
+			continue
+		}
+		fmtPackage := selector.X
+		replacement := &ast.CallExpr{
+			Fun:  &ast.SelectorExpr{X: fmtPackage, Sel: ast.NewIdent("Errorf")},
+			Args: m.State["args"].([]ast.Expr),
+		}
 		// TODO(dh): the suggested fix may leave an unused import behind
 		report.Report(pass, node, "should use fmt.Errorf(...) instead of errors.New(fmt.Sprintf(...))",
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("Use fmt.Errorf", edits...)))
+			report.Fixes(edit.Fix("Use fmt.Errorf", edit.ReplaceWithNode(pass.Fset, node, replacement))))
 	}
 	return nil, nil
 }
