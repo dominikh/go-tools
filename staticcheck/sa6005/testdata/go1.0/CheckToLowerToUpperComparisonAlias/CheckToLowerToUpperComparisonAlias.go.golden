@@ -1,0 +1,43 @@
+package pkg
+
+import stringsalias "strings"
+
+func fn() {
+	const (
+		s1 = "foo"
+		s2 = "bar"
+	)
+
+	if stringsalias.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
+		panic("")
+	}
+
+	if stringsalias.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
+		panic("")
+	}
+
+	if !stringsalias.EqualFold(s1, s2) { //@ diag(`should use !strings.EqualFold instead`)
+		panic("")
+	}
+
+	switch stringsalias.EqualFold(s1, s2) { //@ diag(`should use strings.EqualFold instead`)
+	case true, false:
+		panic("")
+	}
+
+	if stringsalias.EqualFold(s1, s2) || s1+s2 == s2+s1 { //@ diag(`should use strings.EqualFold instead`)
+		panic("")
+	}
+
+	if stringsalias.ToLower(s1) > stringsalias.ToLower(s2) {
+		panic("")
+	}
+
+	if stringsalias.ToLower(s1) < stringsalias.ToLower(s2) {
+		panic("")
+	}
+
+	if stringsalias.ToLower(s1) == stringsalias.ToUpper(s2) {
+		panic("")
+	}
+}

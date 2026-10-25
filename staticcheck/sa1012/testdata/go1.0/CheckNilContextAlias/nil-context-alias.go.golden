@@ -1,0 +1,20 @@
+-- Use context.Background --
+package pkg
+
+import ctx "context"
+
+func fn(c ctx.Context) {}
+
+func call() {
+	fn(ctx.Background()) //@ diag(`do not pass a nil Context`)
+}
+-- Use context.TODO --
+package pkg
+
+import ctx "context"
+
+func fn(c ctx.Context) {}
+
+func call() {
+	fn(ctx.TODO()) //@ diag(`do not pass a nil Context`)
+}

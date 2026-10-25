@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/token"
 	"go/types"
 
 	"honnef.co/go/tools/analysis/code"
@@ -43,14 +44,10 @@ for some amount of nanoseconds.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-var (
-	checkTimeSleepConstantPatternQ   = pattern.MustParse(`(CallExpr (Symbol "time.Sleep") lit@(IntegerLiteral value))`)
-	checkTimeSleepConstantPatternRns = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Nanosecond")))`)
-	checkTimeSleepConstantPatternRs  = pattern.MustParse(`(BinaryExpr duration "*" (SelectorExpr (Ident "time") (Ident "Second")))`)
-)
+var checkTimeSleepConstantPatternQ = pattern.MustParse(`(CallExpr (Symbol "time.Sleep") lit@(IntegerLiteral value))`)
 
 func run(pass *analysis.Pass) (any, error) {
-	for _, m := range code.Matches(pass, checkTimeSleepConstantPatternQ) {
+	for callNode, m := range code.Matches(pass, checkTimeSleepConstantPatternQ) {
 		n, ok := constant.Int64Val(m.State["value"].(types.TypeAndValue).Value)
 		if !ok {
 			continue
@@ -62,11 +59,20 @@ func run(pass *analysis.Pass) (any, error) {
 			continue
 		}
 
-		lit := m.State["lit"].(ast.Node)
+		lit := m.State["lit"].(ast.Expr)
+		call := callNode.(*ast.CallExpr)
+		selector, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+		if !ok {
+			report.Report(pass, lit, fmt.Sprintf("sleeping for %d nanoseconds is probably a bug; be explicit if it isn't", n))
+			continue
+		}
+		pkg := selector.X
+		oneNS := &ast.BinaryExpr{X: lit, Op: token.MUL, Y: &ast.SelectorExpr{X: pkg, Sel: ast.NewIdent("Nanosecond")}}
+		oneS := &ast.BinaryExpr{X: lit, Op: token.MUL, Y: &ast.SelectorExpr{X: pkg, Sel: ast.NewIdent("Second")}}
 		report.Report(pass, lit,
 			fmt.Sprintf("sleeping for %d nanoseconds is probably a bug; be explicit if it isn't", n), report.Fixes(
-				edit.Fix("Explicitly use nanoseconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRns, pattern.State{"duration": lit})),
-				edit.Fix("Use seconds", edit.ReplaceWithPattern(pass.Fset, lit, checkTimeSleepConstantPatternRs, pattern.State{"duration": lit}))))
+				edit.Fix("Explicitly use nanoseconds", edit.ReplaceWithNode(pass.Fset, lit, oneNS)),
+				edit.Fix("Use seconds", edit.ReplaceWithNode(pass.Fset, lit, oneS))))
 	}
 	return nil, nil
 }

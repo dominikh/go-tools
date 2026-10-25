@@ -3,6 +3,7 @@ package sa1008
 import (
 	"fmt"
 	"go/ast"
+	"go/types"
 	"net/http"
 	"strconv"
 
@@ -92,11 +93,13 @@ func run(pass *analysis.Pass) (any, error) {
 		case *ast.BasicLit:
 			fix = edit.Fix("Canonicalize header key", edit.ReplaceWithString(op.Index, strconv.Quote(canonical)))
 		case *ast.Ident:
-			call := &ast.CallExpr{
-				Fun:  edit.Selector("http", "CanonicalHeaderKey"),
-				Args: []ast.Expr{op.Index},
+			if name := importAlias(pass, op, "net/http"); name != "" {
+				call := &ast.CallExpr{
+					Fun:  edit.Selector(name, "CanonicalHeaderKey"),
+					Args: []ast.Expr{op.Index},
+				}
+				fix = edit.Fix("Wrap in http.CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, op.Index, call))
 			}
-			fix = edit.Fix("Wrap in http.CanonicalHeaderKey", edit.ReplaceWithNode(pass.Fset, op.Index, call))
 		}
 		msg := fmt.Sprintf("keys in http.Header are canonicalized, %q is not canonical; fix the constant or use http.CanonicalHeaderKey", s)
 		if fix.Message != "" {
@@ -108,4 +111,31 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes([]ast.Node{(*ast.AssignStmt)(nil), (*ast.IndexExpr)(nil)}, fn)
 	return nil, nil
+}
+
+func importAlias(pass *analysis.Pass, node ast.Node, importPath string) string {
+	for _, spec := range code.File(pass, node).Imports {
+		p, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || p != importPath {
+			continue
+		}
+		var pkgName *types.PkgName
+		if spec.Name == nil {
+			pkgName, _ = pass.TypesInfo.Implicits[spec].(*types.PkgName)
+		} else {
+			pkgName, _ = pass.TypesInfo.Defs[spec.Name].(*types.PkgName)
+		}
+		if pkgName == nil || pkgName.Name() == "." || pkgName.Name() == "_" {
+			return ""
+		}
+		scope := pass.TypesInfo.Scopes[code.File(pass, node)].Innermost(node.Pos())
+		if scope != nil {
+			_, obj := scope.LookupParent(pkgName.Name(), node.Pos())
+			if obj == pkgName {
+				return pkgName.Name()
+			}
+		}
+		return ""
+	}
+	return ""
 }

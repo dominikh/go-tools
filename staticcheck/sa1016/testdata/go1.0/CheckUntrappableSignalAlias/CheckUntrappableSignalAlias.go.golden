@@ -1,0 +1,25 @@
+-- Remove system.SIGKILL from list of arguments --
+package pkg
+
+import (
+	"os"
+	"os/signal"
+	system "syscall"
+)
+
+func fn(c chan os.Signal) {
+	signal.Notify(c) //@ diag(`cannot be trapped`)
+}
+
+-- Use syscall.SIGTERM instead of system.SIGKILL --
+package pkg
+
+import (
+	"os"
+	"os/signal"
+	system "syscall"
+)
+
+func fn(c chan os.Signal) {
+	signal.Notify(c, system.SIGTERM) //@ diag(`cannot be trapped`)
+}
