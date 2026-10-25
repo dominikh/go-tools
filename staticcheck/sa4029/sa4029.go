@@ -60,10 +60,25 @@ func run(pass *analysis.Pass) (any, error) {
 		default:
 			panic(fmt.Sprintf("unreachable: %q", typeName))
 		}
+		typeCall, ok := node.(*ast.AssignStmt).Rhs[0].(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+		typeSelector, ok := typeCall.Fun.(*ast.SelectorExpr)
+		if !ok {
+			// A dot-imported sort type has no qualifier to reuse. Report
+			// the issue without suggesting a fix that may not compile.
+			report.Report(pass, node,
+				fmt.Sprintf("%s is a type, not a function, and %s doesn't sort your values; consider using sort.%s instead",
+					typeName,
+					report.Render(pass, node.(*ast.AssignStmt).Rhs[0]),
+					alternative))
+			continue
+		}
 
 		r := &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
-				X:   &ast.Ident{Name: "sort"},
+				X:   typeSelector.X,
 				Sel: &ast.Ident{Name: alternative},
 			},
 			Args: []ast.Expr{m.State["target"].(ast.Expr)},

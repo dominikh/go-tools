@@ -1,10 +1,10 @@
 package pkg
 
-import "sort"
+import sorting "sort"
 
 func fn() {
 	type Strings = []string
 	var d Strings
 
-	sort.Strings(d) //@ diag(re`sort\.StringSlice is a type.+consider using sort\.Strings instead`)
+	sorting.Strings(d) //@ diag(re`sort\.StringSlice is a type.+consider using sort\.Strings instead`)
 }
