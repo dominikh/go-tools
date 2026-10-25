@@ -2,38 +2,47 @@ package pkg
 
 import (
 	"bytes"
-	"strings"
+	stringspkg "strings"
 )
 
+type indexer struct{}
+
+func (indexer) Index(string, string) int { return 0 }
+
 func fn() {
-	_ = strings.IndexRune("", 'x') > -1 //@ diag(` strings.ContainsRune`)
-	_ = strings.IndexRune("", 'x') >= 0 //@ diag(` strings.ContainsRune`)
-	_ = strings.IndexRune("", 'x') > 0
-	_ = strings.IndexRune("", 'x') >= -1
-	_ = strings.IndexRune("", 'x') != -1 //@ diag(` strings.ContainsRune`)
-	_ = strings.IndexRune("", 'x') == -1 //@ diag(`!strings.ContainsRune`)
-	_ = strings.IndexRune("", 'x') != 0
-	_ = strings.IndexRune("", 'x') < 0 //@ diag(`!strings.ContainsRune`)
+	_ = stringspkg.IndexRune("", 'x') > -1 //@ diag(` stringspkg.ContainsRune`)
+	_ = stringspkg.IndexRune("", 'x') >= 0 //@ diag(` stringspkg.ContainsRune`)
+	_ = stringspkg.IndexRune("", 'x') > 0
+	_ = stringspkg.IndexRune("", 'x') >= -1
+	_ = stringspkg.IndexRune("", 'x') != -1 //@ diag(` stringspkg.ContainsRune`)
+	_ = stringspkg.IndexRune("", 'x') == -1 //@ diag(`!stringspkg.ContainsRune`)
+	_ = stringspkg.IndexRune("", 'x') != 0
+	_ = stringspkg.IndexRune("", 'x') < 0 //@ diag(`!stringspkg.ContainsRune`)
 
-	_ = strings.IndexAny("", "") > -1 //@ diag(` strings.ContainsAny`)
-	_ = strings.IndexAny("", "") >= 0 //@ diag(` strings.ContainsAny`)
-	_ = strings.IndexAny("", "") > 0
-	_ = strings.IndexAny("", "") >= -1
-	_ = strings.IndexAny("", "") != -1 //@ diag(` strings.ContainsAny`)
-	_ = strings.IndexAny("", "") == -1 //@ diag(`!strings.ContainsAny`)
-	_ = strings.IndexAny("", "") != 0
-	_ = strings.IndexAny("", "") < 0 //@ diag(`!strings.ContainsAny`)
+	_ = stringspkg.IndexAny("", "") > -1 //@ diag(` stringspkg.ContainsAny`)
+	_ = stringspkg.IndexAny("", "") >= 0 //@ diag(` stringspkg.ContainsAny`)
+	_ = stringspkg.IndexAny("", "") > 0
+	_ = stringspkg.IndexAny("", "") >= -1
+	_ = stringspkg.IndexAny("", "") != -1 //@ diag(` stringspkg.ContainsAny`)
+	_ = stringspkg.IndexAny("", "") == -1 //@ diag(`!stringspkg.ContainsAny`)
+	_ = stringspkg.IndexAny("", "") != 0
+	_ = stringspkg.IndexAny("", "") < 0 //@ diag(`!stringspkg.ContainsAny`)
 
-	_ = strings.Index("", "") > -1 //@ diag(` strings.Contains`)
-	_ = strings.Index("", "") >= 0 //@ diag(` strings.Contains`)
-	_ = strings.Index("", "") > 0
-	_ = strings.Index("", "") >= -1
-	_ = strings.Index("", "") != -1 //@ diag(` strings.Contains`)
-	_ = strings.Index("", "") == -1 //@ diag(`!strings.Contains`)
-	_ = strings.Index("", "") != 0
-	_ = strings.Index("", "") < 0 //@ diag(`!strings.Contains`)
+	_ = stringspkg.Index("", "") > -1 //@ diag(` stringspkg.Contains`)
+	_ = stringspkg.Index("", "") >= 0 //@ diag(` stringspkg.Contains`)
+	_ = stringspkg.Index("", "") > 0
+	_ = stringspkg.Index("", "") >= -1
+	_ = stringspkg.Index("", "") != -1 //@ diag(` stringspkg.Contains`)
+	_ = stringspkg.Index("", "") == -1 //@ diag(`!stringspkg.Contains`)
+	_ = stringspkg.Index("", "") != 0
+	_ = stringspkg.Index("", "") < 0 //@ diag(`!stringspkg.Contains`)
 
 	_ = bytes.IndexRune(nil, 'x') > -1 //@ diag(` bytes.ContainsRune`)
 	_ = bytes.IndexAny(nil, "") > -1   //@ diag(` bytes.ContainsAny`)
 	_ = bytes.Index(nil, nil) > -1     //@ diag(` bytes.Contains`)
+
+	strings := indexer{}
+	bytes := indexer{}
+	_ = strings.Index("", "") > -1
+	_ = bytes.Index("", "") > -1
 }
