@@ -103,7 +103,7 @@ func LoadPackages(t testing.TB, ar *txtar.Archive, patterns ...string) []*packag
 			packages.NeedTypes,
 		Dir: dir,
 		Env: append(os.Environ(),
-			"GO111MODULES=on",
+			"GO111MODULE=on",
 			"GOPATH=",
 			"GOWORK=off",
 			"GOPROXY=off"),
