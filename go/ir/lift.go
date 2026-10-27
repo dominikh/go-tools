@@ -995,12 +995,18 @@ func replaceAll(x, y Value) {
 	var rands []*Value
 	pxrefs := x.Referrers()
 	pyrefs := y.Referrers()
-	for _, instr := range *pxrefs {
+	refs := *pxrefs
+	// Referrers follow operand order, so repeated operands produce adjacent entries.
+	for i := 0; i < len(refs); {
+		instr := refs[i]
+		end := i + 1
+		for end < len(refs) && refs[end] == instr {
+			end++
+		}
+
 		switch instr := instr.(type) {
 		case *CompositeValue:
 			// Special case CompositeValue because it might have very large lists of operands
-			//
-			// OPT(dh): this loop is still expensive for large composite values
 			for i, rand := range instr.Values {
 				if rand == x {
 					instr.Values[i] = y
@@ -1017,8 +1023,9 @@ func replaceAll(x, y Value) {
 			}
 		}
 		if pyrefs != nil {
-			*pyrefs = append(*pyrefs, instr) // dups ok
+			*pyrefs = append(*pyrefs, refs[i:end]...) // dups ok
 		}
+		i = end
 	}
 	*pxrefs = nil // x is now unreferenced
 }
