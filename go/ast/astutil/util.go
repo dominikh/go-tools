@@ -257,7 +257,7 @@ func Equal(a, b ast.Node) bool {
 		if len(a.Elts) != len(b.Elts) {
 			return false
 		}
-		for i, elt := range b.Elts {
+		for i, elt := range a.Elts {
 			if !Equal(elt, b.Elts[i]) {
 				return false
 			}
