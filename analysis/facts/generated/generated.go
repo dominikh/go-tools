@@ -1,10 +1,9 @@
 package generated
 
 import (
-	"bufio"
 	"bytes"
-	"io"
-	"os"
+	"go/parser"
+	"go/token"
 	"reflect"
 	"strings"
 
@@ -27,52 +26,45 @@ var (
 	oldCgo = []byte("// Created by cgo - DO NOT EDIT")
 	prefix = []byte("// Code generated ")
 	suffix = []byte(" DO NOT EDIT.")
-	nl     = []byte("\n")
-	crnl   = []byte("\r\n")
 )
 
 func isGenerated(path string) (Generator, bool) {
-	f, err := os.Open(path)
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments|parser.PackageClauseOnly|parser.SkipObjectResolution)
 	if err != nil {
 		return 0, false
 	}
-	defer f.Close()
-	br := bufio.NewReader(f)
-	for {
-		s, err := br.ReadBytes('\n')
-		if err != nil && err != io.EOF {
-			return 0, false
-		}
-		s = bytes.TrimSuffix(s, crnl)
-		s = bytes.TrimSuffix(s, nl)
-		if bytes.HasPrefix(s, prefix) && bytes.HasSuffix(s, suffix) {
-			if len(s)-len(suffix) < len(prefix) {
+	for _, group := range f.Comments {
+		for _, comment := range group.List {
+			if comment.Pos() >= f.Package {
+				continue
+			}
+			s := []byte(comment.Text)
+			if bytes.HasPrefix(s, prefix) && bytes.HasSuffix(s, suffix) {
+				if len(s)-len(suffix) < len(prefix) {
+					return Unknown, true
+				}
+
+				text := string(s[len(prefix) : len(s)-len(suffix)])
+				switch text {
+				case "by goyacc.":
+					return Goyacc, true
+				case "by cmd/cgo;":
+					return Cgo, true
+				case "by protoc-gen-go.":
+					return ProtocGenGo, true
+				}
+				if strings.HasPrefix(text, `by "stringer `) {
+					return Stringer, true
+				}
+				if strings.HasPrefix(text, `by goyacc `) {
+					return Goyacc, true
+				}
+
 				return Unknown, true
 			}
-
-			text := string(s[len(prefix) : len(s)-len(suffix)])
-			switch text {
-			case "by goyacc.":
-				return Goyacc, true
-			case "by cmd/cgo;":
+			if bytes.Equal(s, oldCgo) {
 				return Cgo, true
-			case "by protoc-gen-go.":
-				return ProtocGenGo, true
 			}
-			if strings.HasPrefix(text, `by "stringer `) {
-				return Stringer, true
-			}
-			if strings.HasPrefix(text, `by goyacc `) {
-				return Goyacc, true
-			}
-
-			return Unknown, true
-		}
-		if bytes.Equal(s, oldCgo) {
-			return Cgo, true
-		}
-		if err == io.EOF {
-			break
 		}
 	}
 	return 0, false
