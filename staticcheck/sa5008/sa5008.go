@@ -65,7 +65,7 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 			tags, err := parseStructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
 			if err != nil {
-				report.Report(pass, field.Tag, fmt.Sprintf("unparseable struct tag: %s", err))
+				report.Report(pass, field.Tag, fmt.Sprintf("unparsable struct tag: %s", err))
 				continue
 			}
 			for k, v := range tags {
