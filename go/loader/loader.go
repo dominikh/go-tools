@@ -269,9 +269,11 @@ func (prog *program) loadFromSource(spec *PackageSpec) (*Package, error) {
 		}
 		fi, err := f.Stat()
 		if err != nil {
+			f.Close()
 			return nil, err
 		}
 		if fi.Size() >= MaxFileSize {
+			f.Close()
 			return nil, errMaxFileSize
 		}
 		af, err := parser.ParseFile(prog.fset, file, f, parser.ParseComments|parser.SkipObjectResolution)
