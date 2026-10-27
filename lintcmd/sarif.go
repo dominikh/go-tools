@@ -65,9 +65,8 @@ package lintcmd
 // identical, as SARIF requires that either the ID and name are
 // different, or that the name is omitted.
 
-// FIXME(dh): we're currently reporting column information using UTF-8
-// byte offsets, not using Unicode code points or UTF-16, which are
-// the only two ways allowed by SARIF.
+// SARIF column values use UTF-16 code units; sarifColumn converts the byte-based
+// columns used by token.Position when source text is available.
 
 // TODO(dh) set properties.tags – we can use different tags for the
 // staticcheck, simple, stylecheck and unused checks, so users can
@@ -76,11 +75,13 @@ package lintcmd
 import (
 	"encoding/json"
 	"fmt"
+	"go/token"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf16"
 
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/sarif"
@@ -90,6 +91,34 @@ type sarifFormatter struct {
 	driverName    string
 	driverVersion string
 	driverWebsite string
+	fileContents  map[string][]byte
+}
+
+// sarifColumn converts a Go token.Position column, which counts UTF-8 bytes,
+// to the UTF-16 code units required by SARIF. If the source file is unavailable
+// or the position is invalid, it falls back to the original column.
+func (o *sarifFormatter) sarifColumn(pos token.Position) int {
+	if !pos.IsValid() || pos.Column <= 0 || pos.Offset < pos.Column-1 {
+		return pos.Column
+	}
+	if o.fileContents == nil {
+		o.fileContents = map[string][]byte{}
+	}
+	data, ok := o.fileContents[pos.Filename]
+	if !ok {
+		var err error
+		data, err = os.ReadFile(pos.Filename)
+		if err != nil {
+			return pos.Column
+		}
+		o.fileContents[pos.Filename] = data
+	}
+	start := pos.Offset - (pos.Column - 1)
+	if start < 0 || pos.Offset > len(data) {
+		return pos.Column
+	}
+	prefix := string(data[start:pos.Offset])
+	return len(utf16.Encode([]rune(prefix))) + 1
 }
 
 func sarifLevel(severity lint.Severity) string {
@@ -290,9 +319,9 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 				ArtifactLocation: sarifArtifactLocation(p.Position.Filename),
 				Region: sarif.Region{
 					StartLine:   p.Position.Line,
-					StartColumn: p.Position.Column,
+					StartColumn: o.sarifColumn(p.Position),
 					EndLine:     p.End.Line,
-					EndColumn:   p.End.Column,
+					EndColumn:   o.sarifColumn(p.End),
 				},
 			},
 		}}
@@ -308,9 +337,9 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 				changes[edit.Position.Filename] = append(changes[edit.Position.Filename], sarif.Replacement{
 					DeletedRegion: sarif.Region{
 						StartLine:   edit.Position.Line,
-						StartColumn: edit.Position.Column,
+						StartColumn: o.sarifColumn(edit.Position),
 						EndLine:     edit.End.Line,
-						EndColumn:   edit.End.Column,
+						EndColumn:   o.sarifColumn(edit.End),
 					},
 					InsertedContent: sarif.ArtifactContent{
 						Text: string(edit.NewText),
@@ -338,9 +367,9 @@ func (o *sarifFormatter) Format(checks []*lint.Analyzer, diagnostics []diagnosti
 						ArtifactLocation: sarifArtifactLocation(related.Position.Filename),
 						Region: sarif.Region{
 							StartLine:   related.Position.Line,
-							StartColumn: related.Position.Column,
+							StartColumn: o.sarifColumn(related.Position),
 							EndLine:     related.End.Line,
-							EndColumn:   related.End.Column,
+							EndColumn:   o.sarifColumn(related.End),
 						},
 					},
 				})
