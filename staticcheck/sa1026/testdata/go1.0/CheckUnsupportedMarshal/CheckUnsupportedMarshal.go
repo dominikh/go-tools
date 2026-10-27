@@ -164,9 +164,15 @@ func addressabilityXML() {
 func mapsJSON() {
 	var good map[int]string
 	var bad map[interface{}]string
+	var badBool map[bool]string
+	var badFloat map[float64]string
+	var badComplex map[complex64]string
 	// the map key has to be statically known good; it must be a number or a string
 	json.Marshal(good)
 	json.Marshal(bad) //@ diag(`unsupported type map[interface{}]string`)
+	json.Marshal(badBool)    //@ diag(`unsupported type map[bool]string`)
+	json.Marshal(badFloat)   //@ diag(`unsupported type map[float64]string`)
+	json.Marshal(badComplex) //@ diag(`unsupported type map[complex64]string`)
 
 	var m1 map[string]PointerMarshaler
 	json.Marshal(m1)                                //@ diag(`unsupported type PointerMarshaler, via x[k]`)
