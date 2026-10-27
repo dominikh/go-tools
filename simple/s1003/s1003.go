@@ -83,6 +83,7 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		var r ast.Expr
+		var opts []report.Option
 		switch funIdent.Name {
 		case "IndexRune":
 			r = &ast.SelectorExpr{
@@ -99,6 +100,12 @@ func run(pass *analysis.Pass) (any, error) {
 				X:   pkgIdent,
 				Sel: &ast.Ident{Name: "Contains"},
 			}
+		case "IndexFunc":
+			r = &ast.SelectorExpr{
+				X:   pkgIdent,
+				Sel: &ast.Ident{Name: "ContainsFunc"},
+			}
+			opts = append(opts, report.MinimumStdlibVersion("go1.21"))
 		default:
 			return
 		}
@@ -114,9 +121,10 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 		}
 
-		report.Report(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)),
+		opts = append(opts,
 			report.FilterGenerated(),
 			report.Fixes(edit.Fix(fmt.Sprintf("Simplify use of %s", report.Render(pass, call.Fun)), edit.ReplaceWithNode(pass.Fset, node, r))))
+		report.Report(pass, node, fmt.Sprintf("should use %s instead", report.Render(pass, r)), opts...)
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil

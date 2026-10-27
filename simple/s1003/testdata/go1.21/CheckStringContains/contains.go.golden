@@ -1,0 +1,11 @@
+package pkg
+
+import (
+	"bytes"
+	"strings"
+)
+
+func fn() {
+	_ = bytes.ContainsFunc(nil, func(r rune) bool { return false })  //@ diag(`bytes.ContainsFunc`)
+	_ = strings.ContainsFunc("", func(r rune) bool { return false }) //@ diag(`strings.ContainsFunc`)
+}
