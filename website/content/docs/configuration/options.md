@@ -26,6 +26,15 @@ set of known initialisms can be configured with this option.
 
 Default value: `["ACL", "API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "QPS", "RAM", "RPC", "SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI", "GID", "UID", "UUID", "URI", "URL", "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "SIP", "RTP", "AMQP", "DB", "TS"]`
 
+## proper_nouns {#proper_nouns}
+
+{{< check "ST1005" >}} flags error strings that start with a capital letter.
+Proper nouns are allowed to be capitalized, and this option configures the set
+of proper nouns that the check knows about. The match is case-sensitive and only
+applies to the first word of the error string.
+
+Default value: `["Amazon", "Android", "Ansible", "Azure", "Cloudflare", "Consul", "Docker", "Elasticsearch", "Envoy", "Etcd", "Grafana", "Heroku", "Istio", "Jenkins", "Jira", "Kafka", "Kibana", "Kubernetes", "Linux", "Nginx", "Nomad", "Postgres", "Prometheus", "Redis", "Terraform", "Travis", "Vault", "Windows"]`
+
 ## dot_import_whitelist {#dot_import_whitelist}
 
 By default, {{< check "ST1001" >}} forbids

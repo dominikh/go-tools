@@ -9,6 +9,7 @@ import (
 	"honnef.co/go/tools/analysis/code"
 	"honnef.co/go/tools/analysis/lint"
 	"honnef.co/go/tools/analysis/report"
+	"honnef.co/go/tools/config"
 	"honnef.co/go/tools/go/ir"
 	"honnef.co/go/tools/go/ir/irutil"
 	"honnef.co/go/tools/internal/passes/buildir"
@@ -20,7 +21,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "ST1005",
 		Run:      run,
-		Requires: []*analysis.Analyzer{buildir.Analyzer},
+		Requires: []*analysis.Analyzer{buildir.Analyzer, config.Analyzer},
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Incorrectly formatted error string`,
@@ -34,8 +35,12 @@ Quoting Go Code Review Comments:
 > usually printed following other context. That is, use
 > \'fmt.Errorf("something bad")\' not \'fmt.Errorf("Something bad")\', so
 > that \'log.Printf("Reading %s: %v", filename, err)\' formats without a
-> spurious capital letter mid-message.`,
+> spurious capital letter mid-message.
+
+The set of proper nouns that are allowed to start an error string can be
+configured with the proper_nouns option.`,
 		Since:   "2019.1",
+		Options: []string{"proper_nouns"},
 		MergeIf: lint.MergeIfAny,
 	},
 })
@@ -43,6 +48,12 @@ Quoting Go Code Review Comments:
 var Analyzer = SCAnalyzer.Analyzer
 
 func run(pass *analysis.Pass) (any, error) {
+	pn := config.For(pass).ProperNouns
+	properNouns := make(map[string]bool, len(pn))
+	for _, word := range pn {
+		properNouns[word] = true
+	}
+
 	objNames := map[*ir.Package]map[string]bool{}
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 	objNames[irpkg] = map[string]bool{}
@@ -113,6 +124,10 @@ func run(pass *analysis.Pass) (any, error) {
 				word = strings.TrimRightFunc(word, func(r rune) bool { return unicode.IsPunct(r) })
 				if objNames[fn.Package()][word] {
 					// Word is probably the name of a function or type in this package
+					continue
+				}
+				if properNouns[word] {
+					// Word is a known proper noun and is allowed to be capitalized
 					continue
 				}
 				// First word in error starts with a capital
