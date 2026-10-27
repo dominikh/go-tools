@@ -58,3 +58,6 @@ type T14 struct{}
 
 // A does stuff.
 type A struct{}
+
+// Deprecated: don't use.
+type T15 struct{}
