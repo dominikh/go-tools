@@ -289,7 +289,19 @@ func (e *Encoder) marshalAttr(start *StartElement, name Name, val fakereflect.Ty
 
 func (e *Encoder) marshalSimple(val fakereflect.TypeAndCanAddr, stack string) error {
 	switch val.Type.Underlying().(type) {
-	case *types.Basic, *types.Interface:
+	case *types.Basic:
+		basic := val.Type.Underlying().(*types.Basic)
+		switch basic.Kind() {
+		case types.Bool,
+			types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
+			types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64, types.Uintptr,
+			types.Float32, types.Float64, types.String,
+			types.UntypedBool, types.UntypedInt, types.UntypedRune, types.UntypedFloat, types.UntypedString, types.UntypedNil:
+			return nil
+		default:
+			return &UnsupportedTypeError{val.Type, stack}
+		}
+	case *types.Interface:
 		return nil
 	case *types.Slice, *types.Array:
 		basic, ok := val.Elem().Type.Underlying().(*types.Basic)
