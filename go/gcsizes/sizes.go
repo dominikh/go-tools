@@ -7,7 +7,6 @@
 package gcsizes
 
 import (
-	"go/build"
 	"go/types"
 )
 
@@ -20,7 +19,7 @@ type Sizes struct {
 func ForArch(arch string) *Sizes {
 	wordSize := int64(8)
 	maxAlign := int64(8)
-	switch build.Default.GOARCH {
+	switch arch {
 	case "386", "arm":
 		wordSize, maxAlign = 4, 4
 	case "amd64p32":
