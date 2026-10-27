@@ -141,6 +141,18 @@ func RedundantTypeInDeclarationChecker(verb string, flagHelpfulTypes bool) *anal
 						continue specLoop
 					}
 					Trhs := pass.TypesInfo.TypeOf(v)
+					// Removing the explicit type from a generic method value can
+					// make the declaration invalid: without the contextual type,
+					// the method's type parameters cannot be inferred.
+					if sel, ok := v.(*ast.SelectorExpr); ok {
+						if selection := pass.TypesInfo.Selections[sel]; selection != nil {
+							if fn, ok := selection.Obj().(*types.Func); ok {
+								if sig, ok := fn.Type().(*types.Signature); ok && sig.TypeParams().Len() > 0 {
+									continue specLoop
+								}
+							}
+						}
+					}
 					if !types.Identical(Tlhs, Trhs) {
 						continue specLoop
 					}
