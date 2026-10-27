@@ -30,6 +30,14 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestMatchNilASTField(t *testing.T) {
+	p := MustParse(`(BranchStmt "BREAK" (Ident _))`)
+	stmt := &ast.BranchStmt{Tok: token.BREAK}
+	if _, ok := Match(p, stmt); ok {
+		t.Fatal("pattern matched a branch statement with a nil label")
+	}
+}
+
 func FuzzParse(f *testing.F) {
 	var files []*ast.File
 	fset := token.NewFileSet()
