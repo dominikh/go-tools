@@ -186,6 +186,9 @@ func findSwitchPairs(pass *analysis.Pass, expr ast.Expr, pairs *[]*ast.BinaryExp
 	}
 	switch binexpr.Op {
 	case token.EQL:
+		if code.IsNil(pass, binexpr.X) {
+			return false
+		}
 		if code.MayHaveSideEffects(pass, binexpr.X, nil) || code.MayHaveSideEffects(pass, binexpr.Y, nil) {
 			return false
 		}
