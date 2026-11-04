@@ -6,9 +6,11 @@ import (
 	"go/ast"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 	"golang.org/x/tools/go/analysis"
@@ -20,33 +22,76 @@ import (
 // such directory could be determined, for example because all files
 // were located in Go's build cache.
 func Dir(files []string) string {
-	if len(files) == 0 {
-		return ""
-	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		cache = ""
-	}
-	var path string
+	return dir(files, buildCacheDir())
+}
+
+// dir is like Dir, but takes the path of Go's build cache as an
+// argument. Files located in the build cache get skipped, because
+// they are generated files that don't belong to any user package. A
+// buildCache of "" disables the skipping.
+func dir(files []string, buildCache string) string {
 	for _, p := range files {
-		// FIXME(dh): using strings.HasPrefix isn't technically
-		// correct, but it should be good enough for now.
-		if cache != "" && strings.HasPrefix(p, cache) {
+		if buildCache != "" && inDir(buildCache, p) {
 			// File in the build cache of the standard Go build system
 			continue
 		}
-		path = p
-		break
+		return filepath.Dir(p)
 	}
 
-	if path == "" {
-		// The package only consists of generated files.
-		return ""
-	}
-
-	dir := filepath.Dir(path)
-	return dir
+	// The package only consists of generated files.
+	return ""
 }
+
+// inDir reports whether path is located in dir, or in one of its
+// subdirectories.
+func inDir(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// buildCacheDir returns the path of Go's build cache, that is, the
+// value of GOCACHE. It returns "" if the build cache is turned off.
+//
+// We used to approximate the build cache with os.UserCacheDir, but
+// that is wrong in both directions: it skips user packages that
+// happen to live anywhere below the user cache directory, and it
+// misses the build cache whenever GOCACHE is set to a directory
+// outside of it.
+var buildCacheDir = sync.OnceValue(func() string {
+	// The GOCACHE environment variable takes precedence. Note that
+	// cmd/go explicitly sets GOCACHE for its child processes.
+	if dir := os.Getenv("GOCACHE"); dir != "" {
+		if dir == "off" {
+			return ""
+		}
+		if filepath.IsAbs(dir) {
+			return filepath.Clean(dir)
+		}
+		// A relative GOCACHE would be resolved by cmd/go; fall
+		// through to asking it.
+	}
+	// Ask the go tool, which also accounts for GOCACHE set in the
+	// go/env file.
+	if out, err := exec.Command("go", "env", "GOCACHE").Output(); err == nil {
+		if dir := strings.TrimSpace(string(out)); dir != "" {
+			if dir == "off" {
+				return ""
+			}
+			if filepath.IsAbs(dir) {
+				return filepath.Clean(dir)
+			}
+		}
+	}
+	// Fall back to the default location of the build cache, below
+	// the user cache directory.
+	if cache, err := os.UserCacheDir(); err == nil {
+		return filepath.Join(cache, "go-build")
+	}
+	return ""
+})
 
 func dirAST(files []*ast.File, fset *token.FileSet) string {
 	names := make([]string, len(files))
