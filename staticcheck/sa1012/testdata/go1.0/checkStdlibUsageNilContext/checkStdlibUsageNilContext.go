@@ -8,7 +8,12 @@ func fn4()                              {}
 
 type T struct{}
 
-func (*T) Foo() {}
+func (*T) Foo()                    {}
+func (*T) Bar(ctx context.Context) {}
+
+type I interface {
+	Bar(ctx context.Context)
+}
 
 func fn3() {
 	fn1(nil) //@ diag(`do not pass a nil Context`)
@@ -21,4 +26,13 @@ func fn3() {
 	// and don't crash on these
 	_ = (func())(nil)
 	(*T).Foo(nil)
+
+	var t *T
+	t.Bar(nil) //@ diag(`do not pass a nil Context`)
+	(*T).Bar(nil, context.Background())
+	((*T).Bar)(nil, context.Background())
+	I.Bar(nil, context.Background())
+	(context.Context).Value(nil, "k")
+	(*T).Bar(t, nil)   //@ diag(`do not pass a nil Context`)
+	(*T).Bar(nil, nil) //@ diag(`do not pass a nil Context`)
 }
