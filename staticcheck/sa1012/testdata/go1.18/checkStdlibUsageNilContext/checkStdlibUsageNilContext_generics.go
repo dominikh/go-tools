@@ -5,10 +5,17 @@ import "context"
 func tpfn1[T any](ctx context.Context, x T)             {}
 func tpfn2[T1, T2 any](ctx context.Context, x T1, y T2) {}
 
+type GT[T any] struct{}
+
+func (*GT[T]) Bar(ctx context.Context, x T) {}
+
 func tpbar() {
 	tpfn1[int](nil, 0) //@ diag(`do not pass a nil Context`)
 	tpfn1(nil, 0)      //@ diag(`do not pass a nil Context`)
 
 	tpfn2[int, int](nil, 0, 0) //@ diag(`do not pass a nil Context`)
 	tpfn2(nil, 0, 0)           //@ diag(`do not pass a nil Context`)
+
+	(*GT[int]).Bar(nil, context.Background(), 0)
+	(*GT[int]).Bar(nil, nil, 0) //@ diag(`do not pass a nil Context`)
 }

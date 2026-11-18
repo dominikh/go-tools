@@ -33,7 +33,9 @@ e.g. \'context.TODO\' or \'context.Background\'.`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-var checkNilContextQ = pattern.MustParse(`(CallExpr fun@(Symbol _) (Builtin "nil"):_)`)
+var checkNilContextQ = pattern.MustParse(`(Or
+	(CallExpr fun@(Symbol _) (Builtin "nil"):_)
+	(CallExpr fun@(Symbol _) _:(Builtin "nil"):_))`)
 
 func run(pass *analysis.Pass) (any, error) {
 	todo := &ast.CallExpr{
@@ -49,20 +51,32 @@ func run(pass *analysis.Pass) (any, error) {
 			// it might also be a builtin
 			continue
 		}
+		argIdx := 0
+		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+			if selection, ok := pass.TypesInfo.Selections[sel]; ok && selection.Kind() == types.MethodExpr {
+				// In a method expression like (*T).Foo(recv, ctx), call.Args[0]
+				// is the receiver and call.Args[1] is the method's first parameter.
+				argIdx = 1
+			}
+		}
+		if len(call.Args) <= argIdx {
+			continue
+		}
+		arg := call.Args[argIdx]
+		if id, ok := ast.Unparen(arg).(*ast.Ident); !ok || pass.TypesInfo.ObjectOf(id) != types.Universe.Lookup("nil") {
+			continue
+		}
 		sig := fun.Type().(*types.Signature)
 		if sig.Params().Len() == 0 {
-			// Our CallExpr might've matched a method expression, like
-			// (*T).Foo(nil) – here, nil isn't the first argument of
-			// the Foo method, but the method receiver.
 			continue
 		}
 		if !typeutil.IsTypeWithName(sig.Params().At(0).Type(), "context.Context") {
 			continue
 		}
-		report.Report(pass, call.Args[0],
+		report.Report(pass, arg,
 			"do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use", report.Fixes(
-				edit.Fix("Use context.TODO", edit.ReplaceWithNode(pass.Fset, call.Args[0], todo)),
-				edit.Fix("Use context.Background", edit.ReplaceWithNode(pass.Fset, call.Args[0], bg))))
+				edit.Fix("Use context.TODO", edit.ReplaceWithNode(pass.Fset, arg, todo)),
+				edit.Fix("Use context.Background", edit.ReplaceWithNode(pass.Fset, arg, bg))))
 	}
 	return nil, nil
 }
