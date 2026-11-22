@@ -27,6 +27,8 @@ type PackageSpec struct {
 	ID      string
 	Name    string
 	PkgPath string
+	// Dir is the directory containing the package's source files.
+	Dir string
 	// Errors that occurred while building the import graph. These will
 	// primarily be parse errors or failure to resolve imports, but
 	// may also be other errors.
@@ -89,6 +91,7 @@ func Graph(cfg *packages.Config, patterns ...string) ([]*PackageSpec, error) {
 			ID:              pkg.ID,
 			Name:            pkg.Name,
 			PkgPath:         pkg.PkgPath,
+			Dir:             pkg.Dir,
 			Errors:          pkg.Errors,
 			GoFiles:         pkg.GoFiles,
 			CompiledGoFiles: pkg.CompiledGoFiles,
