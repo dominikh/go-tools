@@ -18,6 +18,12 @@ func computeHash(pkg *PackageSpec) (cache.ActionID, error) {
 	fmt.Fprintf(key, "goos %s goarch %s\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Fprintf(key, "import %q\n", pkg.PkgPath)
 
+	// Include the package's directory in the key. The build ID of the
+	// export data doesn't include the directory when -trimpath is used, but
+	// cached diagnostics refer to source files by absolute path, so
+	// identical packages in different directories must not share results.
+	fmt.Fprintf(key, "dir %q\n", pkg.Dir)
+
 	// Compute the hashes of all files making up the package. As an
 	// optimization, we use the build ID that Go already computed for us,
 	// because it is virtually identical to hashing all CompiledGoFiles. It is
