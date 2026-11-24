@@ -635,7 +635,9 @@ func (or Or) Match(m *Matcher, node any) (any, bool) {
 }
 
 func (not Not) Match(m *Matcher, node any) (any, bool) {
+	m.push()
 	_, ok := match(m, not.Node, node)
+	m.pop()
 	if ok {
 		return nil, false
 	}
