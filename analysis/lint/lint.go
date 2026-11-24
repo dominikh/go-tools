@@ -22,7 +22,7 @@ type Analyzer struct {
 }
 
 func InitializeAnalyzer(a *Analyzer) *Analyzer {
-	a.Analyzer.Doc = a.Doc.Compile().String()
+	a.Analyzer.Doc = a.Doc.compilePlain().String()
 	a.Analyzer.URL = "https://staticcheck.dev/docs/checks/#" + a.Analyzer.Name
 	a.Analyzer.Requires = append(a.Analyzer.Requires, tokenfile.Analyzer)
 	return a
@@ -94,12 +94,37 @@ func (doc RawDocumentation) Compile() *Documentation {
 	}
 }
 
+// compilePlain is like Compile but leaves the Markdown fields empty. It
+// is used during package initialization, where only the plain text is
+// needed, to avoid rendering Markdown for every analyzer at startup.
+func (doc RawDocumentation) compilePlain() *Documentation {
+	return &Documentation{
+		Title:      strings.TrimSpace(stripMarkdown(doc.Title)),
+		Text:       strings.TrimSpace(stripMarkdown(doc.Text)),
+		Before:     strings.TrimSpace(doc.Before),
+		After:      strings.TrimSpace(doc.After),
+		Since:      doc.Since,
+		NonDefault: doc.NonDefault,
+		Options:    doc.Options,
+		Severity:   doc.Severity,
+		MergeIf:    doc.MergeIf,
+	}
+}
+
+// The replacers are shared: a strings.Replacer builds its lookup tables
+// on first use, and building them once per call dominated the cost of
+// initializing the analyzers.
+var (
+	markdownReplacer = strings.NewReplacer(`\'`, "`", `\"`, "`")
+	plainReplacer    = strings.NewReplacer(`\'`, "", `\"`, "'")
+)
+
 func toMarkdown(s string) string {
-	return strings.NewReplacer(`\'`, "`", `\"`, "`").Replace(s)
+	return markdownReplacer.Replace(s)
 }
 
 func stripMarkdown(s string) string {
-	return strings.NewReplacer(`\'`, "", `\"`, "'").Replace(s)
+	return plainReplacer.Replace(s)
 }
 
 func (doc *Documentation) Format(metadata bool) string {
