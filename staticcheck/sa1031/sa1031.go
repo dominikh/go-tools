@@ -45,10 +45,15 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) callcheck.Check {
 	return func(call *callcheck.Call) {
 		dst := call.Args[dstArg]
 		src := call.Args[srcArg]
-		_, dstConst := irutil.Flatten(dst.Value.Value).(*ir.Const)
-		_, srcConst := irutil.Flatten(src.Value.Value).(*ir.Const)
+		dstValue := irutil.Flatten(dst.Value.Value)
+		srcValue := irutil.Flatten(src.Value.Value)
+		_, dstConst := dstValue.(*ir.Const)
+		_, srcConst := srcValue.(*ir.Const)
 		if dstConst || srcConst {
 			// one of the arguments is nil, therefore overlap is not possible
+			return
+		}
+		if isEmptySlice(dstValue) || isEmptySlice(srcValue) {
 			return
 		}
 		if dst.Value == src.Value {
@@ -56,11 +61,11 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) callcheck.Check {
 			dst.Invalid("overlapping dst and src")
 			return
 		}
-		dstSlice, ok := irutil.Flatten(dst.Value.Value).(*ir.Slice)
+		dstSlice, ok := dstValue.(*ir.Slice)
 		if !ok {
 			return
 		}
-		srcSlice, ok := irutil.Flatten(src.Value.Value).(*ir.Slice)
+		srcSlice, ok := srcValue.(*ir.Slice)
 		if !ok {
 			return
 		}
@@ -78,4 +83,33 @@ func checkNonOverlappingDstSrc(dstArg, srcArg int) callcheck.Check {
 			return
 		}
 	}
+}
+
+func isEmptySlice(v ir.Value) bool {
+	switch v := v.(type) {
+	case *ir.MakeSlice:
+		return isZero(v.Len)
+	case *ir.Slice:
+		if v.High == nil {
+			return (v.Low == nil || isZero(v.Low)) && isEmptySlice(v.X)
+		}
+		if v.Low == nil {
+			return isZero(v.High)
+		}
+		low := irutil.Flatten(v.Low)
+		high := irutil.Flatten(v.High)
+		if low != nil && low == high {
+			return true
+		}
+		lower, lowerOK := low.(*ir.Const)
+		upper, upperOK := high.(*ir.Const)
+		return lowerOK && upperOK && constant.Compare(lower.Value, token.EQL, upper.Value)
+	default:
+		return false
+	}
+}
+
+func isZero(v ir.Value) bool {
+	c, ok := irutil.Flatten(v).(*ir.Const)
+	return ok && constant.Sign(c.Value) == 0
 }
